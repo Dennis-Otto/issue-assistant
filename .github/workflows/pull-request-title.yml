@@ -1,7 +1,10 @@
-name: Pull request labels
+name: Pull request title
 
-# Labels sort every merged pull request into its section of the release notes
-# (see .github/release.yml). They follow the Conventional Commit type of the title.
+# Pull requests are squashed into one commit named after their title, and the release
+# bot builds the version and the changelog from these names. So the title must be a
+# Conventional Commit; its type also sets the label of the pull request.
+# https://github.com/Dennis-Otto/repo-blueprint
+
 on:
   pull_request_target:
     types: [opened, edited, reopened, synchronize]
@@ -10,22 +13,26 @@ permissions:
   contents: read
 
 concurrency:
-  group: pr-labels-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  label:
-    name: Label by title
-    if: github.repository == 'Dennis-Otto/issue-assistant'
+  title:
+    name: conventional title
+    if: ${{ !github.event.repository.fork }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       issues: write
       pull-requests: write
     steps:
-      # Never check out or run pull request code in this privileged workflow;
-      # the title only reaches the script through an environment variable.
-      - name: Check the title and set the release-note label
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+      # Never check out or run pull request code in this privileged workflow; the
+      # title only reaches the script through an environment variable.
+      - name: Check the title and set the label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -35,7 +42,7 @@ jobs:
         run: |
           pattern='^(feat|fix|docs|perf|refactor|test|ci|build|chore|style|revert)(\([a-z0-9._/-]+\))?(!)?: .+'
           if [[ ! "$TITLE" =~ $pattern ]]; then
-            echo "::error::Use a Conventional Commit title such as 'feat(lifecycle): remind after a custom period'."
+            echo "::error::Use a Conventional Commit title such as 'feat(settings): add a dark mode' or 'fix: keep the token secret'."
             exit 1
           fi
           type="${BASH_REMATCH[1]}"
@@ -49,13 +56,12 @@ jobs:
           esac
           if [[ "$scope" == "(deps)" || "$scope" == "(deps-dev)" ]]; then wanted=(dependencies); fi
           if [[ "$scope" == "(security)" ]]; then wanted=(security); fi
-          if [[ "$scope" == "(release)" ]]; then wanted=(release); fi
-          if [[ "$BRANCH" == release/* ]]; then wanted=(release); fi
-          # A release PR such as "chore: release 1.7.0" stays out of its own notes.
-          release_title='^chore(\(release\))?: release v?[0-9]+\.[0-9]+\.[0-9]+'
-          if [[ "$TITLE" =~ $release_title ]]; then wanted=(release); fi
+          if [[ "$scope" == "(i18n)" ]]; then wanted=(translations); fi
+          # The release bot's pull request, "chore: release 1.7.0", is no change of its own.
+          if [[ "$TITLE" =~ ^chore(\(release\))?:\ release\ v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then wanted=(release); fi
+          if [[ "$BRANCH" == release-please--* ]]; then wanted=(release); fi
           if [[ -n "$breaking" ]]; then wanted+=(breaking-change); fi
-          managed=(enhancement bug documentation maintenance dependencies release breaking-change security)
+          managed=(enhancement bug documentation maintenance dependencies release breaking-change security translations)
           current="$(gh pr view "$NUMBER" --json labels --jq '.labels[].name')"
           for label in "${managed[@]}"; do
             want=false

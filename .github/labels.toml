@@ -1,4 +1,18 @@
-# Every label of this repository, synchronized by the Labels workflow; see README.md#settings.
+# Every label of the repository. The Labels workflow of the issue assistant
+# (https://github.com/Dennis-Otto/issue-assistant) creates missing labels and updates
+# color and description from this file when it changes on main; it never deletes a
+# label. Rename a label on GitHub first, then here.
+#
+# group decides who sets a label:
+#   type       the kind of an issue; the issue forms set one, the assistant may correct it
+#   area       the part of the project; set from the Area field and by the assistant
+#   topic      cross-cutting topics the assistant may add
+#   lifecycle  set and removed by the issue assistant's rules
+#   decision   set by the maintainer only
+#   release    set by the pull request title check and the release bot
+#   dependabot set by Dependabot on its pull requests
+#
+# ask = false keeps the assistant from asking reporters of that kind for information.
 
 # Types
 
@@ -34,7 +48,7 @@ color = "6f42c1"
 description = "CI, repository maintenance and release tooling"
 group = "type"
 
-# Areas
+# Areas: one per part of the project, with the options of the Area field.
 
 [[label]]
 name = "area: analysis"
@@ -60,9 +74,15 @@ form_options = ["Install, check, templates or labels"]
 # Topics
 
 [[label]]
-name = "security"
-color = "ee0701"
-description = "Fixes a vulnerability or hardens security"
+name = "accessibility"
+color = "f143ab"
+description = "Barrier affecting people with disabilities"
+group = "topic"
+
+[[label]]
+name = "translations"
+color = "c5def5"
+description = "User interface or documentation translations"
 group = "topic"
 
 # Lifecycle
@@ -106,7 +126,7 @@ group = "lifecycle"
 [[label]]
 name = "fixed-in-next-release"
 color = "c2e0c6"
-description = "Fixed on the default branch; closes with a link when a release ships the fix"
+description = "Fixed on main; closes with a link when a release ships the fix"
 group = "lifecycle"
 
 # Decisions
@@ -115,6 +135,12 @@ group = "lifecycle"
 name = "confirmed"
 color = "0e8a16"
 description = "Reproduced and accepted"
+group = "decision"
+
+[[label]]
+name = "upstream"
+color = "d4c5f9"
+description = "Caused by a project this one builds on"
 group = "decision"
 
 [[label]]
@@ -135,12 +161,18 @@ color = "7057ff"
 description = "Good for newcomers"
 group = "decision"
 
-# Release notes
+# Release: set from the title of a pull request, and by the release bot
 
 [[label]]
 name = "breaking-change"
 color = "b60205"
 description = "Repositories must change their set-up"
+group = "release"
+
+[[label]]
+name = "security"
+color = "ee0701"
+description = "Fixes a vulnerability or hardens security"
 group = "release"
 
 [[label]]
@@ -152,25 +184,41 @@ group = "release"
 [[label]]
 name = "release"
 color = "5319e7"
-description = "Release preparation"
+description = "The pull request of the release bot"
 group = "release"
 
 [[label]]
-name = "skip-changelog"
+name = "autorelease: pending"
 color = "ededed"
-description = "Leave out of the release notes"
+description = "Release bot: the pull request of the next release, until it is released"
+group = "release"
+
+[[label]]
+name = "autorelease: tagged"
+color = "ededed"
+description = "Release bot: the release is created"
+group = "release"
+
+[[label]]
+name = "merge-conflict"
+color = "b60205"
+description = "Conflicts with main; the branch bot can't bring it up to date"
 group = "release"
 
 # Dependabot
 
 [[label]]
+name = "github_actions"
+color = "000000"
+description = "Pull requests that update GitHub Actions code"
+group = "dependabot"
+[[label]]
 name = "python"
 color = "2b67c6"
 description = "Pull requests that update python code"
 group = "dependabot"
-
 [[label]]
-name = "github_actions"
-color = "000000"
-description = "Pull requests that update GitHub Actions code"
+name = "docker"
+color = "21ceff"
+description = "Pull requests that update docker code"
 group = "dependabot"

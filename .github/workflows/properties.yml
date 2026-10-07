@@ -1,0 +1,59 @@
+name: Property tests
+
+# The property tests with new random inputs every night, beyond the fixed inputs of
+# the CI. A failure shows its seed in the summary; run the workflow by hand with that
+# seed to replay it. https://github.com/Dennis-Otto/repo-blueprint
+
+on:
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: The seed to replay; empty for a random one
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  properties:
+    name: properties
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - name: Install the hash-pinned tools
+        run: |
+          requirements="requirements-dev.txt"
+          if [[ -f requirements-test.txt ]]; then
+            requirements="requirements-test.txt"
+          fi
+          pip install --require-hashes -r "$requirements"
+      - name: Run the property tests with random inputs
+        env:
+          SEED: ${{ inputs.seed }}
+        run: |
+          seed="${SEED:-$RANDOM$RANDOM}"
+          echo "Seed: \`$seed\`" >> "$GITHUB_STEP_SUMMARY"
+          options=()
+          if python -c "import pytest_timeout" 2>/dev/null; then
+            options+=(--timeout=120)
+          fi
+          status=0
+          python -m pytest -m hypothesis --hypothesis-profile=local --hypothesis-seed="$seed" "${options[@]}" || status=$?
+          # 5: the project has no property tests yet.
+          if [[ "$status" == 5 ]]; then
+            echo "No property tests to run." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          exit "$status"

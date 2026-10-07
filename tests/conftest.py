@@ -1,15 +1,24 @@
 """A sample repository with the issue assistant installed, as a git checkout."""
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+from hypothesis import settings
 
 import issue_assistant as assistant
 from support import REF, REPOSITORY
 
 SAMPLE = Path(__file__).parent / "sample"
+
+# Property tests try fixed inputs in the CI, so that a run repeats exactly, and new
+# random ones locally and in the nightly Property tests workflow, which can replay a
+# seed.
+settings.register_profile("ci", deadline=None, derandomize=True, print_blob=True)
+settings.register_profile("local", deadline=None)
+settings.load_profile("ci" if os.environ.get("CI") else "local")
 
 
 def git(root: Path, *args: str) -> None:

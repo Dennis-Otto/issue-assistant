@@ -1,25 +1,13 @@
 name: Fuzzing
 
-# Coverage-guided fuzzing of the cleaning of the AI's text with Atheris
-# (fuzz/fuzz_sanitize.py): a minute for every change of the code it covers, and
-# fifteen minutes every week. A finding fails the run; the input that caused it is
-# in the log of the run.
+# Coverage-guided fuzzing with Atheris of every target in fuzz/: a minute each on
+# every change, a quarter of an hour each every week. A finding fails the run, with
+# the input that caused it in the log. https://github.com/Dennis-Otto/repo-blueprint
 
 on:
-  pull_request:
-    paths:
-      - issue_assistant.py
-      - fuzz/**
-      - tests/oracle.py
-      - requirements-fuzz.txt
-      - .github/workflows/fuzz.yml
   push:
     branches: [main]
-    paths:
-      - issue_assistant.py
-      - fuzz/**
-      - tests/oracle.py
-      - requirements-fuzz.txt
+  pull_request:
   schedule:
     - cron: "23 3 * * 0"
   workflow_dispatch:
@@ -28,30 +16,40 @@ permissions:
   contents: read
 
 concurrency:
-  group: fuzz-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   fuzz:
-    name: fuzz the cleaning
+    name: fuzz
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
+          # Atheris supports Python 3.12.
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements-fuzz.txt
-      - name: Install hash-pinned Atheris
+      - name: Install the hash-pinned Atheris
         run: pip install --require-hashes -r requirements-fuzz.txt
-      - name: Fuzz
+      - name: Fuzz every target
         env:
           SECONDS_TO_FUZZ: ${{ github.event_name == 'schedule' && '900' || '60' }}
         run: |
-          mkdir -p "${RUNNER_TEMP}/corpus"
-          python fuzz/fuzz_sanitize.py "${RUNNER_TEMP}/corpus" \
-            -max_total_time="${SECONDS_TO_FUZZ}" -rss_limit_mb=2048 \
-            -artifact_prefix="${RUNNER_TEMP}/"
+          shopt -s nullglob
+          for target in fuzz/fuzz_*.py; do
+            echo "::group::$target"
+            corpus="$RUNNER_TEMP/corpus/$(basename "$target" .py)"
+            mkdir -p "$corpus"
+            python "$target" "$corpus" -max_total_time="$SECONDS_TO_FUZZ" \
+              -rss_limit_mb=2048 -artifact_prefix="$RUNNER_TEMP/"
+            echo "::endgroup::"
+          done

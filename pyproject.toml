@@ -1,10 +1,5 @@
-[project]
-name = "issue-assistant"
-version = "1.2.2"
-description = "First analysis, labels, duplicates and reminders for GitHub issues, with an AI that only reads."
-readme = "README.md"
-license = "MIT"
-requires-python = ">=3.12"
+# The settings of the tools that scripts/check.sh runs. The release bot keeps the
+# version in version.txt.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -23,6 +18,8 @@ skip_covered = true
 [tool.ruff]
 # GitHub's Ubuntu 24.04 runners run the action with their Python 3.12.
 target-version = "py312"
+# The settings tool of the blueprint, which the blueprint keeps current.
+extend-exclude = [".github/blueprint.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]

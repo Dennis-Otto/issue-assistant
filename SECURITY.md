@@ -33,4 +33,15 @@ Out of scope, and reported to their own projects instead: the Claude Code action
 
 ## Secrets
 
-The action stores no secrets. A repository keeps the engine's token as a secret of its environment `issue-assistant`, which only the default branch may use; only the job that runs the engine sees it, and the job that writes to GitHub never does. Every pull request and every push to `main` is scanned with Gitleaks, and CodeQL analyzes the script and the workflows.
+The action stores no secrets. A repository keeps the engine's token as a secret of its environment `issue-assistant`, which only the default branch may use; only the job that runs the engine sees it, and the job that writes to GitHub never does.
+
+## How the project keeps itself secure
+
+- Every pull request and every push to `main` runs CodeQL, a Gitleaks secret scan and, for changed dependencies, a review against known vulnerabilities. OpenSSF Scorecard checks the practices of the repository every week.
+- Actions are pinned to commit hashes, tokens get the least permissions they need, and Dependabot keeps actions and dependencies current.
+- Harden-Runner records the network traffic of every job of the workflows, so that a connection that doesn't belong there shows.
+- Releases carry an SBOM and signed build provenance, are immutable once published, and are verified as their users can after every release and every week.
+
+## Findings of code scanning
+
+CodeQL and OpenSSF Scorecard report their findings in the repository's Security tab. The Findings workflow of the [issue assistant](https://github.com/Dennis-Otto/issue-assistant#findings) dismisses the findings that `.github/findings.toml` accepts, each with its reason, and fails while any other finding is open. It names an open finding only by the number and link of its alert, which only maintainers can open; nothing about a possible vulnerability becomes a public issue.

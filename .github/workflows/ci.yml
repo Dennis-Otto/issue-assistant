@@ -1,0 +1,76 @@
+name: CI (github-action)
+
+# GitHub Action: the hash-pinned tools of requirements-dev.txt and the checks of
+# scripts/check.sh, the same ones that run locally, and a run of the action with
+# its defaults, as its users run it. https://github.com/Dennis-Otto/repo-blueprint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: check (github-action)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install the hash-pinned tools
+        run: pip install --require-hashes -r requirements-dev.txt
+      - name: Run the checks
+        run: bash scripts/check.sh
+      - name: Show the coverage
+        if: always() && hashFiles('.coverage') != ''
+        run: |
+          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+          coverage xml -o "$RUNNER_TEMP/coverage.xml"
+      - name: Keep the coverage report
+        if: always() && hashFiles('.coverage') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: ${{ runner.temp }}/coverage.xml
+          retention-days: 14
+
+  newest-python:
+    name: check (newest Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The newest Python, beta included, warns early of what the next Python of the
+      # runners breaks.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.x"
+          allow-prereleases: true
+      - name: Install the hash-pinned tools
+        run: pip install --require-hashes -r requirements-dev.txt
+      - name: Run the checks
+        run: bash scripts/check.sh
