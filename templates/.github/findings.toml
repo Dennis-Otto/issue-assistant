@@ -1,0 +1,14 @@
+# Findings of code scanning (CodeQL, OpenSSF Scorecard and other tools) that this
+# repository accepts, each with its reason. The Findings workflow of the issue
+# assistant (https://github.com/Dennis-Otto/issue-assistant) dismisses matching
+# alerts with this reason and fails while any other alert is open. Its run names an
+# open alert only by number and link; nothing becomes a public issue.
+#
+# Accept a finding only when fixing it is impossible or wrong, and say why:
+#
+# [[accept]]
+# tool = "Scorecard"       # the tool as code scanning names it
+# rule = "CodeReviewID"    # the rule, such as py/unused-import or BranchProtectionID
+# reason = "won't fix"     # false positive, won't fix or used in tests
+# comment = "One maintainer: nobody else can approve a pull request."
+# path = "tests/"          # optional: only alerts in files under this path

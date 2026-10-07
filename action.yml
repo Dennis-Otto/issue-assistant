@@ -7,7 +7,7 @@ branding:
 
 inputs:
   command:
-    description: event, engine, context, apply, sweep, sync-labels or check
+    description: event, engine, context, apply, sweep, sync-labels, findings or check
     required: true
   issue:
     description: Number of the issue, for context and apply

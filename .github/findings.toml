@@ -1,0 +1,21 @@
+# Findings of code scanning that this repository accepts, each with its reason.
+# The Findings workflow dismisses matching alerts with this reason and fails while
+# any other alert is open; see README.md#findings.
+
+[[accept]]
+tool = "Scorecard"
+rule = "CodeReviewID"
+reason = "won't fix"
+comment = "One maintainer: nobody else can approve a pull request. Every change still goes through a pull request with all required checks."
+
+[[accept]]
+tool = "Scorecard"
+rule = "BranchProtectionID"
+reason = "won't fix"
+comment = "Required approvals would block the only maintainer. main requires pull requests, all checks, linear history and no force pushes."
+
+[[accept]]
+tool = "Scorecard"
+rule = "MaintainedID"
+reason = "won't fix"
+comment = "Scorecard counts a repository younger than 90 days as unmaintained; this one gets commits and releases every week."

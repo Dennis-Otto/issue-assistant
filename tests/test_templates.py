@@ -242,11 +242,17 @@ def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_co
     triggers = lifecycle[True]
     assert triggers["pull_request_target"] == {"types": ["closed"]}
     assert triggers["release"] == {"types": ["published"]}
+    # A release published with the GITHUB_TOKEN starts no workflow.
+    assert triggers["workflow_run"] == {
+        "workflows": ["Release"],
+        "types": ["completed"],
+    }
     assert "pull_request" not in triggers
     (job,) = lifecycle["jobs"].values()
     condition = " ".join(job["if"].split())
     assert "github.event.pull_request.merged" in condition
     assert "github.event.pull_request.user.login != 'dependabot[bot]'" in condition
+    assert "github.event.workflow_run.conclusion == 'success'" in condition
     assert job["permissions"] == {
         "contents": "read",
         "issues": "write",
@@ -256,6 +262,27 @@ def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_co
     # The default branch: no ref of the pull request, no credentials left behind.
     assert checkout["with"] == {"persist-credentials": False}
     assert step["with"]["command"] == "sweep"
+
+
+def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
+    findings = load(TEMPLATES / "findings.yml")
+    triggers = findings[True]
+    assert set(triggers) == {"schedule", "push", "workflow_run", "workflow_dispatch"}
+    assert triggers["push"] == {
+        "branches": ["main"],
+        "paths": [assistant.FINDINGS_FILE.as_posix()],
+    }
+    assert triggers["workflow_dispatch"]["inputs"]["dry_run"]["default"] is True
+    (job,) = findings["jobs"].values()
+    assert job["permissions"] == {"contents": "read", "security-events": "write"}
+    condition = " ".join(job["if"].split())
+    # Only code scanning of the default branch of this repository, never of a fork.
+    assert "head_repository.full_name == github.repository" in condition
+    assert "head_branch == github.event.repository.default_branch" in condition
+    checkout, step = job["steps"]
+    assert checkout["with"] == {"persist-credentials": False}
+    assert step["with"]["command"] == "findings"
+    assert "environment" not in job and job["runs-on"] == "ubuntu-latest"
 
 
 def test_the_firewall_template_allows_only_named_hosts():
