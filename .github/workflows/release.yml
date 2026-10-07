@@ -1,0 +1,70 @@
+name: Release
+
+# Publishes a release when a pull request that adds a version section to
+# CHANGELOG.md reaches main: the tag vX.Y.Z, the moving major tag vX and a GitHub
+# release whose notes start with that section. Repositories that use the action
+# pin its commit hash; Dependabot proposes the new release there.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - CHANGELOG.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'Dennis-Otto/issue-assistant'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Read the newest version of the changelog
+        id: version
+        run: |
+          version="$(grep -m1 -oP '^## \K[0-9]+\.[0-9]+\.[0-9]+(?=\s*$)' CHANGELOG.md || true)"
+          project="$(grep -m1 -oP '^version = "\K[^"]+' pyproject.toml)"
+          if [[ -z "$version" ]]; then
+            echo "::error::CHANGELOG.md has no '## x.y.z' section."
+            exit 1
+          fi
+          if [[ "$version" != "$project" ]]; then
+            echo "::error::CHANGELOG.md says $version, pyproject.toml says $project."
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already released."
+          else
+            echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          fi
+          awk -v heading="## $version" '
+            $0 == heading { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+      - name: Tag and publish the release
+        if: steps.version.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          major="${TAG%%.*}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
+          git tag -fa "$major" -m "$TAG" "$GITHUB_SHA"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$TAG" "+refs/tags/$major"
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md --generate-notes
+          echo "Released $TAG ($GITHUB_SHA)." >> "$GITHUB_STEP_SUMMARY"

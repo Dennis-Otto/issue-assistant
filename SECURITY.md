@@ -1,0 +1,36 @@
+# Security policy
+
+## Supported versions
+
+Security fixes are provided for the latest release. Repositories that use the action pin its commit hash; merge the Dependabot pull request of a new release to receive a fix.
+
+## Reporting a vulnerability
+
+Please do not open a public issue, discussion or pull request for a suspected vulnerability. Use GitHub's private vulnerability reporting for this repository:
+
+<https://github.com/Dennis-Otto/issue-assistant/security/advisories/new>
+
+Include the affected release, the repository set-up, reproduction steps and the potential impact. Reports in English or German are welcome.
+
+Of particular interest are ways in which the text of an issue or a comment makes the AI read outside the checkout, run anything, reach the network, or get text past the checks of `apply`, for example a secret, a mention or a link to a foreign site.
+
+## What happens next
+
+| Step | Target |
+| --- | --- |
+| Acknowledgement of the report | within 7 days |
+| First assessment, including whether the report is accepted | within 14 days |
+| Fix released for a confirmed vulnerability | as fast as possible, at the latest within 90 days |
+| Public disclosure | when the fixed release is available, in a GitHub security advisory and the release notes |
+
+If a fix needs longer, for example because the cause lies in an upstream project, you receive an update at least every 14 days. Reporters are credited in the advisory and the release notes unless they prefer to stay anonymous.
+
+## Scope
+
+In scope are the action (`action.yml`, `issue_assistant.py`), its prompts, the workflow and firewall templates, and the CI and release workflows of this repository.
+
+Out of scope, and reported to their own projects instead: the Claude Code action and Claude Code (<https://github.com/anthropics/claude-code-action/security>), GitHub Actions and its egress firewall (<https://bounty.github.com>).
+
+## Secrets
+
+The action stores no secrets. A repository keeps the engine's token as a secret of its environment `issue-assistant`, which only the default branch may use; only the job that runs the engine sees it, and the job that writes to GitHub never does. Every pull request and every push to `main` is scanned with Gitleaks, and CodeQL analyzes the script and the workflows.

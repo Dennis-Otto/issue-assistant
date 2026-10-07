@@ -1,0 +1,23 @@
+name: Bug report
+description: Something does not work.
+labels:
+  - bug
+  - needs-triage
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Live card
+        - Training card
+        - X01 game
+        - Setup
+        - Documentation
+        - Other

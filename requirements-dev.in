@@ -1,0 +1,8 @@
+# Tools for the tests and checks; compile requirements-dev.txt with
+#   pip-compile --generate-hashes --allow-unsafe requirements-dev.in
+coverage
+mypy
+pytest
+pyyaml
+ruff
+types-pyyaml

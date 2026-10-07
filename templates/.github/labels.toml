@@ -1,0 +1,82 @@
+# Every label of the repository. The Labels workflow creates missing labels and
+# updates color and description from this file when it changes on main; it never
+# deletes a label. Rename a label on GitHub first, then here.
+#
+# group decides who sets a label:
+#   type       the kind of an issue; the issue forms set one, the assistant may correct it
+#   area       the part of the project; set from the Area field of a form and by the assistant
+#   topic      cross-cutting topics the assistant may add
+#   lifecycle  set and removed by the assistant's rules; all six are required
+#   decision   set by the maintainer only
+#   release    set on pull requests, for the release notes
+#   dependabot set by Dependabot on its pull requests
+#
+# form_options lists the answers of the Area field that choose a label.
+# ask = false keeps the assistant from asking reporters of that kind for information.
+
+[[label]]
+name = "bug"
+color = "d73a4a"
+description = "Something isn't working"
+group = "type"
+
+[[label]]
+name = "enhancement"
+color = "a2eeef"
+description = "New feature or improvement"
+group = "type"
+ask = false
+
+[[label]]
+name = "question"
+color = "d876e3"
+description = "A question about setup or use"
+group = "type"
+
+[[label]]
+name = "documentation"
+color = "0075ca"
+description = "Improvements or additions to documentation"
+group = "type"
+
+[[label]]
+name = "needs-triage"
+color = "fbca04"
+description = "Not yet reviewed by a maintainer"
+group = "lifecycle"
+
+[[label]]
+name = "needs-info"
+color = "fef2c0"
+description = "Waiting for the reporter: reminder after 15 days, closed after 30 days"
+group = "lifecycle"
+
+[[label]]
+name = "stale"
+color = "f9d0c4"
+description = "Reminder sent; closes 15 days later without an answer"
+group = "lifecycle"
+
+[[label]]
+name = "possible-duplicate"
+color = "e4e4e4"
+description = "Closes as a duplicate 3 days after the notice unless someone objects"
+group = "lifecycle"
+
+[[label]]
+name = "duplicate"
+color = "cfd3d7"
+description = "This issue or pull request already exists"
+group = "lifecycle"
+
+[[label]]
+name = "invalid"
+color = "e4e669"
+description = "Spam, or not about this project"
+group = "lifecycle"
+
+[[label]]
+name = "wontfix"
+color = "ffffff"
+description = "This will not be worked on"
+group = "decision"

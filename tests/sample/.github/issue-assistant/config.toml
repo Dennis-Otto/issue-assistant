@@ -1,0 +1,12 @@
+[engine]
+name = "claude"
+
+[links]
+hosts = ["www.home-assistant.io", "docs.autodarts.io"]
+
+[forms]
+area_field = "Area"
+unmapped_options = ["Other"]
+
+[transparency]
+files = ["SUPPORT.md"]

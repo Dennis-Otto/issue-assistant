@@ -1,0 +1,70 @@
+name: Pull request labels
+
+# Labels sort every merged pull request into its section of the release notes
+# (see .github/release.yml). They follow the Conventional Commit type of the title.
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-labels-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: Label by title
+    if: github.repository == 'Dennis-Otto/issue-assistant'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      # Never check out or run pull request code in this privileged workflow;
+      # the title only reaches the script through an environment variable.
+      - name: Check the title and set the release-note label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          pattern='^(feat|fix|docs|perf|refactor|test|ci|build|chore|style|revert)(\([a-z0-9._/-]+\))?(!)?: .+'
+          if [[ ! "$TITLE" =~ $pattern ]]; then
+            echo "::error::Use a Conventional Commit title such as 'feat(lifecycle): remind after a custom period'."
+            exit 1
+          fi
+          type="${BASH_REMATCH[1]}"
+          scope="${BASH_REMATCH[2]}"
+          breaking="${BASH_REMATCH[3]}"
+          case "$type" in
+            feat) wanted=(enhancement) ;;
+            fix | perf) wanted=(bug) ;;
+            docs) wanted=(documentation) ;;
+            *) wanted=(maintenance) ;;
+          esac
+          if [[ "$scope" == "(deps)" || "$scope" == "(deps-dev)" ]]; then wanted=(dependencies); fi
+          if [[ "$scope" == "(security)" ]]; then wanted=(security); fi
+          if [[ "$scope" == "(release)" ]]; then wanted=(release); fi
+          if [[ "$BRANCH" == release/* ]]; then wanted=(release); fi
+          # A release PR such as "chore: release 1.7.0" stays out of its own notes.
+          release_title='^chore(\(release\))?: release v?[0-9]+\.[0-9]+\.[0-9]+'
+          if [[ "$TITLE" =~ $release_title ]]; then wanted=(release); fi
+          if [[ -n "$breaking" ]]; then wanted+=(breaking-change); fi
+          managed=(enhancement bug documentation maintenance dependencies release breaking-change security)
+          current="$(gh pr view "$NUMBER" --json labels --jq '.labels[].name')"
+          for label in "${managed[@]}"; do
+            want=false
+            for item in "${wanted[@]}"; do
+              if [[ "$item" == "$label" ]]; then want=true; fi
+            done
+            has=false
+            if grep -qx "$label" <<<"$current"; then has=true; fi
+            if [[ "$want" == true && "$has" == false ]]; then gh pr edit "$NUMBER" --add-label "$label"; fi
+            if [[ "$want" == false && "$has" == true ]]; then gh pr edit "$NUMBER" --remove-label "$label"; fi
+          done
+          echo "Labels: ${wanted[*]}" >> "$GITHUB_STEP_SUMMARY"

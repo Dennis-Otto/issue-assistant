@@ -1,0 +1,22 @@
+# Settings of the issue assistant: https://github.com/Dennis-Otto/issue-assistant
+
+[engine]
+# The AI engine that writes the analysis; its secret belongs to the environment
+# issue-assistant. Leave out model for the engine's default.
+name = "claude"
+# model = "claude-opus-5-5"
+
+[links]
+# Hosts that links in the assistant's comments may lead to, besides this repository.
+hosts = []
+
+[forms]
+# The dropdown of the issue forms whose answer chooses an area label, and the
+# answers that choose none.
+area_field = "Area"
+unmapped_options = ["Other"]
+
+[transparency]
+# Files that tell reporters which AI reads their issue; the check command makes sure
+# they name the engine.
+files = ["SUPPORT.md"]

@@ -1,0 +1,170 @@
+# Every label of this repository, synchronized by the Labels workflow; see README.md#settings.
+
+# Types
+
+[[label]]
+name = "bug"
+color = "d73a4a"
+description = "Something isn't working"
+group = "type"
+
+[[label]]
+name = "enhancement"
+color = "a2eeef"
+description = "New feature or improvement"
+group = "type"
+ask = false
+
+[[label]]
+name = "question"
+color = "d876e3"
+description = "A question about setup or use"
+group = "type"
+
+[[label]]
+name = "documentation"
+color = "0075ca"
+description = "Improvements or additions to documentation"
+group = "type"
+form_options = ["Documentation"]
+
+[[label]]
+name = "maintenance"
+color = "6f42c1"
+description = "CI, repository maintenance and release tooling"
+group = "type"
+
+# Areas
+
+[[label]]
+name = "area: analysis"
+color = "bfdadc"
+description = "The first analysis, follow-ups, prompts, engines and the checks of answers"
+group = "area"
+form_options = ["First analysis or follow-up"]
+
+[[label]]
+name = "area: lifecycle"
+color = "bfdadc"
+description = "Reminders, closing, reopening and duplicates"
+group = "area"
+form_options = ["Reminders, closing or duplicates"]
+
+[[label]]
+name = "area: setup"
+color = "bfdadc"
+description = "Install, check, the templates and the labels"
+group = "area"
+form_options = ["Install, check, templates or labels"]
+
+# Topics
+
+[[label]]
+name = "security"
+color = "ee0701"
+description = "Fixes a vulnerability or hardens security"
+group = "topic"
+
+# Lifecycle
+
+[[label]]
+name = "needs-triage"
+color = "fbca04"
+description = "Not yet reviewed by a maintainer"
+group = "lifecycle"
+
+[[label]]
+name = "needs-info"
+color = "fef2c0"
+description = "Waiting for the reporter: reminder after 15 days, closed after 30 days"
+group = "lifecycle"
+
+[[label]]
+name = "stale"
+color = "f9d0c4"
+description = "Reminder sent; closes 15 days later without an answer"
+group = "lifecycle"
+
+[[label]]
+name = "possible-duplicate"
+color = "e4e4e4"
+description = "Closes as a duplicate 3 days after the notice unless someone objects"
+group = "lifecycle"
+
+[[label]]
+name = "duplicate"
+color = "cfd3d7"
+description = "This issue or pull request already exists"
+group = "lifecycle"
+
+[[label]]
+name = "invalid"
+color = "e4e669"
+description = "Spam, or not about this project"
+group = "lifecycle"
+
+# Decisions
+
+[[label]]
+name = "confirmed"
+color = "0e8a16"
+description = "Reproduced and accepted"
+group = "decision"
+
+[[label]]
+name = "wontfix"
+color = "ffffff"
+description = "This will not be worked on"
+group = "decision"
+
+[[label]]
+name = "help wanted"
+color = "008672"
+description = "Extra attention is needed"
+group = "decision"
+
+[[label]]
+name = "good first issue"
+color = "7057ff"
+description = "Good for newcomers"
+group = "decision"
+
+# Release notes
+
+[[label]]
+name = "breaking-change"
+color = "b60205"
+description = "Repositories must change their set-up"
+group = "release"
+
+[[label]]
+name = "dependencies"
+color = "0366d6"
+description = "Dependency updates"
+group = "release"
+
+[[label]]
+name = "release"
+color = "5319e7"
+description = "Release preparation"
+group = "release"
+
+[[label]]
+name = "skip-changelog"
+color = "ededed"
+description = "Leave out of the release notes"
+group = "release"
+
+# Dependabot
+
+[[label]]
+name = "python"
+color = "2b67c6"
+description = "Pull requests that update python code"
+group = "dependabot"
+
+[[label]]
+name = "github_actions"
+color = "000000"
+description = "Pull requests that update GitHub Actions code"
+group = "dependabot"

@@ -1,0 +1,80 @@
+name: Issue assistant
+description: First analysis of new issues by an AI that only reads, plus labels, duplicates and reminders, all checked before posting.
+author: Dennis Otto
+branding:
+  icon: message-circle
+  color: blue
+
+inputs:
+  command:
+    description: event, engine, context, apply, sweep, sync-labels or check
+    required: true
+  issue:
+    description: Number of the issue, for context and apply
+    required: false
+    default: ""
+  mode:
+    description: Task of the engine (triage, follow-up or maintainer-reply), for context and apply
+    required: false
+    default: ""
+  answer:
+    description: The engine's JSON answer, for apply
+    required: false
+    default: ""
+  engine:
+    description: The engine that wrote the answer, for apply
+    required: false
+    default: ""
+  ready-engines:
+    description: Engines whose secret exists, separated by commas, for engine
+    required: false
+    default: ""
+  dry-run:
+    description: Only report what would be written
+    required: false
+    default: "false"
+  github-token:
+    description: Token for the GitHub API; the job's permissions limit it
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  issue:
+    description: The issue of the event
+    value: ${{ steps.run.outputs.issue }}
+  mode:
+    description: The engine's next task, or none
+    value: ${{ steps.run.outputs.mode }}
+  engine:
+    description: The engine of the repository's config.toml
+    value: ${{ steps.run.outputs.engine }}
+  ready:
+    description: Whether the engine's secret exists
+    value: ${{ steps.run.outputs.ready }}
+  model:
+    description: The engine's model
+    value: ${{ steps.run.outputs.model }}
+  prompt:
+    description: The prompt for the engine
+    value: ${{ steps.run.outputs.prompt }}
+  schema:
+    description: The JSON schema of the engine's answer
+    value: ${{ steps.run.outputs.schema }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        COMMAND: ${{ inputs.command }}
+        ISSUE: ${{ inputs.issue }}
+        MODE: ${{ inputs.mode }}
+        RESULT: ${{ inputs.answer }}
+        ENGINE: ${{ inputs.engine }}
+        READY_ENGINES: ${{ inputs.ready-engines }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        GH_REPO: ${{ github.repository }}
+      # Every value reaches the script through the environment, never the script text.
+      run: python3 "$GITHUB_ACTION_PATH/issue_assistant.py" "$COMMAND"

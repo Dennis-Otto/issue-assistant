@@ -1,0 +1,14 @@
+# Settings of the issue assistant for its own repository; see README.md#settings.
+
+[engine]
+name = "claude"
+
+[links]
+hosts = ["docs.github.com", "docs.anthropic.com"]
+
+[forms]
+area_field = "Area"
+unmapped_options = ["Other"]
+
+[transparency]
+files = ["SUPPORT.md"]

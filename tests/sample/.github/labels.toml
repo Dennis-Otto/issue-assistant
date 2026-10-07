@@ -1,0 +1,103 @@
+# The labels of the sample repository the tests look after.
+
+[[label]]
+name = "bug"
+color = "d73a4a"
+description = "Something isn't working"
+group = "type"
+
+[[label]]
+name = "enhancement"
+color = "a2eeef"
+description = "New feature or improvement"
+group = "type"
+ask = false
+
+[[label]]
+name = "question"
+color = "d876e3"
+description = "A question about setup or use"
+group = "type"
+
+[[label]]
+name = "feedback"
+color = "0e8a16"
+description = "Experiences from real setups"
+group = "type"
+ask = false
+
+[[label]]
+name = "documentation"
+color = "0075ca"
+description = "Improvements or additions to documentation"
+group = "type"
+form_options = ["Documentation"]
+
+[[label]]
+name = "area: cards"
+color = "bfdadc"
+description = "Dashboard cards"
+group = "area"
+form_options = ["Live card", "Training card"]
+
+[[label]]
+name = "area: games"
+color = "bfdadc"
+description = "Games"
+group = "area"
+form_options = ["X01 game"]
+
+[[label]]
+name = "area: setup"
+color = "bfdadc"
+description = "Setup"
+group = "area"
+form_options = ["Setup"]
+
+[[label]]
+name = "accessibility"
+color = "f143ab"
+description = "Barrier affecting people with disabilities"
+group = "topic"
+
+[[label]]
+name = "needs-triage"
+color = "fbca04"
+description = "Not yet reviewed by a maintainer"
+group = "lifecycle"
+
+[[label]]
+name = "needs-info"
+color = "fef2c0"
+description = "Waiting for the reporter: reminder after 15 days, closed after 30 days"
+group = "lifecycle"
+
+[[label]]
+name = "stale"
+color = "f9d0c4"
+description = "Reminder sent; closes 15 days later without an answer"
+group = "lifecycle"
+
+[[label]]
+name = "possible-duplicate"
+color = "e4e4e4"
+description = "Closes as a duplicate 3 days after the notice unless someone objects"
+group = "lifecycle"
+
+[[label]]
+name = "duplicate"
+color = "cfd3d7"
+description = "This issue or pull request already exists"
+group = "lifecycle"
+
+[[label]]
+name = "invalid"
+color = "e4e669"
+description = "Spam, or not about this project"
+group = "lifecycle"
+
+[[label]]
+name = "wontfix"
+color = "ffffff"
+description = "This will not be worked on"
+group = "decision"

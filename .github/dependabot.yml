@@ -1,0 +1,69 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    # Let a fresh release settle for a week; security updates skip the wait.
+    cooldown:
+      default-days: 7
+    groups:
+      python-routine:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore
+      include: scope
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:20"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      actions-routine:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # The actions of the templates, which repositories install.
+  - package-ecosystem: github-actions
+    directory: /templates
+    ignore:
+      # The templates name the action itself with a placeholder that install fills.
+      - dependency-name: Dennis-Otto/issue-assistant
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:25"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      template-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore
+      include: scope

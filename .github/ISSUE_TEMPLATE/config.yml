@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Dennis-Otto/issue-assistant/security/advisories/new
+    about: Report vulnerabilities privately, never in a public issue.
+  - name: Problems with Claude Code or the Claude Code action
+    url: https://github.com/anthropics/claude-code-action/issues
+    about: Problems of the AI engine itself belong to its project.

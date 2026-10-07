@@ -1,0 +1,5 @@
+self-hosted-runner:
+  labels:
+    # GitHub's runner with the egress firewall (technical preview), which this
+    # version of actionlint does not know yet.
+    - ubuntu-24.04-firewall
