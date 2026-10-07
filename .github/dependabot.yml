@@ -1,58 +1,9 @@
-# Dependabot keeps the actions and the dependencies current. Routine updates merge on
-# their own once every check passes (dependabot-automerge.yml). Updates of what the
-# users run are committed as fix(deps) and lead to a patch release; updates of the
-# tools are chore(deps) and wait for the next release.
+# Renovate keeps the actions, the dependencies and the images current
+# (.github/renovate.json5). Dependabot keeps only the Features of the dev container,
+# because it alone also updates their lock file, .devcontainer/devcontainer-lock.json.
+# Their updates merge on their own once every check passes (dependabot-automerge.yml).
 version: 2
 updates:
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-      time: "04:20"
-      timezone: Europe/Berlin
-    open-pull-requests-limit: 5
-    # Let a fresh release settle for a week; security updates skip the wait.
-    cooldown:
-      default-days: 7
-    groups:
-      actions-routine:
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-      actions-major:
-        patterns:
-          - "*"
-        update-types:
-          - major
-    commit-message:
-      prefix: chore
-      include: scope
-
-  # The browser of scripts/social-preview.sh and the image of the dev container.
-  - package-ecosystem: docker
-    directories:
-      - /.github/social-preview
-      - /.devcontainer
-    schedule:
-      interval: monthly
-      timezone: Europe/Berlin
-    cooldown:
-      default-days: 7
-    # The dev container keeps the Python, PHP or Node of the project, as the CI does;
-    # only its digest moves.
-    ignore:
-      - dependency-name: "devcontainers/*"
-        update-types:
-          - version-update:semver-major
-          - version-update:semver-minor
-    commit-message:
-      prefix: chore
-      include: scope
-
-  # The Features of the dev container, locked in .devcontainer/devcontainer-lock.json.
   - package-ecosystem: devcontainers
     directory: /
     schedule:
@@ -64,33 +15,6 @@ updates:
       dev-container-features:
         patterns:
           - "*"
-    commit-message:
-      prefix: chore
-      include: scope
-
-  # The hash-pinned tools of the checks.
-  - package-ecosystem: pip
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-      time: "04:00"
-      timezone: Europe/Berlin
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 7
-    groups:
-      python-routine:
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-      python-major:
-        patterns:
-          - "*"
-        update-types:
-          - major
     commit-message:
       prefix: chore
       include: scope
