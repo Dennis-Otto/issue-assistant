@@ -1893,13 +1893,19 @@ def load_yaml(path: Path) -> Any:
     """A YAML file as data, with PyYAML or with yq, which GitHub's runners have."""
     try:
         import yaml
-    except ImportError:  # pragma: no cover - only on runners without PyYAML
-        result = subprocess.run(
-            ["yq", "-o=json", ".", str(path)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+    except ImportError:
+        try:
+            result = subprocess.run(
+                ["yq", "-o=json", ".", str(path)],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except FileNotFoundError:
+            raise AssistantError(
+                "Reading the workflows needs PyYAML or yq; install one of them, "
+                "for example with: pip install pyyaml"
+            ) from None
         return json.loads(result.stdout)
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
@@ -2099,10 +2105,12 @@ def install(root: Path, ref: str, version: str) -> list[str]:
         done.append(f"wrote {target.relative_to(root).as_posix()}")
     firewall = root / FIREWALL
     if firewall.is_file():
-        done.append(f"kept {FIREWALL}; check that it allows the template's hosts")
+        done.append(
+            f"kept {FIREWALL.as_posix()}; check that it allows the template's hosts"
+        )
     else:
         shutil.copyfile(TOOL / FIREWALL, firewall)
-        done.append(f"wrote {FIREWALL}")
+        done.append(f"wrote {FIREWALL.as_posix()}")
     for starter in STARTERS:
         target = root / starter
         if not target.is_file():

@@ -2,6 +2,13 @@
 
 All notable changes of the issue assistant. The complete notes of every version, with each pull request, are on the [releases page](https://github.com/Dennis-Otto/issue-assistant/releases). Versions follow [Semantic Versioning](https://semver.org/); a change of a template that repositories must install again is a new minor version, and one that breaks their settings a new major version.
 
+## Unreleased
+
+### Fixed
+
+- `install` names the firewall policy with forward slashes on Windows too.
+- `check` says what to install when neither PyYAML nor yq can read the workflows, instead of failing with a traceback.
+
 ## 1.0.1
 
 ### Fixed
