@@ -57,7 +57,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Remind, close and mark fixed issues
-        uses: Dennis-Otto/issue-assistant@624f648d1d13834f51c9c9d19e98c49e68439a3c # v1.2.0
+        uses: Dennis-Otto/issue-assistant@a12fb7227ff7d966809cad4e043e159977fccfcd # v1.2.2
         with:
           command: sweep
           dry-run: ${{ inputs.dry_run || false }}
