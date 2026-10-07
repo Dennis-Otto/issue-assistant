@@ -317,3 +317,31 @@ def test_another_checkout_can_be_checked(monkeypatch, tmp_path, root):
         monkeypatch, tmp_path, elsewhere, None, "check", ISSUE_ASSISTANT_ROOT=str(root)
     )
     assert code == 0 and "Everything fits." in summary
+
+
+# Reading YAML without PyYAML
+
+
+def test_yaml_is_read_with_yq_without_pyyaml(monkeypatch, tmp_path):
+    workflow = tmp_path / "workflow.yml"
+    workflow.write_text("on: push\n", encoding="utf-8")
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        return assistant.subprocess.CompletedProcess(command, 0, '{"on": "push"}', "")
+
+    monkeypatch.setitem(assistant.sys.modules, "yaml", None)
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    assert assistant.load_yaml(workflow) == {"on": "push"}
+    assert calls == [["yq", "-o=json", ".", str(workflow)]]
+
+
+def test_yaml_without_pyyaml_or_yq_says_what_to_install(monkeypatch, tmp_path):
+    def run(command, **kwargs):
+        raise FileNotFoundError(command[0])
+
+    monkeypatch.setitem(assistant.sys.modules, "yaml", None)
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    with pytest.raises(assistant.AssistantError, match="needs PyYAML or yq"):
+        assistant.load_yaml(tmp_path / "workflow.yml")
