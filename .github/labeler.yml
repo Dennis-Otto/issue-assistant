@@ -1,0 +1,9 @@
+# The area labels of pull requests by the files they change, for the Area labels
+# workflow; each label is an area of .github/labels.toml. Changes of
+# issue_assistant.py alone get no area: the file serves all of them.
+"area: analysis":
+  - changed-files:
+      - any-glob-to-any-file: ["prompts/**", "fuzz/**", "tests/oracle.py", "tests/test_properties.py"]
+"area: setup":
+  - changed-files:
+      - any-glob-to-any-file: ["templates/**", "action.yml", "tests/test_setup.py", "tests/test_templates.py"]
