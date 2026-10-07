@@ -1,2 +1,11 @@
-# Keep LF line endings in every checkout, including Windows with core.autocrlf.
+# Text with LF line endings everywhere, also in checkouts on Windows.
 * text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.mp4 binary
+*.zip binary
+*.tar.gz binary

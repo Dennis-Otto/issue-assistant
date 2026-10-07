@@ -22,15 +22,18 @@ concurrency:
 
 jobs:
   dependency-review:
+    name: dependency-review
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # The rules of the pull request itself: accepting an advisory shows in its diff.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Check dependency changes for known vulnerabilities
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           base-ref: ${{ inputs.base_ref || github.event.pull_request.base.sha }}
           head-ref: ${{ inputs.head_ref || github.event.pull_request.head.sha }}
-          fail-on-severity: moderate
-          fail-on-scopes: runtime, development, unknown
-          show-patched-versions: true
-          retry-on-snapshot-warnings: true
+          # The rules and the accepted advisories of this repository.
+          config-file: ./.github/dependency-review.yml

@@ -1,5 +1,9 @@
 name: Dependabot maintenance
 
+# Routine updates merge on their own once every required check passes; a major
+# update waits for the maintainer. Updates of runtime dependencies are committed as
+# fix(deps) and so lead to a patch release (see release.yml).
+
 on:
   pull_request_target:
     types:
@@ -16,8 +20,7 @@ jobs:
   auto-merge:
     name: Queue verified routine update
     if: >-
-      github.repository == 'Dennis-Otto/issue-assistant' &&
-      github.actor == 'dependabot[bot]' &&
+      !github.event.repository.fork &&
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
     permissions:
@@ -25,6 +28,12 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      # Actions pinned to a commit of their default branch instead of a release.
+      # Dependabot moves such a pin from commit to commit, reports the update as
+      # major and skips the cooldown. Both only start the current image of HACS and
+      # hassfest, so their commit updates merge like patch updates.
+      COMMIT_PINNED_ACTIONS: '["hacs/action", "home-assistant/actions/hassfest"]'
     steps:
       # Do not check out or execute pull request code in this privileged workflow.
       - name: Read verified Dependabot metadata
@@ -34,7 +43,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable automatic squash merge for patch and minor updates
-        # Major updates, of the Claude Code action for example, wait for a maintainer.
         if: >-
           steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor'
@@ -43,3 +51,23 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: gh pr merge --auto --squash --match-head-commit "$PR_HEAD_SHA" "$PR_URL"
+
+      - name: Enable automatic squash merge for commit updates of listed actions
+        # One listed action per pull request; a group or a real release still needs
+        # the maintainer.
+        if: >-
+          steps.metadata.outputs.package-ecosystem == 'github_actions' &&
+          contains(fromJSON(env.COMMIT_PINNED_ACTIONS), steps.metadata.outputs.dependency-names)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PREVIOUS_VERSION: ${{ steps.metadata.outputs.previous-version }}
+          NEW_VERSION: ${{ steps.metadata.outputs.new-version }}
+        run: |
+          commit='^[0-9a-f]{40}$'
+          if [[ ! $PREVIOUS_VERSION =~ $commit || ! $NEW_VERSION =~ $commit ]]; then
+            echo "Not a commit-to-commit update; the maintainer merges it."
+            exit 0
+          fi
+          gh pr merge --auto --squash --match-head-commit "$PR_HEAD_SHA" "$PR_URL"

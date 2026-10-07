@@ -1,0 +1,45 @@
+name: Action test
+
+# The action as its users run it: installed into the sample repository, whose set-up
+# it checks, and on the set-up of this repository. The action runs on the runner's
+# own Python, without PyYAML: check falls back to yq, as it does in every repository
+# that uses the action. https://github.com/Dennis-Otto/repo-blueprint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  action:
+    name: action
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the action into the sample repository
+        env:
+          ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
+        run: |
+          cp -r tests/sample "$ISSUE_ASSISTANT_ROOT"
+          python3 issue_assistant.py install --ref "$GITHUB_SHA" --version smoke-test
+      - name: Check the sample's set-up through the action
+        uses: ./
+        env:
+          ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
+        with:
+          command: check
+      - name: Check this repository's own set-up
+        uses: ./
+        with:
+          command: check

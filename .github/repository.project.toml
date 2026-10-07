@@ -1,0 +1,12 @@
+# The settings of this repository on top of .github/repository.toml, which the
+# blueprint keeps current. blueprint.py and the settings bot add them: tables merge,
+# lists gain their new items, and values replace those of repository.toml.
+# https://github.com/Dennis-Otto/repo-blueprint#settings-as-code
+
+# Checks that only this project runs, such as its end-to-end tests:
+# [branch]
+# required_checks = ["e2e"]
+
+# An environment of this project and the secrets it needs:
+# [environments.deploy]
+# secrets = ["DEPLOY_TOKEN"]

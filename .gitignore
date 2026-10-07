@@ -1,9 +1,23 @@
+# Editors and systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# The context folder of the issue assistant
+/.issue-assistant/
+
+# Python
 __pycache__/
 *.py[cod]
-.venv/
-.coverage
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-/.issue-assistant/
-/.idea/
+/.venv/
+/.coverage
+/.coverage.*
+/htmlcov/
+/.pytest_cache/
+/.mypy_cache/
+/.ruff_cache/
+/.hypothesis/
+/build/
+/dist/
+*.egg-info/

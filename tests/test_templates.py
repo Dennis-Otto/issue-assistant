@@ -5,6 +5,7 @@ engine a write permission, a tool that runs code or reaches the network, when an
 engine has no rules here, or when untrusted text reaches a shell script.
 """
 
+import json
 import re
 import shlex
 import tomllib
@@ -101,6 +102,15 @@ def test_templates_start_without_permissions_and_not_in_forks(name):
 
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
 def test_actions_are_pinned_and_checkouts_keep_no_credentials(path):
+    # Workflows that issues, comments or other workflows start run the default branch;
+    # the release workflow checks out the tag that it releases.
+    events = load(path)[True]
+    privileged = not {
+        "issues",
+        "issue_comment",
+        "pull_request_target",
+        "workflow_run",
+    }.isdisjoint([events] if isinstance(events, str) else events)
     for job_name, step in steps(path):
         if "uses" not in step:
             continue
@@ -110,7 +120,10 @@ def test_actions_are_pinned_and_checkouts_keep_no_credentials(path):
         assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", uses), uses
         if uses.startswith("actions/checkout@"):
             assert step["with"]["persist-credentials"] is False, job_name
-            assert "ref" not in step["with"], "issue events must run the default branch"
+            if privileged:
+                assert "ref" not in step["with"], (
+                    "issue events must run the default branch"
+                )
 
 
 def test_install_finds_every_pin_of_the_action():
@@ -321,10 +334,12 @@ def test_only_the_engine_table_names_a_vendor():
 
 
 def test_the_version_is_the_same_everywhere():
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    newest = re.search(r"^## (\d+\.\d+\.\d+)\s*$", changelog, re.MULTILINE)
-    assert newest and newest[1] == project["project"]["version"]
+    # The release bot writes the version of each release into both.
+    manifest = json.loads(
+        (ROOT / ".release-please-manifest.json").read_text(encoding="utf-8")
+    )
+    version = (ROOT / "version.txt").read_text(encoding="utf-8").strip()
+    assert version == manifest["."]
 
 
 def test_the_action_metadata_is_complete():
@@ -338,10 +353,7 @@ def test_this_repository_s_own_settings_fit():
     # The repository uses the action itself, so the whole check applies.
     assert assistant.check(config) == []
     defined = {label.name for label in config.labels}
-    pr_labels = (OWN / "pr-labels.yml").read_text(encoding="utf-8")
-    managed = re.search(r"managed=\(([^)]*)\)", pr_labels)[1].split()
-    notes = load(ROOT / ".github" / "release.yml")["changelog"]
-    used = set(managed) | set(notes["exclude"]["labels"])
-    for category in notes["categories"]:
-        used |= set(category["labels"]) - {"*"}
+    # The labels that the release bot, the branch bot and Dependabot set.
+    used = {"autorelease: pending", "autorelease: tagged", "merge-conflict"}
+    used |= {"dependencies", "github_actions", "python", "docker"}
     assert used <= defined, used - defined

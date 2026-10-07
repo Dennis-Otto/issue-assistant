@@ -13,21 +13,20 @@ permissions:
   contents: read
 
 concurrency:
-  group: codeql-${{ github.event.pull_request.number || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
     name: analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
       security-events: write
     strategy:
       fail-fast: false
       matrix:
-        # The script of the action and the workflows, which include the templates.
         language: [python, actions]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,8 +43,9 @@ jobs:
         with:
           category: /language:${{ matrix.language }}
 
-  # The protected branch and the release gate require one check named "codeql".
+  # The protected branch requires one check named "codeql".
   codeql:
+    name: codeql
     if: always()
     needs: analyze
     runs-on: ubuntu-latest
