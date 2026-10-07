@@ -92,7 +92,7 @@ def make_answer(**changes):
         "duplicates": [],
         "related": [],
         "references": [],
-        "sensitive_data": False,
+        "sensitive_data": "none",
         "security_report": False,
     }
     answer.update(changes)
@@ -109,7 +109,7 @@ def make_follow_up(**changes):
         "reply": "The log shows that the event arrives.",
         "missing_information": [],
         "references": [],
-        "sensitive_data": False,
+        "sensitive_data": "none",
     }
     answer.update(changes)
     return answer
