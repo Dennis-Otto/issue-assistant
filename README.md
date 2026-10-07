@@ -63,7 +63,7 @@ Issues come from anyone, so the design assumes that an issue tries to steer the 
 - **Findings stay private.** Code scanning alerts are only shown to maintainers, but the logs of a public repository's runs are public. So the Findings workflow names an open alert by its number and link only, never its rule, file or message, and nothing becomes an issue.
 - **Every repository uses exactly the templates.** The templates are the four workflows with which this repository looks after its own issues and findings. `check` fails when a repository's workflow differs from its template in anything but the commit hashes of its actions, and the tests of this repository pin the rules of the templates.
 
-Report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
+Report vulnerabilities privately, as described in [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md).
 
 ## Set up a repository
 
@@ -200,8 +200,8 @@ RESULT="$(jq -c .structured_output answer.json)" python3 issue_assistant.py appl
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The script needs only Python 3.12's standard library, `gh` and `git`, which GitHub's runners have; `check` reads YAML with PyYAML or `yq`.
+See [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). The script needs only Python 3.12's standard library, `gh` and `git`, which GitHub's runners have; `check` reads YAML with PyYAML or `yq`.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/Dennis-Otto/issue-assistant/blob/main/LICENSE)
