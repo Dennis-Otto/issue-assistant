@@ -35,7 +35,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Remind reporters and close unanswered issues and duplicates
-        uses: Dennis-Otto/issue-assistant@387894b5a1fc6332727362114999b93c61ea7683 # main
+        uses: Dennis-Otto/issue-assistant@80508cea4e88564345d389baad677b1593e6e673 # v1.0.1
         with:
           command: sweep
           dry-run: ${{ inputs.dry_run || false }}
