@@ -9,7 +9,10 @@ break the checks.
 import json
 from pathlib import Path
 
-from hypothesis import HealthCheck, given, settings
+# OpenSSF Scorecard recognizes property tests by the lines `import hypothesis` and
+# `from hypothesis import given`, so they stay as they are.
+import hypothesis
+from hypothesis import given
 from hypothesis import strategies as st
 from markdown_it import MarkdownIt
 
@@ -112,7 +115,9 @@ def linked(text):
     return links, text
 
 
-@settings(max_examples=600, suppress_health_check=[HealthCheck.too_slow])
+@hypothesis.settings(
+    max_examples=600, suppress_health_check=[hypothesis.HealthCheck.too_slow]
+)
 @given(TEXT, NUMBERS)
 def test_sanitized_text_mentions_nobody_and_links_only_allowed_sites(text, numbers):
     output = assistant.sanitize(text, CONFIG, numbers)
