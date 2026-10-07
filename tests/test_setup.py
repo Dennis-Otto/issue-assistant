@@ -23,6 +23,21 @@ def test_the_settings_are_read_with_defaults(config, root):
     plain = assistant.load_config(root, REPOSITORY)
     assert plain.engine == "claude" and plain.hosts == frozenset()
     assert plain.notices == ("SUPPORT.md",)
+    assert config.releases is True and plain.releases is True
+
+
+def test_closing_with_the_release_can_be_switched_off(config, root):
+    settings = root / ".github/issue-assistant/config.toml"
+    with settings.open("a", encoding="utf-8") as handle:
+        handle.write("\n[releases]\nclose_with_release = false\n")
+    off = assistant.load_config(root, REPOSITORY)
+    assert off.releases is False
+    without = tuple(label for label in off.labels if label.name != assistant.FIXED)
+    assert assistant.check_labels(dataclasses.replace(off, labels=without)) == []
+    assert (
+        ".github/labels.toml: the lifecycle label fixed-in-next-release is missing"
+        in (assistant.check_labels(dataclasses.replace(config, labels=without)))
+    )
 
 
 def test_settings_without_labels_or_project_are_refused(root):
@@ -229,10 +244,12 @@ def test_config_problems_are_found(config, root):
         config,
         engine="unknown",
         hosts=frozenset({"https://evil.example/path"}),
+        releases="yes",
     )
     assert assistant.check_config(broken) == [
         ".github/issue-assistant/config.toml: unknown engine unknown; known engines: claude",
         ".github/issue-assistant/config.toml: https://evil.example/path is no host name",
+        ".github/issue-assistant/config.toml: close_with_release must be true or false",
     ]
     (root / "SUPPORT.md").write_text("An AI reads your issue.", encoding="utf-8")
     missing = dataclasses.replace(config, notices=("SUPPORT.md", "docs/missing.md"))

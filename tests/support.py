@@ -115,6 +115,35 @@ def make_follow_up(**changes):
     return answer
 
 
+def make_pull(number=40, fixes=(12,), *, days_ago=1, base="main", merged=True, **extra):
+    """A merged pull request with the issues that it fixes."""
+    return {
+        "number": number,
+        "merged": merged,
+        "mergedAt": at(days_ago),
+        "baseRefName": base,
+        "mergeCommit": {"oid": f"{number:040x}"},
+        "closingIssuesReferences": {
+            "nodes": [
+                {"number": issue, "repository": {"nameWithOwner": REPOSITORY}}
+                for issue in fixes
+            ]
+        },
+        **extra,
+    }
+
+
+def make_release(tag="v1.10.0", days_ago=0.5, **extra):
+    return {
+        "tag_name": tag,
+        "html_url": f"https://github.com/{REPOSITORY}/releases/tag/{tag}",
+        "published_at": at(days_ago),
+        "draft": False,
+        "prerelease": False,
+        **extra,
+    }
+
+
 def analysis(comment_id=1, days_ago=1, **attributes):
     marker = assistant.render_marker("analysis", lang="en", **attributes)
     return make_comment(comment_id, "bot", f"{marker}\nFirst analysis", days_ago)
@@ -140,6 +169,11 @@ class FakeGitHub(assistant.GitHub):
             for label in config.labels
         ]
         self.release = "v1.9.0"
+        self.branch = "main"
+        self.pull_store: list[dict] = []
+        self.release_store: list[dict] = []
+        # Pairs of a merge commit and the tag of a release that contains it.
+        self.contained: set[tuple[str, str]] = set()
         self.calls: list[tuple] = []
         self.suggestions: list[dict] = []
         self.rationales: dict[tuple[int, str], str] = {}
@@ -194,6 +228,14 @@ class FakeGitHub(assistant.GitHub):
                 if not self.release:
                     raise assistant.GitHubError("gh api: Not Found (HTTP 404)")
                 return {"tag_name": self.release}
+            if route == "releases":
+                return deepcopy(self.release_store)
+            if match := re.fullmatch(r"compare/([0-9a-f]+)\.\.\.(.+)", route):
+                tag = unquote(match[2])
+                if tag not in {item["tag_name"] for item in self.release_store}:
+                    raise assistant.GitHubError("gh api: Not Found (HTTP 404)")
+                inside = (match[1], tag) in self.contained
+                return {"status": "ahead" if inside else "diverged"}
         if method == "POST":
             if match := re.fullmatch(r"issues/(\d+)/comments", route):
                 comment = make_comment(1000 + len(self.calls), "bot", data["body"], 0)
@@ -248,6 +290,30 @@ class FakeGitHub(assistant.GitHub):
                 if item["number"] == variables["number"]
             ]
             return {"repository": {"discussion": found[0] if found else None}}
+        if "pullRequests(states: MERGED" in query:
+            return {
+                "repository": {
+                    "defaultBranchRef": {"name": self.branch},
+                    "pullRequests": {"nodes": deepcopy(self.pull_store)},
+                }
+            }
+        if "closedByPullRequestsReferences" in query:
+            nodes = [
+                {
+                    key: pull[key]
+                    for key in ("number", "merged", "mergedAt", "baseRefName")
+                }
+                | {"mergeCommit": pull["mergeCommit"] if pull["merged"] else None}
+                for pull in self.pull_store
+                if variables["number"]
+                in {ref["number"] for ref in pull["closingIssuesReferences"]["nodes"]}
+            ]
+            return {
+                "repository": {
+                    "defaultBranchRef": {"name": self.branch},
+                    "issue": {"closedByPullRequestsReferences": {"nodes": nodes}},
+                }
+            }
         number = int(variables["issue"].removeprefix("I_"))
         if "addLabelsToLabelable" in query:
             names = [item["labelId"].removeprefix("L_") for item in variables["labels"]]
@@ -283,7 +349,12 @@ class FakeGitHub(assistant.GitHub):
         ]
 
     def writes_made(self):
-        return [call for call in self.calls if call[0] != "GET"]
+        return [
+            call
+            for call in self.calls
+            if call[0] != "GET"
+            and not (call[0] == "GRAPHQL" and "mutation" not in call[1])
+        ]
 
 
 def run_main(monkeypatch, tmp_path, root, github, *argv, **env):

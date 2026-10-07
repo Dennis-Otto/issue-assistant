@@ -61,6 +61,11 @@ CLOSE_AFTER = timedelta(days=30)
 WARNING_PERIOD = timedelta(days=15)
 DUPLICATE_GRACE = timedelta(days=3)
 MAX_FOLLOW_UPS = 2
+# Pull requests merged this long ago still mark the issues they fix, in case the
+# event of the merge was missed.
+MERGE_LOOKBACK = timedelta(days=14)
+# How long a comment of the reporter can reopen an issue that a release closed.
+REOPEN_AFTER_RELEASE = timedelta(days=30)
 
 NEEDS_TRIAGE = "needs-triage"
 NEEDS_INFO = "needs-info"
@@ -68,12 +73,21 @@ STALE = "stale"
 POSSIBLE_DUPLICATE = "possible-duplicate"
 DUPLICATE = "duplicate"
 INVALID = "invalid"
-LIFECYCLE = (NEEDS_TRIAGE, NEEDS_INFO, STALE, POSSIBLE_DUPLICATE, DUPLICATE, INVALID)
+FIXED = "fixed-in-next-release"
+LIFECYCLE = (
+    NEEDS_TRIAGE,
+    NEEDS_INFO,
+    STALE,
+    POSSIBLE_DUPLICATE,
+    DUPLICATE,
+    INVALID,
+    FIXED,
+)
 GROUPS = ("type", "area", "topic", "lifecycle", "decision", "release", "dependabot")
 
-MODES = ("triage", "follow-up", "maintainer-reply")
+MODES = ("triage", "follow-up", "maintainer-reply", "release-reply")
 
-MARKER = re.compile(r"<!-- issue-assistant:([a-z-]+)((?: [a-z]+=[\w-]+)*) -->")
+MARKER = re.compile(r"<!-- issue-assistant:([a-z-]+)((?: [a-z]+=[\w.+/-]+)*) -->")
 FENCED = re.compile(r"(```.*?```|~~~.*?~~~|`[^`\n]*`)", re.DOTALL)
 MARKDOWN_LINK = re.compile(
     r"(?<!!)\[([^\]\n]*)\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)"
@@ -177,6 +191,8 @@ class Config:
     area_field: str = "Area"
     unmapped_options: tuple[str, ...] = ("Other",)
     notices: tuple[str, ...] = ("SUPPORT.md",)
+    # Whether a fixed issue stays open until a release ships the fix.
+    releases: bool = True
 
     @property
     def blob(self) -> str:
@@ -237,6 +253,7 @@ def load_config(root: Path, repository: str) -> Config:
         area_field=forms.get("area_field", "Area"),
         unmapped_options=tuple(forms.get("unmapped_options", ("Other",))),
         notices=tuple(settings.get("transparency", {}).get("files", ("SUPPORT.md",))),
+        releases=settings.get("releases", {}).get("close_with_release", True),
     )
 
 
@@ -359,6 +376,79 @@ class GitHub:
             return None
         tag: str = release["tag_name"]
         return tag
+
+    def releases(self) -> list[dict[str, Any]]:
+        """The published final releases, oldest first; no drafts or pre-releases."""
+        items = self.rest("releases?per_page=30")
+        return sorted(
+            (
+                item
+                for item in items
+                if not item.get("draft")
+                and not item.get("prerelease")
+                and item.get("published_at")
+            ),
+            key=lambda item: item["published_at"],
+        )
+
+    def contains(self, sha: str, tag: str) -> bool:
+        """Whether the commit `sha` is part of the release `tag`."""
+        try:
+            compared = self.rest(f"compare/{sha}...{quote(tag)}?per_page=1")
+        except GitHubError:
+            return False
+        return compared["status"] in {"ahead", "identical"}
+
+    def merged_pulls(self) -> tuple[str, list[dict[str, Any]]]:
+        """The default branch and its latest merged pull requests with the issues they fix."""
+        data = self.graphql(
+            """
+            query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                defaultBranchRef { name }
+                pullRequests(states: MERGED, first: 30,
+                             orderBy: {field: UPDATED_AT, direction: DESC}) {
+                  nodes {
+                    number mergedAt baseRefName
+                    mergeCommit { oid }
+                    closingIssuesReferences(first: 10) {
+                      nodes { number repository { nameWithOwner } }
+                    }
+                  }
+                }
+              }
+            }
+            """,
+            {"owner": self.owner, "name": self.name},
+        )
+        repository = data["repository"]
+        pulls: list[dict[str, Any]] = repository["pullRequests"]["nodes"]
+        return repository["defaultBranchRef"]["name"], pulls
+
+    def fixing_pulls(self, number: int) -> list[dict[str, Any]]:
+        """The merged pull requests into the default branch that fix the issue."""
+        data = self.graphql(
+            """
+            query($owner: String!, $name: String!, $number: Int!) {
+              repository(owner: $owner, name: $name) {
+                defaultBranchRef { name }
+                issue(number: $number) {
+                  closedByPullRequestsReferences(first: 10, includeClosedPrs: true) {
+                    nodes { number merged mergedAt baseRefName mergeCommit { oid } }
+                  }
+                }
+              }
+            }
+            """,
+            {"owner": self.owner, "name": self.name, "number": number},
+        )
+        repository = data["repository"]
+        branch = repository["defaultBranchRef"]["name"]
+        return [
+            pull
+            for pull in repository["issue"]["closedByPullRequestsReferences"]["nodes"]
+            if pull["merged"] and pull["baseRefName"] == branch and pull["mergeCommit"]
+        ]
 
     def discussions(self) -> list[dict[str, Any]]:
         try:
@@ -589,8 +679,12 @@ def is_maintainer(item: dict[str, Any]) -> bool:
     return item.get("author_association") in MAINTAINERS
 
 
+def moment(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 def created(item: dict[str, Any]) -> datetime:
-    return datetime.fromisoformat(item["created_at"].replace("Z", "+00:00"))
+    return moment(item["created_at"])
 
 
 def marker(comment: dict[str, Any]) -> tuple[str, dict[str, str]] | None:
@@ -778,16 +872,31 @@ def answered(github: GitHub, issue: dict[str, Any], plan: Plan | None = None) ->
 def reopen_if_answered(
     github: GitHub, issue: dict[str, Any], comment: dict[str, Any]
 ) -> Plan:
-    """Reopen an issue the assistant closed unanswered once its reporter answers."""
+    """Reopen an issue the assistant closed once its reporter answers.
+
+    An issue closed unanswered reopens at once; for one that a release closed, the
+    engine decides whether the comment says that the problem persists.
+    """
     number = issue["number"]
     author = login(issue.get("user"))
-    if login(comment.get("user")) != author or STALE not in label_names(issue):
+    if login(comment.get("user")) != author:
         return Plan(number, notes=["Comment on a closed issue."])
     closes = [event for event in github.events(number) if event["event"] == "closed"]
     if not closes or login(closes[-1].get("actor")) != BOT:
         return Plan(number, notes=["Closed by a person: stays closed."])
     comments = github.comments(number)
-    if not any(kind_of(item) == "closed-unanswered" for item in comments):
+    closings = [
+        item
+        for item in comments
+        if kind_of(item) in {"closed-unanswered", "closed-duplicate", "released"}
+    ]
+    if closings and kind_of(closings[-1]) == "released":
+        if created(comment) - created(closings[-1]) > REOPEN_AFTER_RELEASE:
+            return Plan(number, notes=["The release closed this issue long ago."])
+        return Plan(number, "release-reply", ["The reporter wrote after the release."])
+    if STALE not in label_names(issue) or not any(
+        kind_of(item) == "closed-unanswered" for item in closings
+    ):
         return Plan(number, notes=["Not closed for a missing answer."])
     github.reopen(number)
     for name in (STALE, NEEDS_INFO):
@@ -977,6 +1086,14 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
     if mode == "maintainer-reply":
         return record(
             {"waiting_for_reporter": {"type": "boolean"}, "reason": text(280)}
+        )
+    if mode == "release-reply":
+        return record(
+            {
+                "language": choice(["en", "de"]),
+                "problem_persists": {"type": "boolean"},
+                "reason": text(280),
+            }
         )
     reference = {
         "type": "object",
@@ -1314,6 +1431,14 @@ TEXT: dict[str, dict[str, str]] = {
         "reopen it.",
         "reopened": "Thanks for your answer, @{author}! I reopened the issue; the "
         "maintainer will take another look.",
+        "fixed": "Fixed by #{pull}, which is now on `{branch}`. The fix ships with the "
+        "next release; this issue closes then, with a link to it.",
+        "released": "🎉 Released in [{tag}]({url}){fixes}. @{author}, please update to "
+        "this version. If the problem persists, write a comment here and the issue "
+        "reopens, or open a new issue.",
+        "released.fixes": " with the fix from {pulls}",
+        "reopened-release": "Thanks for letting us know, @{author}, and sorry that it "
+        "isn't solved yet. I reopened the issue; the maintainer will take another look.",
     },
     "de": {
         "thanks.default": "Danke für dein Issue, @{author}!",
@@ -1378,6 +1503,15 @@ TEXT: dict[str, dict[str, str]] = {
         "öffnet der Maintainer es wieder.",
         "reopened": "Danke für deine Antwort, @{author}! Ich habe das Issue wieder "
         "geöffnet; der Maintainer sieht es sich erneut an.",
+        "fixed": "Behoben durch #{pull}, jetzt auf `{branch}`. Der Fix kommt mit dem "
+        "nächsten Release; dann wird dieses Issue mit einem Link darauf geschlossen.",
+        "released": "🎉 Veröffentlicht in [{tag}]({url}){fixes}. @{author}, bitte "
+        "aktualisiere auf diese Version. Besteht das Problem weiter, schreib hier einen "
+        "Kommentar, dann wird das Issue wieder geöffnet, oder eröffne ein neues Issue.",
+        "released.fixes": " mit dem Fix aus {pulls}",
+        "reopened-release": "Danke für die Rückmeldung, @{author}, und schade, dass es "
+        "noch nicht gelöst ist. Ich habe das Issue wieder geöffnet; der Maintainer sieht "
+        "es sich erneut an.",
     },
 }
 
@@ -1542,6 +1676,38 @@ def render_reopened(author: str, language: str) -> str:
     return f"{render_marker('reopened')}\n{say(language, 'reopened', author=author)}\n"
 
 
+def render_fixed(pull: int, branch: str, language: str) -> str:
+    return (
+        f"{render_marker('fixed', pull=pull)}\n"
+        f"{say(language, 'fixed', pull=pull, branch=branch)}\n"
+    )
+
+
+def render_released(
+    author: str, release: dict[str, Any], pulls: list[int], language: str
+) -> str:
+    joined = ", ".join(f"#{pull}" for pull in pulls)
+    fixes = say(language, "released.fixes", pulls=joined) if pulls else ""
+    text_ = say(
+        language,
+        "released",
+        tag=release["tag_name"],
+        url=release["html_url"],
+        fixes=fixes,
+        author=author,
+    )
+    tag = release["tag_name"]
+    attributes = {"tag": tag} if re.fullmatch(r"[\w.+/-]+", tag) else {}
+    return f"{render_marker('released', **attributes)}\n{text_}\n"
+
+
+def render_reopened_release(author: str, language: str) -> str:
+    return (
+        f"{render_marker('reopened')}\n"
+        f"{say(language, 'reopened-release', author=author)}\n"
+    )
+
+
 # Applying the engine's answer
 
 
@@ -1673,6 +1839,8 @@ def apply_answer(
     issue = github.issue(number)
     if "pull_request" in issue:
         raise AssistantError(f"#{number} is a pull request, not an issue.")
+    if mode == "release-reply":
+        return apply_release_reply(github, issue, answer)
     if issue["state"] != "open" or issue.get("locked"):
         return [f"#{number} is closed or locked; nothing posted."]
     author = login(issue.get("user"))
@@ -1753,17 +1921,143 @@ def apply_maintainer_reply(
     return [f"#{number} waits for the reporter: {answer['reason']}"]
 
 
+def apply_release_reply(
+    github: GitHub, issue: dict[str, Any], answer: dict[str, Any]
+) -> list[str]:
+    """Reopen an issue that a release closed when its reporter says it isn't fixed."""
+    number = issue["number"]
+    if issue["state"] == "open" or issue.get("locked"):
+        return [f"#{number} is open or locked; nothing to reopen."]
+    if not answer["problem_persists"]:
+        return [f"#{number} stays closed: {answer['reason']}"]
+    github.reopen(number)
+    github.add_labels(number, [NEEDS_TRIAGE])
+    github.comment(
+        number, render_reopened_release(login(issue.get("user")), answer["language"])
+    )
+    return [f"#{number} reopened: {answer['reason']}"]
+
+
 # The daily sweep
 
 
-def sweep(github: GitHub, now: datetime) -> list[str]:
+def sweep(github: GitHub, now: datetime, releases: bool = True) -> list[str]:
+    """The whole lifecycle; every run does all of it, so a missed run loses nothing."""
     done = []
+    if releases:
+        done += mark_fixed(github, now)
+        done += close_released(github)
     for issue in github.open_issues(NEEDS_INFO):
         if not issue.get("locked"):
             done += sweep_waiting(github, issue, now)
     for issue in github.open_issues(POSSIBLE_DUPLICATE):
         if not issue.get("locked"):
             done += sweep_duplicate(github, issue, now)
+    return done
+
+
+def first_release(
+    github: GitHub,
+    releases: list[dict[str, Any]],
+    shas: list[str],
+    since: datetime,
+) -> dict[str, Any] | None:
+    """The first release after `since` that contains every merge commit in `shas`."""
+    for release in releases:
+        if moment(release["published_at"]) <= since:
+            continue
+        if all(github.contains(sha, release["tag_name"]) for sha in shas):
+            return release
+    return None
+
+
+def mark_fixed(github: GitHub, now: datetime) -> list[str]:
+    """Label the open issues that a recently merged pull request fixes.
+
+    The issue stays open until a release ships the fix. A maintainer who removes the
+    label keeps it removed: the notice of a pull request is never repeated.
+    """
+    branch, pulls = github.merged_pulls()
+    done = []
+    for pull in sorted(pulls, key=lambda item: item["mergedAt"]):
+        merged = moment(pull["mergedAt"])
+        if pull["baseRefName"] != branch or now - merged > MERGE_LOOKBACK:
+            continue
+        for reference in pull["closingIssuesReferences"]["nodes"]:
+            same = reference["repository"]["nameWithOwner"].lower()
+            if same != github.repository.lower():
+                continue
+            number = reference["number"]
+            issue = github.issue(number)
+            if issue["state"] != "open" or issue.get("locked"):
+                continue
+            current = label_names(issue)
+            comments = github.comments(number)
+            if FIXED in current or any(
+                (found := marker(comment))
+                and found[0] == "fixed"
+                and found[1].get("pull") == str(pull["number"])
+                for comment in comments
+            ):
+                continue
+            github.comment(
+                number,
+                render_fixed(pull["number"], branch, issue_language(issue, comments)),
+            )
+            github.add_labels(number, [FIXED])
+            for name in (NEEDS_INFO, STALE):
+                if name in current:
+                    github.remove_label(number, name)
+            done.append(
+                f"#{number}: fixed by #{pull['number']}; closes with the next release."
+            )
+    return done
+
+
+def close_released(github: GitHub) -> list[str]:
+    """Close the fixed issues whose fix a published release ships, with its link."""
+    issues = [issue for issue in github.open_issues(FIXED) if not issue.get("locked")]
+    if not issues:
+        return []
+    releases = github.releases()
+    done = []
+    for issue in issues:
+        number = issue["number"]
+        labeled = [
+            created(event)
+            for event in github.events(number)
+            if event["event"] == "labeled"
+            and (event.get("label") or {}).get("name") == FIXED
+        ]
+        pulls = github.fixing_pulls(number)
+        shas = [pull["mergeCommit"]["oid"] for pull in pulls]
+        # The label promises the next release: one published after it, with every
+        # fixing pull request merged.
+        since = max(labeled or [created(issue)])
+        release = first_release(github, releases, shas, since)
+        if not release:
+            continue
+        comments = github.comments(number)
+        author = login(issue.get("user"))
+        github.comment(
+            number,
+            render_released(
+                author,
+                release,
+                sorted(pull["number"] for pull in pulls),
+                issue_language(issue, comments),
+            ),
+        )
+        for name in (FIXED, NEEDS_TRIAGE, NEEDS_INFO, STALE):
+            if name in label_names(issue):
+                github.remove_label(number, name)
+        github.close(
+            issue,
+            "COMPLETED",
+            f"Fixed and released in {release['tag_name']} on "
+            f"{release['published_at'][:10]}.",
+        )
+        done.append(f"#{number}: closed, released in {release['tag_name']}.")
     return done
 
 
@@ -1969,6 +2263,8 @@ def check_labels(config: Config) -> list[str]:
             )
     lifecycle = {label.name for label in config.labels if label.group == "lifecycle"}
     for name in LIFECYCLE:
+        if name == FIXED and config.releases is False:
+            continue
         if name not in lifecycle:
             problems.append(f"{LABELS_FILE}: the lifecycle label {name} is missing")
     if not config.group("type"):
@@ -2069,6 +2365,10 @@ def check_config(config: Config) -> list[str]:
     for host in sorted(config.hosts):
         if not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", host):
             problems.append(f"{SETTINGS / 'config.toml'}: {host} is no host name")
+    if not isinstance(config.releases, bool):
+        problems.append(
+            f"{SETTINGS / 'config.toml'}: close_with_release must be true or false"
+        )
     if config.engine in ENGINES:
         engine = ENGINES[config.engine]
         for name in config.notices:
@@ -2206,7 +2506,11 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument(
             "--mode", choices=MODES, default=os.environ.get("MODE") or None
         )
-    commands.add_parser("sweep", help="remind, close unanswered issues and duplicates")
+    commands.add_parser(
+        "sweep",
+        help="remind, close unanswered issues and duplicates, and fixed issues "
+        "with the release",
+    )
     commands.add_parser("sync-labels", help="create and update the labels")
     commands.add_parser("check", help="check the repository's set-up")
     setup = commands.add_parser("install", help="write the workflows into a repository")
@@ -2280,7 +2584,7 @@ def main(argv: list[str] | None = None) -> int:
             done += github.writes
         elif arguments.command == "sweep":
             title = "Issue lifecycle"
-            done = sweep(github, datetime.now(UTC))
+            done = sweep(github, datetime.now(UTC), config.releases)
         else:
             title = "Labels"
             done = sync_labels(github, config)

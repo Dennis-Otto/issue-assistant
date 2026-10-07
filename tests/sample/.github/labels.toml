@@ -97,6 +97,12 @@ description = "Spam, or not about this project"
 group = "lifecycle"
 
 [[label]]
+name = "fixed-in-next-release"
+color = "c2e0c6"
+description = "Fixed on the default branch; closes with a link when a release ships the fix"
+group = "lifecycle"
+
+[[label]]
 name = "wontfix"
 color = "ffffff"
 description = "This will not be worked on"

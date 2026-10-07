@@ -237,6 +237,27 @@ def test_the_events_the_assistant_handles_trigger_it():
     assert "github.event.sender.type != 'Bot'" in condition
 
 
+def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_code():
+    lifecycle = load(TEMPLATES / "issue-lifecycle.yml")
+    triggers = lifecycle[True]
+    assert triggers["pull_request_target"] == {"types": ["closed"]}
+    assert triggers["release"] == {"types": ["published"]}
+    assert "pull_request" not in triggers
+    (job,) = lifecycle["jobs"].values()
+    condition = " ".join(job["if"].split())
+    assert "github.event.pull_request.merged" in condition
+    assert "github.event.pull_request.user.login != 'dependabot[bot]'" in condition
+    assert job["permissions"] == {
+        "contents": "read",
+        "issues": "write",
+        "pull-requests": "read",
+    }
+    checkout, step = job["steps"]
+    # The default branch: no ref of the pull request, no credentials left behind.
+    assert checkout["with"] == {"persist-credentials": False}
+    assert step["with"]["command"] == "sweep"
+
+
 def test_the_firewall_template_allows_only_named_hosts():
     policy = load(ROOT / assistant.FIREWALL)
     assert policy["mode"] == "enforce"

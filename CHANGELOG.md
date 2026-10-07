@@ -4,6 +4,10 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+### Added
+
+- **From the fix to the release.** A merged pull request that fixes an issue marks it with the new lifecycle label `fixed-in-next-release`, and the issue stays open. The first published release that contains the fix closes it as completed, with a link to the release. If the reporter writes within 30 days that the problem persists, the AI's new `release-reply` task decides, and the issue reopens. The lifecycle workflow now also runs on merged pull requests and published releases. Repositories run `install` again, add the label to `.github/labels.toml`, and clear *Auto-close issues with merged linked pull requests* in their settings. Without releases, `close_with_release = false` in `config.toml` turns it off.
+
 ### Fixed
 
 - `install` names the firewall policy with forward slashes on Windows too.

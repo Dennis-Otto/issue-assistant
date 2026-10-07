@@ -27,7 +27,7 @@ on:
       mode:
         description: Task of the assistant
         type: choice
-        options: [triage, follow-up, maintainer-reply]
+        options: [triage, follow-up, maintainer-reply, release-reply]
         default: triage
       dry_run:
         description: Only show what the assistant would do

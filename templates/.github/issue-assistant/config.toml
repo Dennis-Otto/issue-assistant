@@ -20,3 +20,9 @@ unmapped_options = ["Other"]
 # Files that tell reporters which AI reads their issue; the check command makes sure
 # they name the engine.
 files = ["SUPPORT.md"]
+
+[releases]
+# A merged pull request that fixes an issue labels it fixed-in-next-release; the
+# issue closes with a link to the first release that ships the fix. Set to false
+# for a repository without releases.
+close_with_release = true
