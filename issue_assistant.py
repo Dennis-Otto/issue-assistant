@@ -2,8 +2,8 @@
 
 The GitHub Action in action.yml runs this script in the repository it looks after.
 That repository keeps its labels in .github/labels.toml, a description of the
-project and its settings in .github/issue-assistant/, and workflows made from the
-templates in templates/; see README.md.
+project and its settings in .github/issue-assistant/, and copies of the three
+workflows with which this repository looks after its own issues; see README.md.
 
 An AI engine from ENGINES writes the analysis. It only reads: the checkout and a
 context folder that `context` writes, with the prompt and the JSON schema of its
@@ -32,7 +32,7 @@ from urllib.parse import quote, urlsplit
 
 TOOL = Path(__file__).resolve().parent
 PROMPTS = TOOL / "prompts"
-# The files a repository gets, in the places they go.
+# The starter files a repository gets, in the places they go.
 TEMPLATES = TOOL / "templates"
 # Files of the repository the assistant looks after, relative to its root.
 LABELS_FILE = Path(".github/labels.toml")
@@ -44,9 +44,12 @@ ACTIONLINT = Path(".github/actionlint.yaml")
 # Files that install writes only when a repository doesn't have them yet.
 STARTERS = (LABELS_FILE, SETTINGS / "project.md", SETTINGS / "config.toml")
 FIREWALL_RUNNER = "ubuntu-24.04-firewall"
-# The action itself; the templates name it with this placeholder ref.
+# The workflows with which this repository looks after its own issues are the
+# templates: install copies them, with the commit hash of the release in the pin of
+# the action, and check compares a repository's workflows with them.
+TEMPLATE_WORKFLOWS = ("issue-assistant.yml", "issue-lifecycle.yml", "labels.yml")
 ACTION = "Dennis-Otto/issue-assistant"
-PLACEHOLDER = f"{ACTION}@REF # VERSION"
+ACTION_PIN = re.compile(rf"{re.escape(ACTION)}@[0-9a-f]{{40}} # \S+")
 
 BOT = "github-actions[bot]"
 MAINTAINERS = {"OWNER", "MEMBER", "COLLABORATOR"}
@@ -1912,7 +1915,7 @@ def normalized(node: Any, problems: list[str], where: str) -> Any:
             name = "on" if key is True else key
             if name == "uses" and isinstance(value, str):
                 action, _, ref = value.partition("@")
-                if not SHA.fullmatch(ref) and ref != "REF":
+                if not SHA.fullmatch(ref):
                     problems.append(
                         f"{where}: pin {action} to a commit hash, not '{ref}'"
                     )
@@ -1992,9 +1995,10 @@ def check_forms(config: Config) -> list[str]:
 
 def check_workflows(config: Config) -> list[str]:
     problems: list[str] = []
-    for template in sorted((TEMPLATES / WORKFLOWS).glob("*.yml")):
-        path = config.root / WORKFLOWS / template.name
-        where = (WORKFLOWS / template.name).as_posix()
+    for name in TEMPLATE_WORKFLOWS:
+        template = TOOL / WORKFLOWS / name
+        path = config.root / WORKFLOWS / name
+        where = (WORKFLOWS / name).as_posix()
         if not path.is_file():
             problems.append(f"{where} is missing; run the install command")
             continue
@@ -2010,7 +2014,7 @@ def check_workflows(config: Config) -> list[str]:
         problems.append(f"{FIREWALL} is missing; run the install command")
     else:
         policy = load_yaml(firewall)
-        needed = set(load_yaml(TEMPLATES / FIREWALL)["allow"])
+        needed = set(load_yaml(TOOL / FIREWALL)["allow"])
         hosts = set(policy.get("allow") or [])
         if policy.get("mode") != "enforce":
             problems.append(f"{FIREWALL}: mode must be enforce")
@@ -2084,11 +2088,12 @@ def install(root: Path, ref: str, version: str) -> list[str]:
     if not SHA.fullmatch(ref):
         raise AssistantError("Give the commit hash of the issue assistant's release.")
     done = []
-    for template in sorted((TEMPLATES / WORKFLOWS).glob("*.yml")):
-        target = root / WORKFLOWS / template.name
+    for name in TEMPLATE_WORKFLOWS:
+        target = root / WORKFLOWS / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        content = template.read_text(encoding="utf-8").replace(
-            PLACEHOLDER, f"{ACTION}@{ref} # {version}"
+        content = ACTION_PIN.sub(
+            f"{ACTION}@{ref} # {version}",
+            (TOOL / WORKFLOWS / name).read_text(encoding="utf-8"),
         )
         target.write_text(content, encoding="utf-8", newline="\n")
         done.append(f"wrote {target.relative_to(root).as_posix()}")
@@ -2096,7 +2101,7 @@ def install(root: Path, ref: str, version: str) -> list[str]:
     if firewall.is_file():
         done.append(f"kept {FIREWALL}; check that it allows the template's hosts")
     else:
-        shutil.copyfile(TEMPLATES / FIREWALL, firewall)
+        shutil.copyfile(TOOL / FIREWALL, firewall)
         done.append(f"wrote {FIREWALL}")
     for starter in STARTERS:
         target = root / starter

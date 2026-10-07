@@ -22,6 +22,8 @@ updates:
       prefix: chore
       include: scope
 
+  # The actions of the workflows, which include the templates repositories install,
+  # and the pin of this action in them.
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -34,31 +36,6 @@ updates:
       default-days: 7
     groups:
       actions-routine:
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-    commit-message:
-      prefix: chore
-      include: scope
-
-  # The actions of the templates, which repositories install.
-  - package-ecosystem: github-actions
-    directory: /templates
-    ignore:
-      # The templates name the action itself with a placeholder that install fills.
-      - dependency-name: Dennis-Otto/issue-assistant
-    schedule:
-      interval: weekly
-      day: monday
-      time: "04:25"
-      timezone: Europe/Berlin
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 7
-    groups:
-      template-actions:
         patterns:
           - "*"
         update-types:

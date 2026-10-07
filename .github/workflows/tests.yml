@@ -66,6 +66,10 @@ jobs:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
         with:
           command: check
+      - name: Check this repository's own set-up
+        uses: ./
+        with:
+          command: check
 
   workflow-lint:
     runs-on: ubuntu-latest
@@ -74,7 +78,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Validate the workflows and the templates
+      # The workflows include the templates that repositories install.
+      - name: Validate the workflows
         uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # v1.7.12
-        with:
-          args: -color .github/workflows/*.yml templates/.github/workflows/*.yml

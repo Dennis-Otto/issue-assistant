@@ -37,11 +37,11 @@ def test_settings_without_labels_or_project_are_refused(root):
 def test_install_writes_the_workflows_with_the_release(root):
     workflow = (root / ".github/workflows/issue-assistant.yml").read_text("utf-8")
     assert f"uses: Dennis-Otto/issue-assistant@{REF} # v1.0.0" in workflow
-    assert "@REF" not in workflow
+    assert workflow.count(f"Dennis-Otto/issue-assistant@{REF} # v1.0.0") == 4
     for name in ("issue-lifecycle.yml", "labels.yml"):
         assert (root / ".github/workflows" / name).is_file()
     assert (root / ".github/egress-firewall.yaml").read_text("utf-8") == (
-        assistant.TEMPLATES / assistant.FIREWALL
+        assistant.TOOL / assistant.FIREWALL
     ).read_text("utf-8")
     assert "/.issue-assistant/" in (root / ".gitignore").read_text("utf-8")
 
@@ -293,7 +293,7 @@ def test_yaml_is_read_with_pyyaml(tmp_path):
         "list": [1, 2],
     }
     assert problems == []
-    assert json.dumps(assistant.normalized({"uses": "a/b@REF"}, problems, "x")) == (
+    assert json.dumps(assistant.normalized({"uses": f"a/b@{REF}"}, problems, "x")) == (
         '{"uses": "a/b"}'
     )
     assert problems == []
@@ -306,13 +306,8 @@ def test_the_tool_files_are_where_the_action_expects_them():
         assert (assistant.PROMPTS / name).is_file()
     for starter in assistant.STARTERS:
         assert (assistant.TEMPLATES / starter).is_file()
-    assert sorted(
-        path.name for path in (assistant.TEMPLATES / assistant.WORKFLOWS).iterdir()
-    ) == [
-        "issue-assistant.yml",
-        "issue-lifecycle.yml",
-        "labels.yml",
-    ]
+    for name in assistant.TEMPLATE_WORKFLOWS:
+        assert (assistant.TOOL / assistant.WORKFLOWS / name).is_file()
 
 
 def test_another_checkout_can_be_checked(monkeypatch, tmp_path, root):
