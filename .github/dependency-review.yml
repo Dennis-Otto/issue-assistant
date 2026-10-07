@@ -38,3 +38,11 @@ allow-licenses:
   - Unicode-DFS-2016
   - Unlicense
   - Zlib
+
+# Dependencies that no release ships, whatever their license.
+allow-dependencies-licenses:
+  # The tools of the blueprint bot (.github/copier-requirements.txt), which no release
+  # ships: Copier's Jinja filters (GPL-3.0-only) and typing-extensions, whose
+  # license the review reads wrongly.
+  - pkg:pypi/jinja2-ansible-filters
+  - pkg:pypi/typing-extensions
