@@ -7,28 +7,14 @@ break the checks.
 """
 
 import json
-from pathlib import Path
 
-# OpenSSF Scorecard recognizes property tests by the lines `import hypothesis` and
-# `from hypothesis import given`, so they stay as they are.
 import hypothesis
 from hypothesis import given
 from hypothesis import strategies as st
-from markdown_it import MarkdownIt
 
 import issue_assistant as assistant
+from oracle import CONFIG, problems
 from support import BOT_USER, REPOSITORY
-
-# A CommonMark parser, independent of the assistant's own rules, decides what is code.
-PARSER = MarkdownIt("commonmark")
-
-CONFIG = assistant.Config(
-    root=Path("."),
-    repository=REPOSITORY,
-    labels=(assistant.Label("bug", "d73a4a", "Bug", "type"),),
-    project="A project.",
-    hosts=frozenset({"docs.example.com"}),
-)
 
 # Text made of the pieces that matter for Markdown, mentions and links.
 PIECES = st.sampled_from(
@@ -74,64 +60,13 @@ TEXT = st.one_of(st.text(), st.lists(PIECES, max_size=40).map("".join))
 NUMBERS = st.sets(st.integers(min_value=1, max_value=20), max_size=3)
 
 
-def rendered(markdown):
-    """The text outside code, the link targets and the HTML of rendered Markdown."""
-    texts, links, html = [], [], []
-
-    def walk(tokens):
-        for token in tokens:
-            if token.type in {"code_inline", "fence", "code_block"}:
-                continue
-            if token.type in {"html_inline", "html_block", "image"}:
-                html.append(token.content)
-            if token.type == "link_open":
-                links.append(token.attrGet("href"))
-            if token.type == "text":
-                texts.append(token.content)
-            walk(token.children or [])
-
-    walk(PARSER.parse(markdown))
-    return texts, links, html
-
-
-def linked(text):
-    """The addresses that GitHub links in the text, and the text without them.
-
-    GitHub links an address only at the start or after a space or one of * _ ~ (,
-    and a # or @ inside it is part of the address.
-    """
-    links = []
-
-    def drop(match, url):
-        start = match.start()
-        before = match.string[start - 1] if start else " "
-        if before not in " \t\n*_~(":
-            return match[0]
-        links.append(url)
-        return " "
-
-    text = assistant.BARE_URL.sub(lambda m: drop(m, m[0]), text)
-    text = assistant.WWW_URL.sub(lambda m: drop(m, f"https://{m[0]}"), text)
-    return links, text
-
-
 @hypothesis.settings(
     max_examples=600, suppress_health_check=[hypothesis.HealthCheck.too_slow]
 )
 @given(TEXT, NUMBERS)
 def test_sanitized_text_mentions_nobody_and_links_only_allowed_sites(text, numbers):
     output = assistant.sanitize(text, CONFIG, numbers)
-    texts, links, html = rendered(output)
-    for part in texts:
-        addresses, part = linked(part)
-        assert all(assistant.allowed_url(url, CONFIG) for url in addresses), output
-        assert not assistant.MENTION.search(part), output
-        assert not assistant.CROSS_REFERENCE.search(part), output
-        for match in assistant.ISSUE_REFERENCE.finditer(part):
-            assert int(match[1]) in numbers, output
-    assert all(assistant.allowed_url(link, CONFIG) for link in links), output
-    assert html == [], output
-    assert "\0" not in output and "\r" not in output
+    assert problems(output, numbers) == [], output
 
 
 @given(TEXT)

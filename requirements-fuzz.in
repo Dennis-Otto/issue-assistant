@@ -1,0 +1,5 @@
+# Coverage-guided fuzzing of the cleaning with Atheris (fuzz/, .github/workflows/fuzz.yml);
+# compile requirements-fuzz.txt with
+#   pip-compile --generate-hashes --allow-unsafe requirements-fuzz.in
+atheris
+markdown-it-py

@@ -34,4 +34,4 @@ strict = true
 files = ["issue_assistant.py"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["issue_assistant", "support"]
+known-first-party = ["issue_assistant", "oracle", "support"]

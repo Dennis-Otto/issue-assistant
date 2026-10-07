@@ -729,8 +729,22 @@ def test_code_stays_as_it_is(config):
             "`www.evil.example` and www.home-assistant.io",
         ),
         # Link definitions go; an address that urlsplit can't read is no link.
-        ("[x]: https://evil.example\n[a][x] http://[", "[a][x] `http://[`"),
+        ("[x]: https://evil.example\n[a][x] http://[", "\\[a\\]\\[x\\] `http://[`"),
         ("[@a](https://docs.autodarts.io/)", "[`@a`](https://docs.autodarts.io/)"),
+        # Found by the fuzzer: a link without a target, and an image whose target
+        # ends in a line break; no other link or image than the allowed ones forms.
+        ("x[]()", "x"),
+        (
+            "![a](https://evil.example/p.png\n)",
+            "!\\[a\\](`https://evil.example/p.png`\n)",
+        ),
+        (
+            "[a [b] c](https://evil.example)",
+            "\\[a \\[b\\] c\\](`https://evil.example`)",
+        ),
+        # Also by the fuzzer: an underscore after the number ends an emphasis, and
+        # GitHub still links the reference inside it.
+        ("_!}#8_", "_!}`#8`_"),
     ],
 )
 def test_tricky_text_is_cleaned_safely(config, text, cleaned):

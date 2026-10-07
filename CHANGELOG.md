@@ -2,6 +2,12 @@
 
 All notable changes of the issue assistant. The complete notes of every version, with each pull request, are on the [releases page](https://github.com/Dennis-Otto/issue-assistant/releases). Versions follow [Semantic Versioning](https://semver.org/); a change of a template that repositories must install again is a new minor version, and one that breaks their settings a new major version.
 
+## Unreleased
+
+### Security
+
+- Coverage-guided fuzzing with Atheris now checks the cleaning of the AI's text, in a new Fuzzing workflow. It found a link without a target, images whose target ends in a line break, and a reference followed by an underscore that ends an emphasis. Brackets outside the allowed links are now escaped, so no other link or image can form, and a reference counts whatever follows its number. After the fixes, ten minutes and about 600,000 inputs found nothing.
+
 ## 1.2.1
 
 ### Fixed
