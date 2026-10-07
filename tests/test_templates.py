@@ -75,10 +75,11 @@ ENGINE_RULES = {
 
 
 def steps(path):
+    # A job that calls a reusable workflow, such as the release verification, has none.
     return [
         (job_name, step)
         for job_name, job in load(path)["jobs"].items()
-        for step in job["steps"]
+        for step in job.get("steps", [])
     ]
 
 

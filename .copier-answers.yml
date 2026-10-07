@@ -1,7 +1,7 @@
 # The answers of the blueprint (https://github.com/Dennis-Otto/repo-blueprint);
 # `copier update` reads them to bring the repository up to the latest release.
 # Change them only with `copier update --data name=value`.
-_commit: v0.2.0
+_commit: v0.3.1
 _src_path: https://github.com/Dennis-Otto/repo-blueprint.git
 author: Dennis Otto
 copyright: 2026 Dennis Otto
@@ -17,6 +17,7 @@ project_name: Issue assistant
 project_slug: issue-assistant
 project_type: github-action
 python_package: issue_assistant
+sample_code: false
 sponsor: Dennis-Otto
 topics: ai, automation, claude, github-actions, github-issues, issue-triage, maintainers,
     open-source-tools

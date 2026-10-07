@@ -20,7 +20,8 @@ All changes reach the protected `main` branch through pull requests that pass ev
 
 1. Open an issue first for anything larger than a small fix, so we can agree on the approach.
 2. Create a branch from `main`.
-3. Open a pull request whose title is a [Conventional Commit](https://www.conventionalcommits.org/), such as `feat(settings): add a dark mode` or `fix: keep the token secret`. Mark a breaking change with `!`. Pull requests are squashed into one commit named after the title, and the release bot builds the version and the changelog from these names.
+3. Describe what changes for users under `## Unreleased` in `CHANGELOG.md`, in the words of a user.
+4. Open a pull request whose title is a [Conventional Commit](https://www.conventionalcommits.org/), such as `feat(settings): add a dark mode` or `fix: keep the token secret`. Mark a breaking change with `!`. Pull requests are squashed into one commit named after the title, and the title decides the next version: `fix` a patch, `feat` a minor, `!` a major version.
 
 ## Checks
 
@@ -36,6 +37,8 @@ To run them before every push on its own, turn on the hook of the repository onc
 git config core.hooksPath .githooks
 ```
 
+The dev container in `.devcontainer/` has all of this set up, for VS Code and for GitHub Codespaces: open the repository in it, and `bash scripts/check.sh` runs.
+
 Update `requirements-dev.txt` with `pip-compile --generate-hashes --allow-unsafe requirements-dev.in`.
 
 The cleaning of the AI's text has two more guards, which judge the result with an independent CommonMark parser (`tests/oracle.py`): property tests with Hypothesis in `tests/test_properties.py`, part of the test suite, and coverage-guided fuzzing with Atheris, which the Fuzzing workflow runs for a minute on every change and for a quarter of an hour every week:
@@ -49,6 +52,8 @@ A finding of either becomes an example in `test_tricky_text_is_cleaned_safely` i
 
 ## Releases
 
-The release bot keeps a pull request titled `chore: release x.y.z` with the next version and the changelog. Merging it creates the release with its package, SBOM and signed provenance, and delivers it by moving the major tag, such as `v1`. A release of dependency updates merges and publishes itself. Repositories that use the action receive the release as a Dependabot pull request.
+The release bot keeps a pull request titled `chore: release x.y.z` with the next version, up to date with `main` and decided anew with every merge. Its section of the changelog is the text of Unreleased; without one, it lists the pull requests. Merging it creates the release with its package, SBOM and signed provenance, and delivers it by moving the major tag, such as `v1`. A release of dependency updates merges and publishes itself. Repositories that use the action receive the release as a Dependabot pull request.
+
+A line `Release-As: 2.0.0-beta.1` in the description of a pull request sets the version of the next release, for a prerelease for example. A prerelease keeps the text of Unreleased for the release that follows it.
 
 By contributing, you agree that your contribution is licensed under the MIT license of this project.

@@ -1,12 +1,17 @@
 name: Release
 
-# The release bot. release-please keeps a pull request for the next release: the
-# version and the changelog from the Conventional Commit titles merged since the
-# last release. Merging it creates the release as a draft, with its tag. The jobs
-# below attach the package, its SBOM and its signed provenance, make the release
-# public, and then deliver it where the repository variable PUBLISH_TO says:
-# pypi, npm, ghcr, hacs, nextcloud-appstore, github-action or none. A release that
-# only updates dependencies merges itself once its checks pass.
+# The release bot. release-please keeps a pull request for the next release, up to
+# date with main. Its version follows from the Conventional Commit titles merged
+# since the last release (fix: a patch, feat: a minor, ! or BREAKING CHANGE: a major
+# version) and is decided anew with every merge. What the pull requests wrote under
+# "## Unreleased" of CHANGELOG.md becomes the section of the release; without it,
+# the section lists the pull requests. Merging the pull request creates the release
+# as a draft, with its tag. The jobs below attach the package, its SBOM and its
+# signed provenance, write the notes, make the release public, and then deliver it
+# where the repository variable PUBLISH_TO says: pypi, npm, ghcr, hacs,
+# nextcloud-appstore, github-action or none. Last, verify-release.yml checks the
+# release as its users can. A release that only updates dependencies merges itself
+# once its checks pass.
 # https://github.com/Dennis-Otto/repo-blueprint
 
 on:
@@ -44,6 +49,10 @@ jobs:
       version: ${{ steps.release.outputs.version }}
       major: ${{ steps.release.outputs.major }}
     steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       - name: Create a token of the release app
         id: app
         if: vars.RELEASE_AUTOMATION_CLIENT_ID != ''
@@ -54,6 +63,35 @@ jobs:
           # Only what the release pull request and its merge need.
           permission-contents: write
           permission-pull-requests: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Have the release pull request rebuilt on the current main
+        if: steps.app.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # release-please rebuilds its pull request only when its description changes,
+          # so a merge of a hidden type, such as docs or chore, would leave it behind
+          # main. A marker after the footer of the description makes it rebuild the pull
+          # request on main; the notes above stay as they are, since release-please reads
+          # them from a merged release pull request to create the release.
+          set -euo pipefail
+          gh pr list --state open --label "autorelease: pending" --json number,headRefName \
+            --jq '.[] | "\(.number) \(.headRefName)"' |
+            while read -r number branch; do
+              # The list can lag behind a merge: only a pull request still open is rebuilt.
+              if [[ "$(gh pr view "$number" --json state --jq .state)" != OPEN ]]; then
+                continue
+              fi
+              behind="$(gh api "repos/$GH_REPO/compare/main...$branch" --jq .behind_by)"
+              if [[ "$behind" != 0 ]]; then
+                echo "#$number is $behind commit(s) behind main; release-please rebuilds it."
+                body="$(gh pr view "$number" --json body --jq .body)"
+                gh pr edit "$number" --body "$(printf '%s\n\n%s\n' "$body" "<!-- The release bot rebuilds this pull request on the current main. -->")"
+              fi
+            done
       - name: Update the release pull request, or create the release
         id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
@@ -63,6 +101,46 @@ jobs:
           token: ${{ steps.app.outputs.token || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      - name: Write the text of Unreleased into the release pull request
+        if: steps.app.outputs.token != ''
+        env:
+          # The commit goes through GitHub's API as the release app: GitHub signs it,
+          # as main requires, and it starts the checks.
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ steps.release.outputs.pr }}
+        run: |
+          set -euo pipefail
+          script=.github/blueprint.py
+          [[ -f "$script" ]] || script=blueprint.py
+          raw=(-H "Accept: application/vnd.github.raw+json")
+          # The open release pull requests; one that release-please has just created may
+          # not carry its label yet, so its own output counts as well.
+          {
+            gh pr list --state open --label "autorelease: pending" --json headRefName --jq '.[].headRefName'
+            if [[ -n "$PR" ]]; then jq -r .headBranchName <<<"$PR"; fi
+          } | sort -u |
+            while read -r branch; do
+              head="$(gh api "repos/$GH_REPO/git/ref/heads/$branch" --jq .object.sha)"
+              version="$(gh api "${raw[@]}" "repos/$GH_REPO/contents/.release-please-manifest.json?ref=$head" | jq -r '.["."]')"
+              gh api "${raw[@]}" "repos/$GH_REPO/contents/CHANGELOG.md?ref=$head" > "$RUNNER_TEMP/branch.md"
+              python3 "$script" changelog release "$version" CHANGELOG.md "$RUNNER_TEMP/branch.md" > "$RUNNER_TEMP/release.md"
+              if cmp -s "$RUNNER_TEMP/release.md" "$RUNNER_TEMP/branch.md"; then
+                echo "The changelog of $version is up to date."
+                continue
+              fi
+              echo "Writing the changelog of $version into $branch."
+              jq --null-input --arg repo "$GH_REPO" --arg branch "$branch" --arg head "$head" \
+                --arg headline "chore: write the changelog of $version" \
+                --rawfile contents <(base64 --wrap=0 "$RUNNER_TEMP/release.md") \
+                '{query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+                  variables: {input: {
+                    branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                    expectedHeadOid: $head,
+                    message: {headline: $headline},
+                    fileChanges: {additions: [{path: "CHANGELOG.md", contents: $contents}]}}}}' |
+                gh api graphql --input - --jq .data.createCommitOnBranch.commit.oid
+            done
       - name: Merge a release of dependency updates once its checks pass
         if: steps.release.outputs.pr != '' && steps.app.outputs.token != ''
         env:
@@ -108,6 +186,10 @@ jobs:
       NEXTCLOUD_VERSION: 33.0.8
       NEXTCLOUD_SHA256: d974bcbe446edaf87ae17113200b362495abbdb89d7900d65d930fe7a9dc9474
     steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.release-please.outputs.tag }}
@@ -170,6 +252,10 @@ jobs:
           echo "$KRANKERL_SHA256  $RUNNER_TEMP/krankerl.deb" | sha256sum --check --strict
           sudo dpkg --install "$RUNNER_TEMP/krankerl.deb"
           krankerl package
+          # The project's own checks of what its package holds, before and after signing.
+          if [[ -f scripts/check-package.sh ]]; then
+            bash scripts/check-package.sh "build/artifacts/$app_id.tar.gz" unsigned
+          fi
           umask 077
           printf '%s' "$APP_PRIVATE_KEY" > "$RUNNER_TEMP/app.key"
           curl --fail --location --silent --show-error --output "$RUNNER_TEMP/app.crt" \
@@ -185,6 +271,9 @@ jobs:
             --path="$RUNNER_TEMP/signing/$app_id"
           test -s "$RUNNER_TEMP/signing/$app_id/appinfo/signature.json"
           tar --create --gzip --file "$ASSETS/$app_id.tar.gz" --directory "$RUNNER_TEMP/signing" "$app_id"
+          if [[ -f scripts/check-package.sh ]]; then
+            bash scripts/check-package.sh "$ASSETS/$app_id.tar.gz" signed
+          fi
           openssl dgst -sha512 -sign "$RUNNER_TEMP/app.key" -out "$ASSETS/$app_id.tar.gz.sig" "$ASSETS/$app_id.tar.gz"
           openssl x509 -in "$RUNNER_TEMP/app.crt" -pubkey -noout > "$RUNNER_TEMP/app.pub"
           openssl dgst -sha512 -verify "$RUNNER_TEMP/app.pub" -signature "$ASSETS/$app_id.tar.gz.sig" "$ASSETS/$app_id.tar.gz"
@@ -212,7 +301,21 @@ jobs:
           BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
         run: |
           cp "$BUNDLE_PATH" "$ASSETS/provenance.sigstore.json"
+          # The signed statement also as in-toto JSON lines, the format of SLSA, which
+          # OpenSSF Scorecard and other tools look for.
+          jq -c .dsseEnvelope "$BUNDLE_PATH" > "$ASSETS/provenance.intoto.jsonl"
           gh release upload "$TAG" "$ASSETS"/* --clobber --repo "$GITHUB_REPOSITORY"
+
+      - name: Write the notes, the section of the changelog with every pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          script=.github/blueprint.py
+          [[ -f "$script" ]] || script=blueprint.py
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$RUNNER_TEMP/pull-requests.md"
+          python3 "$script" changelog notes "$VERSION" CHANGELOG.md "$RUNNER_TEMP/pull-requests.md" > "$RUNNER_TEMP/notes.md"
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md"
 
   publish:
     name: publish the release
@@ -222,11 +325,22 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       - name: Make the complete release public
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.release-please.outputs.tag }}
-        run: gh release edit "$TAG" --draft=false --latest --repo "$GITHUB_REPOSITORY"
+        run: |
+          # A version such as 2.0.0-beta.1 is a prerelease, which HACS, npm and the
+          # like only offer to those who ask for one.
+          if [[ "$TAG" == *-* ]]; then
+            gh release edit "$TAG" --draft=false --prerelease --latest=false --repo "$GITHUB_REPOSITORY"
+          else
+            gh release edit "$TAG" --draft=false --latest --repo "$GITHUB_REPOSITORY"
+          fi
 
   pypi:
     name: deliver to PyPI
@@ -242,6 +356,10 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       - name: Download the packages of the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -263,6 +381,10 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
@@ -273,7 +395,10 @@ jobs:
           TAG: ${{ needs.release-please.outputs.tag }}
         run: |
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.tgz'
-          npm publish ./*.tgz --provenance --access public
+          # A prerelease goes to the tag next, so that npm install keeps the release.
+          channel=latest
+          [[ "$TAG" == *-* ]] && channel=next
+          npm publish ./*.tgz --provenance --access public --tag "$channel"
 
   ghcr:
     name: deliver to GHCR
@@ -287,6 +412,10 @@ jobs:
       id-token: write
       packages: write
     steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.release-please.outputs.tag }}
@@ -339,6 +468,10 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.release-please.outputs.tag }}
@@ -370,12 +503,17 @@ jobs:
   github-action:
     name: move the major tag
     needs: [release-please, publish]
-    if: vars.PUBLISH_TO == 'github-action'
+    # A prerelease leaves the major tag at the last release.
+    if: vars.PUBLISH_TO == 'github-action' && !contains(needs.release-please.outputs.tag, '-')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: write
     steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.release-please.outputs.tag }}
@@ -390,3 +528,15 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -fa "$MAJOR" -m "$TAG" "$TAG^{commit}"
           git push --force "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" "refs/tags/$MAJOR"
+
+  verify:
+    name: verify
+    needs: [release-please, publish, pypi, npm, ghcr, nextcloud-appstore, github-action]
+    # After the delivery, whichever of them ran: the release as its users check it.
+    if: always() && needs.publish.result == 'success'
+    permissions:
+      attestations: read
+      contents: read
+    uses: ./.github/workflows/verify-release.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag }}

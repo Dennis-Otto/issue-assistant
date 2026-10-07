@@ -3,9 +3,22 @@
 .vscode/
 .DS_Store
 Thumbs.db
+/.claude/settings.local.json
 
 # The context folder of the issue assistant
 /.issue-assistant/
+
+# Secrets, which never belong in the repository; the secret scan checks every push too.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+auth.json
+credentials*.json
+/secrets/
 
 # Python
 __pycache__/
@@ -21,3 +34,4 @@ __pycache__/
 /build/
 /dist/
 *.egg-info/
+/coverage.xml

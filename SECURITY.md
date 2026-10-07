@@ -39,7 +39,8 @@ The action stores no secrets. A repository keeps the engine's token as a secret 
 
 - Every pull request and every push to `main` runs CodeQL, a Gitleaks secret scan and, for changed dependencies, a review against known vulnerabilities. OpenSSF Scorecard checks the practices of the repository every week.
 - Actions are pinned to commit hashes, tokens get the least permissions they need, and Dependabot keeps actions and dependencies current.
-- Releases carry an SBOM and signed build provenance.
+- Harden-Runner records the network traffic of every job of the workflows, so that a connection that doesn't belong there shows.
+- Releases carry an SBOM and signed build provenance, are immutable once published, and are verified as their users can after every release and every week.
 
 ## Findings of code scanning
 

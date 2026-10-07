@@ -18,6 +18,9 @@ rules:
     ignore:
       # The test run of the action uses it the way its documentation shows, ./
       - action-test.yml
+      # The release workflow calls the release verification with ./, because
+      # actionlint doesn't know the self-repository syntax $/ yet.
+      - release.yml
   github-app:
     ignore:
       # The token action has no input for the Variables permission that the settings

@@ -31,14 +31,39 @@ updates:
       prefix: chore
       include: scope
 
-  # The browser of scripts/social-preview.sh.
+  # The browser of scripts/social-preview.sh and the image of the dev container.
   - package-ecosystem: docker
-    directory: /.github/social-preview
+    directories:
+      - /.github/social-preview
+      - /.devcontainer
     schedule:
       interval: monthly
       timezone: Europe/Berlin
     cooldown:
       default-days: 7
+    # The dev container keeps the Python, PHP or Node of the project, as the CI does;
+    # only its digest moves.
+    ignore:
+      - dependency-name: "devcontainers/*"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # The Features of the dev container, locked in .devcontainer/devcontainer-lock.json.
+  - package-ecosystem: devcontainers
+    directory: /
+    schedule:
+      interval: monthly
+      timezone: Europe/Berlin
+    cooldown:
+      default-days: 7
+    groups:
+      dev-container-features:
+        patterns:
+          - "*"
     commit-message:
       prefix: chore
       include: scope

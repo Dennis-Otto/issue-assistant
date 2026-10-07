@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""The settings of a repository as code, and the checklist of what only a person can do.
+"""The settings of a repository as code, the checklist of what only a person can do,
+and the changelog of its releases.
 
     python3 blueprint.py settings check     compare .github/repository.toml with GitHub
     python3 blueprint.py settings apply     make GitHub match .github/repository.toml
     python3 blueprint.py checklist          the steps outside the API, and which are done
+    python3 blueprint.py changelog ...      the changelog of a release (the release bot)
+    python3 blueprint.py unreleased ...     an entry under Unreleased (the other bots)
 
 Run it in the root of a repository made from the blueprint, with the GitHub CLI `gh`
 signed in as an administrator. It needs Python 3.12 and nothing else. It never reads,
@@ -15,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tomllib
@@ -317,11 +321,14 @@ def tag_ruleset() -> dict[str, Json]:
 
 
 def ruleset_differences(want: dict[str, Json], have: dict[str, Json]) -> list[str]:
-    """What differs between two rulesets, in the parts this tool manages."""
+    """What differs between two rulesets, in the parts this tool manages. A token that
+    may only read the administration, such as the release app's, gets the rulesets
+    without bypass_actors; then nothing can be said about them."""
     differences = [
         key
         for key in ("target", "enforcement", "bypass_actors", "conditions")
         if want[key] != have.get(key)
+        and not (key == "bypass_actors" and key not in have)
     ]
     have_rules = {
         rule["type"]: rule.get("parameters", {}) for rule in have.get("rules", [])
@@ -727,7 +734,9 @@ def checklist(
         ),
         "nextcloud-appstore": (
             "App certificate requested and the app registered in the App Store",
-            "https://nextcloudappstore.readthedocs.io/en/latest/developer.html",
+            "Request the certificate: "
+            "https://nextcloudappstore.readthedocs.io/en/latest/developer.html\n"
+            "then run Actions -> Register the app with the id of the app.",
         ),
     }
     if target in delivery:
@@ -744,6 +753,161 @@ def describe_steps(steps: list[Step]) -> str:
         if step.done is not True and step.how:
             lines += [f"      {line}" for line in step.how.splitlines()]
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------- changelog
+
+# Pull requests write what changes for users under "## Unreleased" of CHANGELOG.md.
+# release-please decides the version from their titles and writes a section of them;
+# the release bot puts the text of Unreleased in its place, and the release notes
+# show that text with the list of the pull requests below it.
+
+HEADING = re.compile(r"^## .*$", re.MULTILINE)
+UNRELEASED = re.compile(r"^## \[?unreleased\]?\s*$", re.IGNORECASE)
+COMPARE = re.compile(r"\((https://\S+/compare/\S+?)\)")
+# Plain Markdown, which also the update dialogs of Home Assistant and the like show.
+PULL_REQUESTS = "## Every pull request of this release"
+
+
+def block(text: str) -> str:
+    """The body of a section: the text after a blank line, or nothing."""
+    text = text.strip("\n")
+    return f"\n\n{text}\n\n" if text.strip() else "\n\n"
+
+
+@dataclass
+class Changelog:
+    """A changelog as its preamble and its sections, each a heading and its body."""
+
+    preamble: str
+    sections: list[tuple[str, str]]
+
+    @classmethod
+    def parse(cls, text: str) -> Changelog:
+        headings = list(HEADING.finditer(text))
+        if not headings:
+            return cls(text, [])
+        ends = [match.start() for match in headings[1:]] + [len(text)]
+        sections = [
+            (match.group(), text[match.end() : end])
+            for match, end in zip(headings, ends, strict=True)
+        ]
+        return cls(text[: headings[0].start()], sections)
+
+    def find(self, pattern: re.Pattern[str]) -> int | None:
+        return next(
+            (
+                index
+                for index, (heading, _) in enumerate(self.sections)
+                if pattern.match(heading)
+            ),
+            None,
+        )
+
+    def render(self) -> str:
+        text = self.preamble.rstrip("\n") + "\n\n" if self.preamble.strip() else ""
+        text += "".join(heading + body for heading, body in self.sections)
+        return text.rstrip("\n") + "\n"
+
+
+def version_heading(version: str) -> re.Pattern[str]:
+    return re.compile(rf"^## \[?v?{re.escape(version)}\]?(?=[\s(]|$)")
+
+
+def release_changelog(version: str, main: str, branch: str) -> str:
+    """The changelog of the release pull request for the version: the changelog of main,
+    with the text of Unreleased moved into the section that release-please wrote on the
+    branch. Without that text, the section lists the pull requests. A prerelease keeps
+    the text under Unreleased for the release that follows it."""
+    written = Changelog.parse(branch)
+    found = written.find(version_heading(version))
+    if found is None:
+        return branch
+    heading, generated = written.sections[found]
+    changelog = Changelog.parse(main)
+    unreleased = changelog.find(UNRELEASED)
+    text = "" if unreleased is None else changelog.sections[unreleased][1]
+    keep = "-" in version or not text.strip()
+    others = [
+        section
+        for section in changelog.sections
+        if not UNRELEASED.match(section[0])
+        and not version_heading(version).match(section[0])
+    ]
+    changelog.sections = [
+        ("## Unreleased", block(text) if keep else block("")),
+        (heading, block(generated if keep else text)),
+        *others,
+    ]
+    return changelog.render()
+
+
+def release_notes(version: str, changelog: str, generated: str) -> str:
+    """The notes of the release: its section of the changelog, followed by the list of
+    its pull requests that release-please wrote, or only that list. Notes that have
+    both already stay as they are."""
+    log = Changelog.parse(changelog)
+    found = log.find(version_heading(version))
+    listed = Changelog.parse(generated)
+    pulls = listed.sections[0][1] if listed.sections else generated
+    if (
+        found is None
+        or PULL_REQUESTS in generated
+        or log.sections[found][1].split() == pulls.split()
+    ):
+        return generated.rstrip("\n") + "\n"
+    compare = COMPARE.search(listed.sections[0][0]) if listed.sections else None
+    lines = [
+        log.sections[found][1].strip("\n"),
+        "",
+        PULL_REQUESTS,
+        "",
+        pulls.strip("\n"),
+    ]
+    if compare:
+        lines += ["", f"[Compare with the previous release]({compare.group(1)})"]
+    return "\n".join([*lines, ""])
+
+
+def add_unreleased(changelog: str, heading: str, entry: str) -> str:
+    """The changelog with the entry under its heading in Unreleased; both are added
+    when they are missing, and an entry that is there already stays once."""
+    log = Changelog.parse(changelog)
+    found = log.find(UNRELEASED)
+    if found is None:
+        log.sections.insert(0, ("## Unreleased", block("")))
+        found = 0
+    lines = log.sections[found][1].strip("\n").split("\n")
+    if entry in lines:
+        return changelog
+    title = f"### {heading}"
+    if title not in lines:
+        lines += ["", title]
+    start = lines.index(title) + 1
+    end = start
+    while end < len(lines) and not lines[end].startswith("### "):
+        end += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    lines[end:end] = [entry] if end > start else ["", entry]
+    log.sections[found] = (log.sections[found][0], block("\n".join(lines)))
+    return log.render()
+
+
+def changelog_command(arguments: argparse.Namespace) -> int:
+    if arguments.command == "unreleased":
+        path = Path(arguments.file)
+        text = path.read_text(encoding="utf-8")
+        path.write_text(
+            add_unreleased(text, arguments.heading, arguments.entry), encoding="utf-8"
+        )
+        return 0
+    read = [Path(name).read_text(encoding="utf-8") for name in arguments.files]
+    if arguments.action == "release":
+        sys.stdout.write(release_changelog(arguments.version, *read))
+    else:
+        sys.stdout.write(release_notes(arguments.version, *read))
+    return 0
 
 
 # --------------------------------------------------------------------------- command line
@@ -784,8 +948,37 @@ def main(
     commands.add_parser(
         "checklist", help="the steps outside the API, and which are done"
     )
+    changelog_parser = commands.add_parser(
+        "changelog",
+        help="the changelog and the notes of a release, for the release bot",
+    )
+    changelog_parser.add_argument(
+        "action",
+        choices=["release", "notes"],
+        help="release: the changelog of the release pull request; notes: the release notes",
+    )
+    changelog_parser.add_argument("version")
+    changelog_parser.add_argument(
+        "files",
+        nargs=2,
+        metavar="FILE",
+        help="release: the changelog of main and that of the release branch; "
+        "notes: the changelog of the release and the notes of release-please",
+    )
+    unreleased_parser = commands.add_parser(
+        "unreleased", help="add an entry under Unreleased in the changelog, for bots"
+    )
+    unreleased_parser.add_argument("heading", help="such as Changed, without ###")
+    unreleased_parser.add_argument("entry", help="the line, such as '- Supports ...'")
+    unreleased_parser.add_argument("--file", default="CHANGELOG.md")
     arguments = parser.parse_args(argv)
 
+    if arguments.command in ("changelog", "unreleased"):
+        try:
+            return changelog_command(arguments)
+        except OSError as error:
+            print(f"blueprint.py: {error}", file=sys.stderr)
+            return 2
     api = api or Api()
     try:
         repo = arguments.repo or current_repo(api)

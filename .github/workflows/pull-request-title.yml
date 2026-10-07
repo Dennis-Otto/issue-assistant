@@ -26,6 +26,10 @@ jobs:
       issues: write
       pull-requests: write
     steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       # Never check out or run pull request code in this privileged workflow; the
       # title only reaches the script through an environment variable.
       - name: Check the title and set the label
