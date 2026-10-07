@@ -518,7 +518,12 @@ def test_a_complete_answer_fits_the_schema(config):
         ({"summary": "x" * 701}, "answer.summary is longer than 700 characters"),
         ({"summary": 5}, "answer.summary is not text"),
         ({"next_steps": "Reload"}, "answer.next_steps is not a list"),
-        ({"sensitive_data": "no"}, "answer.sensitive_data is not true or false"),
+        ({"sensitive_data": True}, "answer.sensitive_data is not text"),
+        (
+            {"sensitive_data": "token"},
+            "answer.sensitive_data is not one of none, personal, secret",
+        ),
+        ({"security_report": "no"}, "answer.security_report is not true or false"),
         ({"extra": 1}, "answer.extra is not expected"),
         (
             {"duplicates": [{"number": 0, "confidence": "high", "reason": "x"}]},
@@ -909,11 +914,30 @@ def test_references_are_listed_once(config):
     assert "### Where to look" in body and "nowhere" not in body
 
 
-def test_personal_data_gets_a_warning(config):
+@pytest.mark.parametrize(
+    ("sensitive", "language", "notice"),
+    [
+        ("secret", "en", "> [!WARNING]\n> This issue seems to show a secret"),
+        ("secret", "de", "> [!WARNING]\n> Dieses Issue scheint ein Geheimnis"),
+        ("personal", "en", "> [!NOTE]\n> This issue seems to show personal data"),
+        ("personal", "de", "> [!NOTE]\n> Dieses Issue scheint persönliche Daten"),
+    ],
+)
+def test_sensitive_data_gets_a_notice_that_fits(config, sensitive, language, notice):
     github = FakeGitHub(config, make_issue())
-    answer = json.dumps(make_answer(sensitive_data=True))
+    answer = json.dumps(make_answer(sensitive_data=sensitive, language=language))
     assistant.apply_answer(github, "triage", 12, answer, config, "abc")
-    assert "> [!WARNING]" in github.posted(12)[0]
+    (body,) = github.posted(12)
+    assert notice in body and body.count("> [!") == 1
+    replace = {"en": "replace the secret", "de": "ersetze das Geheimnis"}[language]
+    assert (replace in body) == (sensitive == "secret")
+
+
+def test_an_issue_without_sensitive_data_gets_no_notice(config):
+    github = FakeGitHub(config, make_issue())
+    answer = json.dumps(make_answer())
+    assistant.apply_answer(github, "triage", 12, answer, config, "abc")
+    assert "> [!" not in github.posted(12)[0]
 
 
 def test_a_possible_vulnerability_is_not_discussed_in_public(config):
@@ -1012,7 +1036,7 @@ def test_a_follow_up_thanks_and_asks_what_is_still_missing(config):
     answer = make_follow_up(
         missing_information=["The diagnostics, please."],
         references=[{"path": "docs/troubleshooting.md", "reason": "Diagnostics."}],
-        sensitive_data=True,
+        sensitive_data="secret",
         areas=["area: setup"],
     )
     assistant.apply_answer(github, "follow-up", 12, json.dumps(answer), config, "abc")

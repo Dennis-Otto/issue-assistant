@@ -8,6 +8,7 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 - `install` names the firewall policy with forward slashes on Windows too.
 - `check` says what to install when neither PyYAML nor yq can read the workflows, instead of failing with a traceback.
+- The notice about sensitive data says what the issue shows. A secret, such as a token, a key or a password, gets a warning to remove and replace it; other personal data, such as an e-mail address or the address of a private server, gets a note that leaves the choice to the reporter. Placeholders and variable names no longer count, and a follow-up only looks at the new comments.
 
 ## 1.0.1
 

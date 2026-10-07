@@ -949,6 +949,11 @@ def choice(values: list[str]) -> dict[str, Any]:
     return {"type": "string", "enum": values}
 
 
+# What an issue shows that it shouldn't: nothing, personal data such as an e-mail
+# address, or a secret that must be replaced.
+SENSITIVE = ["none", "personal", "secret"]
+
+
 def record(properties: dict[str, Any]) -> dict[str, Any]:
     return {
         "type": "object",
@@ -998,7 +1003,7 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
                 "reply": text(1500),
                 "missing_information": strings(400, 5),
                 "references": {"type": "array", "items": reference, "maxItems": 6},
-                "sensitive_data": {"type": "boolean"},
+                "sensitive_data": choice(SENSITIVE),
             }
         )
     return record(
@@ -1031,7 +1036,7 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
                 ),
             },
             "references": {"type": "array", "items": reference, "maxItems": 6},
-            "sensitive_data": {"type": "boolean"},
+            "sensitive_data": choice(SENSITIVE),
             "security_report": {"type": "boolean"},
         }
     )
@@ -1277,10 +1282,14 @@ TEXT: dict[str, dict[str, str]] = {
         "related": "Related",
         "discussion": "discussion",
         "references": "Where to look",
-        "sensitive": "> [!WARNING]\n> This issue seems to contain personal data, such "
-        "as a token, a key or a public IP address. Please remove it by editing the "
-        "post, and delete the earlier version from its edit history. Replace a token "
-        "or key that was visible.",
+        "sensitive.secret": "> [!WARNING]\n> This issue seems to show a secret, such "
+        "as a token, a key or a password. Please remove it by editing the post, delete "
+        "the earlier version from its edit history, and replace the secret, because "
+        "others may have seen it.",
+        "sensitive.personal": "> [!NOTE]\n> This issue seems to show personal data, "
+        "such as an e-mail address, a public IP address or the address of a private "
+        "server. If you'd rather not show it, edit the post and delete the earlier "
+        "version from its edit history.",
         "security": "> [!CAUTION]\n> This may describe a security vulnerability. Please "
         "report it privately, as described in the [security policy]({policy}), and "
         "remove the details here.",
@@ -1335,11 +1344,15 @@ TEXT: dict[str, dict[str, str]] = {
         "related": "Verwandte Themen",
         "discussion": "Diskussion",
         "references": "Zum Nachlesen",
-        "sensitive": "> [!WARNING]\n> Dieses Issue scheint persönliche Daten zu "
-        "enthalten, etwa ein Token, einen Schlüssel oder eine öffentliche IP-Adresse. "
-        "Bitte entferne sie, indem du den Beitrag bearbeitest, und lösche die frühere "
-        "Fassung aus dem Bearbeitungsverlauf. Ein sichtbar gewordenes Token oder einen "
-        "Schlüssel ersetzt du am besten.",
+        "sensitive.secret": "> [!WARNING]\n> Dieses Issue scheint ein Geheimnis zu "
+        "zeigen, etwa ein Token, einen Schlüssel oder ein Passwort. Bitte entferne es, "
+        "indem du den Beitrag bearbeitest, lösche die frühere Fassung aus dem "
+        "Bearbeitungsverlauf und ersetze das Geheimnis, denn andere könnten es gesehen "
+        "haben.",
+        "sensitive.personal": "> [!NOTE]\n> Dieses Issue scheint persönliche Daten zu "
+        "zeigen, etwa eine E-Mail-Adresse, eine öffentliche IP-Adresse oder die Adresse "
+        "eines privaten Servers. Wenn du sie lieber nicht zeigen willst, bearbeite den "
+        "Beitrag und lösche die frühere Fassung aus dem Bearbeitungsverlauf.",
         "security": "> [!CAUTION]\n> Das könnte eine Sicherheitslücke beschreiben. Bitte "
         "melde so etwas vertraulich, wie in der [Sicherheitsrichtlinie]({policy}) "
         "beschrieben, und entferne die Details hier.",
@@ -1424,8 +1437,8 @@ def render_analysis(
         ),
         f"{thanks(language, answer['kind'], author)} {say(language, 'intro')}",
     ]
-    if answer["sensitive_data"]:
-        parts.append(say(language, "sensitive"))
+    if answer["sensitive_data"] != "none":
+        parts.append(say(language, f"sensitive.{answer['sensitive_data']}"))
     if answer["security_report"]:
         parts.append(say(language, "security", policy=config.policy))
     else:
@@ -1487,8 +1500,8 @@ def render_follow_up(
         ),
         say(language, "follow-up.thanks", author=author),
     ]
-    if answer["sensitive_data"]:
-        parts.append(say(language, "sensitive"))
+    if answer["sensitive_data"] != "none":
+        parts.append(say(language, f"sensitive.{answer['sensitive_data']}"))
     parts.append(sanitize(answer["reply"], config))
     if asks:
         parts.append(

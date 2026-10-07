@@ -7,4 +7,4 @@ You asked the reporter of issue #{issue} for information, and they answered. Rea
    - `reply`: thank the reporter in a few words, then say what their answer shows: an updated assessment, or that the maintainer now has what is needed. At most about 150 words. Don't repeat your earlier analysis.
    - `missing_information`: only the questions that are still open and still block progress; empty when everything needed is there. Never ask again for what the reporter said they can't provide.
    - `kind`, `areas`, `topics` and `label_rationale`: corrected when the answer changes the picture, otherwise as before.
-   - `references`, `sensitive_data` and `language`: as for the first analysis; `references` only for files that the new information makes relevant.
+   - `references`, `sensitive_data` and `language`: as for the first analysis; `references` only for files that the new information makes relevant, `sensitive_data` only for what the new comments show.
