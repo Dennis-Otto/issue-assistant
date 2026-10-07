@@ -2,6 +2,12 @@
 
 All notable changes of the issue assistant. The complete notes of every version, with each pull request, are on the [releases page](https://github.com/Dennis-Otto/issue-assistant/releases). Versions follow [Semantic Versioning](https://semver.org/); a change of a template that repositories must install again is a new minor version, and one that breaks their settings a new major version.
 
+## 1.2.1
+
+### Fixed
+
+- The lifecycle also starts when a workflow named *Release integration* ends, as in ha-autodarts, whose releases are published with the `GITHUB_TOKEN` and start no workflow themselves.
+
 ## 1.2.0
 
 ### Added
