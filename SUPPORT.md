@@ -4,6 +4,8 @@
 | --- | --- |
 | Report a reproducible bug | a [bug report](https://github.com/Dennis-Otto/issue-assistant/issues/new?template=bug_report.yml) |
 | Suggest a feature | a [feature request](https://github.com/Dennis-Otto/issue-assistant/issues/new?template=feature_request.yml) |
+| Ask a question or share an idea | the [discussions](https://github.com/Dennis-Otto/issue-assistant/discussions) |
+| Hear of every new release | the [announcements](https://github.com/Dennis-Otto/issue-assistant/discussions/categories/announcements), or *Watch* → *Custom* → *Releases* |
 | Report a vulnerability | privately, as described in [SECURITY.md](SECURITY.md) |
 
 Please read the [README](README.md) first. For bugs, include the release, the workflow run and the steps to reproduce.
