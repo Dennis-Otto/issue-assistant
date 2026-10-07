@@ -7,7 +7,6 @@ break the checks.
 """
 
 import json
-import re
 from pathlib import Path
 
 from hypothesis import HealthCheck, given, settings
