@@ -1,6 +1,8 @@
 # Tools for the tests and checks; compile requirements-dev.txt with
 #   pip-compile --generate-hashes --allow-unsafe requirements-dev.in
 coverage
+hypothesis
+markdown-it-py
 mypy
 pytest
 pyyaml

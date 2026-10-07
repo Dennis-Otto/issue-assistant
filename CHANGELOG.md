@@ -2,6 +2,16 @@
 
 All notable changes of the issue assistant. The complete notes of every version, with each pull request, are on the [releases page](https://github.com/Dennis-Otto/issue-assistant/releases). Versions follow [Semantic Versioning](https://semver.org/); a change of a template that repositories must install again is a new minor version, and one that breaks their settings a new major version.
 
+## Unreleased
+
+### Security
+
+- The cleaning of the engine's text now follows the rules of CommonMark for code and catches what property tests with Hypothesis found against a CommonMark parser: backtick runs of different lengths, code spans cut by a fence or a quote on the next line, mentions and references glued to each other or to code, entities such as `&#64;`, HTML that a removal leaves behind, `www.` addresses, link definitions, `GH-` references and addresses glued to other text. A mention or a reference that the AI was steered into writing could otherwise have reached GitHub as a real one.
+
+### Fixed
+
+- An address that Python can't read, such as `http://[`, no longer stops the posting of an answer.
+
 ## 1.1.0
 
 ### Added

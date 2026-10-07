@@ -703,6 +703,44 @@ def test_code_stays_as_it_is(config):
     )
 
 
+# Text that would trick a simpler cleaning; tests/test_properties.py searches more.
+
+
+@pytest.mark.parametrize(
+    ("text", "cleaned"),
+    [
+        # Backtick runs of different lengths make no code, so the mention is text.
+        ("`@a``", "\\` `@a`\\`\\`"),
+        # A stray backtick or backslash can't pair with the code written here.
+        ("\\`@a` x", "\\\\\\` `@a`\\` x"),
+        # A span over two lines can be cut by a fence on the next line.
+        ("0```@0\n```", "0\\`\\`\\` `@0`\n\\`\\`\\`"),
+        # A removal can join the rest into a mention, which the next round finds;
+        # an underscore can end an emphasis right before an @.
+        ("<b>@</b>user and _x_@y", "`@user` and _x_`@y`"),
+        # Entities, and HTML that a removal leaves behind, become plain text.
+        ("&#64;user <<b>!A> <!X", "&amp;`#64`;user &lt;!A> &lt;!X"),
+        # Glued mentions and references, and references to pull requests with GH-.
+        ("@a@b 0/0#0A/0#0 GH-5", "`@a` `@b` `0/0#0` `A/0#0` `GH-5`"),
+        # GitHub doesn't link an address glued to other text: it would mention @https.
+        ("@https://docs.autodarts.io/x", "@`https://docs.autodarts.io/x`"),
+        (
+            "www.evil.example and www.home-assistant.io",
+            "`www.evil.example` and www.home-assistant.io",
+        ),
+        # Link definitions go; an address that urlsplit can't read is no link.
+        ("[x]: https://evil.example\n[a][x] http://[", "[a][x] `http://[`"),
+        ("[@a](https://docs.autodarts.io/)", "[`@a`](https://docs.autodarts.io/)"),
+    ],
+)
+def test_tricky_text_is_cleaned_safely(config, text, cleaned):
+    assert assistant.sanitize(text, config) == cleaned
+
+
+def test_code_written_next_to_code_keeps_its_own_backticks(config):
+    assert assistant.joined(["`a`", "`b`", "c", "`d`"]) == "`a` `b`c`d`"
+
+
 # Links to the repository
 
 
