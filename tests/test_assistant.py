@@ -1520,6 +1520,34 @@ def test_the_release_closes_the_fixed_issue_with_its_link(config):
     assert issue["state"] == "closed" and issue["state_reason"] == "completed"
     assert issue["rationale"].startswith("Fixed and released in v1.10.0 on ")
     assert github.labels_of(12) == {"bug"}
+    # The issue is filed under the release's milestone, made closed for it.
+    (milestone,) = github.milestone_store
+    assert milestone["title"] == "v1.10.0" and milestone["state"] == "closed"
+    assert milestone["due_on"] == make_release()["published_at"]
+    assert issue["milestone"] == milestone["number"]
+
+
+def test_issues_of_one_release_share_its_milestone(config):
+    github = released(config)
+    github.milestone_store = [{"title": "v1.10.0", "number": 4}]
+    assistant.close_released(github)
+    assert github.store[12]["milestone"] == 4
+    assert len(github.milestone_store) == 1
+
+
+def test_a_milestone_that_fails_doesn_t_stop_the_closing(config, capsys):
+    github = released(config)
+    original = github.rest
+
+    def rest(path, **options):
+        if path.startswith("milestones"):
+            raise assistant.GitHubError("gh api: Validation Failed (HTTP 422)")
+        return original(path, **options)
+
+    github.rest = rest
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+    assert github.store[12]["state"] == "closed"
+    assert "::notice::No milestone v1.10.0 on #12" in capsys.readouterr().out
 
 
 def test_a_german_issue_hears_of_the_release_in_german(config):

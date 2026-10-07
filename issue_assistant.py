@@ -41,13 +41,26 @@ CONTEXT = Path(".issue-assistant")
 WORKFLOWS = Path(".github/workflows")
 FIREWALL = Path(".github/egress-firewall.yaml")
 ACTIONLINT = Path(".github/actionlint.yaml")
+FINDINGS_FILE = Path(".github/findings.toml")
 # Files that install writes only when a repository doesn't have them yet.
-STARTERS = (LABELS_FILE, SETTINGS / "project.md", SETTINGS / "config.toml")
+STARTERS = (
+    LABELS_FILE,
+    SETTINGS / "project.md",
+    SETTINGS / "config.toml",
+    FINDINGS_FILE,
+)
 FIREWALL_RUNNER = "ubuntu-24.04-firewall"
 # The workflows with which this repository looks after its own issues are the
 # templates: install copies them, with the commit hash of the release in the pin of
 # the action, and check compares a repository's workflows with them.
-TEMPLATE_WORKFLOWS = ("issue-assistant.yml", "issue-lifecycle.yml", "labels.yml")
+TEMPLATE_WORKFLOWS = (
+    "issue-assistant.yml",
+    "issue-lifecycle.yml",
+    "labels.yml",
+    "findings.yml",
+)
+# The reasons GitHub accepts for dismissing a code scanning alert.
+DISMISS_REASONS = ("false positive", "won't fix", "used in tests")
 ACTION = "Dennis-Otto/issue-assistant"
 ACTION_PIN = re.compile(rf"{re.escape(ACTION)}@[0-9a-f]{{40}} # \S+")
 
@@ -195,6 +208,26 @@ class Label:
 
 
 @dataclass(frozen=True)
+class Acceptance:
+    """A finding of code scanning that the repository accepts, with its reason."""
+
+    tool: str
+    rule: str
+    reason: str
+    comment: str
+    # Only alerts in files under this path; empty for every file.
+    path: str = ""
+
+    def covers(self, alert: dict[str, Any]) -> bool:
+        location = (alert.get("most_recent_instance") or {}).get("location") or {}
+        return (
+            (alert.get("tool") or {}).get("name", "").casefold() == self.tool.casefold()
+            and (alert.get("rule") or {}).get("id") == self.rule
+            and str(location.get("path") or "").startswith(self.path)
+        )
+
+
+@dataclass(frozen=True)
 class Config:
     """What the assistant knows about the repository it looks after."""
 
@@ -272,6 +305,34 @@ def load_config(root: Path, repository: str) -> Config:
         notices=tuple(settings.get("transparency", {}).get("files", ("SUPPORT.md",))),
         releases=settings.get("releases", {}).get("close_with_release", True),
     )
+
+
+def load_findings(root: Path) -> tuple[Acceptance, ...]:
+    """The accepted findings of .github/findings.toml; none without the file.
+
+    Only the findings command and the check read it, so a broken file never stops
+    the work on issues.
+    """
+    path = root / FINDINGS_FILE
+    if not path.is_file():
+        return ()
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        return tuple(
+            Acceptance(
+                tool=str(item["tool"]),
+                rule=str(item["rule"]),
+                reason=str(item["reason"]),
+                comment=str(item["comment"]),
+                path=str(item.get("path", "")),
+            )
+            for item in data.get("accept", [])
+        )
+    except (tomllib.TOMLDecodeError, KeyError, TypeError) as error:
+        raise AssistantError(
+            f"{FINDINGS_FILE}: every [[accept]] needs tool, rule, reason and comment "
+            f"({type(error).__name__}: {error})"
+        ) from error
 
 
 def label_names(issue: dict[str, Any]) -> set[str]:
@@ -653,6 +714,56 @@ class GitHub:
             f"reopen #{number}",
             lambda: self.rest(
                 f"issues/{number}", method="PATCH", data={"state": "open"}
+            ),
+        )
+
+    def set_milestone(self, number: int, title: str, due: str) -> None:
+        """File the issue under the milestone `title`, a closed one made when missing."""
+
+        def assign() -> None:
+            milestones = self.rest("milestones?state=all&per_page=100", pages=True)
+            found = next((item for item in milestones if item["title"] == title), None)
+            if found is None:
+                found = self.rest(
+                    "milestones",
+                    method="POST",
+                    data={
+                        "title": title,
+                        "state": "closed",
+                        "description": f"The issues that {title} fixed.",
+                        "due_on": due,
+                    },
+                )
+            self.rest(
+                f"issues/{number}", method="PATCH", data={"milestone": found["number"]}
+            )
+
+        self._write(f"set the milestone {title} on #{number}", assign)
+
+    def open_alerts(self) -> list[dict[str, Any]] | None:
+        """The open alerts of code scanning; None where it isn't set up."""
+        try:
+            alerts: list[dict[str, Any]] = self.rest(
+                "code-scanning/alerts?state=open&per_page=100", pages=True
+            )
+        except GitHubError as error:
+            text = str(error).casefold()
+            if "no analysis found" in text or "not enabled" in text:
+                return None
+            raise
+        return alerts
+
+    def dismiss_alert(self, number: int, reason: str, comment: str) -> None:
+        self._write(
+            f"dismiss alert #{number} as {reason}",
+            lambda: self.rest(
+                f"code-scanning/alerts/{number}",
+                method="PATCH",
+                data={
+                    "state": "dismissed",
+                    "dismissed_reason": reason,
+                    "dismissed_comment": comment[:280],
+                },
             ),
         )
 
@@ -2129,6 +2240,11 @@ def close_released(github: GitHub) -> list[str]:
             f"Fixed and released in {release['tag_name']} on "
             f"{release['published_at'][:10]}.",
         )
+        try:
+            github.set_milestone(number, release["tag_name"], release["published_at"])
+        except GitHubError as error:
+            # The milestone only files the issue; the release closed it in any case.
+            print(f"::notice::No milestone {release['tag_name']} on #{number}: {error}")
         done.append(f"#{number}: closed, released in {release['tag_name']}.")
     return done
 
@@ -2263,6 +2379,45 @@ def sync_labels(github: GitHub, config: Config) -> list[str]:
     for name in sorted(set(existing) - configured):
         print(f"::notice::Label {name} is not in {LABELS_FILE}; it stays.")
     return done
+
+
+# Findings of code scanning
+
+
+def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
+    """Dismiss the accepted findings and count the others, which stay open.
+
+    The summary of a public repository's run is public, while code scanning alerts
+    are only shown to maintainers: the lines name an open alert by its number and
+    link only, never its rule, file or message. An accepted finding is named, since
+    .github/findings.toml names it anyway.
+    """
+    accepted = load_findings(root)
+    alerts = github.open_alerts()
+    if alerts is None:
+        return ["Code scanning isn't set up; there is nothing to check."], 0
+    done, left = [], []
+    for alert in sorted(alerts, key=lambda item: item["number"]):
+        acceptance = next((item for item in accepted if item.covers(alert)), None)
+        if acceptance is None:
+            left.append(alert)
+            continue
+        github.dismiss_alert(
+            alert["number"],
+            acceptance.reason,
+            f"{acceptance.comment} (accepted in {FINDINGS_FILE.as_posix()})",
+        )
+        done.append(
+            f"Alert #{alert['number']} ({acceptance.tool} {acceptance.rule}) "
+            f"dismissed as {acceptance.reason}."
+        )
+    done += [f"Alert #{alert['number']} is open: {alert['html_url']}" for alert in left]
+    if left:
+        done.append(
+            f"Fix these findings, or accept them with a reason in "
+            f"{FINDINGS_FILE.as_posix()}."
+        )
+    return done, len(left)
 
 
 # Checking a repository's set-up
@@ -2458,6 +2613,25 @@ def check_config(config: Config) -> list[str]:
     return problems
 
 
+def check_accepted_findings(config: Config) -> list[str]:
+    try:
+        accepted = load_findings(config.root)
+    except AssistantError as error:
+        return [str(error)]
+    problems = []
+    for item in accepted:
+        where = f"{FINDINGS_FILE.as_posix()}: {item.tool} {item.rule}"
+        if not item.tool.strip() or not item.rule.strip():
+            problems.append(f"{FINDINGS_FILE.as_posix()}: name the tool and the rule")
+        if item.reason not in DISMISS_REASONS:
+            problems.append(
+                f"{where}: the reason must be one of {', '.join(DISMISS_REASONS)}"
+            )
+        if not 0 < len(item.comment.strip()) <= 200:
+            problems.append(f"{where}: explain it in a comment of 1 to 200 characters")
+    return problems
+
+
 def check(config: Config) -> list[str]:
     """Everything that keeps the repository's set-up safe and consistent."""
     return (
@@ -2465,6 +2639,7 @@ def check(config: Config) -> list[str]:
         + check_forms(config)
         + check_workflows(config)
         + check_config(config)
+        + check_accepted_findings(config)
     )
 
 
@@ -2584,6 +2759,11 @@ def main(argv: list[str] | None = None) -> int:
         "with the release",
     )
     commands.add_parser("sync-labels", help="create and update the labels")
+    commands.add_parser(
+        "findings",
+        help="dismiss the accepted findings of code scanning and fail while others "
+        "are open",
+    )
     commands.add_parser("check", help="check the repository's set-up")
     setup = commands.add_parser("install", help="write the workflows into a repository")
     setup.add_argument("--ref", required=True, help="commit hash of the release")
@@ -2606,8 +2786,16 @@ def main(argv: list[str] | None = None) -> int:
         repository = os.environ.get("GH_REPO") or os.environ.get(
             "GITHUB_REPOSITORY", ""
         )
-        config = load_config(root, repository)
         github = GitHub(repository, dry_run=dry_run)
+        if arguments.command == "findings":
+            # Independent of the settings of the issues.
+            lines, left = watch_findings(github, root)
+            for line in lines:
+                if line.startswith("Alert #") and " is open: " in line:
+                    print(f"::error::{line}")
+            summary("Findings", lines or ["No open findings."], dry_run)
+            return 1 if left else 0
+        config = load_config(root, repository)
         if arguments.command == "check":
             problems = check(config)
             for problem in problems:

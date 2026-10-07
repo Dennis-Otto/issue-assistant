@@ -144,6 +144,17 @@ def make_release(tag="v1.10.0", days_ago=0.5, **extra):
     }
 
 
+def make_alert(number=1, tool="Scorecard", rule="CodeReviewID", path="no file"):
+    return {
+        "number": number,
+        "state": "open",
+        "tool": {"name": tool},
+        "rule": {"id": rule},
+        "most_recent_instance": {"location": {"path": path}},
+        "html_url": f"https://github.com/{REPOSITORY}/security/code-scanning/{number}",
+    }
+
+
 def analysis(comment_id=1, days_ago=1, **attributes):
     marker = assistant.render_marker("analysis", lang="en", **attributes)
     return make_comment(comment_id, "bot", f"{marker}\nFirst analysis", days_ago)
@@ -174,6 +185,10 @@ class FakeGitHub(assistant.GitHub):
         self.release_store: list[dict] = []
         # Pairs of a merge commit and the tag of a release that contains it.
         self.contained: set[tuple[str, str]] = set()
+        self.milestone_store: list[dict] = []
+        # The open code scanning alerts; None where code scanning isn't set up.
+        self.alert_store: list[dict] | None = []
+        self.alert_error: str | None = None
         self.calls: list[tuple] = []
         self.suggestions: list[dict] = []
         self.rationales: dict[tuple[int, str], str] = {}
@@ -230,6 +245,14 @@ class FakeGitHub(assistant.GitHub):
                 return {"tag_name": self.release}
             if route == "releases":
                 return deepcopy(self.release_store)
+            if route == "milestones":
+                return deepcopy(self.milestone_store)
+            if route == "code-scanning/alerts":
+                if self.alert_error:
+                    raise assistant.GitHubError(self.alert_error)
+                if self.alert_store is None:
+                    raise assistant.GitHubError("gh api: no analysis found (HTTP 404)")
+                return deepcopy(self.alert_store)
             if match := re.fullmatch(r"compare/([0-9a-f]+)\.\.\.(.+)", route):
                 tag = unquote(match[2])
                 if tag not in {item["tag_name"] for item in self.release_store}:
@@ -247,6 +270,10 @@ class FakeGitHub(assistant.GitHub):
             if route == "labels":
                 self.label_store.append({**data, "node_id": f"L_{data['name']}"})
                 return data
+            if route == "milestones":
+                milestone = {**data, "number": len(self.milestone_store) + 1}
+                self.milestone_store.append(milestone)
+                return milestone
         if method == "DELETE" and (
             match := re.fullmatch(r"issues/(\d+)/labels/(.+)", route)
         ):
@@ -262,9 +289,17 @@ class FakeGitHub(assistant.GitHub):
             if match := re.fullmatch(r"issues/(\d+)", route):
                 issue = self._issue(int(match[1]))
                 issue.update(data)
-                if data["state"] == "open":
+                if data.get("state") == "open":
                     issue["state_reason"] = "reopened"
                 return issue
+            if match := re.fullmatch(r"code-scanning/alerts/(\d+)", route):
+                alert = next(
+                    item
+                    for item in self.alert_store or []
+                    if item["number"] == int(match[1])
+                )
+                alert.update(data)
+                return alert
             if match := re.fullmatch(r"labels/(.+)", route):
                 label = next(
                     item
