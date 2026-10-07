@@ -113,8 +113,9 @@ CODE = re.compile(
     r"|(?<![`\\])(?P<run>`+)(?!`)[^\n]*?(?<!`)(?P=run)(?!`)",
     re.MULTILINE | re.DOTALL,
 )
+# Also a link without a target, [text](), which points to the page itself.
 MARKDOWN_LINK = re.compile(
-    r"(?<!!)\[([^\]\n]*)\]\(\s*<?([^)\s>\0]+)>?(?:\s+\"[^\"]*\")?\s*\)"
+    r"(?<!!)\[([^\]\n]*)\]\(\s*<?([^)\s>\0]*)>?(?:\s+\"[^\"]*\")?\s*\)"
 )
 LINK_DEFINITION = re.compile(r"^ {0,3}\[[^\]\n]*\]:.*$", re.MULTILINE)
 IMAGE = re.compile(r"!\[([^\]\n]*)\]\([^)\n]*\)")
@@ -123,10 +124,11 @@ WWW_URL = re.compile(r"(?<![\w.-])www\.[^\s<>`\0]+", re.IGNORECASE)
 # GitHub links a bare address only after these characters or at the start.
 AUTOLINK_AFTER = frozenset(" \t\n*_~(")
 # GitHub turns these into a mention or a link at the start of a piece of text and
-# after any character but a letter or digit; an underscore can end an emphasis.
+# after any character but a letter or digit; an underscore can start or end an
+# emphasis, so a reference counts whatever follows its number.
 MENTION = re.compile(r"(?<![A-Za-z0-9])@([A-Za-z0-9][A-Za-z0-9-]{0,38}(?:/[\w-]+)?)")
 CROSS_REFERENCE = re.compile(r"(?<![A-Za-z0-9])([\w.-]+/[\w.-]+#\d+)")
-ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)\b", re.IGNORECASE)
+ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)", re.IGNORECASE)
 HTML = re.compile(r"<!--.*?-->|</?[A-Za-z][^>\n]*>", re.DOTALL)
 HEADING_LINE = re.compile(r"^\s{0,3}#{1,6}\s+", re.MULTILINE)
 SECRET = re.compile(
@@ -1408,7 +1410,8 @@ def clean_prose(text: str, numbers: set[int], config: Config) -> str:
     What the cleaning keeps or writes goes behind a placeholder, so that no later
     rule changes it again. The rules repeat until nothing matches, because a removal
     can join the characters around it into something new. Last, the characters that
-    could start code, escape the code written here or form an entity are escaped.
+    could start code, a link or an image, escape the code written here or form an
+    entity are escaped.
     """
     kept: list[str] = []
 
@@ -1446,11 +1449,15 @@ def clean_prose(text: str, numbers: set[int], config: Config) -> str:
             lambda m: keep(m[0]) if int(m[1]) in numbers else code(m[0]), text
         )
     text = HEADING_LINE.sub("", text)
+    # Brackets too: links and images can span lines and nest brackets, so no other
+    # link or image than the ones kept above may form.
     for character, escaped in (
         ("\\", "\\\\"),
         ("`", "\\`"),
         ("&", "&amp;"),
         ("<", "&lt;"),
+        ("[", "\\["),
+        ("]", "\\]"),
     ):
         text = text.replace(character, escaped)
     pieces = re.split(r"\0(\d+)\0", text)

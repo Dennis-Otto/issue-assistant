@@ -32,6 +32,15 @@ python3.12 -m venv .venv
 
 Update `requirements-dev.txt` with `pip-compile --generate-hashes --allow-unsafe requirements-dev.in`.
 
+The cleaning of the AI's text has two more guards, which judge the result with an independent CommonMark parser (`tests/oracle.py`): property tests with Hypothesis in `tests/test_properties.py`, part of the test suite, and coverage-guided fuzzing with Atheris, which the Fuzzing workflow runs for a minute on every change and for fifteen minutes every week:
+
+```sh
+.venv/bin/pip install --require-hashes -r requirements-fuzz.txt
+.venv/bin/python fuzz/fuzz_sanitize.py -max_total_time=60
+```
+
+A finding of either becomes an example in `test_tricky_text_is_cleaned_safely` in `tests/test_assistant.py` with its fix.
+
 ## Releases
 
 A release is a pull request titled `chore: release x.y.z` that sets the version in `pyproject.toml` and adds a `## x.y.z` section at the top of `CHANGELOG.md`. When it is merged, the Release workflow tags `vx.y.z`, moves the major tag `vx`, and publishes the release with that section and the generated notes. Repositories that use the action receive it as a Dependabot pull request.
