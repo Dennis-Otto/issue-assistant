@@ -14,7 +14,7 @@ inputs:
     required: false
     default: ""
   mode:
-    description: Task of the engine (triage, follow-up or maintainer-reply), for context and apply
+    description: Task of the engine (triage, follow-up, maintainer-reply or release-reply), for context and apply
     required: false
     default: ""
   answer:

@@ -22,6 +22,8 @@ from support import (
     make_comment,
     make_follow_up,
     make_issue,
+    make_pull,
+    make_release,
     run_main,
 )
 
@@ -362,6 +364,50 @@ def test_other_closed_issues_stay_closed(config, case):
     assert github.store[12]["state"] == "closed"
 
 
+def closed_by_release(config, days_ago=2):
+    github = FakeGitHub(config, make_issue(labels=("bug",), state="closed"))
+    github.comment_store[12] = [
+        analysis(days_ago=20),
+        make_comment(
+            2,
+            "bot",
+            assistant.render_released("reporter", make_release(), [40], "en"),
+            days_ago,
+        ),
+    ]
+    github.event_store[12] = [
+        {"event": "closed", "actor": BOT_USER, "created_at": at(days_ago)}
+    ]
+    return github
+
+
+def comment_after_release(github, config, author="reporter"):
+    comment = make_comment(9, author, "Still broken in v1.10.0", 0)
+    github.comment_store[12].append(comment)
+    return assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(12), author, comment),
+        config,
+    )
+
+
+def test_the_engine_decides_about_a_comment_after_the_release(config):
+    github = closed_by_release(config)
+    plan = comment_after_release(github, config)
+    assert (plan.issue, plan.mode) == (12, "release-reply")
+    # The event job only names the task; nothing is reopened yet.
+    assert github.store[12]["state"] == "closed" and github.posted(12) == []
+
+
+@pytest.mark.parametrize("case", ["other person", "too late"])
+def test_other_comments_after_the_release_change_nothing(config, case):
+    github = closed_by_release(config, days_ago=40 if case == "too late" else 2)
+    author = "someone" if case == "other person" else "reporter"
+    plan = comment_after_release(github, config, author)
+    assert plan.mode == "none" and github.store[12]["state"] == "closed"
+
+
 def test_a_run_by_hand_starts_the_chosen_task(config):
     github = FakeGitHub(config, make_issue(labels=("bug",)))
     payload = {"inputs": {"issue": "12", "mode": "follow-up"}}
@@ -465,6 +511,8 @@ def test_the_context_works_without_releases_and_discussions(config):
     assert "The latest release is none yet." in written["prompt"]
     written = assistant.write_context(github, 12, "maintainer-reply", config)
     assert "does issue #12 now wait for its reporter?" in written["prompt"]
+    written = assistant.write_context(github, 12, "release-reply", config)
+    assert "persist after the release?" in written["prompt"]
     with pytest.raises(assistant.AssistantError):
         assistant.write_context(github, 12, "chat", config)
 
@@ -505,6 +553,10 @@ def test_a_complete_answer_fits_the_schema(config):
         ("triage", make_answer()),
         ("follow-up", make_follow_up()),
         ("maintainer-reply", {"waiting_for_reporter": True, "reason": "Asked."}),
+        (
+            "release-reply",
+            {"language": "de", "problem_persists": False, "reason": "Thanks."},
+        ),
     ):
         assert assistant.validate(assistant.answer_schema(mode, config), answer) == []
 
@@ -1111,6 +1163,44 @@ def test_a_maintainer_s_comment_that_needs_no_answer_changes_nothing(config, cas
     assert github.labels_of(12) == set(labels)
 
 
+def release_reply(**changes):
+    answer = {"language": "en", "problem_persists": True, "reason": "Still broken."}
+    return json.dumps(answer | changes)
+
+
+def test_a_problem_that_persists_after_the_release_reopens_the_issue(config):
+    github = closed_by_release(config)
+    done = assistant.apply_answer(
+        github, "release-reply", 12, release_reply(), config, "abc"
+    )
+    assert done == ["#12 reopened: Still broken."]
+    assert github.store[12]["state"] == "open"
+    assert github.labels_of(12) == {"bug", "needs-triage"}
+    (comment,) = github.posted(12)
+    assert comment.startswith("<!-- issue-assistant:reopened -->\n")
+    assert "@reporter, and sorry that it isn't solved yet. I reopened" in comment
+
+
+def test_a_german_reporter_hears_of_the_reopening_in_german(config):
+    github = closed_by_release(config)
+    answer = release_reply(language="de")
+    assistant.apply_answer(github, "release-reply", 12, answer, config, "abc")
+    assert "schade, dass es noch nicht gelöst ist" in github.posted(12)[0]
+
+
+def test_thanks_after_the_release_keep_the_issue_closed(config):
+    github = closed_by_release(config)
+    answer = release_reply(problem_persists=False, reason="Says thanks.")
+    done = assistant.apply_answer(github, "release-reply", 12, answer, config, "abc")
+    assert done == ["#12 stays closed: Says thanks."]
+    assert github.store[12]["state"] == "closed" and github.posted(12) == []
+    github.store[12]["state"] = "open"
+    done = assistant.apply_answer(
+        github, "release-reply", 12, release_reply(), config, "abc"
+    )
+    assert done == ["#12 is open or locked; nothing to reopen."]
+
+
 # The daily sweep
 
 
@@ -1300,6 +1390,169 @@ def test_a_label_without_a_notice_is_left_to_the_maintainer(config):
     assert "possible-duplicate" in github.labels_of(12)
     github.store[12]["locked"] = True
     assert assistant.sweep(github, NOW) == []
+
+
+# Fixed issues close with the release
+
+
+def merged(config, *pulls, labels=("bug", "needs-info", "stale"), **issue):
+    github = FakeGitHub(config, make_issue(labels=labels, **issue))
+    github.pull_store = list(pulls) or [make_pull()]
+    return github
+
+
+def test_a_merged_fix_marks_the_issue_until_the_release(config):
+    github = merged(config)
+    assert assistant.sweep(github, NOW) == [
+        "#12: fixed by #40; closes with the next release."
+    ]
+    (notice,) = github.posted(12)
+    assert notice.startswith("<!-- issue-assistant:fixed pull=40 -->\n")
+    assert "Fixed by #40, which is now on `main`. The fix ships with the next" in notice
+    assert github.labels_of(12) == {"bug", "fixed-in-next-release"}
+    assert github.store[12]["state"] == "open"
+    # The next run finds the label and says nothing again.
+    assert assistant.sweep(github, NOW) == []
+
+
+def test_the_notice_of_a_fix_speaks_the_reporter_s_language(config):
+    github = merged(config, labels=("bug",))
+    german = assistant.render_marker("analysis", lang="de")
+    github.comment_store[12] = [make_comment(1, "bot", german, 2)]
+    assistant.mark_fixed(github, NOW)
+    assert "Behoben durch #40, jetzt auf `main`." in github.posted(12)[0]
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["other branch", "too old", "other repository", "closed", "locked", "removed"],
+)
+def test_some_merged_fixes_mark_nothing(config, case):
+    pull = make_pull(
+        base="release" if case == "other branch" else "main",
+        days_ago=15 if case == "too old" else 1,
+    )
+    if case == "other repository":
+        pull["closingIssuesReferences"]["nodes"][0]["repository"] = {
+            "nameWithOwner": "someone/else"
+        }
+    github = merged(
+        config,
+        pull,
+        state="closed" if case == "closed" else "open",
+        locked=case == "locked",
+    )
+    if case == "removed":
+        # The maintainer removed the label after the notice of this pull request.
+        github.comment_store[12] = [
+            make_comment(5, "bot", assistant.render_fixed(40, "main", "en"), 1)
+        ]
+    assert assistant.mark_fixed(github, NOW) == []
+    assert github.posted(12) == []
+
+
+def released(config, *, contained=True, labeled_days_ago=2, pulls=None, releases=None):
+    github = merged(config, labels=("bug", "fixed-in-next-release", "needs-triage"))
+    github.pull_store = [make_pull(days_ago=3)] if pulls is None else pulls
+    github.release_store = releases or [make_release()]
+    github.event_store[12] = [
+        {
+            "event": "labeled",
+            "label": {"name": "fixed-in-next-release"},
+            "actor": BOT_USER,
+            "created_at": at(labeled_days_ago),
+        }
+    ]
+    if contained:
+        github.contained = {(f"{40:040x}", "v1.10.0")}
+    return github
+
+
+def test_the_release_closes_the_fixed_issue_with_its_link(config):
+    github = released(config)
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+    (comment,) = github.posted(12)
+    assert comment.startswith("<!-- issue-assistant:released tag=v1.10.0 -->\n")
+    assert (
+        "🎉 Released in [v1.10.0](https://github.com/owner/project/releases/tag/v1.10.0)"
+        " with the fix from #40. @reporter, please update to this version." in comment
+    )
+    assert "write a comment here and the issue reopens" in comment
+    issue = github.store[12]
+    assert issue["state"] == "closed" and issue["state_reason"] == "completed"
+    assert issue["rationale"].startswith("Fixed and released in v1.10.0 on ")
+    assert github.labels_of(12) == {"bug"}
+
+
+def test_a_german_issue_hears_of_the_release_in_german(config):
+    github = released(config)
+    german = assistant.render_marker("analysis", lang="de")
+    github.comment_store[12] = [make_comment(5, "bot", german, 2)]
+    assistant.close_released(github)
+    (comment,) = github.posted(12)
+    assert "🎉 Veröffentlicht in [v1.10.0]" in comment
+    assert "mit dem Fix aus #40. @reporter, bitte aktualisiere" in comment
+
+
+def test_a_release_without_the_fix_keeps_the_issue_open(config):
+    github = released(config, contained=False)
+    assert assistant.close_released(github) == []
+    assert github.store[12]["state"] == "open"
+
+
+def test_the_first_release_with_every_fix_closes_the_issue(config):
+    pulls = [make_pull(40, days_ago=3), make_pull(41, days_ago=1)]
+    releases = [
+        make_release("v1.10.0", days_ago=1.5),
+        make_release("v1.10.1-beta", days_ago=0.8, prerelease=True),
+        make_release("v1.10.1", days_ago=0.5),
+        make_release("v1.11.0", days_ago=0.2, draft=True),
+    ]
+    github = released(config, pulls=pulls, releases=releases, contained=False)
+    github.contained = {
+        (f"{40:040x}", "v1.10.0"),
+        (f"{40:040x}", "v1.10.1"),
+        (f"{41:040x}", "v1.10.1"),
+    }
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.1."]
+    assert "with the fix from #40, #41." in github.posted(12)[0]
+
+
+def test_a_release_before_the_label_doesn_t_count(config):
+    github = released(config, labeled_days_ago=0.2)
+    assert assistant.close_released(github) == []
+
+
+def test_a_label_set_by_hand_closes_with_the_next_release(config):
+    unmerged = make_pull(merged=False)
+    github = released(config, pulls=[unmerged], contained=False)
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+    comment = github.posted(12)[0]
+    assert "Released in [v1.10.0](" in comment and "with the fix" not in comment
+
+
+def test_without_fixed_issues_the_releases_are_not_read(config):
+    github = FakeGitHub(config, make_issue())
+    assert assistant.close_released(github) == []
+    assert not any(call[1] == "releases?per_page=30" for call in github.calls)
+
+
+def test_an_unknown_tag_contains_nothing(config):
+    github = released(config)
+    assert not github.contains("ab" * 20, "v9.9.9")
+
+
+def test_a_tag_that_doesn_t_fit_a_marker_is_left_out_of_it():
+    release = make_release("release one")
+    assert assistant.render_released("reporter", release, [], "en").startswith(
+        "<!-- issue-assistant:released -->\n"
+    )
+
+
+def test_repositories_without_releases_skip_the_fixed_issues(config):
+    github = merged(config)
+    assert assistant.sweep(github, NOW, releases=False) == []
+    assert github.posted(12) == []
 
 
 # Labels as code
