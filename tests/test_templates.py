@@ -265,7 +265,7 @@ def test_the_firewall_template_allows_only_named_hosts():
     hosts = policy["allow"]
     assert len(hosts) == len(set(hosts))
     assert all("*" not in host and "/" not in host for host in hosts)
-    assert "api.github.com" in hosts
+    assert {"api.github.com"} <= set(hosts)
     assert {rules["host"] for rules in ENGINE_RULES.values()} <= set(hosts)
 
 

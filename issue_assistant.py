@@ -88,15 +88,32 @@ GROUPS = ("type", "area", "topic", "lifecycle", "decision", "release", "dependab
 MODES = ("triage", "follow-up", "maintainer-reply", "release-reply")
 
 MARKER = re.compile(r"<!-- issue-assistant:([a-z-]+)((?: [a-z]+=[\w.+/-]+)*) -->")
-FENCED = re.compile(r"(```.*?```|~~~.*?~~~|`[^`\n]*`)", re.DOTALL)
-MARKDOWN_LINK = re.compile(
-    r"(?<!!)\[([^\]\n]*)\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)"
+# Code that Markdown shows as it is, by the rules of CommonMark: a fenced block from
+# a fence line to a closing fence line of the same character and at least the same
+# length, and a code span within one line between backtick runs of the same length
+# that no other backtick touches. A span over several lines can be cut by a fence
+# or a quote on the next line, so it, like anything else that doesn't fit these
+# rules exactly, counts as text: the safe side.
+CODE = re.compile(
+    r"^ {0,3}(?P<fence>(?P<char>[`~])(?P=char){2,})[^`\n]*\n.*?"
+    r"^ {0,3}(?P=fence)(?P=char)*[ \t]*$"
+    r"|(?<![`\\])(?P<run>`+)(?!`)[^\n]*?(?<!`)(?P=run)(?!`)",
+    re.MULTILINE | re.DOTALL,
 )
+MARKDOWN_LINK = re.compile(
+    r"(?<!!)\[([^\]\n]*)\]\(\s*<?([^)\s>\0]+)>?(?:\s+\"[^\"]*\")?\s*\)"
+)
+LINK_DEFINITION = re.compile(r"^ {0,3}\[[^\]\n]*\]:.*$", re.MULTILINE)
 IMAGE = re.compile(r"!\[([^\]\n]*)\]\([^)\n]*\)")
-BARE_URL = re.compile(r"\bhttps?://[^\s)<>\]`]+")
-MENTION = re.compile(r"(?<![\w`/.@-])@([A-Za-z0-9][A-Za-z0-9-]{0,38}(?:/[\w-]+)?)")
-CROSS_REFERENCE = re.compile(r"(?<![\w`])([\w.-]+/[\w.-]+#\d+)")
-ISSUE_REFERENCE = re.compile(r"(?<![\w&#/`])#(\d+)\b")
+BARE_URL = re.compile(r"\bhttps?://[^\s)<>\]`\0]+")
+WWW_URL = re.compile(r"(?<![\w.-])www\.[^\s<>`\0]+", re.IGNORECASE)
+# GitHub links a bare address only after these characters or at the start.
+AUTOLINK_AFTER = frozenset(" \t\n*_~(")
+# GitHub turns these into a mention or a link at the start of a piece of text and
+# after any character but a letter or digit; an underscore can end an emphasis.
+MENTION = re.compile(r"(?<![A-Za-z0-9])@([A-Za-z0-9][A-Za-z0-9-]{0,38}(?:/[\w-]+)?)")
+CROSS_REFERENCE = re.compile(r"(?<![A-Za-z0-9])([\w.-]+/[\w.-]+#\d+)")
+ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)\b", re.IGNORECASE)
 HTML = re.compile(r"<!--.*?-->|</?[A-Za-z][^>\n]*>", re.DOTALL)
 HEADING_LINE = re.compile(r"^\s{0,3}#{1,6}\s+", re.MULTILINE)
 SECRET = re.compile(
@@ -1255,40 +1272,93 @@ def parse_answer(mode: str, raw: str, config: Config) -> dict[str, Any]:
 
 
 def allowed_url(url: str, config: Config) -> bool:
-    parts = urlsplit(url)
-    if parts.scheme != "https":
+    try:
+        parts = urlsplit(url)
+        hostname = parts.hostname
+    except ValueError:
+        # Such as an unclosed IPv6 address: http://[
         return False
-    if parts.hostname == "github.com":
+    # A backtick or backslash in a link could pair with code elsewhere in the text.
+    if parts.scheme != "https" or "`" in url or "\\" in url:
+        return False
+    if hostname == "github.com":
         return bool(
             re.match(
                 rf"^/{re.escape(config.repository)}/(?:blob|tree|releases)/", parts.path
             )
         )
-    return parts.hostname in config.hosts
+    return hostname in config.hosts
 
 
 def clean_prose(text: str, numbers: set[int], config: Config) -> str:
+    """Text outside code without anything that GitHub turns into a mention, a
+    reference, a foreign link, an image or HTML.
+
+    What the cleaning keeps or writes goes behind a placeholder, so that no later
+    rule changes it again. The rules repeat until nothing matches, because a removal
+    can join the characters around it into something new. Last, the characters that
+    could start code, escape the code written here or form an entity are escaped.
+    """
     kept: list[str] = []
 
-    def keep(match: re.Match[str]) -> str:
-        kept.append(match[0])
+    def keep(value: str) -> str:
+        kept.append(value)
         return f"\0{len(kept) - 1}\0"
 
-    text = HTML.sub("", text)
-    text = IMAGE.sub(r"\1", text)
-    text = MARKDOWN_LINK.sub(
-        lambda m: keep(m) if allowed_url(m[2], config) else m[1], text
-    )
-    text = BARE_URL.sub(
-        lambda m: keep(m) if allowed_url(m[0], config) else f"`{m[0]}`", text
-    )
-    text = MENTION.sub(r"`@\1`", text)
-    text = CROSS_REFERENCE.sub(r"`\1`", text)
-    text = ISSUE_REFERENCE.sub(
-        lambda m: m[0] if int(m[1]) in numbers else f"`#{m[1]}`", text
-    )
+    def code(value: str) -> str:
+        return keep(f"`{value}`")
+
+    def link(match: re.Match[str]) -> str:
+        if not allowed_url(match[2], config):
+            return match[1]
+        # The link's text stays in the text, so the next rounds clean it too.
+        return keep("[") + match[1] + keep(f"]({match[2]})")
+
+    def address(url: str, match: re.Match[str]) -> str:
+        start = match.start()
+        linked = start == 0 or match.string[start - 1] in AUTOLINK_AFTER
+        # GitHub doesn't link an address glued to other text, such as @https://….
+        return keep(match[0]) if linked and allowed_url(url, config) else code(match[0])
+
+    previous = None
+    while text != previous:
+        previous = text
+        text = HTML.sub("", text)
+        text = LINK_DEFINITION.sub("", text)
+        text = IMAGE.sub(r"\1", text)
+        text = MARKDOWN_LINK.sub(link, text)
+        text = BARE_URL.sub(lambda m: address(m[0], m), text)
+        text = WWW_URL.sub(lambda m: address(f"https://{m[0]}", m), text)
+        text = MENTION.sub(lambda m: code(m[0]), text)
+        text = CROSS_REFERENCE.sub(lambda m: code(m[1]), text)
+        text = ISSUE_REFERENCE.sub(
+            lambda m: keep(m[0]) if int(m[1]) in numbers else code(m[0]), text
+        )
     text = HEADING_LINE.sub("", text)
-    return re.sub(r"\0(\d+)\0", lambda m: kept[int(m[1])], text)
+    for character, escaped in (
+        ("\\", "\\\\"),
+        ("`", "\\`"),
+        ("&", "&amp;"),
+        ("<", "&lt;"),
+    ):
+        text = text.replace(character, escaped)
+    pieces = re.split(r"\0(\d+)\0", text)
+    return joined(
+        kept[int(piece)] if index % 2 else piece for index, piece in enumerate(pieces)
+    )
+
+
+def joined(pieces: Iterable[str]) -> str:
+    """The pieces in a row, with a space wherever two backtick runs would touch.
+
+    Touching runs form one longer run, and Markdown would pair the code differently.
+    """
+    text = ""
+    for piece in pieces:
+        if text.endswith("`") and piece.startswith("`"):
+            text += " "
+        text += piece
+    return text
 
 
 def sanitize(text: str, config: Config, numbers: Iterable[int] = ()) -> str:
@@ -1297,11 +1367,13 @@ def sanitize(text: str, config: Config, numbers: Iterable[int] = ()) -> str:
     Code stays as it is; issue numbers stay links only when they were checked.
     """
     checked = set(numbers)
-    parts = FENCED.split(text.replace("\r", "").replace("\0", ""))
-    return "".join(
-        part if index % 2 else clean_prose(part, checked, config)
-        for index, part in enumerate(parts)
-    ).strip()
+    text = text.replace("\r", "").replace("\0", "")
+    parts, last = [], 0
+    for match in CODE.finditer(text):
+        parts += [clean_prose(text[last : match.start()], checked, config), match[0]]
+        last = match.end()
+    parts.append(clean_prose(text[last:], checked, config))
+    return joined(parts).strip()
 
 
 def tracked_files(root: Path) -> set[str]:
