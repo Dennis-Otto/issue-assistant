@@ -16,9 +16,9 @@ import yaml
 import issue_assistant as assistant
 
 ROOT = Path(assistant.__file__).parent
-TEMPLATES = assistant.TEMPLATES / assistant.WORKFLOWS
-OWN = ROOT / ".github" / "workflows"
-NAMES = ("issue-assistant.yml", "issue-lifecycle.yml", "labels.yml")
+# The workflows with which this repository looks after its issues are the templates.
+TEMPLATES = OWN = ROOT / assistant.WORKFLOWS
+NAMES = assistant.TEMPLATE_WORKFLOWS
 
 
 def load(path):
@@ -81,11 +81,11 @@ def steps(path):
     ]
 
 
-WORKFLOWS = [TEMPLATES / name for name in NAMES] + sorted(OWN.glob("*.yml"))
+WORKFLOWS = sorted(OWN.glob("*.yml"))
 
 
-def test_the_templates_are_the_three_workflows():
-    assert sorted(path.name for path in TEMPLATES.iterdir()) == sorted(NAMES)
+def test_the_templates_are_three_of_this_repository_s_workflows():
+    assert set(NAMES) <= {path.name for path in WORKFLOWS}
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -107,17 +107,17 @@ def test_actions_are_pinned_and_checkouts_keep_no_credentials(path):
         uses = step["uses"]
         if uses == "./" or uses.startswith("docker://"):
             continue
-        assert re.fullmatch(r"[\w.-]+/[\w./-]+@([0-9a-f]{40}|REF)", uses), uses
+        assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", uses), uses
         if uses.startswith("actions/checkout@"):
             assert step["with"]["persist-credentials"] is False, job_name
             assert "ref" not in step["with"], "issue events must run the default branch"
 
 
-def test_the_templates_name_the_action_with_the_placeholder():
+def test_install_finds_every_pin_of_the_action():
     for name in NAMES:
         text = (TEMPLATES / name).read_text(encoding="utf-8")
-        uses = re.findall(r"uses: Dennis-Otto/issue-assistant@\S+.*", text)
-        assert uses and all(line == f"uses: {assistant.PLACEHOLDER}" for line in uses)
+        uses = re.findall(r"uses: (Dennis-Otto/issue-assistant@.*)", text)
+        assert uses and all(assistant.ACTION_PIN.fullmatch(pin) for pin in uses)
 
 
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
@@ -238,7 +238,7 @@ def test_the_events_the_assistant_handles_trigger_it():
 
 
 def test_the_firewall_template_allows_only_named_hosts():
-    policy = load(assistant.TEMPLATES / assistant.FIREWALL)
+    policy = load(ROOT / assistant.FIREWALL)
     assert policy["mode"] == "enforce"
     assert "no-default-urls" not in policy
     hosts = policy["allow"]
@@ -287,12 +287,8 @@ def test_the_action_metadata_is_complete():
 
 def test_this_repository_s_own_settings_fit():
     config = assistant.load_config(ROOT, "Dennis-Otto/issue-assistant")
-    problems = (
-        assistant.check_labels(config)
-        + assistant.check_forms(config)
-        + assistant.check_config(config)
-    )
-    assert problems == []
+    # The repository uses the action itself, so the whole check applies.
+    assert assistant.check(config) == []
     defined = {label.name for label in config.labels}
     pr_labels = (OWN / "pr-labels.yml").read_text(encoding="utf-8")
     managed = re.search(r"managed=\(([^)]*)\)", pr_labels)[1].split()
