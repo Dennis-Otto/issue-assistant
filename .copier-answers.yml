@@ -1,13 +1,13 @@
 # The answers of the blueprint (https://github.com/Dennis-Otto/repo-blueprint);
 # `copier update` reads them to bring the repository up to the latest release.
 # Change them only with `copier update --data name=value`.
-_commit: v0.4.0
+_commit: v0.5.0
 _src_path: https://github.com/Dennis-Otto/repo-blueprint.git
 author: Dennis Otto
 copyright: 2026 Dennis Otto
 description: 'A GitHub Action that looks after issues: a first analysis by an AI that
     only reads, labels, duplicates and reminders, all checked before posting.'
-discussions: false
+discussions: true
 homepage: ''
 languages:
 - python
