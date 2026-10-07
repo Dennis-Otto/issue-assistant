@@ -1,6 +1,6 @@
 [project]
 name = "issue-assistant"
-version = "1.2.1"
+version = "1.2.2"
 description = "First analysis, labels, duplicates and reminders for GitHub issues, with an AI that only reads."
 readme = "README.md"
 license = "MIT"
