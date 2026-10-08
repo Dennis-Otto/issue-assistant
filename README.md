@@ -1,5 +1,6 @@
 # Issue assistant
 
+[![Documentation](https://img.shields.io/badge/docs-website-blue)](https://dennis-otto.github.io/issue-assistant/)
 [![CI](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/codeql.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/codeql.yml)
 [![Secret scan](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/secret-scan.yml)
@@ -20,9 +21,13 @@ A GitHub Action that looks after the issues of a repository:
 
 The maintainer reads every issue and has the last word. It runs in [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search) and [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync).
 
+The [documentation website](https://dennis-otto.github.io/issue-assistant/) has this documentation as a guide, together with the architecture, the security design and the roadmap.
+
 <sub>💛 If the issue assistant is useful to you, you can [support its development](https://github.com/sponsors/Dennis-Otto).</sub>
 
 [Set up a repository](#set-up-a-repository) · [Architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md) · [Security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md) · [Roadmap](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/roadmap.md) · [Changelog](https://github.com/Dennis-Otto/issue-assistant/blob/main/CHANGELOG.md)
+
+<!-- --8<-- [start:how-it-works] -->
 
 ## How it works
 
@@ -54,6 +59,9 @@ Apps and integrations reach their users with a release, not with a merge. So an 
 
 GitHub closes linked issues when a pull request is merged unless the repository turns this off: under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**. A repository without releases sets `close_with_release = false` in `config.toml`.
 
+<!-- --8<-- [end:how-it-works] -->
+<!-- --8<-- [start:security] -->
+
 ## Security
 
 Issues come from anyone, so the design assumes that an issue tries to steer the AI.
@@ -67,15 +75,21 @@ Issues come from anyone, so the design assumes that an issue tries to steer the 
 
 The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md) lists the threats, their countermeasures and the tests that pin them. Report vulnerabilities privately, as described in [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md).
 
+<!-- --8<-- [end:security] -->
+<!-- --8<-- [start:set-up] -->
+
 ## Set up a repository
+
+<!-- --8<-- [start:quick-start] -->
 
 1. **Install the workflows** with the commit hash and tag of the [latest release](https://github.com/Dennis-Otto/issue-assistant/releases/latest), from a checkout of this repository, in the root of your repository:
 
-   ```sh
-   python3 /path/to/issue-assistant/issue_assistant.py install --ref <commit-hash> --version <tag>
-   ```
+    ```sh
+    python3 /path/to/issue-assistant/issue_assistant.py install --ref <commit-hash> --version <tag>
+    ```
 
-   It writes the four workflows, `.github/egress-firewall.yaml` and the `.gitignore` entry for the context folder, and, when they are missing, starters of the files below.
+    It writes the four workflows, `.github/egress-firewall.yaml` and the `.gitignore` entry for the context folder, and, when they are missing, starters of the files below.
+
 2. **Describe the project** in `.github/issue-assistant/project.md`: what it does, where the code, documentation, troubleshooting guide and changelog are, which versions and logs matter in a bug report, and how to address German reporters. The AI reads it before every task.
 3. **Define the labels** in `.github/labels.toml`. The seven lifecycle labels are required; kinds, areas and topics are what the AI chooses from.
 4. **Adjust `.github/issue-assistant/config.toml`:** the engine, the hosts that links may lead to, the field of the issue forms that chooses an area, and the files that tell reporters which AI reads their issue.
@@ -83,29 +97,34 @@ The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/d
 6. **Accept findings** of code scanning that can't or shouldn't be fixed in `.github/findings.toml`, each with its reason.
 7. **Add the check** to the CI of the repository:
 
-   ```yaml
-   - uses: actions/checkout@<commit-hash> # vX
-     with:
-       persist-credentials: false
-   - name: Check the issue assistant's set-up
-     uses: Dennis-Otto/issue-assistant@<commit-hash> # vX.Y.Z
-     with:
-       command: check
-   ```
+    ```yaml
+    - uses: actions/checkout@<commit-hash> # vX
+      with:
+        persist-credentials: false
+    - name: Check the issue assistant's set-up
+      uses: Dennis-Otto/issue-assistant@<commit-hash> # vX.Y.Z
+      with:
+        command: check
+    ```
 
 8. **Create the environment** `issue-assistant`, limited to the default branch, and add the engine's secret. For Claude, `claude setup-token` creates a token for a Claude subscription; store it as `CLAUDE_CODE_OAUTH_TOKEN`, or an API key as `ANTHROPIC_API_KEY`:
 
-   ```sh
-   gh api -X PUT repos/OWNER/REPO/environments/issue-assistant -F "deployment_branch_policy[protected_branches]=false" -F "deployment_branch_policy[custom_branch_policies]=true"
-   gh api -X POST repos/OWNER/REPO/environments/issue-assistant/deployment-branch-policies -f name=main -f type=branch
-   gh secret set CLAUDE_CODE_OAUTH_TOKEN --env issue-assistant --repo OWNER/REPO
-   ```
+    ```sh
+    gh api -X PUT repos/OWNER/REPO/environments/issue-assistant -F "deployment_branch_policy[protected_branches]=false" -F "deployment_branch_policy[custom_branch_policies]=true"
+    gh api -X POST repos/OWNER/REPO/environments/issue-assistant/deployment-branch-policies -f name=main -f type=branch
+    gh secret set CLAUDE_CODE_OAUTH_TOKEN --env issue-assistant --repo OWNER/REPO
+    ```
 
 9. If the repository runs actionlint, list the runner `ubuntu-24.04-firewall` under `self-hosted-runner.labels` in `.github/actionlint.yaml`.
+
+<!-- --8<-- [end:quick-start] -->
 
 Without the secret, labels, reminders, closing and reopening keep working. The repository variable `ISSUE_ASSISTANT_AI` set to `off` switches the AI off.
 
 Updates arrive as Dependabot pull requests that move the commit hash of the action in the workflows. When a new release changes the templates, its release notes say so; run `install` again.
+
+<!-- --8<-- [end:set-up] -->
+<!-- --8<-- [start:settings] -->
 
 ## Settings
 
@@ -148,6 +167,9 @@ files = ["SUPPORT.md"]
 close_with_release = true       # false: fixed issues don't wait for a release
 ```
 
+<!-- --8<-- [end:settings] -->
+<!-- --8<-- [start:findings] -->
+
 ## Findings
 
 Code scanning reports findings of CodeQL, OpenSSF Scorecard and other tools in the repository's *Security* tab. Some can't or shouldn't be fixed, such as Scorecard's *Code-Review* for a project with one maintainer. `.github/findings.toml` accepts those, each with a reason, in a file that changes only through pull requests:
@@ -163,6 +185,9 @@ comment = "One maintainer: nobody else can approve a pull request."
 
 The Findings workflow dismisses every open alert that an entry covers, with the entry's reason and comment, and fails while any other alert is open. GitHub tells the maintainer about the failed run; its summary links the alerts by number. `check` makes sure that every entry has a tool, a rule, one of GitHub's reasons and a comment. Code scanning needs the workflow's `security-events: write`; Dependabot's and secret scanning's alerts are out of its reach and stay with Dependabot's own pull requests and notifications.
 
+<!-- --8<-- [end:findings] -->
+<!-- --8<-- [start:engines] -->
+
 ## Engines
 
 Everything except one step of the `analyze` job is independent of the AI: the context, the prompts in `prompts/`, the checks and every write. An engine gets the read-only checkout with the context in `.issue-assistant/`, the prompt and the JSON schema of its answer (as files and as outputs of the context step), and returns the JSON answer. `apply` validates it whether or not the engine could enforce the schema, and also accepts it in a code fence.
@@ -172,6 +197,9 @@ Everything except one step of the `analyze` job is independent of the AI: the co
 | `claude` (default) | `anthropics/claude-code-action` | `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` | `--restricted --tools "Read,Grep,Glob"`, schema with `--json-schema` |
 
 To add one, for example OpenAI Codex with `openai/codex-action` (`prompt-file`, `output-schema-file` and a read-only sandbox) or the GitHub Copilot CLI in programmatic mode (only reading tools, the JSON asked for in the prompt): add it to `ENGINES` in `issue_assistant.py`, give it a step with its key as `id` in `.github/workflows/issue-assistant.yml` with the same condition as the Claude step, add its secret to `ready-engines` and its answer to the job output `answer`, add its hosts to `.github/egress-firewall.yaml` in a block of its own, and its rules to `ENGINE_RULES` in `tests/test_templates.py`, which keeps it read-only.
+
+<!-- --8<-- [end:engines] -->
+<!-- --8<-- [start:commands] -->
 
 ## Commands
 
@@ -190,6 +218,9 @@ The action runs `issue_assistant.py` with one command:
 
 `install` runs from a checkout, as above. Every command but `install` and `check` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment.
 
+<!-- --8<-- [end:commands] -->
+<!-- --8<-- [start:try-a-prompt] -->
+
 ## Try a prompt locally
 
 ```sh
@@ -199,6 +230,8 @@ claude -p "$(cat .issue-assistant/prompt.md)" --restricted --tools "Read,Grep,Gl
   --json-schema "$(cat .issue-assistant/schema.json)" --output-format json > answer.json
 RESULT="$(jq -c .structured_output answer.json)" python3 issue_assistant.py apply --issue 12 --mode triage
 ```
+
+<!-- --8<-- [end:try-a-prompt] -->
 
 ## Development
 
