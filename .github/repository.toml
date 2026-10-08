@@ -4,7 +4,7 @@
 
 [repository]
 description = "A GitHub Action that looks after issues: a first analysis by an AI that only reads, labels, duplicates and reminders, all checked before posting."
-homepage = ""
+homepage = "https://dennis-otto.github.io/issue-assistant/"
 topics = ["ai", "automation", "claude", "github-actions", "github-issues", "issue-triage", "maintainers", "open-source-tools"]
 has_issues = true
 has_discussions = true
