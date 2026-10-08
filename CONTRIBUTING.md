@@ -16,6 +16,18 @@ All changes reach the protected `main` branch through pull requests that pass ev
 - The prompts in `prompts/` and the comment texts in `TEXT` name no AI vendor; only `ENGINES` does. A test checks this.
 - A change of a template is a change for every repository that uses the action: say in the pull request what repositories must do, such as run `install` again.
 
+## Tests
+
+New functionality comes with tests in the automated test suite, in the same pull request, and so does every change of behavior. A bug fix comes with a test that fails without the fix, so that the bug can't return unnoticed. `scripts/check.sh` fails when a line or a branch of the code runs in no test. A pull request without the tests it needs is not merged.
+
+## Coding standards
+
+- **Python** follows [PEP 8](https://peps.python.org/pep-0008/) in the format of [Ruff](https://docs.astral.sh/ruff/), which matches Black, with the rules of Ruff that `pyproject.toml` selects. The code has type hints, which mypy checks in its strict mode.
+- **Shell scripts** pass [ShellCheck](https://www.shellcheck.net/), **workflows** pass actionlint and zizmor's audit of their security, and **Markdown** follows the rules of markdownlint in `.markdownlint.jsonc`.
+- **Every text file** has LF line endings, no trailing whitespace and a line break at its end; `.editorconfig` sets up most editors for it.
+
+`scripts/check.sh` and the Lint workflow check these standards on every pull request, which merges only when they pass. An exception to a rule is rare and is marked at its place in the code, with its reason in a comment.
+
 ## Workflow
 
 1. Open an issue first for anything larger than a small fix, so we can agree on the approach.
@@ -50,6 +62,16 @@ The cleaning of the AI's text has two more guards, which judge the result with a
 ```
 
 A finding of either becomes an example in `test_tricky_text_is_cleaned_safely` in `tests/test_assistant.py` with its fix.
+
+## Website
+
+MkDocs builds the website from `mkdocs.yml` and the pages in `docs/`. The check *docs* builds it strictly in every pull request, so that a broken link fails, and every change of `main` publishes it on GitHub Pages. To see it while you write, at <http://127.0.0.1:8000>:
+
+```sh
+python3 -m venv .venv-docs
+.venv-docs/bin/pip install --require-hashes -r .github/docs-requirements.txt
+.venv-docs/bin/mkdocs serve
+```
 
 ## Releases
 
