@@ -1,8 +1,8 @@
 # Security design
 
-[← README](../README.md) · [Architecture](architecture.md) · [Roadmap](roadmap.md)
+[← README](https://github.com/Dennis-Otto/issue-assistant) · [Architecture](architecture.md) · [Roadmap](roadmap.md)
 
-What the issue assistant protects, what it trusts and which risks remain. [SECURITY.md](../SECURITY.md) says how to report a vulnerability and how to verify a release, and argues why this repository and its releases are safe. Issues come from anyone, so the design assumes that an issue tries to steer the AI.
+What the issue assistant protects, what it trusts and which risks remain. [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md) says how to report a vulnerability and how to verify a release, and argues why this repository and its releases are safe. Issues come from anyone, so the design assumes that an issue tries to steer the AI.
 
 ## What you can expect
 
