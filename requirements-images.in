@@ -1,0 +1,7 @@
+# The pictures of the documentation in docs/images: scripts/render-images.sh renders
+# them in the browser of the image of .github/social-preview/Dockerfile. Compile
+# requirements-images.txt with
+#   pip-compile --generate-hashes --allow-unsafe requirements-images.in
+markdown-it-py
+pillow
+playwright

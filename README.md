@@ -9,6 +9,11 @@
 [![REUSE](https://api.reuse.software/badge/github.com/Dennis-Otto/issue-assistant)](https://api.reuse.software/info/github.com/Dennis-Otto/issue-assistant)
 [![Sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Dennis-Otto)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/hero-dark.webp">
+  <img src="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/hero-light.webp" alt="Animation: the life of an issue in a demo project. A reporter opens an issue with the bug form; the event job adds the labels area: dashboard and needs-triage; the issue assistant posts a first analysis with the likely cause in the code and the information still needed, and adds connectivity and needs-info; the reporter answers and needs-info goes; a merged pull request marks the issue fixed-in-next-release; the release v1.4.0 closes it with a link to the release">
+</picture>
+
 A GitHub Action that looks after the issues of a repository:
 
 - **A first analysis of every new issue** by an AI that only reads: a summary, the likely cause with links to the lines of code and the documentation involved, what the reporter can try, the information still missing, and related issues and discussions, in English or German.
@@ -33,12 +38,35 @@ The [documentation website](https://dennis-otto.github.io/issue-assistant/) has 
 
 ```mermaid
 flowchart LR
-  E["event<br/>no AI: labels,<br/>next task"] --> A["analyze<br/>AI reads the checkout,<br/>answers with JSON"]
-  A --> P["apply<br/>no AI: checks the answer,<br/>the only job that writes"]
-  S["sweep, daily, on merges and releases<br/>no AI: reminders, closing,<br/>duplicates, fixed issues"]
+  changed(["change of<br/>labels.toml"]) --> sync
+  subgraph labelling ["labels.yml"]
+    sync["<b>sync-labels</b><br/>creates and updates<br/>the labels"]
+  end
+  scanned(["code scanning"]) --> findings
+  subgraph scanning ["findings.yml"]
+    findings["<b>findings</b><br/>dismisses accepted findings,<br/>fails on the others"]
+  end
+  daily(["every morning"]) --> findings
+  daily --> sweep
+  shipped(["merged pull request,<br/>published release"]) --> sweep
+  subgraph lifecycle ["issue-lifecycle.yml"]
+    sweep["<b>sweep</b><br/>reminders, closing,<br/>duplicates, fixed issues"]
+  end
+  opened(["new issue, edit<br/>or comment"]) --> event
+  subgraph assistant ["issue-assistant.yml"]
+    direction LR
+    event["<b>event</b><br/>labels from the form,<br/>the next task"] --> analyze["<b>analyze</b><br/>the AI reads the checkout<br/>and answers with JSON"]
+    analyze --> apply["<b>apply</b><br/>checks the answer,<br/>the only job that writes"]
+  end
+  classDef ai fill:#8250df33,stroke:#8250df
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef trigger fill:#d4a72c33,stroke:#bf8700
+  class analyze ai
+  class event,apply,sweep,sync,findings job
+  class opened,daily,shipped,changed,scanned trigger
 ```
 
-Four workflows run in the repository:
+Four workflows run in the repository. Only the violet job runs an AI, and it can't write:
 
 | Workflow | When | What |
 | --- | --- | --- |
@@ -49,6 +77,57 @@ Four workflows run in the repository:
 
 Every task of the AI is one of four: `triage` for a new issue, `follow-up` when the reporter answered the assistant's questions (at most twice, and never once the maintainer joined the conversation), `maintainer-reply` to decide whether a maintainer's comment waits for the reporter, and `release-reply` to decide whether the reporter of an issue that a release closed says that the problem persists.
 
+A first analysis looks like this, here on an issue of a demo project:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/analysis-dark.png">
+  <img src="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/analysis-light.png" alt="A first analysis of the issue assistant on an issue of a demo project: thanks to the reporter, a summary, the first analysis with the likely cause, what is worth trying, the information needed with the reminder after 15 days, a related issue, links to the line of code and the section of the troubleshooting guide, and a footer that names Claude and the label it added">
+</picture>
+
+### The life of an issue
+
+Labels say where an issue stands, and the lifecycle moves it on; each box has the colour of its label:
+
+```mermaid
+flowchart TB
+  opened(["new issue"]) --> triage["<b>needs-triage</b><br/>labels from the form,<br/>a first analysis"]
+  triage --> maintainer["the maintainer<br/>takes over"]
+  triage -- "information missing" --> waiting
+  maintainer -- "asks the reporter" --> waiting
+  subgraph unanswered [" "]
+    direction TB
+    waiting["<b>needs-info</b><br/>waits for the reporter"] -- "day 15" --> stale["<b>stale</b><br/>a reminder"]
+    stale -- "day 30" --> closed["closed as<br/>not planned"]
+  end
+  unanswered -- "an answer, also<br/>after the closing" --> maintainer
+  triage -- "sure duplicate" --> notice
+  subgraph duplicates [" "]
+    direction TB
+    notice["<b>possible-duplicate</b><br/>a notice"] -- "day 3" --> duplicate["closed as<br/>a duplicate"]
+  end
+  notice -- "a comment or<br/>a thumbs down" --> maintainer
+  maintainer -- "fix merged" --> fixed
+  subgraph release [" "]
+    direction TB
+    fixed["<b>fixed-in-next-release</b><br/>waits for the release"] -- "release" --> released["closed with a link<br/>to the release"]
+  end
+  released -- "still broken,<br/>within 30 days" --> maintainer
+  classDef triage fill:#fbca0466,stroke:#bf8700
+  classDef info fill:#fef2c059,stroke:#d4a72c
+  classDef stale fill:#f9d0c466,stroke:#bc4c00
+  classDef duplicate fill:#8c959f33,stroke:#6e7781
+  classDef fixed fill:#c2e0c666,stroke:#1a7f37
+  classDef done fill:#8250df1f,stroke:#8250df
+  classDef person fill:#0969da26,stroke:#0969da
+  class triage triage
+  class waiting info
+  class stale stale
+  class notice duplicate
+  class fixed fixed
+  class closed,duplicate,released done
+  class maintainer person
+```
+
 ### From the fix to the release
 
 Apps and integrations reach their users with a release, not with a merge. So an issue stays open until the fix is released:
@@ -57,6 +136,28 @@ Apps and integrations reach their users with a release, not with a merge. So an 
 2. When a release is published, every issue with the label whose fix it contains closes as completed. A comment links the release and asks the reporter to update. Drafts and pre-releases don't count, and only a release published after the label closes an issue. The issue is filed under the milestone of the release, such as `v1.2.0`, which the assistant creates, closed, when it is missing; its page lists everything that the release fixed.
 3. If the reporter comments within 30 days that the problem persists after the update, the AI reads the comment and the issue reopens. Thanks or questions keep it closed.
 
+```mermaid
+sequenceDiagram
+  actor M as Maintainer
+  participant L as issue-lifecycle.yml
+  participant I as Issue #35;12
+  actor R as Reporter
+  participant A as issue-assistant.yml
+  M->>L: merges a pull request with "Fixes #35;12"
+  L->>I: label fixed-in-next-release,<br/>comment: closes with the next release
+  Note over I: stays open: users don't have the fix yet
+  M->>L: publishes the release v1.2.0
+  L->>I: comment with the link to the release,<br/>closes it, milestone v1.2.0
+  I-->>R: please update
+  alt within 30 days: "still broken"
+    R->>A: comments on the closed issue
+    A->>I: the AI reads the comment: reopens it, needs-triage
+  else thanks or a question
+    R->>A: comments on the closed issue
+    A->>I: stays closed
+  end
+```
+
 GitHub closes linked issues when a pull request is merged unless the repository turns this off: under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**. A repository without releases sets `close_with_release = false` in `config.toml`.
 
 <!-- --8<-- [end:how-it-works] -->
@@ -64,7 +165,39 @@ GitHub closes linked issues when a pull request is merged unless the repository 
 
 ## Security
 
-Issues come from anyone, so the design assumes that an issue tries to steer the AI.
+Issues come from anyone, so the design assumes that an issue tries to steer the AI. Red is what anyone can write; the numbers are the trust boundaries of the [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md#trust-boundaries):
+
+```mermaid
+flowchart TB
+  text["issue, comments,<br/>other issues, discussions"]
+  merged(["merged pull request"])
+  subgraph run ["issue-assistant.yml"]
+    event["<b>event</b><br/>no AI"]
+    subgraph firewall ["firewall, read-only token"]
+      analyze["<b>analyze</b><br/>the AI with Read,<br/>Grep and Glob,<br/>the engine's secret"]
+    end
+    subgraph checked ["apply: no AI, no secret"]
+      checks("<b>checks</b><br/>schema, labels and<br/>issues that exist; no<br/>secret, mention, image,<br/>HTML or foreign link")
+      refused["nothing is posted"]
+    end
+  end
+  text -- "1 · as data, in files" --> analyze
+  text --> event
+  event -- "the task" --> analyze
+  analyze -- "2 · an answer in JSON" --> checks
+  checks -- "fails" --> refused
+  checks -- "3 · passes: only the<br/>issue of the event" --> github[("GitHub")]
+  merged -- "4 · only the issues it fixes" --> lifecycle["<b>issue-lifecycle.yml</b><br/>the default branch, no AI"]
+  lifecycle --> github
+  classDef untrusted fill:#cf222e26,stroke:#cf222e
+  classDef ai fill:#8250df33,stroke:#8250df
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class text,merged untrusted
+  class analyze ai
+  class event,lifecycle,checks,refused job
+  class github safe
+```
 
 - **The AI only reads.** It runs in the `analyze` job, with a read-only token, on GitHub's [egress-firewall runner](https://github.com/github-early-access/actions-native-egress-firewall) with an allow list in `.github/egress-firewall.yaml`. Claude Code runs with `--restricted` and the tools `Read`, `Grep` and `Glob` alone: no commands, no web pages, no files outside the checkout. The issue, the other issues and the discussions reach it as files that the prompt calls data, not instructions.
 - **Nothing is posted unchecked.** The AI's answer is JSON with a fixed schema. The `apply` job, which runs no AI and never sees its secret, checks it against the schema, the repository's labels and the issues that exist, refuses anything that looks like a token or key, turns mentions into code, drops images, HTML and links to other sites, and links files only when git tracks them. It writes only to the issue of the event.
@@ -72,6 +205,13 @@ Issues come from anyone, so the design assumes that an issue tries to steer the 
 - **No code of a pull request runs.** The lifecycle workflow starts on `pull_request_target` only to learn which issues a merged pull request fixes. It checks out the default branch, runs no AI and skips Dependabot's pull requests.
 - **Findings stay private.** Code scanning alerts are only shown to maintainers, but the logs of a public repository's runs are public. So the Findings workflow names an open alert by its number and link only, never its rule, file or message, and nothing becomes an issue.
 - **Every repository uses exactly the templates.** The templates are the four workflows with which this repository looks after its own issues and findings. `check` fails when a repository's workflow differs from its template in anything but the commit hashes of its actions, and the tests of this repository pin the rules of the templates.
+
+What `apply` makes of an answer that an issue steered:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/cleaning-dark.png">
+  <img src="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/cleaning-light.png" alt="What the apply job makes of an answer that an issue steered: a mention becomes code, a link to another site keeps only its text, an image keeps only its description, HTML is removed, unknown issue numbers become code, links into the repository and to existing issues stay links, and an answer with something like a token is refused as a whole">
+</picture>
 
 The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md) lists the threats, their countermeasures and the tests that pin them. Report vulnerabilities privately, as described in [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md).
 
@@ -185,6 +325,13 @@ comment = "One maintainer: nobody else can approve a pull request."
 
 The Findings workflow dismisses every open alert that an entry covers, with the entry's reason and comment, and fails while any other alert is open. GitHub tells the maintainer about the failed run; its summary links the alerts by number. `check` makes sure that every entry has a tool, a rule, one of GitHub's reasons and a comment. Code scanning needs the workflow's `security-events: write`; Dependabot's and secret scanning's alerts are out of its reach and stay with Dependabot's own pull requests and notifications.
 
+A daily run with one accepted and one open finding, in a demo project:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/findings-dark.png">
+  <img src="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/findings-light.png" alt="A failed daily run of the Findings workflow on a demo project: an annotation names the open alert number 7 by its link only; the summary says that alert 3 was dismissed as won't fix and asks to fix or accept the others">
+</picture>
+
 <!-- --8<-- [end:findings] -->
 <!-- --8<-- [start:engines] -->
 
@@ -216,7 +363,12 @@ The action runs `issue_assistant.py` with one command:
 | `findings` | findings | dismisses the accepted findings of code scanning and fails while others are open; needs no other settings |
 | `check` | your CI | checks labels, issue forms, workflows, firewall, settings and the notice to reporters |
 
-`install` runs from a checkout, as above. Every command but `install` and `check` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment.
+`install` runs from a checkout, as above. Every command but `install` and `check` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/dry-run-dark.png">
+  <img src="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/dry-run-light.png" alt="A run of the Issue assistant workflow by hand on a demo project: the summary of the event job, and the summary of the apply job with the labels it would add and the comment it would post, as a dry run">
+</picture>
 
 <!-- --8<-- [end:commands] -->
 <!-- --8<-- [start:try-a-prompt] -->

@@ -14,6 +14,13 @@ What the issue assistant protects, what it trusts and which risks remain. [SECUR
 - An open finding of code scanning is named in a public log only by the number and link of its alert.
 - The action stores no secrets and no data outside GitHub.
 
+What the checks make of an answer that an issue steered, in a demo project:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/cleaning-dark.png">
+  <img src="images/cleaning-light.png" alt="What the apply job makes of an answer that an issue steered: a mention becomes code, a link to another site keeps only its text, an image keeps only its description, HTML is removed, unknown issue numbers become code, links into the repository and to existing issues stay links, and an answer with something like a token is refused as a whole">
+</picture>
+
 ## What is protected
 
 | Asset | Where it lives | Protection |
@@ -24,6 +31,40 @@ What the issue assistant protects, what it trusts and which risks remain. [SECUR
 | The workflows of the repositories that use the action | Their `.github/workflows/` | `check` fails when a workflow differs from its template in anything but the commit hashes of its actions |
 
 ## Trust boundaries
+
+Red is what anyone can write; the numbers are those of the list below.
+
+```mermaid
+flowchart TB
+  text["issue, comments,<br/>other issues, discussions"]
+  merged(["merged pull request"])
+  subgraph run ["issue-assistant.yml"]
+    event["<b>event</b><br/>no AI"]
+    subgraph firewall ["firewall, read-only token"]
+      analyze["<b>analyze</b><br/>the AI with Read,<br/>Grep and Glob,<br/>the engine's secret"]
+    end
+    subgraph checked ["apply: no AI, no secret"]
+      checks("<b>checks</b><br/>schema, labels and<br/>issues that exist; no<br/>secret, mention, image,<br/>HTML or foreign link")
+      refused["nothing is posted"]
+    end
+  end
+  text -- "1 · as data, in files" --> analyze
+  text --> event
+  event -- "the task" --> analyze
+  analyze -- "2 · an answer in JSON" --> checks
+  checks -- "fails" --> refused
+  checks -- "3 · passes: only the<br/>issue of the event" --> github[("GitHub")]
+  merged -- "4 · only the issues it fixes" --> lifecycle["<b>issue-lifecycle.yml</b><br/>the default branch, no AI"]
+  lifecycle --> github
+  classDef untrusted fill:#cf222e26,stroke:#cf222e
+  classDef ai fill:#8250df33,stroke:#8250df
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class text,merged untrusted
+  class analyze ai
+  class event,lifecycle,checks,refused job
+  class github safe
+```
 
 1. **Issues and comments → the assistant.** Their text is untrusted. It reaches the AI as files that the prompt calls data, not instructions, and reaches a shell script only through environment variables.
 2. **The AI → the `apply` job.** The answer is untrusted. It must be JSON that fits the schema of its task, with labels that exist and numbers of issues that exist; anything that looks like a secret refuses the whole answer.
