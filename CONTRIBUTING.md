@@ -73,6 +73,8 @@ python3 -m venv .venv-docs
 .venv-docs/bin/mkdocs serve
 ```
 
+The pictures in `docs/images` show a demo project, never real issues or people. `scripts/render-images.sh` renders them in Docker, each light and dark, from the texts of `issue_assistant.py` itself; run it after a change of those texts, and commit the pictures with the change. The README shows them with their address on `main`, and `scripts/mkdocs_hooks.py` gives the website its own copies. Diagrams are Mermaid in the Markdown, which GitHub and the website both draw.
+
 ## Releases
 
 The release bot keeps a pull request titled `chore: release x.y.z` with the next version, up to date with `main` and decided anew with every merge. Its section of the changelog is the text of Unreleased; without one, it lists the pull requests. Merging it creates the release with its package, SBOM and signed provenance, and delivers it by moving the major tag, such as `v1`. A release of dependency updates merges and publishes itself. Repositories that use the action receive the release as a Dependabot pull request.

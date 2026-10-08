@@ -14,6 +14,11 @@ repo_url: https://github.com/Dennis-Otto/issue-assistant
 repo_name: Dennis-Otto/issue-assistant
 copyright: "© 2026 Dennis Otto"
 
+# The pictures of the README come from the commit that the website is built from, and
+# the switch between light and dark chooses them: scripts/mkdocs_hooks.py.
+hooks:
+  - scripts/mkdocs_hooks.py
+
 # The menu. A tab in the header for each section.
 nav:
   - Home: index.md

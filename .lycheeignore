@@ -1,2 +1,6 @@
 # Links that the link check of this repository skips, one regular expression per
 # line, each with its reason above it. The rules of every repository are in lychee.toml.
+
+# The pictures of the documentation on main, which a pull request that adds one can't
+# show yet; tests/test_docs.py checks that each one exists.
+^https://raw\.githubusercontent\.com/Dennis-Otto/issue-assistant/main/docs/images/

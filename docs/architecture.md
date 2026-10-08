@@ -26,9 +26,32 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 
 ```mermaid
 flowchart LR
-  E["event<br/>no AI: labels,<br/>next task"] --> A["analyze<br/>AI reads the checkout,<br/>answers with JSON"]
-  A --> P["apply<br/>no AI: checks the answer,<br/>the only job that writes"]
-  S["sweep, daily, on merges and releases<br/>no AI: reminders, closing,<br/>duplicates, fixed issues"]
+  changed(["change of<br/>labels.toml"]) --> sync
+  subgraph labelling ["labels.yml"]
+    sync["<b>sync-labels</b><br/>creates and updates<br/>the labels"]
+  end
+  scanned(["code scanning"]) --> findings
+  subgraph scanning ["findings.yml"]
+    findings["<b>findings</b><br/>dismisses accepted findings,<br/>fails on the others"]
+  end
+  daily(["every morning"]) --> findings
+  daily --> sweep
+  shipped(["merged pull request,<br/>published release"]) --> sweep
+  subgraph lifecycle ["issue-lifecycle.yml"]
+    sweep["<b>sweep</b><br/>reminders, closing,<br/>duplicates, fixed issues"]
+  end
+  opened(["new issue, edit<br/>or comment"]) --> event
+  subgraph assistant ["issue-assistant.yml"]
+    direction LR
+    event["<b>event</b><br/>labels from the form,<br/>the next task"] --> analyze["<b>analyze</b><br/>the AI reads the checkout<br/>and answers with JSON"]
+    analyze --> apply["<b>apply</b><br/>checks the answer,<br/>the only job that writes"]
+  end
+  classDef ai fill:#8250df33,stroke:#8250df
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef trigger fill:#d4a72c33,stroke:#bf8700
+  class analyze ai
+  class event,apply,sweep,sync,findings job
+  class opened,daily,shipped,changed,scanned trigger
 ```
 
 | Workflow | Jobs |
@@ -37,6 +60,30 @@ flowchart LR
 | `issue-lifecycle.yml` | `sweep`, every morning, after merged pull requests, published releases and the end of the release workflow |
 | `labels.yml` | `sync-labels`, when `labels.toml` changes on the default branch |
 | `findings.yml` | `findings`, every morning, after code scanning and when `findings.toml` changes |
+
+## One run for a new issue
+
+The three jobs of `issue-assistant.yml` hand the issue on; only the middle one sees the AI and its secret, and only the last one writes:
+
+```mermaid
+sequenceDiagram
+  participant G as GitHub
+  participant E as event
+  participant C as analyze: context
+  participant AI as analyze: engine
+  participant P as apply
+  G->>E: a new issue, #35;12
+  E->>G: labels from the form, needs-triage
+  E->>C: issue 12, task triage
+  C->>C: writes the issue, other issues, discussions,<br/>labels, prompt and schema into .issue-assistant/
+  C->>AI: prompt and schema
+  Note over C,AI: read-only token, egress firewall, the engine's secret
+  AI->>AI: reads the checkout with Read, Grep, Glob
+  AI->>P: the answer, JSON
+  Note over P: no AI, no secret
+  P->>P: checks the answer against the schema,<br/>the labels and the issues, cleans the text
+  P->>G: comment and labels, only on #35;12
+```
 
 The workflows of this repository are the templates: `install` copies them with the commit hash of the release, and `check` fails when a repository's copy differs in anything but that hash.
 
