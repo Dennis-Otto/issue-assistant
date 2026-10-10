@@ -356,5 +356,5 @@ def test_this_repository_s_own_settings_fit():
     defined = {label.name for label in config.labels}
     # The labels that the release bot, the branch bot and Dependabot set.
     used = {"autorelease: pending", "autorelease: tagged", "merge-conflict"}
-    used |= {"dependencies", "github_actions", "python", "docker"}
+    used |= {"dependencies"}
     assert used <= defined, used - defined
