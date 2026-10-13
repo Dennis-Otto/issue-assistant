@@ -142,6 +142,9 @@ def localized(html: str, url: str, docs: Path) -> str:
             )
         if "dark" not in fallbacks:
             return match[0]
+        if match["sources"].count("<source") != len(SOURCE.findall(match["sources"])):
+            # A <source> written in another way would be lost in both copies.
+            raise ValueError(f"unsupported <source> in a picture: {match[0]}")
         copies = []
         for theme in THEMES:
             attributes = image | {"src": f"{fallbacks[theme]}#only-{theme}"}

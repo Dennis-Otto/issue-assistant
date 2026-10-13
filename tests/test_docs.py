@@ -331,6 +331,22 @@ def test_a_missing_picture_fails_the_build(docs: Path):
         hooks.localized(html, "index.html", docs)
 
 
+def test_a_source_that_the_hook_cannot_read_fails_the_build(docs: Path):
+    # Each would be lost in both copies of the picture.
+    for source in (
+        '<source type="image/avif" srcset="images/a-light.avif">',
+        '<source srcset="images/b-light.webp" media="(max-width: 600px)">',
+    ):
+        html = (
+            "<picture>"
+            '<source media="(prefers-color-scheme: dark)" srcset="images/a-dark.png">'
+            f'{source}<img src="images/a-light.png" alt="A">'
+            "</picture>"
+        )
+        with pytest.raises(ValueError, match="unsupported <source>"):
+            hooks.localized(html, "index.html", docs)
+
+
 def test_diagrams_scroll_sideways_on_small_screens(docs: Path):
     diagram = '<pre class="mermaid"><code>flowchart TB\n  a --&gt; b</code></pre>'
     html = f"<p>Before</p>\n{diagram}\n<pre><code>code</code></pre>"
