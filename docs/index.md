@@ -6,7 +6,7 @@ hide:
 
 # Issue assistant
 
-A GitHub Action that looks after the issues of a repository: a first analysis of every new issue by an AI that only reads, labels, duplicates and reminders, all checked before anything is posted.
+**Safe AI issue triage for GitHub.** A read-only AI writes a first analysis of every new issue, and a job without AI checks it before anything is posted. Labels, duplicates, reminders and the closing of fixed issues with the release come with it.
 
 [Set up a repository](#quick-start){ .md-button .md-button--primary }
 [Latest release](https://github.com/Dennis-Otto/issue-assistant/releases/latest){ .md-button }

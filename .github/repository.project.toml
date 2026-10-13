@@ -3,6 +3,26 @@
 # lists gain their new items, and values replace those of repository.toml.
 # https://github.com/Dennis-Otto/repo-blueprint#settings-as-code
 
+# What people search for on GitHub and on the web: the description says what the
+# action does and how it differs, in the words of site_description in mkdocs.yml, and
+# the topics add those that people browse to the ones of repository.toml. GitHub
+# takes at most 20 topics.
+[repository]
+description = "Safe AI issue triage for GitHub: a read-only AI writes a first analysis of every new issue (likely cause, missing info, duplicates, labels), and a job without AI validates it before posting."
+topics = [
+  "claude-code",
+  "github-action",
+  "triage",
+  "issue-management",
+  "duplicate-detection",
+  "stale",
+  "labels",
+  "github-bot",
+  "issueops",
+  "prompt-injection",
+  "llm-security",
+]
+
 # Checks that only this project runs, such as its end-to-end tests:
 # [branch]
 # required_checks = ["e2e"]

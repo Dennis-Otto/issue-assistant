@@ -1,7 +1,9 @@
-"""The pictures of the documentation and the hooks of its website."""
+"""The pictures of the documentation, the hooks of its website, and how the project
+presents itself on GitHub and its Marketplace."""
 
 import importlib.util
 import re
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -403,3 +405,106 @@ def test_the_hook_knows_every_picture_of_the_documentation():
         assert html.count("#only-light") == html.count("#only-dark") == count
         assert html.count('loading="lazy"') == 2 * count
         assert html.count(RAW + "docs/") == 0, document.name
+
+
+# How the project presents itself: its listing on the GitHub Marketplace, the README
+# that becomes the page of the listing, and the description and the topics of the
+# repository, which GitHub's search and the search engines read.
+
+# The colors that the Marketplace has for the badge of an action.
+MARKETPLACE_COLORS = {
+    "white",
+    "black",
+    "gray-dark",
+    "yellow",
+    "blue",
+    "green",
+    "orange",
+    "red",
+    "purple",
+}
+
+
+def load_toml(path: str) -> dict:
+    return tomllib.loads((ROOT / path).read_text("utf-8"))
+
+
+@pytest.fixture
+def settings(monkeypatch: pytest.MonkeyPatch) -> dict:
+    """The settings of the repository as the settings bot applies them, read by the
+    bot's own code: those of repository.toml with this project's own on top."""
+    monkeypatch.syspath_prepend(str(ROOT / ".github"))
+    from blueprint.settings import Settings
+
+    return Settings.load(ROOT / ".github" / "repository.toml").repository
+
+
+def tagline(text: str) -> str:
+    """The sentence in bold that a page opens with, below its heading."""
+    match = re.search(r"^\*\*([^*\n]+)\*\*", text, re.MULTILINE)
+    assert match, "no tagline"
+    return match[1]
+
+
+def test_the_action_has_a_name_of_its_own_on_the_marketplace():
+    action = yaml.safe_load((ROOT / "action.yml").read_text("utf-8"))
+    # The Marketplace lists an action only under a name that no other action has, at
+    # the address that the name gives. issue-assistant belongs to workflowkit's
+    # "Issue Assistant"; this address was free on 2026-10-12.
+    address = re.sub(r"[^a-z0-9]+", "-", action["name"].lower()).strip("-")
+    assert address == "read-only-issue-assistant"
+    # The violet of the hero and of the social preview.
+    assert action["branding"]["color"] in MARKETPLACE_COLORS
+    assert action["branding"]["color"] == "purple"
+    # The word that maintainers search for, within what the listing shows.
+    assert "triage" in action["description"] and len(action["description"]) <= 125
+
+
+def test_the_readme_says_what_why_and_how_before_the_animation():
+    # The page of the listing on the Marketplace is the README, and the animation
+    # fills the screen: what comes before it is what a visitor sees first.
+    text = (ROOT / "README.md").read_text("utf-8")
+    top = text[: text.index("<picture>")]
+    assert top.startswith("# Issue assistant\n\n**")
+    assert tagline(top).startswith("Safe AI issue triage")
+    assert len(re.findall(r"^- \*\*", top, re.MULTILINE)) == 3
+    (commands,) = re.findall(r"^```sh\n(.*?)^```$", top, re.MULTILINE | re.DOTALL)
+    # The commands install the latest release with its commit hash and its tag.
+    assert '--branch "$tag"' in commands and '--version "$tag"' in commands
+    # They clone into a new folder, and install only once that clone has succeeded: a
+    # folder left from an earlier run would install its old templates under the new
+    # tag, and without a tag the clone fails.
+    assert 'dir="$(mktemp -d)"' in commands and "/tmp/" not in commands
+    assert re.search(
+        r'git clone [^\n]* "\$dir" &&\n\s+python3 "\$dir/issue_assistant\.py" install --ref',
+        commands,
+    )
+    assert "(#set-up-a-repository)" in top
+
+
+def test_the_website_and_the_repository_describe_the_project_alike(settings):
+    readme = (ROOT / "README.md").read_text("utf-8")
+    home = (ROOT / "docs" / "index.md").read_text("utf-8")
+    assert tagline(home) == tagline(readme)
+    website = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))
+    description = settings["description"]
+    assert website["site_description"] == description
+    assert description.startswith(tagline(readme).rstrip("."))
+    # GitHub takes a description of at most 350 characters.
+    assert len(description) <= 350
+
+
+def test_the_repository_has_topics_that_github_takes(settings):
+    topics = settings["topics"]
+    # GitHub takes at most 20 topics, each of lowercase letters, digits and hyphens.
+    assert len(topics) <= 20
+    for topic in topics:
+        assert re.fullmatch(r"[a-z0-9][a-z0-9-]{0,49}", topic), topic
+    # The project's file only adds topics. One that should go leaves the answers of
+    # the blueprint, with copier update --data topics=..., so that repository.toml
+    # follows them.
+    extra = load_toml(".github/repository.project.toml")["repository"]["topics"]
+    base = load_toml(".github/repository.toml")["repository"]["topics"]
+    assert not set(extra) & set(base) and len(set(extra)) == len(extra)
+    assert set(topics) == set(base) | set(extra)
+    assert {"triage", "claude-code", "github-action", "prompt-injection"} <= set(topics)
