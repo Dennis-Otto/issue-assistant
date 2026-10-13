@@ -94,12 +94,13 @@ Anyone can write an issue, and every analysis reads the text of every issue of t
 ```mermaid
 flowchart TB
   accTitle: How the assistant reads the text of an issue
-  accDescr: The text of an issue or a comment, which anyone can write, is read up to GitHub's 65,536 characters. The answers of a form are cut out between their headings, which are found once; HTML comments and tags go in one pass. From that come the labels of the form and the reporter's language, an excerpt of each other issue from the start of its text, and issue.md with up to 20,000 characters of each text.
+  accDescr: The text of an issue or a comment, which anyone can write, is read up to GitHub's 65,536 characters. The answers of a form are cut out between their headings, which are found once; HTML comments and tags go in one pass. From that come the labels of the form and the reporter's language, an excerpt of each other issue, and issue.md with up to 20,000 characters of each text.
   text["issue or comment text,<br/>which anyone writes"] --> cap["at most 65,536 characters,<br/>as much as GitHub keeps"]
   cap --> forms["<b>form_fields</b><br/>each heading found once,<br/>answers cut out between"]
   cap --> html["<b>strip_html</b><br/>comments and tags<br/>in one pass"]
   forms --> event["labels of the form,<br/>the reporter's language"]
-  forms --> excerpt["<b>excerpt</b> of every other<br/>issue, from its start"]
+  forms --> excerpt["<b>excerpt</b> of every<br/>other issue"]
+  html --> excerpt
   html --> issue["<b>issue.md</b>, up to 20,000<br/>characters of each text"]
   classDef untrusted fill:#cf222e26,stroke:#cf222e
   classDef job fill:#8c959f1f,stroke:#8c959f
@@ -110,7 +111,7 @@ flowchart TB
 ```
 
 - **No pattern backtracks.** Each one looks at a character a bounded number of times: a form heading is one line, a tag ends on its line, and when no `>` closes a tag on its line, the rest of the line is passed over in one step.
-- **HTML comments go as GitHub hides them.** A comment without its end hides the rest of the text, as on GitHub after a line that starts with `<!--`, so instructions hidden that way don't reach the AI either.
+- **HTML comments go as GitHub hides them.** A line that starts with a `<!--` that never ends hides the rest of the text, as on GitHub, so instructions hidden that way don't reach the AI either. A `<!--` without its end within a line stays text, as GitHub shows it.
 - **Tests and fuzzing time it.** The tests read texts of 64 KiB that took the earlier patterns up to hours, and compare the results with theirs on ordinary texts; `fuzz/fuzz_issue_text.py` fails when reading a crafted text takes longer than half a second.
 
 ## Design decisions

@@ -8,6 +8,7 @@ way against how it read them before.
 """
 
 import json
+import re
 
 import hypothesis
 from hypothesis import given
@@ -165,21 +166,15 @@ FORM = st.one_of(
 )
 
 
-def headings_are_whole_lines(body):
-    """Whether each heading has a label and a line break after it.
-
-    The earlier reading took the next line as the label of a heading without one,
-    and passed over a heading at the very end of the text.
-    """
-    return all(
-        heading[1].strip() and heading.end() < len(body)
-        for heading in assistant.FORM_HEADING.finditer(body)
-    )
+def headings_have_labels(body):
+    """Whether each heading has a label: the earlier reading took the next line as
+    the label of a heading without one."""
+    return all(heading[1].strip() for heading in assistant.FORM_HEADING.finditer(body))
 
 
 @given(FORM)
 def test_any_form_reads_as_it_always_did(body):
-    hypothesis.assume(headings_are_whole_lines(body))
+    hypothesis.assume(headings_have_labels(body))
     assert assistant.form_fields(body) == earlier_form_fields(body)
 
 
@@ -191,16 +186,16 @@ HTML_TEXT = st.lists(
 ).map("".join)
 
 
-def comments_end(text):
-    """Whether every HTML comment of the text has its end.
-
-    The earlier pattern left a comment without an end as text; now it hides the rest.
-    """
-    start = text.rfind("<!--")
-    return start < 0 or "-->" in text[start + 4 :]
+def shown(text):
+    """What GitHub shows of a text: all of it, but nothing after a line that starts
+    with a `<!--` that no `-->` follows. The earlier pattern left such a comment as
+    text; now it hides the rest, as GitHub does."""
+    for line in re.finditer(r"^ {0,3}<!--", text, re.MULTILINE):
+        if "-->" not in text[line.start() :]:
+            return text[: line.start()]
+    return text
 
 
 @given(HTML_TEXT)
 def test_html_is_removed_as_it_always_was(text):
-    hypothesis.assume(comments_end(text))
-    assert assistant.strip_html(text) == EARLIER_HTML.sub("", text)
+    assert assistant.strip_html(text) == EARLIER_HTML.sub("", shown(text))

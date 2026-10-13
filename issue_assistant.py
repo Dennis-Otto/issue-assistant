@@ -144,18 +144,25 @@ ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)", re.IGNORECASE)
 # number of times, so that no text, however crafted, makes them slow. The tests and
 # fuzz/fuzz_issue_text.py time them on texts that took earlier patterns hours.
 #
-# An HTML comment. Without its end it runs to the end of the text, as GitHub hides
-# the rest of an issue after a line that starts with an unclosed `<!--`.
-HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
-# An HTML comment, or a tag within one line. When no `>` closes a tag on its line,
-# no later tag on that line can close either: the third alternative takes them all
-# in one step, up to the next comment, and strip_html keeps them as they are.
+# An HTML comment. comment_parts splits a text where its last `-->` ends, so that
+# this pattern only reads the part in which a `-->` follows every `<!--`.
+HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+# A line that starts with `<!--`: on GitHub, an HTML block that runs to its `-->`, or
+# without one, hides the rest of the text.
+COMMENT_LINE = re.compile(r"^ {0,3}<!--", re.MULTILINE)
+# An HTML tag within one line.
+TAG = r"</?[A-Za-z][^>\n]*>"
+# An HTML comment, or a tag. When no `>` closes a tag on its line, no later tag on
+# that line can close either: the third alternative takes them all in one step, up
+# to the next comment, and strip_html keeps them as they are.
 HTML = re.compile(
-    rf"{HTML_COMMENT.pattern}"
-    r"|</?[A-Za-z][^>\n]*>"
+    rf"{HTML_COMMENT.pattern}|{TAG}"
     r"|(?P<open></?[A-Za-z][^>\n<]*(?:<(?!!--)[^>\n<]*)*)",
     re.DOTALL,
 )
+# The same for the part of a text after its last `-->`, where no comment can end:
+# a `<!--` there is text, and a tag start without its `>` takes the rest of its line.
+HTML_TAG = re.compile(rf"{TAG}|(?P<open></?[A-Za-z][^>\n]*)")
 # A heading of an issue form: GitHub writes the label of each field as `### Label`
 # above its answer.
 FORM_HEADING = re.compile(r"^###[ \t]+(.*)$", re.MULTILINE)
@@ -877,13 +884,17 @@ def form_fields(body: str) -> dict[str, str]:
 
     An answer is the text between its heading and the next one. Each heading is
     found once and the answers are cut out between them, so the time grows with the
-    length of the text and no faster.
+    length of the text and no faster. GitHub writes an answer under every heading of
+    a form, so a heading on the last line, with no line break after it, is a heading
+    of free text and starts no field.
     """
     body = body or ""
     headings = list(FORM_HEADING.finditer(body))
     starts = [heading.start() for heading in headings] + [len(body)]
     fields = {}
     for heading, end in zip(headings, starts[1:], strict=True):
+        if heading.end() == len(body):
+            continue
         value = body[heading.end() : end].strip()
         fields[heading[1].strip()] = "" if value == "_No response_" else value
     return fields
@@ -1083,13 +1094,16 @@ def reopen_if_answered(
 def excerpt(text: str, limit: int) -> str:
     """The text of an issue in short: form answers as lines, without empty answers.
 
-    Only the start of a text can reach the excerpt, so only the start is read.
+    The whole text is read, because comments and empty answers can come before the
+    words that count, such as the instructions of an issue template; each step takes
+    time linear in its length.
     """
-    text = (text or "")[: limit * 4]
+    text = (text or "")[:MAX_TEXT]
     fields = form_fields(text)
     if fields:
         text = "\n".join(f"{key}: {value}" for key, value in fields.items() if value)
-    text = HTML_COMMENT.sub("", text)
+    comments, rest = comment_parts(text)
+    text = HTML_COMMENT.sub("", comments) + rest
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
@@ -1515,9 +1529,31 @@ def clean_prose(text: str, numbers: set[int], config: Config) -> str:
     )
 
 
+def comment_parts(text: str) -> tuple[str, str]:
+    """A text in two parts: up to the end of its last `-->`, and what GitHub shows of
+    the rest.
+
+    In the first part, a `-->` follows every `<!--`, so a pattern finds the end of
+    each comment without reading on to the end of the text. In the rest, no comment
+    can end: a `<!--` within a line stays text, as GitHub shows it, and one that
+    starts a line hides the rest of the text, as GitHub hides it.
+    """
+    last = text.rfind("-->")
+    middle = last + 3 if last >= 0 else 0
+    hidden = COMMENT_LINE.search(text, middle)
+    return text[:middle], text[middle : hidden.start() if hidden else len(text)]
+
+
 def strip_html(text: str) -> str:
-    """The text without HTML comments and tags, in time linear in its length."""
-    return HTML.sub(lambda match: match["open"] or "", text)
+    """The text as GitHub shows it, without HTML comments and tags, in time linear
+    in its length."""
+    comments, rest = comment_parts(text)
+    return HTML.sub(open_tag, comments) + HTML_TAG.sub(open_tag, rest)
+
+
+def open_tag(match: re.Match[str]) -> str:
+    """What stays of an HTML match: a tag start that no `>` closes, or nothing."""
+    return match["open"] or ""
 
 
 def joined(pieces: Iterable[str]) -> str:

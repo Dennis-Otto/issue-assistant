@@ -77,13 +77,13 @@ def test_forms_read_as_they_always_did(body):
 
 
 def test_a_form_heading_is_one_whole_line():
-    # The label of a heading is never the next line, and a heading at the very end
-    # of the text has an empty answer; earlier, neither was so.
+    # The label of a heading is never the next line; earlier, it was.
     assert assistant.form_fields("### \nArea\n") == {"": "Area"}
+    # A heading on the last line has no answer under it, so it starts no field.
     assert assistant.form_fields("### Area\n\nLive card\n\n### Version") == {
-        "Area": "Live card",
-        "Version": "",
+        "Area": "Live card"
     }
+    assert assistant.form_fields("Some text\n\n### Thanks") == {}
 
 
 def test_only_as_much_of_a_text_as_github_keeps_is_read():
@@ -101,6 +101,9 @@ SLOW_TEXTS = {
     "unclosed comments": "<!--" * 16_384,
     "unclosed tags": "<a" * 32_768,
     "unclosed tags and comments": "<a <!--\n" * 8_192,
+    "unclosed comments within lines": "x<!--" * 13_107,
+    "comments that end at the very end": "<!--" * 16_383 + "-->",
+    "a comment line after unclosed comments": "x<!--" * 13_000 + "\n<!--",
     "a tag on every line": "</a\n" * 16_384,
 }
 
@@ -121,8 +124,13 @@ def test_no_text_makes_reading_an_issue_slow(text):
 
 def test_html_is_removed_as_github_hides_it():
     assert assistant.strip_html("a<b>b</b> <!-- c\n-->d") == "ab d"
-    # A comment without its end hides the rest, as on GitHub.
-    assert assistant.strip_html("Shown <!-- hidden\n\nto the end") == "Shown "
+    # A line that starts with a comment without its end hides the rest of the text,
+    # as on GitHub; within a line, GitHub shows such a `<!--` as text.
+    assert assistant.strip_html("Shown\n   <!-- hidden\n\nto the end") == "Shown\n"
+    assert assistant.strip_html("<!-- x -->\n<!-- hidden") == "\n"
+    shown = "Has `<!--` without -- its end.\n\n    <!-- code\n\n<b>end</b>"
+    assert assistant.strip_html(shown) == shown.replace("<b>end</b>", "end")
+    assert assistant.strip_html("a <!-- b --> c <!-- d\n<!-- e") == "a  c <!-- d\n"
     # A tag ends on its own line; tag starts that nothing closes stay text, and a
     # comment after them still goes.
     assert assistant.strip_html("<a <b\n<i>x</i> 1 < 2") == "<a <b\nx 1 < 2"
@@ -630,12 +638,29 @@ def test_excerpts_are_short_and_without_empty_answers():
     assert assistant.excerpt("a   b\n\n\n\nc", 100) == "a b\n\nc"
 
 
-def test_an_excerpt_reads_only_the_start_of_a_text():
-    # Four times the length of the excerpt: here the comment ends within it, and with
-    # a shorter excerpt it doesn't, so it hides the rest.
-    text = "<!-- " + "x" * 400 + " -->Shown"
-    assert assistant.excerpt(text, 200) == "Shown"
-    assert assistant.excerpt(text, 100) == ""
+def test_an_excerpt_reads_the_whole_text():
+    # The instructions of an issue template can be longer than the excerpt.
+    template = "<!-- " + "Describe what happened. " * 400 + "-->\n\n"
+    assert assistant.excerpt(template + "The card is empty.", 1500) == (
+        "The card is empty."
+    )
+    # A heading on the last line is free text, not a form without answers.
+    assert assistant.excerpt("Some text\n\n### Thanks", 1500) == (
+        "Some text\n\n### Thanks"
+    )
+    assert assistant.excerpt("Shown\n<!-- hidden\n\nto the end", 1500) == "Shown"
+
+
+def test_a_comment_start_within_a_line_is_text():
+    body = (
+        "### What happened?\n\nThe TOC breaks on a `<!--` without its end.\n\n"
+        "### Version\n\n1.9.0\n"
+    )
+    assert assistant.excerpt(body, 1500) == (
+        "What happened?: The TOC breaks on a `<!--` without its end.\nVersion: 1.9.0"
+    )
+    text = assistant.render_issue(make_issue(body=body), [])
+    assert "a `<!--` without its end.\n\n### Version\n\n1.9.0\n" in text
 
 
 def test_the_engine_reads_at_most_20_000_characters_of_each_text():
@@ -874,16 +899,27 @@ def test_code_written_next_to_code_keeps_its_own_backticks(config):
         ("#1" * 1_250, 2),
         ("@a" * 1_250, 2),
         ("<!--" * 16_384, 0.5),
+        ("x<!--" * 13_107, 0.5),
         ("<a" * 32_768, 0.5),
     ],
-    ids=["references", "mentions", "unclosed comments", "unclosed tags"],
+    ids=[
+        "references",
+        "mentions",
+        "unclosed comments",
+        "unclosed comments within lines",
+        "unclosed tags",
+    ],
 )
 def test_no_text_makes_the_cleaning_slow(config, text, seconds):
     assert fast(seconds, assistant.sanitize, text, config)
 
 
 def test_an_unclosed_comment_hides_the_rest_of_the_text(config):
-    assert assistant.sanitize("Done. <!-- @maintainer\n\nmore", config) == "Done."
+    assert assistant.sanitize("Done.\n<!-- @maintainer\n\nmore", config) == "Done."
+    # Within a line, GitHub shows it as text.
+    assert assistant.sanitize("Done. <!-- @maintainer", config) == (
+        "Done. &lt;!-- `@maintainer`"
+    )
 
 
 # Links to the repository

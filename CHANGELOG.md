@@ -11,7 +11,7 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ### Security
 
-- One issue can no longer stall the AI analysis of a whole repository. Each analysis reads the text of every issue, and some crafted texts, such as a form heading `###` followed by many blanks, or many `<!--` or `<a` without an end, kept the reading busy for hours, so every later analysis ran until its job timed out. The answers of issue forms, HTML comments and tags are now read in time that grows only with the length of a text, at most GitHub's 65,536 characters. The AI reads at most 20,000 characters of each text of its issue, marked "(shortened)" after that, and a `<!--` without its end hides the rest of a text from it, as GitHub hides it from people. A new fuzz target, `fuzz/fuzz_issue_text.py`, fails when reading a crafted text takes longer than half a second.
+- One issue can no longer stall the AI analysis of a whole repository. Each analysis reads the text of every issue, and some crafted texts, such as a form heading `###` followed by many blanks, or many `<!--` or `<a` without an end, kept the reading busy for hours, so every later analysis ran until its job timed out. The answers of issue forms, HTML comments and tags are now read in time that grows only with the length of a text, at most GitHub's 65,536 characters. The AI reads at most 20,000 characters of each text of its issue, marked "(shortened)" after that, and a line that starts with a `<!--` without its end hides the rest of a text from it, as GitHub hides it from people. A new fuzz target, `fuzz/fuzz_issue_text.py`, fails when reading a crafted text takes longer than half a second.
 
 ### Fixed
 

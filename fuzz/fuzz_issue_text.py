@@ -70,7 +70,11 @@ def test_one_input(data: bytes) -> None:
 
 
 def main() -> None:
-    atheris.Setup(sys.argv, test_one_input)
+    # A pattern that backtracks can take hours on one input, and BUDGET is checked
+    # only after a call returns: unless the command line sets another limit,
+    # libFuzzer stops an input after five seconds and saves it.
+    timeout = any(arg.startswith("-timeout=") for arg in sys.argv)
+    atheris.Setup(sys.argv if timeout else [*sys.argv, "-timeout=5"], test_one_input)
     atheris.Fuzz()
 
 
