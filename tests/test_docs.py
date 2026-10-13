@@ -20,6 +20,9 @@ import issue_assistant as assistant
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGES = ROOT / "docs" / "images"
+# The screenshots and the animation of docs/images; scripts/diagrams.sh draws and
+# checks the pictures of the diagrams in docs/images/diagrams.
+SCREENSHOTS = sorted(path for path in IMAGES.iterdir() if path.name != "diagrams")
 RAW = "https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/"
 DOCUMENTS = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
 PICTURE = (
@@ -184,7 +187,7 @@ def test_the_readme_links_only_full_addresses():
 
 def test_every_picture_is_a_webp_that_comes_light_and_dark_and_is_shown():
     shown = "\n".join(document.read_text("utf-8") for document in DOCUMENTS)
-    for picture in IMAGES.iterdir():
+    for picture in SCREENSHOTS:
         match = re.fullmatch(r"([a-z-]+)-(light|dark)\.webp", picture.name)
         assert match, f"{picture.name} isn't named name-light.webp or name-dark.webp"
         other = "dark" if match[2] == "light" else "light"
@@ -194,7 +197,7 @@ def test_every_picture_is_a_webp_that_comes_light_and_dark_and_is_shown():
 
 
 def test_only_the_heroes_move_and_the_still_pictures_are_lossless():
-    for picture in IMAGES.iterdir():
+    for picture in SCREENSHOTS:
         data = picture.read_bytes()
         assert data[:4] == b"RIFF" and data[8:12] == b"WEBP", picture.name
         animated = data[12:16] == b"VP8X" and data[20] & 0x02
@@ -398,10 +401,12 @@ def test_a_source_that_the_hook_cannot_read_fails_the_build(docs: Path):
             hooks.localized(html, "index.html", docs)
 
 
-def test_diagrams_scroll_sideways_on_small_screens(docs: Path):
+def test_diagrams_scroll_sideways_on_small_screens():
     diagram = '<pre class="mermaid"><code>flowchart TB\n  a --&gt; b</code></pre>'
     html = f"<p>Before</p>\n{diagram}\n<pre><code>code</code></pre>"
-    assert hooks.localized(html, "architecture.html", docs) == (
+    # On the finished page, since the hook of the blueprint draws a diagram only
+    # after the hooks of the content.
+    assert hooks.on_post_page(html, None, None) == (
         f'<p>Before</p>\n<div class="diagram" tabindex="0">{diagram}</div>\n'
         "<pre><code>code</code></pre>"
     )
@@ -409,6 +414,44 @@ def test_diagrams_scroll_sideways_on_small_screens(docs: Path):
     assert "stylesheets/diagrams.css" in settings["extra_css"]
     style = (ROOT / "docs" / "stylesheets" / "diagrams.css").read_text("utf-8")
     assert ".diagram" in style and "min-width" in style and "overflow-x" in style
+
+
+def test_the_pictures_of_a_diagram_stay_for_the_hook_of_the_blueprint(docs: Path):
+    # The folder of the fixture has no picture of a diagram: the hook reads no size.
+    # A page gives the path from its folder, and a part of the README from the root.
+    for folder in ("images/diagrams/", "../images/diagrams/", "docs/images/diagrams/"):
+        html = PICTURE.format(dark=f"{folder}a-b.dark.svg", light=f"{folder}a-b.svg")
+        assert hooks.localized(html, "index.html", docs) == html
+
+
+def test_the_website_draws_each_diagram_live_and_lets_it_scroll(tmp_path: Path):
+    # The hooks in the order of MkDocs: by its priority, the content hook of this
+    # project before that of the blueprint, which draws a diagram from its source in
+    # docs/diagrams/ in place of its pictures, and the finished page last. The part of
+    # the README gives the path from the root, which leads nowhere from the page.
+    (tmp_path / "diagrams").mkdir()
+    (tmp_path / "diagrams" / "a-b.mmd").write_text("flowchart TB\n  a --> b\n", "utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "mkdocs_blueprint", ROOT / ".github" / "mkdocs_blueprint.py"
+    )
+    assert spec and spec.loader
+    blueprint = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(blueprint)
+    page = SimpleNamespace(
+        file=SimpleNamespace(url="architecture.html", src_uri="architecture.md")
+    )
+    folder = "docs/images/diagrams/"
+    html = PICTURE.format(dark=f"{folder}a-b.dark.svg", light=f"{folder}a-b.svg")
+    content = hooks.on_page_content(
+        f"<p>{html}</p>", page, {"docs_dir": str(tmp_path)}, None
+    )
+    content = blueprint.on_page_content(
+        content, page, SimpleNamespace(docs_dir=str(tmp_path)), None
+    )
+    assert hooks.on_post_page(content, None, None) == (
+        '<div class="diagram" tabindex="0"><pre class="mermaid"><code>flowchart TB\n'
+        "  a --&gt; b\n</code></pre></div>"
+    )
 
 
 def test_the_hook_changes_the_html_of_each_page(docs: Path):
@@ -451,8 +494,12 @@ def test_the_hook_knows_every_picture_of_the_documentation():
             else document.relative_to(ROOT / "docs").with_suffix(".html").as_posix()
         )
         html = hooks.localized(text, url, ROOT / "docs")
-        count = text.count("<picture>")
-        assert count == len(hooks.PICTURE.findall(text)), document.name
+        assert text.count("<picture>") == len(hooks.PICTURE.findall(text)), url
+        # The hook of the blueprint draws each diagram live from its pictures, which
+        # stay as they are until then.
+        figures = drawn(text)
+        assert all(picture in html for _, picture in figures), url
+        count = text.count("<picture>") - len(figures)
         assert html.count("#only-light") == html.count("#only-dark") == count
         assert html.count('loading="lazy"') == 2 * count
         assert html.count(RAW + "docs/") == 0, document.name
@@ -764,15 +811,18 @@ def test_the_comparison_is_dated_and_every_cell_has_a_source():
     assert all("](https://" in source for source in sources.values())
 
 
-# The diagrams: Mermaid in the Markdown, which GitHub and the website both draw. A
-# page of the website shows a diagram of the README by including the part of the
+# The diagrams: Mermaid in docs/diagrams/, which scripts/diagrams.sh draws as the
+# pictures that the Markdown shows, for the GitHub app too, and which the website
+# draws live; a ```mermaid block that the diagram bot hasn't drawn yet counts as well.
+# A page of the website shows a diagram of the README by including the part of the
 # README around it, so that each diagram is written once.
 
 FIGURES = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", *DOCUMENTS[1:]]
+SOURCES = ROOT / "docs" / "diagrams"
 
 
 def diagrams(text: str) -> list[tuple[int, str]]:
-    """The Mermaid diagrams of a Markdown text: the line where each starts, and its
+    """The Mermaid blocks of a Markdown text: the line where each starts, and its
     source."""
     return [
         (text.count("\n", 0, match.start()) + 1, match[1])
@@ -782,9 +832,24 @@ def diagrams(text: str) -> list[tuple[int, str]]:
     ]
 
 
-def every_diagram() -> list[tuple[str, str]]:
-    """Every diagram of the documentation, by its file and line, with its source."""
+def drawn(text: str) -> list[tuple[str, str]]:
+    """The pictures of diagrams in a Markdown text, as scripts/diagrams.sh writes
+    them: the name of the source of each, and the whole <picture>."""
     return [
+        (re.search(r'images/diagrams/([\w.-]+)\.svg"', match["image"])[1], match[0])
+        for match in hooks.PICTURE.finditer(text)
+        if hooks.DRAWN.search(match["image"])
+    ]
+
+
+def every_diagram() -> list[tuple[str, str]]:
+    """Every diagram of the documentation, by its source in docs/diagrams/ or the
+    file and line of its block, with its Mermaid."""
+    sources = [
+        (path.relative_to(ROOT).as_posix(), path.read_text("utf-8"))
+        for path in sorted(SOURCES.glob("*.mmd"))
+    ]
+    return sources + [
         (f"{document.relative_to(ROOT).as_posix()}:{line}", source)
         for document in FIGURES
         for line, source in diagrams(document.read_text("utf-8"))
@@ -807,6 +872,11 @@ def test_the_diagrams_are_found_where_they_are():
     assert line == 3
     assert statements(source) == ["flowchart TB", "a --> b"]
     assert len(every_diagram()) >= 20
+    picture = PICTURE.format(
+        dark="docs/images/diagrams/a-b.dark.svg", light="docs/images/diagrams/a-b.svg"
+    )
+    screenshot = PICTURE.format(dark="images/a-dark.png", light="images/a-light.png")
+    assert drawn(f"{picture}\n\n{screenshot}\n") == [("a-b", picture)]
 
 
 def test_every_diagram_says_what_it_shows():
@@ -857,23 +927,38 @@ def test_each_diagram_is_written_once():
     # A copy drifts away from its original. A page of the website includes the part
     # of the README with the diagram instead, such as workflows-diagram.
     shown = every_diagram()
-    sources = [source for _, source in shown]
-    copies = [place for place, source in shown if sources.count(source) > 1]
+    sources = [source.strip() for _, source in shown]
+    copies = [
+        place
+        for (place, _), source in zip(shown, sources, strict=True)
+        if sources.count(source) > 1
+    ]
     assert not copies, f"the same diagram is at {copies}"
+    pictures = [
+        (document.relative_to(ROOT).as_posix(), name)
+        for document in FIGURES
+        for name, _ in drawn(document.read_text("utf-8"))
+    ]
+    names = [name for _, name in pictures]
+    copies = [place for place, name in pictures if names.count(name) > 1]
+    assert not copies, f"{copies} show the same diagram"
     readme = (ROOT / "README.md").read_text("utf-8")
-    names = re.findall(r"^<!-- --8<-- \[start:([a-z-]+)\] -->$", readme, re.MULTILINE)
-    parts = [readme_part(name) for name in names]
-    for line, source in diagrams(readme):
-        assert any(source in part for part in parts), (
-            f"README.md:{line} is in no part of the README that the website includes"
+    markers = re.findall(r"^<!-- --8<-- \[start:([a-z-]+)\] -->$", readme, re.MULTILINE)
+    parts = [readme_part(marker) for marker in markers]
+    figures = [(f"README.md:{line}", source) for line, source in diagrams(readme)]
+    figures += [(f"the picture of {name}", picture) for name, picture in drawn(readme)]
+    for place, figure in figures:
+        assert any(figure in part for part in parts), (
+            f"{place} is in no part of the README that the website includes"
         )
-    for page, name in [
+    for page, marker in [
         ("architecture.md", "workflows-diagram"),
         ("security.md", "trust-boundaries-diagram"),
     ]:
         text = (ROOT / "docs" / page).read_text("utf-8")
-        assert f'--8<-- "README.md:{name}"' in text.splitlines()
-        assert readme_part(name).strip().startswith("```mermaid")
+        assert f'--8<-- "README.md:{marker}"' in text.splitlines()
+        part = readme_part(marker)
+        assert len(diagrams(part)) + len(drawn(part)) == 1, marker
 
 
 # The pages of the website that the code makes or completes: every comment of the
