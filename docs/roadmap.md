@@ -7,6 +7,7 @@ What the issue assistant intends to do in the next twelve months, until October 
 ## The next twelve months
 
 - **The repositories that use it.** The assistant looks after the issues of [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync) and the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint). What their maintainers miss in practice comes first.
+- **The GitHub Marketplace.** A listing as *Read-only issue assistant*, since another action has the name Issue Assistant, so that maintainers find the action where they look for actions.
 - **Changes of GitHub and of the engine.** New versions of GitHub's API, of the egress firewall and of the Claude Code action are taken up once the tests and the action's own run pass with them.
 - **More guards against steered answers.** Every kind of text that gets past the cleaning becomes a test with its fix, as the property tests and the fuzzing found so far.
 - **Fixes and security** come before anything new; [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md) has the times.
