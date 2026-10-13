@@ -42,7 +42,7 @@ hide:
 
     ---
 
-    A sure duplicate gets a notice and closes three days later, linked to the original, unless someone objects. Less sure ones become suggestions for the maintainer.
+    A sure duplicate of an issue that a maintainer opened or triaged gets a notice and closes three days later, linked to the original, unless someone objects. Other ones become suggestions for the maintainer.
 
 - :material-clock-alert-outline:{ .lg .middle } **Unanswered questions**
 
