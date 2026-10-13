@@ -207,6 +207,18 @@ class GitHubError(Exception):
     """A gh call failed."""
 
 
+def command(name: str, message: str) -> None:
+    """Print a workflow command, such as an error or a notice, with its message.
+
+    The runner reads every line of the log that starts with `::` as a command, such
+    as `::add-mask::` or `::stop-commands::`. Escaped as GitHub's Actions toolkit
+    escapes it, the message stays on its line, so that no text in it, such as the
+    engine's, can start another command.
+    """
+    escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print(f"::{name}::{escaped}")
+
+
 # Engines
 
 
@@ -223,6 +235,22 @@ class Engine:
 # of a repository chooses one. README.md#engines describes how to add one.
 ENGINES = {"claude": Engine("Claude", "Anthropic", "claude-opus-5-5")}
 DEFAULT_ENGINE = "claude"
+# The workflow passes the model to the engine's command line without quotes. The
+# names and IDs of models fit, also with a version after @ or :, a path or a suffix
+# in brackets; a blank, a quote or a line break would add arguments, and so would a
+# leading dash, which the engine's action reads as the next flag.
+MODEL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:@/\[\]-]*")
+
+
+def is_model_name(model: object) -> bool:
+    return isinstance(model, str) and bool(MODEL_NAME.fullmatch(model))
+
+
+def model_problem(model: object) -> str:
+    return (
+        f"{SETTINGS / 'config.toml'}: the model {model!r} is no model name, "
+        f"such as {ENGINES[DEFAULT_ENGINE].model}"
+    )
 
 
 def engine_named(name: str | None) -> str:
@@ -658,8 +686,8 @@ class GitHub:
                     },
                 )
             except (GitHubError, KeyError) as error:
-                print(
-                    f"::notice::Labels without rationale on #{issue['number']}: {error}"
+                command(
+                    "notice", f"Labels without rationale on #{issue['number']}: {error}"
                 )
                 self.rest(
                     f"issues/{issue['number']}/labels",
@@ -708,7 +736,7 @@ class GitHub:
                     },
                 )
             except GitHubError as error:
-                print(f"::notice::Closing #{issue['number']} through REST: {error}")
+                command("notice", f"Closing #{issue['number']} through REST: {error}")
                 self.rest(
                     f"issues/{issue['number']}",
                     method="PATCH",
@@ -742,8 +770,8 @@ class GitHub:
                     },
                 )
             except GitHubError as error:
-                print(
-                    f"::notice::No duplicate suggestion on #{issue['number']}: {error}"
+                command(
+                    "notice", f"No duplicate suggestion on #{issue['number']}: {error}"
                 )
 
         self._write(
@@ -1234,7 +1262,7 @@ def write_context(
         prompt = prompt.replace("{" + key + "}", value)
     # Last, so that braces in the project's own text stay as they are.
     prompt = prompt.replace("{project}", config.project)
-    schema = json.dumps(answer_schema(mode, config), separators=(",", ":"))
+    schema = schema_json(mode, config)
     (folder / "prompt.md").write_text(prompt, encoding="utf-8")
     (folder / "schema.json").write_text(schema, encoding="utf-8")
     return {"prompt": prompt, "schema": schema}
@@ -1356,6 +1384,32 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
     )
 
 
+def schema_json(mode: str, config: Config) -> str:
+    """The schema of the answer as one line of JSON, for the engine's command line.
+
+    The workflow puts it between single quotes, which an apostrophe in a label name,
+    as in "area: user's guide", would end. As the escape \\u0027, the apostrophe ends
+    nothing and reads back as the same JSON.
+    """
+    schema = json.dumps(answer_schema(mode, config), separators=(",", ":"))
+    return schema.replace("'", "\\u0027")
+
+
+# The names of the fields of the schema; any other key is the engine's.
+FIELD_NAME = re.compile(r"[a-z_]{1,40}")
+
+
+def key_path(path: str, key: str) -> str:
+    """Where a field of the answer is, for a message in the log.
+
+    A key that the engine made up shows as a short JSON string, so that it can't add
+    a line or a long text to the message.
+    """
+    if FIELD_NAME.fullmatch(key):
+        return f"{path}.{key}"
+    return f"{path}[{json.dumps(key if len(key) <= 40 else key[:40] + '...')}]"
+
+
 def validate(schema: dict[str, Any], value: Any, path: str = "answer") -> list[str]:
     """The ways a value breaks the schema, for the subset of JSON schema used here."""
     kind = schema.get("type")
@@ -1366,7 +1420,7 @@ def validate(schema: dict[str, Any], value: Any, path: str = "answer") -> list[s
             f"{path}.{key} is missing" for key in schema["required"] if key not in value
         ]
         problems += [
-            f"{path}.{key} is not expected"
+            f"{key_path(path, key)} is not expected"
             for key in value
             if key not in schema["properties"]
         ]
@@ -1586,6 +1640,45 @@ def sanitize(text: str, config: Config, numbers: Iterable[int] = ()) -> str:
         last = match.end()
     parts.append(clean_prose(text[last:], checked, config))
     return joined(parts).strip()
+
+
+CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def one_line(text: str) -> str:
+    """The text on one line: each run of blanks, line breaks and control characters,
+    such as the escapes that color a terminal, becomes one space."""
+    return " ".join(CONTROL.sub(" ", text).split())
+
+
+def plain(text: str, config: Config, limit: int = 280) -> str:
+    """The engine's text for one line outside its comments, at most `limit` long.
+
+    Such as a line of the log and of the job summary, or a rationale that GitHub
+    shows on the timeline of an issue. It is put on one line first, so that it can't
+    start a workflow command or hold a block of Markdown, such as a code block whose
+    mention would become text when its lines were joined later. Then it is cleaned as
+    in a comment, so that it mentions nobody and links nowhere. A text that is too
+    long is shortened before the cleaning too, which would otherwise lose the
+    backtick that keeps a mention in its code.
+    """
+    line = sanitize(one_line(text), config)
+    if len(line) <= limit:
+        return line
+
+    def shortened(end: int) -> str:
+        return sanitize(one_line(text[:end]) + "…", config)
+
+    # A longer start of the text can clean into a shorter line, when it closes a
+    # tag for example, so the search finds a start that fits, not always the longest.
+    low, high = 0, len(text)
+    while low < high:
+        middle = (low + high + 1) // 2
+        if len(shortened(middle)) <= limit:
+            low = middle
+        else:
+            high = middle - 1
+    return shortened(low)
 
 
 def tracked_files(root: Path) -> set[str]:
@@ -2042,7 +2135,9 @@ def check_findings(
         if not suggested and (
             original["state"] == "open" or original.get("state_reason") == "completed"
         ):
-            github.suggest_duplicate(issue, original, candidate["reason"])
+            github.suggest_duplicate(
+                issue, original, plain(candidate["reason"], config)
+            )
             suggested = True
         related.append((original["number"], "issue", candidate["reason"]))
     for item in answer["related"]:
@@ -2077,6 +2172,18 @@ def references(
     return [f"{link}: {reason}" for link, reason in links.items()]
 
 
+# What GitHub shows next to the labels of a possible security report, instead of
+# the engine's words, which could describe the vulnerability in public.
+SECURITY_RATIONALE = "Possible security report; see the security policy."
+
+
+def label_rationale(answer: dict[str, Any], config: Config) -> str:
+    """Why the labels fit, for the timeline of the issue."""
+    if answer.get("security_report"):
+        return SECURITY_RATIONALE
+    return plain(answer["label_rationale"], config)
+
+
 def apply_labels(
     github: GitHub, issue: dict[str, Any], answer: dict[str, Any], config: Config
 ) -> list[str]:
@@ -2089,7 +2196,7 @@ def apply_labels(
                 github.remove_label(issue["number"], name)
     wanted = [kind, *answer["areas"], *answer["topics"]]
     added = [name for name in dict.fromkeys(wanted) if name not in current]
-    github.add_explained_labels(issue, added, answer["label_rationale"])
+    github.add_explained_labels(issue, added, label_rationale(answer, config))
     return added
 
 
@@ -2124,16 +2231,16 @@ def apply_answer(
     if "pull_request" in issue:
         raise AssistantError(f"#{number} is a pull request, not an issue.")
     if mode == "release-reply":
-        return apply_release_reply(github, issue, answer)
+        return apply_release_reply(github, issue, answer, config)
     if issue["state"] != "open" or issue.get("locked"):
         return [f"#{number} is closed or locked; nothing posted."]
     author = login(issue.get("user"))
     if mode == "maintainer-reply":
-        return apply_maintainer_reply(github, issue, answer)
+        return apply_maintainer_reply(github, issue, answer, config)
     if not repeat and already_done(mode, github.comments(number), author):
         return [f"#{number} already has this {mode}; nothing posted."]
     if answer["kind"] == "spam":
-        github.add_explained_labels(issue, [INVALID], answer["label_rationale"])
+        github.add_explained_labels(issue, [INVALID], label_rationale(answer, config))
         return [f"#{number} looks like spam: marked invalid, no comment."]
     asks = [
         ask.strip()
@@ -2182,11 +2289,12 @@ def apply_answer(
 
 
 def apply_maintainer_reply(
-    github: GitHub, issue: dict[str, Any], answer: dict[str, Any]
+    github: GitHub, issue: dict[str, Any], answer: dict[str, Any], config: Config
 ) -> list[str]:
     number = issue["number"]
+    reason = plain(answer["reason"], config)
     if not answer["waiting_for_reporter"]:
-        return [f"#{number} does not wait for the reporter: {answer['reason']}"]
+        return [f"#{number} does not wait for the reporter: {reason}"]
     if NEEDS_INFO in label_names(issue):
         return [f"#{number} already waits for the reporter."]
     author = login(issue.get("user"))
@@ -2202,24 +2310,25 @@ def apply_maintainer_reply(
     ):
         return [f"The reporter of #{number} already answered."]
     github.add_labels(number, [NEEDS_INFO])
-    return [f"#{number} waits for the reporter: {answer['reason']}"]
+    return [f"#{number} waits for the reporter: {reason}"]
 
 
 def apply_release_reply(
-    github: GitHub, issue: dict[str, Any], answer: dict[str, Any]
+    github: GitHub, issue: dict[str, Any], answer: dict[str, Any], config: Config
 ) -> list[str]:
     """Reopen an issue that a release closed when its reporter says it isn't fixed."""
     number = issue["number"]
+    reason = plain(answer["reason"], config)
     if issue["state"] == "open" or issue.get("locked"):
         return [f"#{number} is open or locked; nothing to reopen."]
     if not answer["problem_persists"]:
-        return [f"#{number} stays closed: {answer['reason']}"]
+        return [f"#{number} stays closed: {reason}"]
     github.reopen(number)
     github.add_labels(number, [NEEDS_TRIAGE])
     github.comment(
         number, render_reopened_release(login(issue.get("user")), answer["language"])
     )
-    return [f"#{number} reopened: {answer['reason']}"]
+    return [f"#{number} reopened: {reason}"]
 
 
 # The daily sweep
@@ -2345,7 +2454,9 @@ def close_released(github: GitHub) -> list[str]:
             github.set_milestone(number, release["tag_name"], release["published_at"])
         except GitHubError as error:
             # The milestone only files the issue; the release closed it in any case.
-            print(f"::notice::No milestone {release['tag_name']} on #{number}: {error}")
+            command(
+                "notice", f"No milestone {release['tag_name']} on #{number}: {error}"
+            )
         done.append(f"#{number}: closed, released in {release['tag_name']}.")
     return done
 
@@ -2478,7 +2589,7 @@ def sync_labels(github: GitHub, config: Config) -> list[str]:
             done.append(f"updated {label.name}")
     configured = {label.name for label in config.labels}
     for name in sorted(set(existing) - configured):
-        print(f"::notice::Label {name} is not in {LABELS_FILE}; it stays.")
+        command("notice", f"Label {name} is not in {LABELS_FILE}; it stays.")
     return done
 
 
@@ -2690,6 +2801,8 @@ def check_config(config: Config) -> list[str]:
     for host in sorted(config.hosts):
         if not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", host):
             problems.append(f"{SETTINGS / 'config.toml'}: {host} is no host name")
+    if config.model and not is_model_name(config.model):
+        problems.append(model_problem(config.model))
     if not isinstance(config.releases, bool):
         problems.append(
             f"{SETTINGS / 'config.toml'}: close_with_release must be true or false"
@@ -2800,6 +2913,13 @@ def output(name: str, value: str) -> None:
             handle.write(f"{name}={value}\n")
 
 
+def fence(text: str) -> str:
+    """The backticks of a code fence that nothing in the text can close: more than
+    in any run of backticks in it."""
+    longest = max((len(run) for run in re.findall("`+", text)), default=0)
+    return "`" * max(3, longest + 1)
+
+
 def summary(
     title: str, lines: list[str], dry_run: bool, previews: Iterable[str] = ()
 ) -> None:
@@ -2807,11 +2927,21 @@ def summary(
         bullets(lines) if lines else "Nothing to do."
     )
     for preview in previews:
+        body = preview.rstrip()
+        marks = fence(body)
         text += (
             "\n\n<details><summary>Comment</summary>\n\n"
-            f"````markdown\n{preview.rstrip()}\n````\n\n</details>"
+            f"{marks}markdown\n{body}\n{marks}\n\n</details>"
         )
-    print(text)
+    # The lines and the comments hold the engine's text, which the runner must not
+    # read as workflow commands; it reads them again after the random token. Only a
+    # terminal outside a runner, such as a check on one's own computer, shows the
+    # text alone: the runner reads every other output, also that of a container.
+    if sys.stdout.isatty() and os.environ.get("GITHUB_ACTIONS") != "true":
+        print(text)
+    else:
+        token = os.urandom(16).hex()
+        print(f"::stop-commands::{token}\n{text}\n::{token}::")
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if path:
         with open(path, "a", encoding="utf-8") as handle:
@@ -2824,13 +2954,17 @@ def choose_engine(config: Config, ready: str) -> tuple[str, bool, str]:
     `ready` lists the engines whose secret the workflow found, separated by commas.
     """
     key = engine_named(config.engine)
+    model = config.model or ENGINES[key].model
+    if not is_model_name(model):
+        raise AssistantError(model_problem(model))
     available = key in {item.strip() for item in ready.split(",") if item.strip()}
     if not available:
-        print(
-            f"::notice::No credentials for {ENGINES[key].name} are configured; "
-            "the issue assistant only sets labels and keeps the lifecycle."
+        command(
+            "notice",
+            f"No credentials for {ENGINES[key].name} are configured; "
+            "the issue assistant only sets labels and keeps the lifecycle.",
         )
-    return key, available, config.model or ENGINES[key].model
+    return key, available, model
 
 
 def repository_of_run(*, needed: bool) -> str:
@@ -2856,11 +2990,9 @@ def main(argv: list[str] | None = None) -> int:
         ("context", "write the files the engine reads"),
         ("apply", "check the engine's answer in RESULT and apply it"),
     ):
-        command = commands.add_parser(name, help=text_)
-        command.add_argument(
-            "--issue", type=int, default=os.environ.get("ISSUE") or None
-        )
-        command.add_argument(
+        task = commands.add_parser(name, help=text_)
+        task.add_argument("--issue", type=int, default=os.environ.get("ISSUE") or None)
+        task.add_argument(
             "--mode", choices=MODES, default=os.environ.get("MODE") or None
         )
     commands.add_parser(
@@ -2901,7 +3033,7 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "check":
             problems = check(load_config(root, repository))
             for problem in problems:
-                print(f"::error::{problem}")
+                command("error", problem)
             summary("Issue assistant set-up", problems or ["Everything fits."], False)
             return 1 if problems else 0
         if arguments.command == "engine":
@@ -2918,7 +3050,7 @@ def main(argv: list[str] | None = None) -> int:
             lines, left = watch_findings(github, root)
             for line in lines:
                 if line.startswith("Alert #") and " is open: " in line:
-                    print(f"::error::{line}")
+                    command("error", line)
             summary("Findings", lines or ["No open findings."], dry_run)
             return 1 if left else 0
         config = load_config(root, repository)
@@ -2961,7 +3093,7 @@ def main(argv: list[str] | None = None) -> int:
             title = "Labels"
             done = sync_labels(github, config)
     except AssistantError as error:
-        print(f"::error::{error}")
+        command("error", str(error))
         return 1
     summary(title, done, dry_run, github.previews)
     return 0
