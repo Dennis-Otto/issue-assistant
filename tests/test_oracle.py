@@ -22,7 +22,7 @@ from support import CONFIG
         ("HTTP://evil.example", ["link to HTTP://evil.example"]),
         ("https://localhost/x", ["link to https://localhost/x"]),
         ("https://©x y", ["link to https://©x"]),
-        ("xhttps://evil.example ftp://evil.example https://_x https:// x", []),
+        ("xhttps://evil.example ftp://evil.example https://_x https://\u00a0x", []),
         # It runs to the next ASCII space or <: into code, past entities and
         # backslashes, and past spaces of Unicode.
         (
@@ -34,8 +34,8 @@ from support import CONFIG
             ["link to https://docs.example.com&lt;b@evil.example"],
         ),
         (
-            "https://docs.example.com @evil.example/ z",
-            ["link to https://docs.example.com @evil.example/"],
+            "https://docs.example.com\u00a0@evil.example/ z",
+            ["link to https://docs.example.com\u00a0@evil.example/"],
         ),
         ("https://docs.example.com/x\\[y", ["link to https://docs.example.com/x\\[y"]),
         ("https://docs.example.com/x<b and https://docs.example.com/@*@o*", []),
@@ -54,7 +54,7 @@ from support import CONFIG
             ["link to www.evil.example"] * 3,
         ),
         ("www. x", ["link to www"]),
-        ("`x`www.evil.example x www.evil.example WWW.evil.example", []),
+        ("`x`www.evil.example x\u00a0www.evil.example WWW.evil.example", []),
         # Where a link leads: a file, a folder or a release of the repository, or a
         # site of the settings.
         (
@@ -150,6 +150,15 @@ from support import CONFIG
         ("- h\n  -:\n  `#1|q`", ["reference #1"]),
         ("f | g\n--|--\n`x\\|#1` | w", []),
         ("`a`\n---\n`x|#1`\n\na\n-\\|-\n`x|#1`", []),
+        # GitHub makes no table where the header has other cells than the
+        # delimiter row, or where the delimiter row continues a quote; the oracle
+        # reads such a paragraph both ways.
+        ("a | b\n:-:\n`x|` @octocat `|y`", ["mention @octocat"]),
+        ("> h\n:-:\n`x|` @octocat `|y`", ["mention @octocat"]),
+        (
+            "a | b\n:-:\n`x|` https://evil.example/q `|y` #3",
+            ["link to https://evil.example/q", "reference #3"],
+        ),
     ],
 )
 def test_the_oracle_finds_what_github_links(markdown, found):

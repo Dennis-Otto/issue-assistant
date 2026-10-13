@@ -157,6 +157,17 @@ def make_follow_up(**changes):
     return answer
 
 
+# The keywords of each type of schema that answer_of follows. additionalProperties
+# needs nothing: its answers hold the properties of the schema alone.
+FOLLOWED = {
+    "object": {"type", "properties", "required", "additionalProperties"},
+    "array": {"type", "items", "maxItems"},
+    "string": {"type", "enum", "maxLength"},
+    "integer": {"type", "minimum"},
+    "boolean": {"type"},
+}
+
+
 def answer_of(schema: dict[str, Any], choose: Any, key: str = "answer") -> Any:
     """A value that fits the schema of the engine's answer, each choice made by
     `choose`.
@@ -166,8 +177,13 @@ def answer_of(schema: dict[str, Any], choose: Any, key: str = "answer") -> Any:
     method for each choice, which gets the name of the field: `text` with its most
     characters, `count` of items with their most, `one_of` the values, `number`
     with its least, `boolean`, and `present` for a field that may be left out.
+
+    A schema that it can't follow fails here, rather than in answers that the
+    checks refuse, which the tests and the fuzzers would skip without a word.
     """
     kind = schema.get("type")
+    if not isinstance(kind, str) or set(schema) - FOLLOWED.get(kind, set()):
+        raise ValueError(f"answer_of can't build the {key} of {schema!r}")
     if kind == "object":
         return {
             name: answer_of(item, choose, name)
@@ -676,10 +692,11 @@ def posted_comments(config, mode, answer, sha=REF):
     return github.posted(12), numbers & set(ISSUES)
 
 
-def stray_problems(body, numbers, config, author="reporter"):
+def stray_problems(body, numbers, config, author="reporter", *, security=False):
     """What the oracle finds in a comment of the assistant beyond its own words: its
-    marker, the thanks that mention the reporter, the HTML of its footer and the
-    link to the security policy, each once at most."""
+    marker, the thanks that mention the reporter, the HTML of its footer and, in the
+    comment on a possible security report, the link to the security policy, each
+    once at most."""
     marker = body.partition("\n")[0]
     own = Counter(
         [
@@ -687,7 +704,7 @@ def stray_problems(body, numbers, config, author="reporter"):
             f"mention @{author}",
             "HTML '<sub>'",
             "HTML '</sub>'",
-            f"link to {config.policy}",
+            *([f"link to {config.policy}"] if security else []),
         ]
     )
     return list((Counter(problems(body, numbers, config)) - own).elements())
