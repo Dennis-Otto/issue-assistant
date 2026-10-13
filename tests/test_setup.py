@@ -3,6 +3,7 @@
 import dataclasses
 import json
 import shutil
+import tomllib
 from pathlib import Path, PurePath, PurePosixPath
 
 import pytest
@@ -27,6 +28,32 @@ def test_the_settings_are_read_with_defaults(config, root):
     assert plain.engine == "claude" and plain.hosts == frozenset()
     assert plain.notices == ("SUPPORT.md",)
     assert config.releases is True and plain.releases is True
+    for settings in (config, plain):
+        assert settings.max_per_day == 20 and settings.max_per_author_per_day == 3
+        assert settings.release_replies == 2
+
+
+def test_the_limits_of_the_ai_runs_can_be_set(root):
+    (root / ".github/issue-assistant/config.toml").write_text(
+        '[engine]\nname = "claude"\nmax_per_day = 50\n'
+        "max_per_author_per_day = 5\nrelease_replies = 0\n",
+        encoding="utf-8",
+    )
+    config = assistant.load_config(root, REPOSITORY)
+    assert (config.max_per_day, config.max_per_author_per_day) == (50, 5)
+    assert config.release_replies == 0
+    assert assistant.check_config(config) == []
+
+
+def test_the_starter_settings_name_the_default_limits(tmp_path):
+    assistant.install(tmp_path, REF, "v1.0.0")
+    starter = tomllib.loads(
+        (tmp_path / assistant.SETTINGS / "config.toml").read_text("utf-8")
+    )
+    defaults = assistant.Config(tmp_path, REPOSITORY, (), "")
+    assert {key: starter["engine"][key] for key in assistant.LIMITS} == {
+        key: getattr(defaults, key) for key in assistant.LIMITS
+    }
 
 
 def test_closing_with_the_release_can_be_switched_off(config, root):
@@ -274,11 +301,20 @@ def test_config_problems_are_found(config, root):
         engine="unknown",
         hosts=frozenset({"https://evil.example/path"}),
         releases="yes",
+        max_per_day=-1,
+        max_per_author_per_day=True,
+        release_replies="2",
     )
     assert assistant.check_config(broken) == [
         ".github/issue-assistant/config.toml: unknown engine unknown; known engines: claude",
         ".github/issue-assistant/config.toml: https://evil.example/path is no host name",
         ".github/issue-assistant/config.toml: close_with_release must be true or false",
+        ".github/issue-assistant/config.toml: max_per_day must be a whole number, "
+        "0 or more",
+        ".github/issue-assistant/config.toml: max_per_author_per_day must be a whole "
+        "number, 0 or more",
+        ".github/issue-assistant/config.toml: release_replies must be a whole number, "
+        "0 or more",
     ]
     (root / "SUPPORT.md").write_text("An AI reads your issue.", encoding="utf-8")
     missing = dataclasses.replace(config, notices=("SUPPORT.md", "docs/missing.md"))
