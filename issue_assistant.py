@@ -23,10 +23,12 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import tomllib
 from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote, urlsplit
@@ -221,8 +223,103 @@ class AssistantError(Exception):
     """The assistant refuses to act, for example on an answer that fails the checks."""
 
 
+# gh writes `gh: <message> (HTTP <status>)` for a failed REST call, and `gh: HTTP
+# <status>` when GitHub answered without JSON, such as in an incident.
+HTTP_STATUS = re.compile(r"\bHTTP (\d{3})\b")
+# The words of gh when the connection to GitHub broke off, for a moment.
+NETWORK_FAILURE = re.compile(
+    r"connection reset|i/o timeout|TLS handshake timeout|unexpected EOF",
+    re.IGNORECASE,
+)
+# The waits before a read runs again after a server error, one for each try.
+SERVER_ERROR_WAITS = (2, 4, 8)
+# GitHub asks to wait a minute after a secondary rate limit when the response has
+# no Retry-After header, and gh never shows its headers.
+RATE_LIMIT_WAIT = 60
+
+
 class GitHubError(Exception):
-    """A gh call failed."""
+    """A gh call failed, with the HTTP status and the GraphQL error types of GitHub.
+
+    Only a thing that doesn't exist is an answer about the thing. A rate limit or a
+    server error says nothing about it: read as "missing", it would change what the
+    assistant posts, such as an analysis without the duplicate it found.
+    """
+
+    def __init__(
+        self, message: str, *, status: int | None = None, types: Iterable[str] = ()
+    ) -> None:
+        super().__init__(message)
+        self.status = status
+        self.types = frozenset(types)
+
+    @classmethod
+    def of(cls, args: list[str], stdout: str, stderr: str) -> GitHubError:
+        """The error of a failed gh call, from its message and GitHub's JSON."""
+        statuses = HTTP_STATUS.findall(stderr or "")
+        try:
+            body = json.loads(stdout)
+        except ValueError:
+            body = None
+        # A paginated call answers with a list of pages.
+        pages = body if isinstance(body, list) else [body]
+        types = {
+            error["type"]
+            for page in pages
+            if isinstance(page, dict)
+            for error in page.get("errors") or []
+            if isinstance(error, dict) and isinstance(error.get("type"), str)
+        }
+        return cls(
+            f"gh {args[1] if len(args) > 1 else ''}: {(stderr or stdout).strip()}",
+            status=int(statuses[-1]) if statuses else None,
+            types=types,
+        )
+
+    def missing(self) -> bool:
+        """Whether GitHub said that the thing doesn't exist, or no longer does."""
+        return self.status in {404, 410} or "NOT_FOUND" in self.types
+
+    def rate_limited(self) -> bool:
+        """Whether GitHub refused the call for a minute: a secondary rate limit.
+
+        GitHub refuses it before it does anything, so a write can run again too. The
+        primary rate limit is no such case: its hour ends too late for a run to wait.
+        """
+        text = str(self).casefold()
+        return (
+            "secondary rate limit" in text
+            or "abuse detection" in text
+            or (self.status == 429 and "api rate limit exceeded" not in text)
+        )
+
+    def transient(self) -> bool:
+        """Whether GitHub failed for a moment: a server error or a broken connection.
+
+        Whether a write happened is open then, so only a read runs again.
+        """
+        if self.status is not None:
+            return self.status >= 500
+        return bool(NETWORK_FAILURE.search(str(self)))
+
+    def wait(self, tries: int, read: bool) -> int | None:
+        """The seconds to wait before the call runs again; None if it shouldn't."""
+        if tries > len(SERVER_ERROR_WAITS):
+            return None
+        if self.rate_limited():
+            return RATE_LIMIT_WAIT
+        if read and self.transient():
+            return SERVER_ERROR_WAITS[tries - 1]
+        return None
+
+
+class SweepIncomplete(Exception):
+    """Some steps of the sweep failed on GitHub; it did all the others."""
+
+    def __init__(self, done: list[str], failed: list[str]) -> None:
+        super().__init__(f"{len(failed)} step(s) of the sweep failed on GitHub")
+        self.done = done
+        self.failed = failed
 
 
 def command(name: str, message: str) -> None:
@@ -442,21 +539,32 @@ class GitHub:
         self.previews: list[str] = []
         self._labels: list[dict[str, Any]] | None = None
 
-    def _gh(self, args: list[str], data: object = None) -> Any:
-        result = subprocess.run(
-            ["gh", *args],
-            input=None if data is None else json.dumps(data),
-            text=True,
-            encoding="utf-8",
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise GitHubError(
-                f"gh {args[1] if len(args) > 1 else ''}: "
-                f"{(result.stderr or result.stdout).strip()}"
+    def _gh(self, args: list[str], data: object = None, *, read: bool = True) -> Any:
+        """Run gh, and run it again when GitHub failed or refused it for a moment.
+
+        A secondary rate limit runs it again after a minute, up to 3 times. After a
+        server error only a read runs again, after 2, 4 and 8 seconds: GitHub may
+        have done a write anyway, and the next run completes what is missing.
+        """
+        tries = 1
+        while True:
+            result = subprocess.run(
+                ["gh", *args],
+                input=None if data is None else json.dumps(data),
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
             )
-        return json.loads(result.stdout) if result.stdout.strip() else None
+            if result.returncode == 0:
+                return json.loads(result.stdout) if result.stdout.strip() else None
+            error = GitHubError.of(args, result.stdout, result.stderr)
+            wait = error.wait(tries, read)
+            if wait is None:
+                raise error
+            command("notice", f"{error}; trying again in {wait} s")
+            time.sleep(wait)
+            tries += 1
 
     def rest(
         self,
@@ -473,7 +581,7 @@ class GitHub:
             args += ["--paginate", "--slurp"]
         if data is not None:
             args += ["--input", "-"]
-        response = self._gh(args, data)
+        response = self._gh(args, data, read=method == "GET")
         if pages:
             return [item for page in response for item in page]
         return response
@@ -482,10 +590,14 @@ class GitHub:
         response = self._gh(
             ["api", "graphql", "--input", "-"],
             {"query": query, "variables": variables},
+            read=not query.lstrip().startswith("mutation"),
         )
         if response.get("errors"):
             raise GitHubError(
-                "; ".join(error["message"] for error in response["errors"])
+                "; ".join(error["message"] for error in response["errors"]),
+                types=(
+                    error["type"] for error in response["errors"] if "type" in error
+                ),
             )
         data: dict[str, Any] = response["data"]
         return data
@@ -538,7 +650,9 @@ class GitHub:
     def latest_release(self) -> str | None:
         try:
             release = self.rest("releases/latest")
-        except GitHubError:
+        except GitHubError as error:
+            if not error.missing():
+                raise
             return None
         tag: str = release["tag_name"]
         return tag
@@ -561,7 +675,10 @@ class GitHub:
         """Whether the commit `sha` is part of the release `tag`."""
         try:
             compared = self.rest(f"compare/{sha}...{quote(tag)}?per_page=1")
-        except GitHubError:
+        except GitHubError as error:
+            # A commit or a tag that the repository doesn't have.
+            if not error.missing():
+                raise
             return False
         return compared["status"] in {"ahead", "identical"}
 
@@ -634,8 +751,11 @@ class GitHub:
                 """,
                 {"owner": self.owner, "name": self.name},
             )
-        except GitHubError:
-            # A repository without discussions.
+        except GitHubError as error:
+            # A repository without discussions has none; GitHub says so only when
+            # the repository itself is gone.
+            if not error.missing():
+                raise
             return []
         nodes: list[dict[str, Any]] = data["repository"]["discussions"]["nodes"]
         return nodes
@@ -652,7 +772,9 @@ class GitHub:
                 """,
                 {"owner": self.owner, "name": self.name, "number": number},
             )
-        except GitHubError:
+        except GitHubError as error:
+            if not error.missing():
+                raise
             return False
         return bool(data["repository"]["discussion"])
 
@@ -720,7 +842,8 @@ class GitHub:
             try:
                 self.rest(f"issues/{number}/labels/{quote(name)}", method="DELETE")
             except GitHubError as error:
-                if "Label does not exist" not in str(error):
+                # Not on the issue; a missing issue is an error.
+                if not (error.missing() and "Label does not exist" in str(error)):
                     raise
 
         self._write(f"remove {name} from #{number}", remove)
@@ -2154,7 +2277,9 @@ def other_issue(github: GitHub, number: int, current: int) -> dict[str, Any] | N
         return None
     try:
         issue = github.issue(number)
-    except GitHubError:
+    except GitHubError as error:
+        if not error.missing():
+            raise
         return None
     return None if "pull_request" in issue else issue
 
@@ -2245,32 +2370,90 @@ def label_rationale(answer: dict[str, Any], config: Config) -> str:
 
 
 def apply_labels(
-    github: GitHub, issue: dict[str, Any], answer: dict[str, Any], config: Config
+    github: GitHub,
+    issue: dict[str, Any],
+    answer: dict[str, Any],
+    config: Config,
+    keep: Collection[str] = (),
 ) -> list[str]:
-    """Correct the kind while nobody triaged the issue and add areas and topics."""
+    """Correct the kind while nobody triaged the issue and add areas and topics.
+
+    The labels in `keep` stay as they are, added or removed: someone changed them.
+    """
     current = label_names(issue)
     kind = answer["kind"]
     if NEEDS_TRIAGE in current:
         for name in config.group("type"):
-            if name in current and name != kind:
+            if name in current and name != kind and name not in keep:
                 github.remove_label(issue["number"], name)
     wanted = [kind, *answer["areas"], *answer["topics"]]
-    added = [name for name in dict.fromkeys(wanted) if name not in current]
+    added = [
+        name
+        for name in dict.fromkeys(wanted)
+        if name not in current and name not in keep
+    ]
     github.add_explained_labels(issue, added, label_rationale(answer, config))
     return added
 
 
-def already_done(mode: str, comments: list[dict[str, Any]], author: str) -> bool:
-    """Whether a repeated run of the same event would post the same comment again."""
+def earlier_post(
+    mode: str, comments: list[dict[str, Any]], author: str
+) -> dict[str, Any] | None:
+    """The comment of an earlier run of the same event, which a run again repeats."""
     if mode == "triage":
-        return any(kind_of(comment) == "analysis" for comment in comments)
+        analyses = [comment for comment in comments if kind_of(comment) == "analysis"]
+        return analyses[-1] if analyses else None
     conversation = [
         comment
         for comment in comments
         if kind_of(comment) in {"analysis", "follow-up"}
         or login(comment.get("user")) == author
     ]
-    return bool(conversation) and kind_of(conversation[-1]) == "follow-up"
+    if conversation and kind_of(conversation[-1]) == "follow-up":
+        return conversation[-1]
+    return None
+
+
+def complete_labels(
+    github: GitHub,
+    issue: dict[str, Any],
+    answer: dict[str, Any],
+    config: Config,
+    comments: list[dict[str, Any]],
+    posted: dict[str, Any],
+) -> list[str]:
+    """Add the labels that belong to a comment of an earlier run, and are missing.
+
+    The labels come before the comment, but a run of an earlier version, which
+    labelled after its comment, could stop in between. A label that anyone added
+    or removed since the comment stays as it is. Whether the issue waits for its
+    reporter, or is a possible duplicate, follows the comment, which said so, not
+    the new answer: the reporter can already have answered it.
+    """
+    number = issue["number"]
+    since = created(posted)
+    changed = {
+        (event.get("label") or {}).get("name", "")
+        for event in github.events(number)
+        if event["event"] in {"labeled", "unlabeled"} and created(event) >= since
+    }
+    added = apply_labels(github, issue, answer, config, keep=changed)
+    _, said = marker(posted) or ("", {})
+    author = login(issue.get("user"))
+    answered = any(
+        login(comment.get("user")) == author and created(comment) > since
+        for comment in comments
+    )
+    lifecycle = [
+        name
+        for name, wanted in (
+            (NEEDS_INFO, said.get("questions") == "1" and not answered),
+            (POSSIBLE_DUPLICATE, "duplicate" in said),
+        )
+        if wanted and name not in label_names(issue) and name not in changed
+    ]
+    github.add_labels(number, lifecycle)
+    return added + lifecycle
 
 
 def apply_answer(
@@ -2297,8 +2480,20 @@ def apply_answer(
     author = login(issue.get("user"))
     if mode == "maintainer-reply":
         return apply_maintainer_reply(github, issue, answer, config)
-    if not repeat and already_done(mode, github.comments(number), author):
-        return [f"#{number} already has this {mode}; nothing posted."]
+    if not repeat:
+        comments = github.comments(number)
+        posted = earlier_post(mode, comments, author)
+        if posted is not None:
+            # An earlier run posted the comment: never a second one.
+            added = []
+            if answer["kind"] != "spam":
+                added = complete_labels(github, issue, answer, config, comments, posted)
+            if not added:
+                return [f"#{number} already has this {mode}; nothing posted."]
+            return [
+                f"#{number} already has this {mode}; no second comment, "
+                f"labels added: {', '.join(added)}."
+            ]
     if answer["kind"] == "spam":
         github.add_explained_labels(issue, [INVALID], label_rationale(answer, config))
         return [f"#{number} looks like spam: marked invalid, no comment."]
@@ -2307,6 +2502,8 @@ def apply_answer(
         for ask in answer["missing_information"]
         if ask.strip() and answer["kind"] in config.asking_kinds()
     ]
+    # The labels come first and the comment last, so that a run that GitHub stops
+    # leaves no comment without its labels; the run again posts the comment.
     if mode == "follow-up":
         body = render_follow_up(
             answer,
@@ -2316,10 +2513,10 @@ def apply_answer(
             config,
             engine,
         )
-        github.comment(number, body)
         added = apply_labels(github, issue, answer, config)
         if asks and NEEDS_INFO not in label_names(issue):
             github.add_labels(number, [NEEDS_INFO])
+        github.comment(number, body)
         return [f"Follow-up on #{number}; labels added: {', '.join(added) or 'none'}."]
     if answer["security_report"]:
         # Nothing about a possible vulnerability is discussed in public.
@@ -2332,10 +2529,6 @@ def apply_answer(
         for name in dict.fromkeys([answer["kind"], *answer["areas"], *answer["topics"]])
         if name not in label_names(issue)
     ]
-    github.comment(
-        number,
-        render_analysis(answer, author, findings, asks, planned, config, engine),
-    )
     apply_labels(github, issue, answer, config)
     lifecycle = []
     if asks and NEEDS_INFO not in label_names(issue):
@@ -2343,6 +2536,10 @@ def apply_answer(
     if findings.duplicate:
         lifecycle.append(POSSIBLE_DUPLICATE)
     github.add_labels(number, lifecycle)
+    github.comment(
+        number,
+        render_analysis(answer, author, findings, asks, planned, config, engine),
+    )
     return [
         f"Analysis on #{number}; labels added: {', '.join(planned + lifecycle) or 'none'}."
     ]
@@ -2394,19 +2591,77 @@ def apply_release_reply(
 # The daily sweep
 
 
+# Runs a step of the sweep, named for the log, and returns what it did.
+Isolate = Callable[[str, Callable[[], list[str]]], list[str]]
+
+
+def directly(name: str, step: Callable[[], list[str]]) -> list[str]:
+    """Run the step; an error of GitHub stops everything."""
+    return step()
+
+
 def sweep(github: GitHub, now: datetime, releases: bool = True) -> list[str]:
-    """The whole lifecycle; every run does all of it, so a missed run loses nothing."""
+    """The whole lifecycle; every run does all of it, so a missed run loses nothing.
+
+    Every step and every issue runs on its own: one that GitHub fails becomes a
+    warning, the others go on, and SweepIncomplete names it at the end. Each step
+    can run twice, so the next sweep completes what one stopped.
+    """
+    failed: list[str] = []
+
+    def isolate(name: str, step: Callable[[], list[str]]) -> list[str]:
+        try:
+            return step()
+        except GitHubError as error:
+            failure = f"{name}: {error}"
+            command("warning", failure)
+            failed.append(failure)
+            return []
+
     done = []
     if releases:
-        done += mark_fixed(github, now)
-        done += close_released(github)
-    for issue in github.open_issues(NEEDS_INFO):
-        if not issue.get("locked"):
-            done += sweep_waiting(github, issue, now)
-    for issue in github.open_issues(POSSIBLE_DUPLICATE):
-        if not issue.get("locked"):
-            done += sweep_duplicate(github, issue, now)
+        done += isolate(
+            "Marking the fixed issues", partial(mark_fixed, github, now, isolate)
+        )
+        done += isolate(
+            "Closing the released issues", partial(close_released, github, isolate)
+        )
+    for label, step in (
+        (NEEDS_INFO, sweep_waiting),
+        (POSSIBLE_DUPLICATE, sweep_duplicate),
+    ):
+        done += isolate(
+            f"The issues labeled {label}",
+            partial(sweep_labeled, github, label, step, now, isolate),
+        )
+    if failed:
+        raise SweepIncomplete(done, failed)
     return done
+
+
+def sweep_labeled(
+    github: GitHub,
+    label: str,
+    step: Callable[[GitHub, dict[str, Any], datetime], list[str]],
+    now: datetime,
+    isolate: Isolate,
+) -> list[str]:
+    done = []
+    for issue in github.open_issues(label):
+        if not issue.get("locked"):
+            done += isolate(f"#{issue['number']}", partial(step, github, issue, now))
+    return done
+
+
+def posted_since(comments: list[dict[str, Any]], kind: str, since: datetime) -> bool:
+    """Whether the assistant posted a comment of the kind since the moment.
+
+    It did when GitHub stopped an earlier sweep after the comment; this one
+    completes the step without a second comment.
+    """
+    return any(
+        kind_of(comment) == kind and created(comment) >= since for comment in comments
+    )
 
 
 def first_release(
@@ -2424,7 +2679,7 @@ def first_release(
     return None
 
 
-def mark_fixed(github: GitHub, now: datetime) -> list[str]:
+def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> list[str]:
     """Label the open issues that a recently merged pull request fixes.
 
     The issue stays open until a release ships the fix. A maintainer who removes the
@@ -2441,33 +2696,47 @@ def mark_fixed(github: GitHub, now: datetime) -> list[str]:
             if same != github.repository.lower():
                 continue
             number = reference["number"]
-            issue = github.issue(number)
-            if issue["state"] != "open" or issue.get("locked"):
-                continue
-            current = label_names(issue)
-            comments = github.comments(number)
-            if FIXED in current or any(
-                (found := marker(comment))
-                and found[0] == "fixed"
-                and found[1].get("pull") == str(pull["number"])
-                for comment in comments
-            ):
-                continue
-            github.comment(
-                number,
-                render_fixed(pull["number"], branch, issue_language(issue, comments)),
-            )
-            github.add_labels(number, [FIXED])
-            for name in (NEEDS_INFO, STALE):
-                if name in current:
-                    github.remove_label(number, name)
-            done.append(
-                f"#{number}: fixed by #{pull['number']}; closes with the next release."
+            done += isolate(
+                f"#{number}", partial(mark_issue_fixed, github, number, pull, branch)
             )
     return done
 
 
-def close_released(github: GitHub) -> list[str]:
+def mark_issue_fixed(
+    github: GitHub, number: int, pull: dict[str, Any], branch: str
+) -> list[str]:
+    try:
+        issue = github.issue(number)
+    except GitHubError as error:
+        # An issue that was deleted or moved to another repository.
+        if not error.missing():
+            raise
+        return []
+    if issue["state"] != "open" or issue.get("locked"):
+        return []
+    current = label_names(issue)
+    comments = github.comments(number)
+    if FIXED in current or any(
+        (found := marker(comment))
+        and found[0] == "fixed"
+        and found[1].get("pull") == str(pull["number"])
+        for comment in comments
+    ):
+        return []
+    # The label first: it closes the issue with the release, and a notice
+    # without it would keep every later sweep from adding it.
+    github.add_labels(number, [FIXED])
+    github.comment(
+        number,
+        render_fixed(pull["number"], branch, issue_language(issue, comments)),
+    )
+    for name in (NEEDS_INFO, STALE):
+        if name in current:
+            github.remove_label(number, name)
+    return [f"#{number}: fixed by #{pull['number']}; closes with the next release."]
+
+
+def close_released(github: GitHub, isolate: Isolate = directly) -> list[str]:
     """Close the fixed issues whose fix a published release ships, with its link."""
     issues = [issue for issue in github.open_issues(FIXED) if not issue.get("locked")]
     if not issues:
@@ -2475,50 +2744,59 @@ def close_released(github: GitHub) -> list[str]:
     releases = github.releases()
     done = []
     for issue in issues:
-        number = issue["number"]
-        labeled = [
-            created(event)
-            for event in github.events(number)
-            if event["event"] == "labeled"
-            and (event.get("label") or {}).get("name") == FIXED
-        ]
-        pulls = github.fixing_pulls(number)
-        shas = [pull["mergeCommit"]["oid"] for pull in pulls]
-        # The label promises the next release: one published after it, with every
-        # fixing pull request merged.
-        since = max(labeled or [created(issue)])
-        release = first_release(github, releases, shas, since)
-        if not release:
-            continue
-        comments = github.comments(number)
-        author = login(issue.get("user"))
+        done += isolate(
+            f"#{issue['number']}",
+            partial(close_issue_released, github, issue, releases),
+        )
+    return done
+
+
+def close_issue_released(
+    github: GitHub, issue: dict[str, Any], releases: list[dict[str, Any]]
+) -> list[str]:
+    number = issue["number"]
+    labeled = [
+        created(event)
+        for event in github.events(number)
+        if event["event"] == "labeled"
+        and (event.get("label") or {}).get("name") == FIXED
+    ]
+    pulls = github.fixing_pulls(number)
+    shas = [pull["mergeCommit"]["oid"] for pull in pulls]
+    # The label promises the next release: one published after it, with every
+    # fixing pull request merged.
+    since = max(labeled or [created(issue)])
+    release = first_release(github, releases, shas, since)
+    if not release:
+        return []
+    comments = github.comments(number)
+    if not posted_since(comments, "released", since):
         github.comment(
             number,
             render_released(
-                author,
+                login(issue.get("user")),
                 release,
                 sorted(pull["number"] for pull in pulls),
                 issue_language(issue, comments),
             ),
         )
-        for name in (FIXED, NEEDS_TRIAGE, NEEDS_INFO, STALE):
-            if name in label_names(issue):
-                github.remove_label(number, name)
-        github.close(
-            issue,
-            "COMPLETED",
-            f"Fixed and released in {release['tag_name']} on "
-            f"{release['published_at'][:10]}.",
-        )
-        try:
-            github.set_milestone(number, release["tag_name"], release["published_at"])
-        except GitHubError as error:
-            # The milestone only files the issue; the release closed it in any case.
-            command(
-                "notice", f"No milestone {release['tag_name']} on #{number}: {error}"
-            )
-        done.append(f"#{number}: closed, released in {release['tag_name']}.")
-    return done
+    # Closed first: with the label, the next sweep finds an issue that GitHub
+    # didn't close.
+    github.close(
+        issue,
+        "COMPLETED",
+        f"Fixed and released in {release['tag_name']} on "
+        f"{release['published_at'][:10]}.",
+    )
+    for name in (FIXED, NEEDS_TRIAGE, NEEDS_INFO, STALE):
+        if name in label_names(issue):
+            github.remove_label(number, name)
+    try:
+        github.set_milestone(number, release["tag_name"], release["published_at"])
+    except GitHubError as error:
+        # The milestone only files the issue; the release closed it in any case.
+        command("notice", f"No milestone {release['tag_name']} on #{number}: {error}")
+    return [f"#{number}: closed, released in {release['tag_name']}."]
 
 
 def sweep_waiting(github: GitHub, issue: dict[str, Any], now: datetime) -> list[str]:
@@ -2557,7 +2835,8 @@ def sweep_waiting(github: GitHub, issue: dict[str, Any], now: datetime) -> list[
     language = issue_language(issue, comments)
     if reminders:
         if now - since >= CLOSE_AFTER and now - reminders[-1] >= WARNING_PERIOD:
-            github.comment(number, render_closed_unanswered(author, language))
+            if not posted_since(comments, "closed-unanswered", reminders[-1]):
+                github.comment(number, render_closed_unanswered(author, language))
             github.close(
                 issue,
                 "NOT_PLANNED",
@@ -2615,7 +2894,8 @@ def sweep_duplicate(github: GitHub, issue: dict[str, Any], now: datetime) -> lis
             f"#{number}: stays open, the duplicate notice was objected to or is outdated."
         ]
     language = issue_language(issue, comments)
-    github.comment(number, render_closed_duplicate(original["number"], language))
+    if not posted_since(comments, "closed-duplicate", created(notice)):
+        github.comment(number, render_closed_duplicate(original["number"], language))
     github.close(
         issue,
         "DUPLICATE",
@@ -3080,6 +3360,8 @@ def main(argv: list[str] | None = None) -> int:
         or os.getcwd()
     ).resolve()
     dry_run = os.environ.get("DRY_RUN", "false").lower() == "true"
+    github: GitHub | None = None
+    title = f"Issue assistant: {arguments.command}"
     try:
         if arguments.command == "install":
             for line in install(root, arguments.ref, arguments.version):
@@ -3114,6 +3396,8 @@ def main(argv: list[str] | None = None) -> int:
             summary("Findings", lines or ["No open findings."], dry_run)
             return 1 if left else 0
         config = load_config(root, repository)
+        if arguments.command == "apply":
+            title = f"Issue assistant: {arguments.mode} of #{arguments.issue}"
         if arguments.command in {"context", "apply"} and not (
             arguments.issue and arguments.mode
         ):
@@ -3134,7 +3418,6 @@ def main(argv: list[str] | None = None) -> int:
             title = f"Issue assistant: #{plan.issue}, next task {plan.mode}"
             done = plan.notes + github.writes
         elif arguments.command == "apply":
-            title = f"Issue assistant: {arguments.mode} of #{arguments.issue}"
             done = apply_answer(
                 github,
                 arguments.mode,
@@ -3148,12 +3431,36 @@ def main(argv: list[str] | None = None) -> int:
             done += github.writes
         elif arguments.command == "sweep":
             title = "Issue lifecycle"
-            done = sweep(github, datetime.now(UTC), config.releases)
+            try:
+                done = sweep(github, datetime.now(UTC), config.releases)
+            except SweepIncomplete as incomplete:
+                command("error", f"{incomplete}; the next sweep tries again.")
+                summary(
+                    title,
+                    incomplete.done
+                    + [f"Failed: {failure}" for failure in incomplete.failed],
+                    dry_run,
+                    github.previews,
+                )
+                return 1
         else:
             title = "Labels"
             done = sync_labels(github, config)
     except AssistantError as error:
         command("error", str(error))
+        return 1
+    except GitHubError as error:
+        # One error, not a traceback, and what the run wrote before it, which a
+        # run again doesn't repeat.
+        command("error", f"GitHub failed, so the run stopped: {error}")
+        # Only the commands that call GitHub can fail on it, and they have `github`.
+        writes = github.writes if github else []
+        summary(
+            title,
+            [*writes, "Stopped: GitHub failed; running it again completes the rest."],
+            dry_run,
+            github.previews if github else (),
+        )
         return 1
     summary(title, done, dry_run, github.previews)
     return 0

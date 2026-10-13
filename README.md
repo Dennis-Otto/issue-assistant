@@ -187,6 +187,37 @@ sequenceDiagram
 
 GitHub closes linked issues when a pull request is merged unless the repository turns this off: under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**. A repository without releases sets `close_with_release = false` in `config.toml`.
 
+### When GitHub fails
+
+GitHub has bad minutes too: a rate limit, a server error, an incident. The assistant never takes such an error for an answer, so a bad minute never changes what it posts:
+
+```mermaid
+flowchart TB
+  accTitle: What the assistant does when a call to GitHub fails
+  accDescr: A call to GitHub that succeeds lets the run go on. Not found means that the thing doesn't exist, and it is left out. A secondary rate limit runs the call again after a minute, up to three times. A server error runs a read again after 2, 4 and 8 seconds. Every other error, and one that stays, stops the run with one error that names what it wrote; running it again completes the rest without a second comment.
+  call["a call to GitHub"] --> answer{"GitHub<br/>answers"}
+  answer -- "with the thing" --> on["the run goes on"]
+  answer -- "not found" --> left["left out: it<br/>doesn't exist"]
+  answer -- "secondary<br/>rate limit" --> minute["again after a minute,<br/>also a write"]
+  answer -- "server error" --> read["a read: again after<br/>2, 4 and 8 seconds"]
+  answer -- "any other error,<br/>or it stays" --> stop["the run stops with<br/>one error and names<br/>what it wrote"]
+  stop --> again["running it again<br/>completes it, without<br/>a second comment"]
+  classDef question fill:#d4a72c33,stroke:#bf8700
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef stop fill:#cf222e26,stroke:#cf222e
+  class answer question
+  class call,minute,read job
+  class on,left,again safe
+  class stop stop
+```
+
+- **Only "not found" means missing.** A duplicate, a related issue or discussion, or a release that GitHub says doesn't exist is left out. A rate limit or a server error stops the run instead, so an analysis never leaves out a duplicate that GitHub didn't show for a moment, and the AI never reads "no release yet" because GitHub failed.
+- **A failure of a moment runs again.** A read that a server error or a broken connection stopped runs again after 2, 4 and 8 seconds. A call that a secondary rate limit refused runs again after a minute, a write too, since GitHub did nothing with it. A write that a server error stopped doesn't run again, since GitHub may have done it all the same: the run stops, and running it again completes it.
+- **The labels come before the comment.** An analysis or a follow-up adds its labels first, `needs-info` and `possible-duplicate` among them, and its comment last, so GitHub can't stop it between a comment and its labels. Running the job again posts a missing comment once. When the comment is there and its labels are not, from a run of an earlier version, it adds them without a second comment: the labels of the answer, and `needs-info` and `possible-duplicate` as the comment said. A label that someone added or removed after the comment stays as it is, and so does an issue whose reporter answered.
+- **One issue never stops the sweep.** Every step and every issue of the daily sweep runs on its own. One that GitHub fails is a warning in the log, the others are done, and the run fails at the end, so that GitHub tells the maintainer. The next sweep completes it: each step checks what is done, so no reminder or closing comment is posted twice, and an issue closes before its labels go, so that the sweep finds it again.
+- **One clear error.** A command that GitHub stops ends with one error in the log, not a Python traceback, and its summary lists what the run wrote before.
+
 <!-- --8<-- [end:how-it-works] -->
 <!-- --8<-- [start:security] -->
 

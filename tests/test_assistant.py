@@ -29,7 +29,9 @@ from support import (
     make_issue,
     make_pull,
     make_release,
+    rate_limited,
     run_main,
+    server_error,
 )
 
 
@@ -1406,7 +1408,9 @@ def test_spam_is_marked_without_a_comment(config):
 
 
 def test_an_issue_is_analyzed_once_unless_started_by_hand(config):
-    github = FakeGitHub(config, make_issue())
+    github = FakeGitHub(
+        config, make_issue(labels=("bug", "needs-triage", "area: cards"))
+    )
     github.comment_store[12] = [analysis()]
     answer = json.dumps(make_answer())
     done = assistant.apply_answer(github, "triage", 12, answer, config, "abc")
@@ -1456,12 +1460,159 @@ def test_a_dry_run_only_previews_the_comment(config):
     answer = json.dumps(make_answer(missing_information=["Log?"]))
     assistant.apply_answer(github, "triage", 12, answer, config, "abc")
     assert not github.writes_made()
+    # The labels come first: a comment is the last write, so it is never left
+    # without them.
     assert github.writes == [
-        "comment on #12",
         "add area: cards to #12",
         "add needs-info to #12",
+        "comment on #12",
     ]
     assert github.previews[0].startswith("<!-- issue-assistant:analysis")
+
+
+# Runs again after GitHub failed
+
+
+def sure_duplicate(**changes):
+    return json.dumps(
+        make_answer(
+            missing_information=["Which version?"],
+            duplicates=[{"number": 7, "confidence": "high", "reason": "Same."}],
+            **changes,
+        )
+    )
+
+
+def label_event(name, days_ago, event="unlabeled"):
+    return {
+        "event": event,
+        "label": {"name": name},
+        "actor": {"login": "owner", "type": "User"},
+        "created_at": at(days_ago),
+    }
+
+
+@pytest.mark.parametrize(
+    "failing",
+    ["addLabelsToLabelable|^POST issues/12/labels", "^POST issues/12/comments"],
+)
+def test_an_analysis_that_github_stopped_is_completed_by_a_run_again(config, failing):
+    github = FakeGitHub(config, make_issue(7), make_issue())
+    github.fail(failing, server_error())
+    with pytest.raises(assistant.GitHubError, match="HTTP 502"):
+        assistant.apply_answer(github, "triage", 12, sure_duplicate(), config, "abc")
+    assert not github.posted(12)
+    github.failures.clear()
+    assistant.apply_answer(github, "triage", 12, sure_duplicate(), config, "abc")
+    (body,) = github.posted(12)
+    assert body.startswith(
+        "<!-- issue-assistant:analysis lang=en questions=1 engine=claude duplicate=7 -->"
+    )
+    assert github.labels_of(12) == {
+        "bug",
+        "needs-triage",
+        "area: cards",
+        "needs-info",
+        "possible-duplicate",
+    }
+
+
+def test_a_run_again_adds_the_labels_of_the_analysis_without_a_second_comment(config):
+    # An earlier version posted the comment first, and then GitHub failed the labels.
+    github = FakeGitHub(config, make_issue(7), make_issue())
+    github.comment_store[12] = [analysis(questions=1, duplicate=7, days_ago=1)]
+    # Only a change after the analysis is someone's decision.
+    github.event_store[12] = [label_event("needs-info", 2)]
+    done = assistant.apply_answer(github, "triage", 12, sure_duplicate(), config, "abc")
+    assert done == [
+        "#12 already has this triage; no second comment, labels added: "
+        "area: cards, needs-info, possible-duplicate."
+    ]
+    assert not github.posted(12)
+    assert github.labels_of(12) == {
+        "bug",
+        "needs-triage",
+        "area: cards",
+        "needs-info",
+        "possible-duplicate",
+    }
+    # The rationale of the labels is the one of the new answer.
+    assert github.rationales[(12, "L_area: cards")] == (
+        "The live card shows nothing after a throw."
+    )
+    done = assistant.apply_answer(github, "triage", 12, sure_duplicate(), config, "abc")
+    assert done == ["#12 already has this triage; nothing posted."]
+
+
+def test_a_run_again_follows_the_analysis_not_the_new_answer(config):
+    # The analysis asked nothing and found no duplicate; the new answer does both.
+    github = FakeGitHub(config, make_issue(7), make_issue())
+    github.comment_store[12] = [analysis(questions=0)]
+    assistant.apply_answer(github, "triage", 12, sure_duplicate(), config, "abc")
+    assert github.labels_of(12) == {"bug", "needs-triage", "area: cards"}
+    assert not github.suggestions
+
+
+def test_a_run_again_keeps_the_labels_that_someone_changed_since_the_analysis(
+    config,
+):
+    github = FakeGitHub(
+        config, make_issue(7), make_issue(labels=("question", "needs-triage"))
+    )
+    github.comment_store[12] = [analysis(questions=1, duplicate=7, days_ago=2)]
+    github.event_store[12] = [
+        label_event("bug", 1),
+        label_event("question", 1, "labeled"),
+        label_event("area: cards", 1),
+        label_event("needs-info", 1),
+        label_event("possible-duplicate", 1),
+    ]
+    done = assistant.apply_answer(github, "triage", 12, sure_duplicate(), config, "abc")
+    assert done == ["#12 already has this triage; nothing posted."]
+    assert github.labels_of(12) == {"question", "needs-triage"}
+    assert not github.writes_made()
+
+
+def test_a_run_again_doesn_t_wait_for_a_reporter_who_answered(config):
+    github = FakeGitHub(config, make_issue(labels=("bug", "needs-triage")))
+    github.comment_store[12] = [
+        analysis(questions=1, days_ago=2),
+        make_comment(2, "reporter", "Version 1.9.0.", 1),
+    ]
+    assistant.apply_answer(
+        github, "triage", 12, json.dumps(make_answer()), config, "abc"
+    )
+    assert github.labels_of(12) == {"bug", "needs-triage", "area: cards"}
+
+
+def test_a_run_again_completes_the_labels_of_a_follow_up(config):
+    github = FakeGitHub(config, make_issue(labels=("bug",)))
+    follow = assistant.render_marker("follow-up", lang="en", questions=1)
+    github.comment_store[12] = [
+        analysis(questions=1, days_ago=2),
+        make_comment(2, "reporter", "Log", 1),
+        make_comment(3, "bot", follow, 0.5),
+    ]
+    answer = make_follow_up(areas=["area: setup"])
+    done = assistant.apply_answer(
+        github, "follow-up", 12, json.dumps(answer), config, "abc"
+    )
+    assert done == [
+        "#12 already has this follow-up; no second comment, labels added: "
+        "area: setup, needs-info."
+    ]
+    assert not github.posted(12)
+    assert github.labels_of(12) == {"bug", "area: setup", "needs-info"}
+
+
+def test_a_run_again_that_reads_spam_changes_nothing(config):
+    github = FakeGitHub(config, make_issue())
+    github.comment_store[12] = [analysis()]
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(make_answer(kind="spam")), config, "abc"
+    )
+    assert done == ["#12 already has this triage; nothing posted."]
+    assert not github.writes_made()
 
 
 # Follow-ups and the maintainer's questions
@@ -1801,6 +1952,117 @@ def test_a_label_without_a_notice_is_left_to_the_maintainer(config):
     assert assistant.sweep(github, NOW) == []
 
 
+# A sweep that GitHub fails in part
+
+
+def two_waiting(config):
+    """Issues #12 and #13, both asked 16 days ago."""
+    github = waiting(config, 16)
+    github.store[13] = make_issue(13, labels=("bug", "needs-info"), days_ago=17)
+    github.event_store[13] = github.event_store[12]
+    github.comment_store[13] = list(github.comment_store[12])
+    return github
+
+
+def test_one_issue_that_github_fails_stops_no_other(config, capsys):
+    github = two_waiting(config)
+    # The sweep handles #13 first.
+    github.fail("^GET issues/13/comments")
+    with pytest.raises(assistant.SweepIncomplete) as caught:
+        assistant.sweep(github, NOW)
+    assert caught.value.done == ["#12: reminded the reporter after 16 days."]
+    (failure,) = caught.value.failed
+    assert failure.startswith("#13: gh api: API rate limit exceeded")
+    assert f"::warning::{failure}" in capsys.readouterr().out
+    assert "stale" in github.labels_of(12) and "stale" not in github.labels_of(13)
+
+
+def test_a_step_of_the_sweep_that_github_fails_stops_no_other(config):
+    github = two_waiting(config)
+    github.fail("pullRequests\\(states: MERGED")
+    github.fail("^GET issues\\?state=open&labels=fixed-in-next-release")
+    github.fail("^GET issues\\?state=open&labels=possible-duplicate")
+    with pytest.raises(assistant.SweepIncomplete) as caught:
+        assistant.sweep(github, NOW)
+    assert caught.value.done == [
+        "#13: reminded the reporter after 16 days.",
+        "#12: reminded the reporter after 16 days.",
+    ]
+    assert [line.split(":")[0] for line in caught.value.failed] == [
+        "Marking the fixed issues",
+        "Closing the released issues",
+        "The issues labeled possible-duplicate",
+    ]
+
+
+def test_a_fix_marks_every_issue_but_the_one_that_github_fails(config):
+    github = FakeGitHub(
+        config, make_issue(13, labels=("bug",)), make_issue(labels=("bug",))
+    )
+    # #99 doesn't exist (any more): nothing to mark, and no failure.
+    github.pull_store = [make_pull(fixes=(12, 13, 99))]
+    github.fail("^GET issues/12$")
+    with pytest.raises(assistant.SweepIncomplete) as caught:
+        assistant.sweep(github, NOW)
+    assert caught.value.done == ["#13: fixed by #40; closes with the next release."]
+    assert [line.split(":")[0] for line in caught.value.failed] == ["#12"]
+
+
+def test_the_label_of_a_fix_comes_before_its_notice(config):
+    github = merged(config, labels=("bug",))
+    github.fail("^POST issues/12/comments", server_error())
+    with pytest.raises(assistant.SweepIncomplete):
+        assistant.sweep(github, NOW)
+    # The label, which closes the issue with the release, is never lost.
+    assert "fixed-in-next-release" in github.labels_of(12)
+
+
+def test_a_release_closes_every_issue_but_the_one_that_github_fails(config):
+    github = released(config, pulls=[make_pull(fixes=(12, 13), days_ago=3)])
+    github.store[13] = make_issue(13, labels=("bug", "fixed-in-next-release"))
+    github.event_store[13] = github.event_store[12]
+    github.fail("^GET issues/13/events")
+    with pytest.raises(assistant.SweepIncomplete) as caught:
+        assistant.sweep(github, NOW)
+    assert caught.value.done == ["#12: closed, released in v1.10.0."]
+    assert github.store[12]["state"] == "closed"
+
+
+def test_a_closing_that_github_stopped_is_completed_without_a_second_comment(config):
+    github = released(config)
+    github.fail("closeIssue|^PATCH issues/12$", server_error())
+    with pytest.raises(assistant.SweepIncomplete):
+        assistant.sweep(github, NOW)
+    # The label stays until the issue is closed, so the next sweep finds it.
+    assert "fixed-in-next-release" in github.labels_of(12)
+    github.failures.clear()
+    assert assistant.sweep(github, NOW) == ["#12: closed, released in v1.10.0."]
+    assert github.store[12]["state"] == "closed"
+    assert len(github.posted(12)) == 1
+
+
+def test_a_closing_of_an_unanswered_issue_is_never_posted_twice(config):
+    github = reminded(config, 30, 15)
+    github.fail("closeIssue|^PATCH issues/12$", server_error())
+    with pytest.raises(assistant.SweepIncomplete):
+        assistant.sweep(github, NOW)
+    github.failures.clear()
+    assert assistant.sweep(github, NOW) == [
+        "#12: closed after 30 days without an answer."
+    ]
+    assert len(github.posted(12)) == 1
+
+
+def test_a_closing_of_a_duplicate_is_never_posted_twice(config):
+    github = possible_duplicate(config)
+    github.fail("closeIssue|^PATCH issues/12$", server_error())
+    with pytest.raises(assistant.SweepIncomplete):
+        assistant.sweep(github, NOW)
+    github.failures.clear()
+    assert assistant.sweep(github, NOW) == ["#12: closed as a duplicate of #7."]
+    assert len(github.posted(12)) == 1
+
+
 # Fixed issues close with the release
 
 
@@ -2073,7 +2335,9 @@ def test_failed_gh_calls_raise(monkeypatch):
 def test_graphql_errors_raise(monkeypatch):
     responses = iter(
         [
-            Completed(json.dumps({"errors": [{"message": "Bad field"}]})),
+            Completed(
+                json.dumps({"errors": [{"message": "Bad field", "type": "INVALID"}]})
+            ),
             Completed(json.dumps({"data": {"ok": True}})),
             Completed(""),
         ]
@@ -2082,10 +2346,174 @@ def test_graphql_errors_raise(monkeypatch):
         assistant.subprocess, "run", lambda *args, **options: next(responses)
     )
     github = assistant.GitHub(REPOSITORY)
-    with pytest.raises(assistant.GitHubError, match="Bad field"):
+    with pytest.raises(assistant.GitHubError, match="Bad field") as caught:
         github.graphql("query", {})
+    assert caught.value.types == {"INVALID"} and not caught.value.missing()
     assert github.graphql("query", {}) == {"ok": True}
     assert github.rest("issues/1", method="DELETE") is None
+
+
+def gh_answers(monkeypatch, *results):
+    """Let gh give the results in turn; the commands and the waits are recorded."""
+    commands, waits = [], []
+    answers = iter(results)
+
+    def run(command, **options):
+        commands.append(command)
+        return next(answers)
+
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    monkeypatch.setattr(assistant.time, "sleep", waits.append)
+    return commands, waits
+
+
+NOT_FOUND = Completed(
+    json.dumps({"message": "Not Found", "status": "404"}),
+    "gh: Not Found (HTTP 404)\n",
+    1,
+)
+NO_DISCUSSION = Completed(
+    json.dumps(
+        {
+            "data": {"repository": {"discussion": None}},
+            "errors": [
+                {
+                    "type": "NOT_FOUND",
+                    "message": "Could not resolve to a Discussion with the number of 3.",
+                }
+            ],
+        }
+    ),
+    "gh: Could not resolve to a Discussion with the number of 3.\n",
+    1,
+)
+RATE_LIMIT = Completed(
+    json.dumps({"message": "API rate limit exceeded for installation ID 1."}),
+    "gh: API rate limit exceeded for installation ID 1. (HTTP 403)\n",
+    1,
+)
+SECONDARY_RATE_LIMIT = Completed(
+    json.dumps({"message": "You have exceeded a secondary rate limit."}),
+    "gh: You have exceeded a secondary rate limit. (HTTP 403)\n",
+    1,
+)
+BAD_GATEWAY = Completed("<html>Bad gateway</html>", "gh: HTTP 502\n", 1)
+RESET = Completed(
+    "", 'gh: Get "https://api.github.com/x": read: connection reset by peer\n', 1
+)
+DONE = Completed(json.dumps({"number": 1}))
+
+
+@pytest.mark.parametrize(
+    ("result", "status", "types", "missing"),
+    [
+        (NOT_FOUND, 404, set(), True),
+        (
+            Completed('[{"message": "Not Found"}]', "gh: Not Found (HTTP 404)", 1),
+            404,
+            set(),
+            True,
+        ),
+        (Completed("", "gh: Gone (HTTP 410)", 1), 410, set(), True),
+        (NO_DISCUSSION, None, {"NOT_FOUND"}, True),
+        (RATE_LIMIT, 403, set(), False),
+        (BAD_GATEWAY, 502, set(), False),
+        (
+            Completed('{"errors": ["text", {"message": "?"}]}', "", 1),
+            None,
+            set(),
+            False,
+        ),
+    ],
+)
+def test_a_gh_error_knows_github_s_status_and_error_types(
+    monkeypatch, result, status, types, missing
+):
+    gh_answers(monkeypatch, result)
+    with pytest.raises(assistant.GitHubError) as caught:
+        # A write, which runs once whatever the error.
+        assistant.GitHub(REPOSITORY).rest("issues/1", method="PATCH", data={})
+    error = caught.value
+    assert (error.status, set(error.types), error.missing()) == (status, types, missing)
+    assert str(error).startswith(f"gh repos/{REPOSITORY}/issues/1: ")
+
+
+def test_a_read_that_github_failed_runs_again_after_2_4_and_8_seconds(
+    monkeypatch, capsys
+):
+    commands, waits = gh_answers(monkeypatch, BAD_GATEWAY, RESET, DONE)
+    assert assistant.GitHub(REPOSITORY).issue(1) == {"number": 1}
+    assert len(commands) == 3 and waits == [2, 4]
+    assert (
+        "::notice::gh repos/owner/project/issues/1: gh: HTTP 502; trying again in 2 s"
+        in (capsys.readouterr().out)
+    )
+    commands, waits = gh_answers(monkeypatch, *[BAD_GATEWAY] * 4)
+    with pytest.raises(assistant.GitHubError, match="HTTP 502"):
+        assistant.GitHub(REPOSITORY).graphql("query { viewer { login } }", {})
+    assert len(commands) == 4 and waits == [2, 4, 8]
+
+
+def test_a_write_runs_again_only_when_github_refused_it(monkeypatch):
+    github = assistant.GitHub(REPOSITORY)
+    # After a server error, GitHub may have posted the comment all the same.
+    for write in (
+        lambda: github.comment(12, "Hello"),
+        lambda: github.graphql("mutation { addLabelsToLabelable }", {}),
+    ):
+        commands, waits = gh_answers(monkeypatch, BAD_GATEWAY)
+        with pytest.raises(assistant.GitHubError, match="HTTP 502"):
+            write()
+        assert len(commands) == 1 and waits == []
+    # A secondary rate limit refused it, so it runs again after a minute.
+    too_many = Completed("", "gh: Too Many Requests (HTTP 429)", 1)
+    commands, waits = gh_answers(monkeypatch, SECONDARY_RATE_LIMIT, too_many, DONE)
+    github.comment(12, "Hello")
+    assert len(commands) == 3 and waits == [60, 60]
+    commands, waits = gh_answers(monkeypatch, *[SECONDARY_RATE_LIMIT] * 4)
+    with pytest.raises(assistant.GitHubError, match="secondary rate limit"):
+        github.comment(12, "Hello")
+    assert len(commands) == 4 and waits == [60, 60, 60]
+
+
+@pytest.mark.parametrize("result", [RATE_LIMIT, NOT_FOUND, NO_DISCUSSION])
+def test_a_rate_limit_of_the_hour_or_a_missing_thing_runs_once(monkeypatch, result):
+    commands, waits = gh_answers(monkeypatch, result)
+    with pytest.raises(assistant.GitHubError):
+        assistant.GitHub(REPOSITORY).graphql("query { viewer { login } }", {})
+    assert len(commands) == 1 and waits == []
+
+
+@pytest.mark.parametrize(
+    ("pattern", "read"),
+    [
+        ("^GET issues/7$", lambda github: assistant.other_issue(github, 7, 12)),
+        ("discussion\\(number", lambda github: github.discussion_exists(3)),
+        ("^GET releases/latest", lambda github: github.latest_release()),
+        ("^GET compare/", lambda github: github.contains("a" * 40, "v1.9.0")),
+        ("discussions\\(", lambda github: github.discussions()),
+    ],
+)
+@pytest.mark.parametrize("error", [rate_limited(), server_error()])
+def test_a_rate_limit_or_a_server_error_never_reads_as_missing(
+    config, pattern, read, error
+):
+    github = FakeGitHub(config, make_issue(7), make_issue())
+    github.fail(pattern, error)
+    with pytest.raises(assistant.GitHubError) as caught:
+        read(github)
+    assert caught.value is error
+
+
+def test_only_a_missing_thing_reads_as_missing(config):
+    github = FakeGitHub(config, make_issue())
+    github.release = None
+    github.discussion_store = None
+    assert assistant.other_issue(github, 7, 12) is None
+    assert github.discussion_exists(3) is False
+    assert github.discussions() == []
+    assert github.latest_release() is None
+    assert github.contains("a" * 40, "v9.9.9") is False
 
 
 def test_labels_fall_back_to_plain_labels_without_rationale(config):
@@ -2317,6 +2745,71 @@ def test_the_sweep_and_label_commands_report_what_they_did(
         monkeypatch, tmp_path, sample_root, FakeGitHub(config), "sync-labels"
     )
     assert code == 0 and "### Labels\n\nNothing to do." in summary
+
+
+def test_a_failure_of_github_stops_a_command_with_one_error_and_what_it_wrote(
+    monkeypatch, tmp_path, sample_root, config, capsys
+):
+    github = FakeGitHub(config, make_issue())
+    error = assistant.GitHubError("gh api: Server Error\n::add-mask::x", status=500)
+    github.fail("^POST issues/12/comments", error)
+    code, _, summary = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        github,
+        "apply",
+        ISSUE="12",
+        MODE="triage",
+        RESULT=json.dumps(make_answer(missing_information=["Which version?"])),
+        ENGINE="claude",
+    )
+    out = capsys.readouterr().out
+    assert code == 1
+    assert [line for line in out.splitlines() if line.startswith("::error::")] == [
+        "::error::GitHub failed, so the run stopped: gh api: Server Error%0A::add-mask::x"
+    ]
+    assert "\n::add-mask::x" not in out.replace(summary, "")
+    assert "### Issue assistant: triage of #12\n\n- add area: cards to #12\n" in summary
+    assert "- add needs-info to #12\n- comment on #12\n" in summary
+    assert "- Stopped: GitHub failed; running it again completes the rest." in summary
+
+
+def test_a_rate_limit_stops_the_context_instead_of_leaving_things_out(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    github = FakeGitHub(config, make_issue())
+    github.fail("^GET releases/latest")
+    code, outputs, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        root,
+        github,
+        "context",
+        ISSUE="12",
+        MODE="triage",
+    )
+    assert code == 1 and "prompt" not in outputs
+    assert "::error::GitHub failed, so the run stopped: gh api: API rate limit" in (
+        capsys.readouterr().out
+    )
+
+
+def test_a_sweep_that_github_failed_in_part_reports_both_and_fails(
+    monkeypatch, tmp_path, sample_root, config, capsys
+):
+    github = two_waiting(config)
+    github.fail("^GET issues/13/comments")
+    code, _, summary = run_main(monkeypatch, tmp_path, sample_root, github, "sweep")
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "::warning::#13: gh api: API rate limit exceeded" in out
+    assert (
+        "::error::1 step(s) of the sweep failed on GitHub; the next sweep tries again."
+        in out
+    )
+    assert "- #12: reminded the reporter after" in summary
+    assert "- Failed: #13: gh api: API rate limit exceeded" in summary
 
 
 def test_a_repository_without_settings_is_told_what_to_add(
