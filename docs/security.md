@@ -103,6 +103,41 @@ flowchart TB
 
 The log prints the lines and the comments of a dry run between `::stop-commands::` and a random token, so that the runner reads none of them as a workflow command. Only a terminal outside a runner, such as one running `check` on your own computer, shows them without the token.
 
+## What counts as a secret
+
+One text that looks like a token or a key refuses the whole answer: nothing is posted, and the run fails. So the check tells keys apart from the links, paths and names of code that answers are full of:
+
+```mermaid
+flowchart TB
+  accTitle: How the apply job decides whether a text of the answer holds a secret
+  accDescr: A known kind of token refuses the answer wherever it is. Any other text is looked at in runs of 40 or more letters, digits and the characters plus, slash, equals sign, underscore and dash, after the owner, the repository and the commit or branch of every link to GitHub are left out, unless the name of the repository or the branch has 32 or more characters. A run without lower case, upper case and digits is harmless. A run with the plus or equals sign of Base64, or whose letters read like noise, is a key, unless it is part of the path of a file that git tracks. Any other run is harmless.
+  text["a text of<br/>the answer"] --> known{"a known kind<br/>of token?"}
+  known -- "yes" --> refused["the answer<br/>is refused"]
+  known -- "no" --> runs["runs of 40 or more<br/>letters, digits and +/=_-,<br/>without the repository<br/>of links to GitHub"]
+  runs --> mixed{"lower case,<br/>upper case<br/>and digits?"}
+  mixed -- "no" --> harmless["harmless"]
+  mixed -- "yes" --> random{"+ or = of Base64,<br/>or letters that read<br/>like noise?"}
+  random -- "no" --> harmless
+  random -- "yes" --> tracked{"part of a path<br/>that git tracks?"}
+  tracked -- "yes" --> harmless
+  tracked -- "no" --> refused
+  classDef question fill:#d4a72c33,stroke:#bf8700
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef untrusted fill:#cf222e26,stroke:#cf222e
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class known,mixed,random,tracked question
+  class text,runs job
+  class refused untrusted
+  class harmless safe
+```
+
+- **Known kinds of tokens** count wherever they are: tokens of GitHub, Anthropic, OpenAI and Slack, access keys of AWS, JSON Web Tokens, private keys, and the addresses of Slack and Microsoft Teams webhooks, which let anyone post as their owner. A placeholder without the secret at the end of such an address, such as `https://hooks.slack.com/services/YOUR/WEBHOOK/URL`, is none.
+- **Letters that read like noise** change between lower and upper case at least once in five pairs of neighbors, in runs of lower case of 3.5 letters or fewer on average. A random key, such as the 40 characters of a secret key of AWS, changes at about every second pair, in runs of two letters. Words change only where a new word starts, and run on in lower case: `src/main/java/com/example/OAuth2ClientConfiguration.java` and `custom_components/autodarts/AutodartsBoardManager2Coordinator.py` are names, not keys.
+- **Links to GitHub** name owners and repositories that people chose, such as `Dennis-Otto`, and commits; the rest of the link, such as `issues/12` or the path of a file, is checked like any other text. So is a repository or a branch with a name of 32 or more characters, so that no key passes for one.
+- **The files of the repository** are public, whatever their names look like, such as the test devices of a project named after random identifiers. Git lists them only for an answer that would be refused without them.
+
+Of 134,000 paths in five large projects, Spring Security, Home Assistant, VS Code, Nextcloud and Elasticsearch, the check takes one for a key, a test device named after a random identifier, which passes in its own repository; before, it took 6,700. Of 4,000 links to issues, releases, pull requests and lines on GitHub it takes none, where it took 1,100. Of 20,000 random secret keys of AWS, it lets 36 pass instead of 23: those that lack a digit, lower case or upper case, as before, and a few whose letters happen to read like words.
+
 ## Threats and countermeasures
 
 | Threat | Countermeasure | Evidence |
@@ -110,7 +145,7 @@ The log prints the lines and the comments of a dry run between `::stop-commands:
 | An issue tells the AI to run a command, read a secret or reach a server | The engine runs with the tools `Read`, `Grep` and `Glob` alone, with a read-only token, and the egress firewall allows only named hosts | `test_each_engine_can_only_read_the_checkout`, `test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions`, `test_the_firewall_template_allows_only_named_hosts` in `tests/test_templates.py` |
 | An issue makes the AI post a mention, a link, an image or HTML | `apply` removes mentions, images, HTML and headings, and keeps only links to allowed sites and to issues that exist | `test_mentions_images_html_and_headings_are_removed`, `test_only_links_to_known_places_stay_links`, `test_tricky_text_is_cleaned_safely` in `tests/test_assistant.py`; property tests against a CommonMark parser in `tests/test_properties.py`; fuzzing with Atheris in `fuzz/fuzz_sanitize.py` |
 | An issue keeps the assistant busy, so that no analysis of the repository finishes, because each one reads every issue | Each text is read up to GitHub's 65,536 characters, by patterns that look at each character a bounded number of times; the AI reads at most 20,000 characters of each text of its issue, and HTML comments are removed as GitHub hides them, also one that starts a line and never ends | `test_no_text_makes_reading_an_issue_slow`, `test_no_text_makes_the_cleaning_slow`, `test_forms_read_as_they_always_did` in `tests/test_assistant.py`; property tests against the earlier patterns in `tests/test_properties.py`; fuzzing with Atheris in `fuzz/fuzz_issue_text.py`, which fails on a reading that takes longer than half a second |
-| The AI posts a secret that it found or was given | An answer with anything that looks like a token or a key is never posted | `test_an_answer_with_something_like_a_secret_is_never_posted`, `test_a_token_anywhere_in_the_answer_is_refused` |
+| The AI posts a secret that it found or was given | An answer with anything that looks like a token or a key is never posted, as [What counts as a secret](#what-counts-as-a-secret) shows | `test_an_answer_with_something_like_a_secret_is_never_posted`, `test_ordinary_long_words_links_and_paths_are_no_secrets`, `test_a_file_that_git_tracks_is_no_secret` in `tests/test_assistant.py`; `test_a_token_anywhere_in_the_answer_is_refused`, `test_a_path_that_git_tracks_is_never_a_secret` in `tests/test_properties.py` |
 | An answer runs a workflow command in the log of the run, such as `::add-mask::`, `::stop-commands::` or a forged `::error::`, or its comment ends the code block of the preview in the summary of a dry run | Every error and notice of the assistant is escaped as GitHub's Actions toolkit escapes it, and a key of the answer that the schema doesn't know shows as a short JSON string. The summary turns workflow commands off with a random token while it prints the engine's words, and the fence of a preview is longer than any run of backticks in the comment | `test_no_text_of_the_engine_runs_a_workflow_command`, `test_a_workflow_command_keeps_its_message_on_its_line`, `test_each_summary_stops_the_commands_with_a_token_of_its_own`, `test_only_a_terminal_outside_a_runner_gets_the_summary_alone`, `test_a_preview_can_t_close_its_fence` in `tests/test_assistant.py` |
 | An answer mentions someone or links elsewhere in a reason outside its comment: a line of the log and the summary, or the reason for a label or a duplicate on the timeline | Such reasons are cleaned like a comment, joined into one line before the cleaning, so that no code block keeps a mention as it is, and shortened to 280 characters before the cleaning, so that no cut loses the backtick that keeps a mention in its code | `test_the_reasons_on_the_timeline_are_cleaned_like_comments`, `test_the_engine_s_reasons_in_the_log_are_one_cleaned_line`, `test_a_shortened_line_keeps_its_cleaning` in `tests/test_assistant.py`; property tests in `tests/test_properties.py`; fuzzing with Atheris in `fuzz/fuzz_sanitize.py` |
 | A label name or the model of `config.toml` adds arguments to the command line of the engine, or breaks it, so that no issue gets an analysis | The schema writes an apostrophe of a label name as `\u0027`, which ends no quotes and reads back as the same JSON. `check` and the `engine` command refuse a model that is not a name of letters, digits and `._:@/[]-`, and one that starts with a dash, which the engine's action would read as another flag | `test_the_schemas_fit_into_the_engine_arguments`, `test_a_model_that_would_add_arguments_is_refused` in `tests/test_assistant.py`; `test_a_model_that_would_add_arguments_fails_the_check_and_the_engine` in `tests/test_setup.py` |

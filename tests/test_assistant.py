@@ -5,6 +5,7 @@ import json
 import re
 import runpy
 import shlex
+import subprocess
 import sys
 import time
 from datetime import UTC, datetime
@@ -788,6 +789,31 @@ def test_an_answer_that_is_no_json_is_refused(config):
         ),
         "-----BEGIN OPENSSH PRIVATE KEY-----",
         "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p",
+        # Secret keys of AWS: with a slash alone, with a slash and a plus, and as
+        # the value of a variable.
+        "wJalrXUtnFEMI/K7MDENG/" + "bPxRfiCYEXAMPLEKEY",
+        "u4Rk/Tn8Vq2Lw9ZsJ1" + "fXc+P7hMb3YgKd6NeQo5Ay",
+        "AWS_SECRET_ACCESS_KEY=" + "wJalrXUtnFEMI/K7MDENG/" + "bPxRfiCYEXAMPLEKEY",
+        "q2V+Lk9sN3/xB7Rz1Pw4Yt8G" + "h5Cm0Ju6Ea2Df9Kb3Lr+Vs7Qn1Ox==",
+        # A key at the end of a path, or of a link into a repository on GitHub.
+        "config/secrets/" + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p",
+        "custom_components/autodarts/frontend/"
+        + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p",
+        "https://github.com/owner/project/blob/main/"
+        + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p",
+        # A key in the place of the repository or the branch of such a link.
+        "https://github.com/owner/" + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p",
+        "https://github.com/owner/project/blob/"
+        + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p/README.md",
+        # Webhooks of Slack and Microsoft Teams, which post as their owner.
+        "https://hooks.slack"
+        + ".com/services/TY1Z2IXGC/BI5NQ1T06YW/ILALo5vR67b2rMQSkS3u9I5K",
+        "https://hooks.slack"
+        + ".com/triggers/T0AB12CDE/7591234567890/4f1c2a9b8e7d6c5b4a39281706f5e4d3",
+        "https://contoso.webhook.office"
+        + ".com/webhookb2/368932ff-2b2d-409d-d311-ca871902316d"
+        + "@9841aab4-ccec-38d7-9d89-a0da0c41aebb/IncomingWebhook/"
+        + "8f010b8e9a5b5ab89c3049787a5d33aa/7e52a6e8-7316-a58a-2b4d-98ebd9dd1d46",
     ],
 )
 def test_an_answer_with_something_like_a_secret_is_never_posted(config, secret):
@@ -805,10 +831,81 @@ def test_an_answer_with_something_like_a_secret_is_never_posted(config, secret):
         "test_the_assistant_never_posts_text_that_looks_like_a_secret",
         "sensor.autodarts_board_practice_legs_played_in_the_last_session",
         "a skeleton key",
+        # Links to issues, releases, lines and runs of other repositories on GitHub,
+        # whose owner and name people choose, with capitals and digits.
+        "https://github.com/Dennis-Otto/paperless-unified-search/issues/12",
+        "https://github.com/Dennis-Otto/paperless-unified-search/releases/tag/v1.2.3",
+        "https://github.com/MyOrgX/SomeRepoName2/releases/tag/v1.2.3",
+        "https://github.com/Dennis-Otto/ha-autodarts/blob/"
+        "677b136666dc555b19b50d237c5234f66d2847e8/"
+        "custom_components/autodarts/coordinator.py#L100",
+        "https://github.com/Dennis-Otto/issue-assistant/actions/runs/"
+        "12345678901/job/34567890123",
+        # Paths and names in Java, Python and PHP, in camel case with digits.
+        "src/main/java/com/example/OAuth2ClientConfiguration.java",
+        "custom_components/autodarts/AutodartsBoardManager2Coordinator.py",
+        "lib/Migration/Version000100Date20260826000000.php",
+        "OAuth2AuthorizationCodeAuthenticationProvider",
+        # Words that end in "sk" before a dash, unlike the keys that start with sk-.
+        "flask-sqlalchemy-integration-tests",
+        "the task-continuation-guidance-by-default capture",
+        # Placeholders for the address of a webhook, without its secret.
+        "Set SLACK_WEBHOOK_URL to https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+        "https://hooks.slack.com/services/T000/B000/XXXX",
+        "https://outlook.webhook.office.com/webhookb2/xxx/IncomingWebhook/yyy",
     ],
 )
-def test_ordinary_long_words_are_no_secrets(harmless):
+def test_ordinary_long_words_links_and_paths_are_no_secrets(config, harmless):
     assert not assistant.looks_secret(harmless)
+    # The whole answer is posted, not refused for one of them.
+    answer = make_answer(
+        analysis=f"See {harmless}.",
+        references=[{"path": harmless, "reason": "It is there."}],
+    )
+    assert assistant.parse_answer("triage", json.dumps(answer), config) == answer
+
+
+# Files of a project with random names, as the test devices of Home Assistant have.
+FIXTURES = "tests/components/tuya/fixtures"
+RANDOM_NAME = f"{FIXTURES}/cl_rD7uqAAgQOpSA2RxV9eKw3Lm.json"
+RANDOM_FOLDER = f"{FIXTURES}/eb_Kq2mP9vL4tR7wY1bN6cJ"
+COMMIT = "677b136666dc555b19b50d237c5234f66d2847e8"
+
+
+@pytest.mark.parametrize(
+    ("text", "secret"),
+    [
+        (RANDOM_NAME, False),
+        (f"See ./{RANDOM_NAME}, line 3.", False),
+        (f"https://github.com/owner/project/blob/abc1234/{RANDOM_NAME}#L3", False),
+        (f"https://github.com/owner/project/blob/{COMMIT}/{RANDOM_NAME}#L3", False),
+        ("tuya/fixtures/cl_rD7uqAAgQOpSA2RxV9eKw3Lm", False),
+        (f"{RANDOM_FOLDER}/", False),
+        # Only a whole part of a path, between slashes and dots, is the file's.
+        (f"{FIXTURES}/cl_rD7uqAAgQOpSA2RxV9eKw3Lm2", True),
+        (f"{FIXTURES}/xcl_rD7uqAAgQOpSA2RxV9eKw3Lm", True),
+        (f"{FIXTURES}/" + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p", True),
+    ],
+)
+def test_a_file_that_git_tracks_is_no_secret(text, secret):
+    """A path of the repository is public, whatever its name looks like."""
+    files = {RANDOM_NAME, f"{RANDOM_FOLDER}/device.json", "src/app.py"}
+    assert assistant.looks_secret(text)
+    assert assistant.looks_secret(text, files) is secret
+
+
+def test_an_answer_that_names_a_tracked_file_is_posted(root, config):
+    answer = make_answer(
+        analysis=f"The fixture {config.blob}/HEAD/{RANDOM_NAME} shows the device.",
+        references=[{"path": RANDOM_NAME, "reason": "The device."}],
+    )
+    with pytest.raises(assistant.AssistantError, match="looks like a token"):
+        assistant.parse_answer("triage", json.dumps(answer), config)
+    file = root / RANDOM_NAME
+    file.parent.mkdir(parents=True)
+    file.write_text("{}\n", encoding="utf-8")
+    subprocess.run(["git", "add", RANDOM_NAME], cwd=root, check=True)
+    assert assistant.parse_answer("triage", json.dumps(answer), config) == answer
 
 
 # Cleaning the engine's text

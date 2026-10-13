@@ -24,7 +24,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
@@ -174,14 +174,32 @@ HEADING_LINE = re.compile(r"^\s{0,3}#{1,6}\s+", re.MULTILINE)
 SECRET = re.compile(
     r"gh[pousr]_[A-Za-z0-9]{20,}"
     r"|github_pat_[A-Za-z0-9_]{20,}"
-    r"|sk-ant-[A-Za-z0-9_-]{8,}"
-    r"|sk-(?:proj-)?[A-Za-z0-9_-]{20,}"
+    # Not the end of a word, as in task-runner-configuration-for-tests.
+    r"|(?<![A-Za-z0-9])sk-ant-[A-Za-z0-9_-]{8,}"
+    r"|(?<![A-Za-z0-9])sk-(?:proj-)?[A-Za-z0-9_-]{20,}"
     r"|xox[abposr]-[A-Za-z0-9-]{10,}"
     r"|AKIA[0-9A-Z]{16}"
     r"|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
+    # Webhooks, whose address alone lets anyone post as their owner: up to the secret
+    # at its end, which placeholders such as services/YOUR/WEBHOOK/URL lack.
+    r"|hooks\.slack\.com/(?:services|triggers|workflows)/(?:[A-Za-z0-9]+/)+"
+    r"[A-Za-z0-9]{20,}"
+    r"|\.webhook\.office\.com/webhookb2/[\w@-]+/IncomingWebhook/[0-9a-f]{20,}/"
+    r"[0-9a-f-]{20,}"
 )
 LONG_TOKEN = re.compile(r"(?<![\w+/=-])[\w+/=-]{40,}(?![\w+/=-])")
+# A link to a repository on GitHub, whose owner and name people choose, up to the
+# path of a file or folder in it after the commit or branch. A name or a branch of 32
+# or more characters is checked like any other text, so that no key hides as one; a
+# commit is lower-case hex, which never mixes case.
+GITHUB_REPOSITORY = re.compile(
+    r"https://github\.com/[A-Za-z0-9-]{1,39}/[\w.-]{1,31}(?![\w.-])"
+    r"(?:/(?:blob|tree)/(?:[0-9a-f]{40}|[\w.-]{1,31})(?![\w.-]))?"
+)
+LETTER_PAIR = re.compile(r"(?=[A-Za-z]{2})")
+CASE_CHANGE = re.compile(r"(?=[a-z][A-Z]|[A-Z][a-z])")
+LOWER_CASE = re.compile(r"[a-z]+")
 SHA = re.compile(r"[0-9a-f]{40}")
 GERMAN_WORDS = {
     "und", "der", "die", "das", "nicht", "ich", "ist", "mit", "auf", "wenn",
@@ -1468,14 +1486,52 @@ def all_text(value: Any) -> Iterable[str]:
             yield from all_text(item)
 
 
-def looks_secret(text: str) -> bool:
+def reads_like_noise(token: str) -> bool:
+    """Whether the letters of a token are mixed like those of a random key.
+
+    Words, in paths and in the names of code, change between lower and upper case
+    only where a word starts, and run on in lower case for several letters. The
+    letters of a random key change case at about every second pair, and run on in
+    lower case for two letters on average.
+    """
+    pairs = len(LETTER_PAIR.findall(token))
+    changes = len(CASE_CHANGE.findall(token))
+    runs = LOWER_CASE.findall(token)
+    # At least one change in five pairs, and 3.5 letters per run on average or fewer.
+    return 5 * changes >= pairs and 2 * sum(map(len, runs)) <= 7 * len(runs)
+
+
+def names_a_file(token: str, paths: str) -> bool:
+    """Whether the token is a part of one of the paths, one per line, that begins and
+    ends at a slash or a dot.
+
+    A token ends before the dot of an extension, as in `File.java`, and starts after
+    the dot of a folder, as in `.github/`.
+    """
+    part = re.escape(token.strip("/"))
+    return bool(re.search(rf"(?<![^\n./]){part}(?![^\n./])", paths))
+
+
+def looks_secret(text: str, files: Collection[str] = ()) -> bool:
+    """Whether the text holds something that looks like a token or a key.
+
+    A known kind of token counts wherever it is. Any other run of 40 or more letters,
+    digits and `+/=_-` counts when it mixes lower case, upper case and digits, and
+    either has the `+` or `=` of Base64, or its letters read like noise. It doesn't
+    count when it is a part of the path of one of `files`, the files of the
+    repository, which are public. In a link to GitHub, the owner and the name of the
+    repository, and the commit or branch of a file, are never keys.
+    """
     if SECRET.search(text):
         return True
+    paths = "\n".join(files)
     return any(
         re.search("[a-z]", token)
         and re.search("[A-Z]", token)
         and re.search("[0-9]", token)
-        for token in LONG_TOKEN.findall(text)
+        and ("+" in token or "=" in token or reads_like_noise(token))
+        and not names_a_file(token, paths)
+        for token in LONG_TOKEN.findall(GITHUB_REPOSITORY.sub(" ", text))
     )
 
 
@@ -1493,11 +1549,15 @@ def parse_answer(mode: str, raw: str, config: Config) -> dict[str, Any]:
         raise AssistantError(
             "The engine's answer breaks the schema: " + "; ".join(problems)
         )
-    if any(looks_secret(item) for item in all_text(answer)):
-        raise AssistantError(
-            "The engine's answer contains text that looks like a token or key; "
-            "nothing was posted."
-        )
+    # Paths of the repository may look random and are public. Git lists them only
+    # for an answer that would be refused without them.
+    if any(map(looks_secret, all_text(answer))):
+        files = tracked_files(config.root)
+        if any(looks_secret(item, files) for item in all_text(answer)):
+            raise AssistantError(
+                "The engine's answer contains text that looks like a token or key; "
+                "nothing was posted."
+            )
     result: dict[str, Any] = answer
     return result
 
