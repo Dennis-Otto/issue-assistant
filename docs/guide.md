@@ -1,10 +1,12 @@
 # Guide
 
-How the issue assistant works, how it keeps an AI that reads untrusted issues in check, how to set it up in a repository, and what its settings, engines and commands do.
+How the issue assistant works, how it keeps an AI that reads untrusted issues in check, what it needs, how to set it up in a repository, and what its settings, engines and commands do. Questions and problems have [a page of their own](faq.md).
 
 --8<-- "README.md:how-it-works"
 
 --8<-- "README.md:security"
+
+--8<-- "README.md:requirements"
 
 --8<-- "README.md:set-up"
 
