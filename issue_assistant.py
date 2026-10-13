@@ -144,9 +144,15 @@ IMAGE = re.compile(r"!\[([^\]\n]*)\]\([^)\n]*\)")
 # GitHub links http:// and https:// in any case, also right after a digit or an
 # underscore: only letters before them make another scheme, such as xhttps://.
 BARE_URL = re.compile(r"(?<![A-Za-z])https?://[^\s)<>\]`\0]+", re.IGNORECASE)
-WWW_URL = re.compile(r"(?<![\w.-])www\.[^\s<>`\0]+", re.IGNORECASE)
+# It links www. after an underscore too, as in x_www.…: only a letter, a digit, a
+# dot or a dash before it leaves it text.
+WWW_URL = re.compile(r"(?<![^\W_])(?<![.-])www\.[^\s<>`\0]+", re.IGNORECASE)
 # GitHub links a bare address only after these characters or at the start.
 AUTOLINK_AFTER = frozenset(" \t\n*_~(")
+# A www. address stays a link only after the others: a later rule can put an
+# underscore before it into code, as in @a/b_www.…, and after code GitHub links no
+# www. address, so the rest of it would be text that could mention.
+WWW_AFTER = AUTOLINK_AFTER - {"_"}
 # Its link runs to the next space, past brackets, backticks and the code that
 # follows, and then leaves out these characters at its end.
 SPACE = re.compile(r"[ \t\n]")
@@ -1656,19 +1662,21 @@ def clean_prose(
             else match[0]
         )
 
-    def address(url: str, match: re.Match[str]) -> str:
+    def address(
+        url: str, match: re.Match[str], starts: frozenset[str] = AUTOLINK_AFTER
+    ) -> str:
         start, end = match.span()
         space = SPACE.search(match.string, end)
         rest = match.string[end : space.start() if space else None]
         # An address stays a link only where GitHub links all of it and nothing
-        # more, and becomes code elsewhere: after a space or one of * _ ~ ( (other
-        # text before it, as in @www.…, leaves it text that could mention), and
-        # before a space or the end, perhaps after characters that GitHub leaves
-        # out of a link, such as ). and ,. Its link would run on past anything else,
-        # even into code: https://docs.example.com`@evil.example/` leads to
-        # evil.example.
+        # more, and becomes code elsewhere: at the start or after one of `starts`
+        # (other text before it, as in @www.…, leaves it text that could mention),
+        # and before a space or the end, perhaps after characters that GitHub
+        # leaves out of a link, such as ). and ,. Its link would run on past
+        # anything else, even into code: https://docs.example.com`@evil.example/`
+        # leads to evil.example.
         linked = (
-            (match.string[start - 1] if start else before) in AUTOLINK_AFTER
+            (match.string[start - 1] if start else before) in starts
             and (space[0] if space else after) in " \t\n"
             and set(rest) <= TRAILING
         )
@@ -1687,7 +1695,7 @@ def clean_prose(
     rewrites: list[tuple[re.Pattern[str], Callable[[re.Match[str]], str]]] = [
         (MARKDOWN_LINK, link),
         (BARE_URL, lambda m: address(m[0], m)),
-        (WWW_URL, lambda m: address(f"https://{m[0]}", m)),
+        (WWW_URL, lambda m: address(f"https://{m[0]}", m, WWW_AFTER)),
         (EMAIL, lambda m: code(m[0])),
         (COMMIT_REFERENCE, lambda m: code(m[0])),
         (MENTION, lambda m: code(m[0])),

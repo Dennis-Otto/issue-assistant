@@ -467,4 +467,6 @@ ESCAPES = [
     ("foo/bar<<x>y>#12", {12}),
     ("see #1<<b>i>337 here", {1}),
     ("!<<x>y>[pic](https://docs.example.com/page.png)", set()),
+    ("x_www.evil.example y", set()),
+    ("A _www.evil.example/@octocat y", set()),
 ]

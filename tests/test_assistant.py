@@ -1055,6 +1055,19 @@ def test_no_removal_joins_text_to_what_was_kept(config, text, numbers, cleaned):
         ),
         # After code, GitHub leaves www. text, which could mention.
         ("`x`www.home-assistant.io/@a", "`x` `www.home-assistant.io/@a`"),
+        # GitHub links www. after an underscore, which a later rule can put into
+        # code: so after one, even an allowed www. address becomes code.
+        ("x_www.evil.example y", "x_`www.evil.example` y"),
+        ("A _www.evil.example/x y", "A _`www.evil.example/x` y"),
+        (
+            "@a/b_www.home-assistant.io/@octocat",
+            "`@a/b_` `www.home-assistant.io/@octocat`",
+        ),
+        # After a letter, a digit, a dot or a dash, GitHub links no www. address.
+        (
+            "éwww.evil.example 1www.evil.example a.www.evil.example",
+            "éwww.evil.example 1www.evil.example a.www.evil.example",
+        ),
         # GitHub links https:// in any case and after a digit or an underscore.
         (
             "HTTPS://evil.example/x _https://evil.example/y 1https://evil.example/z",

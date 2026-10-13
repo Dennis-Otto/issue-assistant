@@ -59,6 +59,8 @@ PIECES = st.sampled_from(
         "\x1d",
         "- ",
         "word",
+        "HTTPS://evil.example",
+        "support@evil.example",
     ]
 )
 TEXT = st.one_of(st.text(), st.lists(PIECES, max_size=40).map("".join))
