@@ -1264,8 +1264,7 @@ def render_issue(
     Who wrote a text, in which role and when stands only in the headings and lines
     that the script writes outside the fences, and nothing in a text can close its
     fence, so no text can pass for another comment, for the maintainer or for the
-    assistant. Each text loses its invisible characters first, which could otherwise
-    hide instructions or split a run of backticks that closes the fence.
+    assistant.
     """
     visible = visible or Visible()
     reporter = login(issue.get("user"))
@@ -1279,7 +1278,7 @@ def render_issue(
         "",
         "## Text of the issue",
         "",
-        rendered_text(visible(text_of(issue))),
+        rendered_text(text_of(issue), visible),
     ]
     for index, comment in enumerate(comments, start=1):
         lines += [
@@ -1287,15 +1286,22 @@ def render_issue(
             f"## Comment {index} by {describe_author(comment, reporter)}, "
             f"{comment['created_at'][:10]}",
             "",
-            rendered_text(visible(text_of(comment))),
+            rendered_text(text_of(comment), visible),
         ]
     return "\n".join(lines) + "\n"
 
 
-def rendered_text(text: str) -> str:
-    """A text for issue.md: without HTML, cut off after MAX_RENDERED_TEXT, and in a
-    code fence that nothing in it can close."""
-    text = strip_html(text).strip()
+def rendered_text(text: str, visible: Visible) -> str:
+    """A text for issue.md: without HTML and invisible characters, cut off after
+    MAX_RENDERED_TEXT, and in a code fence that nothing in it can close.
+
+    The HTML goes first, as GitHub hides it: an invisible character in the end of
+    an HTML comment keeps it from ending on GitHub, and taken out first, it would end
+    the comment and show the text after it to the engine. The invisible characters
+    go before the fence is chosen, so that none can split a run of backticks that
+    would close it.
+    """
+    text = visible(strip_html(text)).strip()
     if not text:
         return "(empty)"
     note = ""
@@ -1330,7 +1336,9 @@ def write_context(
     comments = github.comments(number)
     folder.mkdir(parents=True, exist_ok=True)
     # The invisible characters of the issue, and of the texts that every analysis
-    # reads, in which anyone could plant instructions for later issues.
+    # reads, in which anyone could plant instructions for later issues. They go after
+    # the HTML comments, as in rendered_text, so that the engine reads no text that
+    # GitHub hides.
     own, elsewhere = Visible(), Visible()
     (folder / "issue.md").write_text(
         render_issue(issue, comments, own), encoding="utf-8"
@@ -1346,7 +1354,7 @@ def write_context(
             "opened": item["created_at"][:10],
             "closed": (item.get("closed_at") or "")[:10] or None,
             "comments": item.get("comments", 0),
-            "excerpt": excerpt(elsewhere(item.get("body") or ""), 1500),
+            "excerpt": elsewhere(excerpt(item.get("body") or "", 1500)),
         }
         for item in github.all_issues()
         if item["number"] != number
@@ -1362,9 +1370,9 @@ def write_context(
             "category": (item.get("category") or {}).get("name"),
             "answered": item.get("isAnswered"),
             "closed": item.get("closed"),
-            "excerpt": excerpt(elsewhere(item.get("body") or ""), 1000),
-            "answer": excerpt(
-                elsewhere((item.get("answer") or {}).get("body") or ""), 1000
+            "excerpt": elsewhere(excerpt(item.get("body") or "", 1000)),
+            "answer": elsewhere(
+                excerpt((item.get("answer") or {}).get("body") or "", 1000)
             )
             or None,
         }

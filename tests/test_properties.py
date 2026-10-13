@@ -293,6 +293,8 @@ STRUCTURE = st.lists(
             "- ",
             "<!--",
             "-->",
+            "-",
+            ">",
             "<b>",
             "\u200b",
             "\u202e",
@@ -324,3 +326,23 @@ def test_no_text_forms_the_structure_of_issue_md_or_hides_in_it(body, comment):
         f"Comment 1 by @owner, {at(0.5)[:10]}",
     ]
     assert not assistant.INVISIBLE.search(rendered)
+
+
+def subsequence(part, whole):
+    """Whether part is whole with characters left out, and nothing added."""
+    rest = iter(whole)
+    return all(char in rest for char in part)
+
+
+@hypothesis.example("<!-- -\u200b->\nhidden")
+@hypothesis.example("<!-- x -\u200b-> hidden -->")
+@given(st.one_of(st.text(), STRUCTURE))
+def test_the_engine_reads_no_text_that_github_hides(text):
+    """What a fence of issue.md holds is what GitHub shows of the text, without its
+    invisible characters: taken out before the HTML, one could end an HTML comment
+    that GitHub never ends, and show what it hides."""
+    rendered = assistant.rendered_text(text, assistant.Visible())
+    marks, _, rest = rendered.partition("\n")
+    inner = rest[: rest.rfind("\n" + marks)]
+    assert subsequence(inner, assistant.strip_html(text))
+    assert not assistant.INVISIBLE.search(inner)
