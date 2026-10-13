@@ -31,7 +31,7 @@ from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import Any
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 TOOL = Path(__file__).resolve().parent
 PROMPTS = TOOL / "prompts"
@@ -118,14 +118,21 @@ GROUPS = ("type", "area", "topic", "lifecycle", "decision", "release", "dependab
 MODES = ("triage", "follow-up", "maintainer-reply", "release-reply")
 
 MARKER = re.compile(r"<!-- issue-assistant:([a-z-]+)((?: [a-z]+=[\w.+/-]+)*) -->")
+# Control characters other than tab and line break, which no comment needs: Python
+# takes some of them for spaces, which Markdown doesn't, so they could make the two
+# see different lines.
+STRAY_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 # Code that Markdown shows as it is, by the rules of CommonMark: a fenced block from
 # a fence line to a closing fence line of the same character and at least the same
 # length, and a code span within one line between backtick runs of the same length
-# that no other backtick touches. A span over several lines can be cut by a fence
-# or a quote on the next line, so it, like anything else that doesn't fit these
-# rules exactly, counts as text: the safe side.
+# that no other backtick touches. A fence counts only at the very start of a line:
+# indented, it can belong to a list item before it, which the next line without
+# indentation ends, and the code with it. The line break before the fence belongs
+# to the block, so that no cleaning of the text before can join the two. A span
+# over several lines can be cut by a fence or a quote on the next line, so it, like
+# anything else that doesn't fit these rules exactly, counts as text: the safe side.
 CODE = re.compile(
-    r"^ {0,3}(?P<fence>(?P<char>[`~])(?P=char){2,})[^`\n]*\n.*?"
+    r"(?:\A|\n)(?P<fence>(?P<char>[`~])(?P=char){2,})[^`\n]*\n.*?"
     r"^ {0,3}(?P=fence)(?P=char)*[ \t]*$"
     r"|(?<![`\\])(?P<run>`+)(?!`)[^\n]*?(?<!`)(?P=run)(?!`)",
     re.MULTILINE | re.DOTALL,
@@ -136,16 +143,43 @@ MARKDOWN_LINK = re.compile(
 )
 LINK_DEFINITION = re.compile(r"^ {0,3}\[[^\]\n]*\]:.*$", re.MULTILINE)
 IMAGE = re.compile(r"!\[([^\]\n]*)\]\([^)\n]*\)")
-BARE_URL = re.compile(r"\bhttps?://[^\s)<>\]`\0]+")
-WWW_URL = re.compile(r"(?<![\w.-])www\.[^\s<>`\0]+", re.IGNORECASE)
+# GitHub links http:// and https:// in any case, also right after a digit or an
+# underscore: only letters before them make another scheme, such as xhttps://.
+BARE_URL = re.compile(r"(?<![A-Za-z])https?://[^\s)<>\]`\0]+", re.IGNORECASE)
+# It links www. after an underscore too, as in x_www.…: only a letter, a digit, a
+# dot or a dash before it leaves it text.
+WWW_URL = re.compile(r"(?<![^\W_])(?<![.-])www\.[^\s<>`\0]+", re.IGNORECASE)
 # GitHub links a bare address only after these characters or at the start.
 AUTOLINK_AFTER = frozenset(" \t\n*_~(")
+# A www. address stays a link only after the others: a later rule can put an
+# underscore before it into code, as in @a/b_www.…, and after code GitHub links no
+# www. address, so the rest of it would be text that could mention.
+WWW_AFTER = AUTOLINK_AFTER - {"_"}
+# Its link runs to the next space, past brackets, backticks and the code that
+# follows, and then leaves out these characters at its end.
+SPACE = re.compile(r"[ \t\n]")
+TRAILING = frozenset(")?!.,:;*_~'\"")
 # GitHub turns these into a mention or a link at the start of a piece of text and
 # after any character but a letter or digit; an underscore can start or end an
 # emphasis, so a reference counts whatever follows its number.
 MENTION = re.compile(r"(?<![A-Za-z0-9])@([A-Za-z0-9][A-Za-z0-9-]{0,38}(?:/[\w-]+)?)")
 CROSS_REFERENCE = re.compile(r"(?<![A-Za-z0-9])([\w.-]+/[\w.-]+#\d+)")
 ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)", re.IGNORECASE)
+# GitHub also links an e-mail address, with or without mailto: or xmpp:, and a
+# commit of another repository or of a fork: owner/repository@sha or user@sha. Each
+# pattern starts only where a run of the characters it reads starts, so that it
+# reads each character once.
+EMAIL = re.compile(
+    r"(?<![\w.+-])(?:(?:mailto|xmpp):)?[\w.+-]+@[\w-]+(?:\.[\w-]+)+", re.IGNORECASE
+)
+COMMIT_REFERENCE = re.compile(
+    r"(?<![\w.-])(?:[\w.-]+/)?[\w.-]+@[0-9a-f]{7}\w*", re.IGNORECASE
+)
+# Three tildes or more at the start of a line, which would start or end a fenced
+# block: text can't escape them with a backtick, as it does with the other fence.
+TILDE_FENCE = re.compile(r"^([ \t]*)(?=~~~)", re.MULTILINE)
+# A line of a list item after its first, with the spaces and tabs that indent it.
+CONTINUATION = re.compile(r"\n([ \t]*)(?=[^ \t\n])")
 # The patterns that read the text of an issue look at each character a bounded
 # number of times, so that no text, however crafted, makes them slow. The tests and
 # fuzz/fuzz_issue_text.py time them on texts that took earlier patterns hours.
@@ -172,7 +206,8 @@ HTML_TAG = re.compile(rf"{TAG}|(?P<open></?[A-Za-z][^>\n]*)")
 # A heading of an issue form: GitHub writes the label of each field as `### Label`
 # above its answer.
 FORM_HEADING = re.compile(r"^###[ \t]+(.*)$", re.MULTILINE)
-HEADING_LINE = re.compile(r"^\s{0,3}#{1,6}\s+", re.MULTILINE)
+# The marks of a heading, without the line break after them.
+HEADING_LINE = re.compile(r"^[ \t]{0,3}#{1,6}(?:[ \t]+|$)", re.MULTILINE)
 SECRET = re.compile(
     r"gh[pousr]_[A-Za-z0-9]{20,}"
     r"|github_pat_[A-Za-z0-9_]{20,}"
@@ -1703,6 +1738,14 @@ def allowed_url(url: str, config: Config) -> bool:
     # A backtick or backslash in a link could pair with code elsewhere in the text.
     if parts.scheme != "https" or "`" in url or "\\" in url:
         return False
+    # The host alone: a user, a password or a port could hide where a link leads.
+    if parts.netloc.lower() != hostname:
+        return False
+    # Browsers resolve . and .. in a path, also written as %2e, so a path that starts
+    # in the repository could lead to any other one.
+    segments = unquote(parts.path).split("/")
+    if "%2e" in parts.path.lower() or "." in segments or ".." in segments:
+        return False
     if hostname == "github.com":
         return bool(
             re.match(
@@ -1712,15 +1755,21 @@ def allowed_url(url: str, config: Config) -> bool:
     return hostname in config.hosts
 
 
-def clean_prose(text: str, numbers: set[int], config: Config) -> str:
+def clean_prose(
+    text: str, numbers: set[int], config: Config, before: str = " ", after: str = " "
+) -> str:
     """Text outside code without anything that GitHub turns into a mention, a
     reference, a foreign link, an image or HTML.
 
-    What the cleaning keeps or writes goes behind a placeholder, so that no later
-    rule changes it again. The rules repeat until nothing matches, because a removal
-    can join the characters around it into something new. Last, the characters that
-    could start code, a link or an image, escape the code written here or form an
-    entity are escaped.
+    `before` and `after` are the characters next to the text in the comment: a
+    space at its edges, or the code around it. First, the rules that remove
+    something repeat until nothing changes, because a removal can join the
+    characters around it into something new. Then the rules that keep or rewrite
+    something repeat, each putting what it wrote behind a placeholder, so that no
+    later rule changes it again: as they remove nothing, the characters next to a
+    placeholder stay the ones they were checked with. Last, the characters that
+    could start code, a link, an image or a fence, escape the code written here or
+    form an entity are escaped.
     """
     kept: list[str] = []
 
@@ -1732,15 +1781,33 @@ def clean_prose(text: str, numbers: set[int], config: Config) -> str:
         return keep(f"`{value}`")
 
     def link(match: re.Match[str]) -> str:
-        if not allowed_url(match[2], config):
-            return match[1]
-        # The link's text stays in the text, so the next rounds clean it too.
-        return keep("[") + match[1] + keep(f"]({match[2]})")
+        # The link's text stays in the text, so the later rules clean it too. The
+        # removals left only allowed links; should another one ever form, its
+        # brackets are escaped below like any others.
+        return (
+            keep("[") + match[1] + keep(f"]({match[2]})")
+            if allowed_url(match[2], config)
+            else match[0]
+        )
 
-    def address(url: str, match: re.Match[str]) -> str:
-        start = match.start()
-        linked = start == 0 or match.string[start - 1] in AUTOLINK_AFTER
-        # GitHub doesn't link an address glued to other text, such as @https://….
+    def address(
+        url: str, match: re.Match[str], starts: frozenset[str] = AUTOLINK_AFTER
+    ) -> str:
+        start, end = match.span()
+        space = SPACE.search(match.string, end)
+        rest = match.string[end : space.start() if space else None]
+        # An address stays a link only where GitHub links all of it and nothing
+        # more, and becomes code elsewhere: at the start or after one of `starts`
+        # (other text before it, as in @www.…, leaves it text that could mention),
+        # and before a space or the end, perhaps after characters that GitHub
+        # leaves out of a link, such as ). and ,. Its link would run on past
+        # anything else, even into code: https://docs.example.com`@evil.example/`
+        # leads to evil.example.
+        linked = (
+            (match.string[start - 1] if start else before) in starts
+            and (space[0] if space else after) in " \t\n"
+            and set(rest) <= TRAILING
+        )
         return keep(match[0]) if linked and allowed_url(url, config) else code(match[0])
 
     previous = None
@@ -1748,16 +1815,29 @@ def clean_prose(text: str, numbers: set[int], config: Config) -> str:
         previous = text
         text = strip_html(text)
         text = LINK_DEFINITION.sub("", text)
+        text = HEADING_LINE.sub("", text)
         text = IMAGE.sub(r"\1", text)
-        text = MARKDOWN_LINK.sub(link, text)
-        text = BARE_URL.sub(lambda m: address(m[0], m), text)
-        text = WWW_URL.sub(lambda m: address(f"https://{m[0]}", m), text)
-        text = MENTION.sub(lambda m: code(m[0]), text)
-        text = CROSS_REFERENCE.sub(lambda m: code(m[1]), text)
-        text = ISSUE_REFERENCE.sub(
-            lambda m: keep(m[0]) if int(m[1]) in numbers else code(m[0]), text
+        text = MARKDOWN_LINK.sub(
+            lambda m: m[0] if allowed_url(m[2], config) else m[1], text
         )
-    text = HEADING_LINE.sub("", text)
+    rewrites: list[tuple[re.Pattern[str], Callable[[re.Match[str]], str]]] = [
+        (MARKDOWN_LINK, link),
+        (BARE_URL, lambda m: address(m[0], m)),
+        (WWW_URL, lambda m: address(f"https://{m[0]}", m, WWW_AFTER)),
+        (EMAIL, lambda m: code(m[0])),
+        (COMMIT_REFERENCE, lambda m: code(m[0])),
+        (MENTION, lambda m: code(m[0])),
+        (CROSS_REFERENCE, lambda m: code(m[1])),
+        (
+            ISSUE_REFERENCE,
+            lambda m: keep(m[0]) if int(m[1]) in numbers else code(m[0]),
+        ),
+    ]
+    previous = None
+    while text != previous:
+        previous = text
+        for pattern, rewrite in rewrites:
+            text = settled(pattern, rewrite, text)
     # Brackets too: links and images can span lines and nest brackets, so no other
     # link or image than the ones kept above may form.
     for character, escaped in (
@@ -1769,10 +1849,27 @@ def clean_prose(text: str, numbers: set[int], config: Config) -> str:
         ("]", "\\]"),
     ):
         text = text.replace(character, escaped)
+    # At any indentation, because trimming the cleaned text can take the
+    # indentation of its first line.
+    text = TILDE_FENCE.sub(r"\1\\", text)
     pieces = re.split(r"\0(\d+)\0", text)
     return joined(
         kept[int(piece)] if index % 2 else piece for index, piece in enumerate(pieces)
     )
+
+
+def settled(
+    pattern: re.Pattern[str], rewrite: Callable[[re.Match[str]], str], text: str
+) -> str:
+    """The text with each match of the pattern rewritten, again until none is left.
+
+    A rewrite can free the next match glued to it, as in @a@b; repeating one rule
+    on its own spares the other rules a reading of the text for each.
+    """
+    previous = None
+    while text != previous:
+        previous, text = text, pattern.sub(rewrite, text)
+    return text
 
 
 def comment_parts(text: str) -> tuple[str, str]:
@@ -1821,13 +1918,29 @@ def sanitize(text: str, config: Config, numbers: Iterable[int] = ()) -> str:
     Code stays as it is; issue numbers stay links only when they were checked.
     """
     checked = set(numbers)
-    text = text.replace("\r", "").replace("\0", "")
+    # Before the code is found, so that what is code stays code: strip() takes some
+    # control characters for spaces, which Markdown doesn't, and would turn a line
+    # that starts with one into a fence after the code was found.
+    text = STRAY_CONTROL.sub("", text).strip()
+
+    def prose(start: int, end: int) -> str:
+        """The text between two pieces of code, cleaned for its place among them."""
+        return clean_prose(
+            text[start:end],
+            checked,
+            config,
+            before=text[start - 1] if start else " ",
+            after=text[end] if end < len(text) else " ",
+        )
+
     parts, last = [], 0
     for match in CODE.finditer(text):
-        parts += [clean_prose(text[last : match.start()], checked, config), match[0]]
+        parts += [prose(last, match.start()), match[0]]
         last = match.end()
-    parts.append(clean_prose(text[last:], checked, config))
-    return joined(parts).strip()
+    parts.append(prose(last, len(text)))
+    # Only the spaces and line breaks that the cleaning left at the ends, which
+    # Markdown reads as such, too.
+    return joined(parts).strip(" \t\n")
 
 
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
@@ -1835,7 +1948,11 @@ CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 
 def one_line(text: str) -> str:
     """The text on one line: each run of blanks, line breaks and control characters,
-    such as the escapes that color a terminal, becomes one space."""
+    such as the escapes that color a terminal, becomes one space.
+
+    Also for a place behind other text in a comment, such as `#7: `, where a fence
+    would start no code block and its code would become text.
+    """
     return " ".join(CONTROL.sub(" ", text).split())
 
 
@@ -2093,7 +2210,17 @@ def thanks(language: str, kind: str, author: str) -> str:
 
 
 def bullets(items: Iterable[str]) -> str:
-    return "\n".join(f"- {item}" for item in items)
+    """A Markdown list of the items, each with all its lines.
+
+    The lines after the first are indented under the bullet: without, the first of
+    them would end the list item, and a code block in it with the item, so that the
+    rest of the code became text. Tabs that indent a line become spaces, because
+    under the bullet they would reach other tab stops than in the item alone.
+    """
+    return "\n".join(
+        "- " + CONTINUATION.sub(lambda m: "\n  " + m[1].expandtabs(4), item)
+        for item in items
+    )
 
 
 @dataclass
@@ -2149,7 +2276,7 @@ def render_analysis(
                     language,
                     "duplicate.text",
                     number=number,
-                    reason=clean(findings.duplicate_reason),
+                    reason=clean(one_line(findings.duplicate_reason)),
                 )
                 + "\n\n"
                 + say(language, "duplicate.close", number=number)
@@ -2343,7 +2470,7 @@ def check_findings(
     findings.related = [
         f"#{entry}"
         + (f" ({say(language, 'discussion')})" if kind == "discussion" else "")
-        + f": {sanitize(reason, config, findings.numbers)}"
+        + f": {sanitize(one_line(reason), config, findings.numbers)}"
         for entry, kind, reason in related
     ]
     findings.references = references(answer["references"], sha, language, config)
@@ -2358,7 +2485,7 @@ def references(
     for item in items:
         link = reference_link(item, tracked, sha, language, config)
         if link and link not in links:
-            links[link] = sanitize(item["reason"], config)
+            links[link] = sanitize(one_line(item["reason"]), config)
     return [f"{link}: {reason}" for link, reason in links.items()]
 
 
