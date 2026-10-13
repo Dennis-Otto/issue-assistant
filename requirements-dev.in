@@ -1,6 +1,7 @@
 # Tools for the tests and checks; compile requirements-dev.txt with
 #   pip-compile --generate-hashes --allow-unsafe requirements-dev.in
 coverage
+graphql-core
 hypothesis
 markdown-it-py
 mypy

@@ -5,13 +5,18 @@ name: Action test
 # runner of the templates: installed into the sample repository and into a copy of
 # this repository, whose set-ups it checks, and behind the egress block of the
 # templates. The action runs on the runner's own Python, without PyYAML: check falls
-# back to yq, as it does in every repository that uses the action.
+# back to yq, as it does in every repository that uses the action. The commands
+# that only read run against GitHub itself, and every week the GraphQL documents of
+# the script meet GitHub's schema of that day, so that a change of GitHub's API
+# fails here before it fails in a repository that uses the action.
 # https://github.com/Dennis-Otto/repo-blueprint
 
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "29 4 * * 4"
   workflow_dispatch:
 
 permissions:
@@ -82,15 +87,18 @@ jobs:
         with:
           command: check
 
-  # The action behind the egress block of the templates, in dry runs of the commands
-  # that read the most of GitHub. A host that the action or the GitHub CLI starts to
-  # need fails here, before a release blocks it in every repository.
+  # The action of this commit against GitHub itself, behind the egress block of the
+  # templates, with a token that can only read: dry runs of the commands that read
+  # the most of GitHub, and the context of a real issue. So a request that GitHub
+  # refuses, or a host that the action or the GitHub CLI starts to need, fails here,
+  # before a release brings it to every repository.
   egress:
     name: action behind the egress block
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
+      discussions: read
       issues: read
       pull-requests: read
     steps:
@@ -115,3 +123,72 @@ jobs:
         with:
           command: sync-labels
           dry-run: true
+      # This repository has few issues and no discussions. A closed issue with
+      # comments of a public repository that uses the action, among its other issues
+      # and discussions, reads all that context reads, the GraphQL query of the
+      # discussions too, whose error would only leave the discussions out.
+      - name: Write the context of a real issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: Dennis-Otto/ha-autodarts
+          GH_TELEMETRY: "false"
+        run: |
+          python3 issue_assistant.py context --issue 105 --mode triage
+          for file in issue.md labels.md issues.jsonl discussions.jsonl prompt.md schema.json; do
+            if [[ ! -s ".issue-assistant/$file" ]]; then
+              echo "::error::context wrote no .issue-assistant/$file"
+              exit 1
+            fi
+          done
+          wc -l .issue-assistant/*.jsonl
+
+  # GitHub changes its API without a release of the action. The tests check the
+  # GraphQL documents of the script against the copy of GitHub's schema in
+  # tests/github/; here, every week, they meet the schema of that day. A copy that
+  # is behind only gets a notice: refresh it in a pull request.
+  schema:
+    name: GraphQL against GitHub's current schema
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Record the network traffic of the job
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install the hash-pinned tools
+        run: pip install --require-hashes -r requirements-dev.txt
+      - name: Download GitHub's schema of today
+        id: download
+        run: >-
+          curl --fail --silent --show-error --location --retry 3
+          --output "$RUNNER_TEMP/schema.docs.graphql"
+          https://docs.github.com/public/fpt/schema.docs.graphql
+      - name: Check the GraphQL documents against it
+        env:
+          GRAPHQL_SCHEMA: ${{ runner.temp }}/schema.docs.graphql
+        run: python -m pytest -p no:cacheprovider tests/test_graphql_contract.py
+      # Also when a document fails: the changes of the schema show what GitHub changed.
+      - name: Compare it with the copy in tests/github/
+        if: ${{ !cancelled() && steps.download.outcome == 'success' }}
+        run: |
+          if cmp --silent "$RUNNER_TEMP/schema.docs.graphql" tests/github/schema.docs.graphql; then
+            echo "The copy of GitHub's schema in tests/github/ is current." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::GitHub's schema has changed since the copy in tests/github/; refresh it in a pull request (see tests/test_graphql_contract.py)."
+            {
+              echo "GitHub's schema has changed since the copy in tests/github/:"
+              echo
+              echo '```'
+              diff --unified=0 tests/github/schema.docs.graphql "$RUNNER_TEMP/schema.docs.graphql" | grep -E '^[-+][^-+]' | head -n 40 || true
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
