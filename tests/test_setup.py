@@ -2,12 +2,12 @@
 
 import dataclasses
 import json
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath
 
 import pytest
 
 import issue_assistant as assistant
-from support import REF, REPOSITORY, run_main
+from support import REF, REPOSITORY, FakeGitHub, make_alert, run_main
 
 
 def test_the_settings_are_read_with_defaults(config, root):
@@ -49,16 +49,18 @@ def test_settings_without_labels_or_project_are_refused(root):
 # install
 
 
-def test_install_writes_the_workflows_with_the_release(root):
-    workflow = (root / ".github/workflows/issue-assistant.yml").read_text("utf-8")
+def test_install_writes_the_workflows_with_the_release(sample_root):
+    workflow = (sample_root / ".github/workflows/issue-assistant.yml").read_text(
+        "utf-8"
+    )
     assert f"uses: Dennis-Otto/issue-assistant@{REF} # v1.0.0" in workflow
     assert workflow.count(f"Dennis-Otto/issue-assistant@{REF} # v1.0.0") == 4
     for name in ("issue-lifecycle.yml", "labels.yml"):
-        assert (root / ".github/workflows" / name).is_file()
-    assert (root / ".github/egress-firewall.yaml").read_text("utf-8") == (
+        assert (sample_root / ".github/workflows" / name).is_file()
+    assert (sample_root / ".github/egress-firewall.yaml").read_text("utf-8") == (
         assistant.TOOL / assistant.FIREWALL
     ).read_text("utf-8")
-    assert "/.issue-assistant/" in (root / ".gitignore").read_text("utf-8")
+    assert "/.issue-assistant/" in (sample_root / ".gitignore").read_text("utf-8")
 
 
 def test_install_keeps_what_the_repository_has(tmp_path):
@@ -327,13 +329,114 @@ def test_the_tool_files_are_where_the_action_expects_them():
         assert (assistant.TOOL / assistant.WORKFLOWS / name).is_file()
 
 
-def test_another_checkout_can_be_checked(monkeypatch, tmp_path, root):
+def test_another_checkout_can_be_checked(monkeypatch, tmp_path, sample_root):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     code, _, summary = run_main(
-        monkeypatch, tmp_path, elsewhere, None, "check", ISSUE_ASSISTANT_ROOT=str(root)
+        monkeypatch,
+        tmp_path,
+        elsewhere,
+        None,
+        "check",
+        ISSUE_ASSISTANT_ROOT=str(sample_root),
     )
     assert code == 0 and "Everything fits." in summary
+
+
+@pytest.mark.parametrize("command", ["check", "engine"])
+def test_commands_that_read_only_the_checkout_need_no_repository(
+    monkeypatch, tmp_path, sample_root, capsys, command
+):
+    code, _, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        None,
+        command,
+        GH_REPO="",
+        GITHUB_REPOSITORY="",
+    )
+    assert code == 0
+    assert "::error::" not in capsys.readouterr().out
+
+
+# The same messages on every system
+
+
+def test_the_files_of_a_repository_are_named_with_slashes():
+    """A Path prints backslashes on Windows; a PurePosixPath prints slashes anywhere."""
+    relative = {
+        name: value
+        for name, value in vars(assistant).items()
+        if isinstance(value, PurePath) and not value.is_absolute()
+    }
+    assert set(relative) >= {
+        "LABELS_FILE",
+        "SETTINGS",
+        "CONTEXT",
+        "WORKFLOWS",
+        "FIREWALL",
+        "ACTIONLINT",
+        "FINDINGS_FILE",
+    }
+    for path in (*relative.values(), *assistant.STARTERS):
+        assert type(path) is PurePosixPath, path
+
+
+def test_messages_name_files_with_slashes(root, config, tmp_path, capsys):
+    """Every message that names a file of the repository, on a broken set-up."""
+    form = root / ".github/ISSUE_TEMPLATE/bug_report.yml"
+    form.write_text(
+        form.read_text("utf-8").replace("  - needs-triage", "  - urgent"),
+        encoding="utf-8",
+    )
+    (root / ".github/workflows/labels.yml").unlink()
+    (root / ".github/egress-firewall.yaml").write_text("mode: log\n", encoding="utf-8")
+    (root / ".github/actionlint.yaml").write_text("{}\n", encoding="utf-8")
+    (root / ".gitignore").unlink()
+    (root / assistant.FINDINGS_FILE).write_text(
+        '[[accept]]\ntool = ""\nrule = ""\nreason = "won\'t fix"\ncomment = "y"\n',
+        encoding="utf-8",
+    )
+    labels = (*config.labels, assistant.Label("bug", "red", "", "kind"))
+    messages = assistant.check(
+        dataclasses.replace(config, labels=labels, hosts=frozenset({"*"}))
+    )
+    messages += assistant.check_config(dataclasses.replace(config, engine="unknown"))
+    (root / assistant.FINDINGS_FILE).write_text("[[accept]\n", encoding="utf-8")
+    messages += assistant.check_accepted_findings(config)
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.load_config(tmp_path, REPOSITORY)
+    messages.append(str(refused.value))
+    messages += assistant.install(root, REF, "v1.0.0")
+    messages += assistant.install(tmp_path / "fresh", REF, "v1.0.0")
+    github = FakeGitHub(config)
+    github.label_store.append({"name": "custom", "color": "ffffff", "node_id": "L_c"})
+    assistant.sync_labels(github, config)
+    messages += capsys.readouterr().out.splitlines()
+    (root / assistant.FINDINGS_FILE).write_text(
+        '[[accept]]\ntool = "Scorecard"\nrule = "CodeReviewID"\n'
+        'reason = "won\'t fix"\ncomment = "One maintainer."\n',
+        encoding="utf-8",
+    )
+    github.alert_store = [make_alert(3), make_alert(4, "CodeQL", "js/xss")]
+    messages += assistant.watch_findings(github, root)[0]
+    messages.append(github.alert_store[0]["dismissed_comment"])
+
+    text = "\n".join(messages)
+    for path in (
+        ".github/ISSUE_TEMPLATE/bug_report.yml",
+        ".github/labels.toml",
+        ".github/issue-assistant/project.md",
+        ".github/issue-assistant/config.toml",
+        ".github/workflows/labels.yml",
+        ".github/egress-firewall.yaml",
+        ".github/actionlint.yaml",
+        ".github/findings.toml",
+        "/.issue-assistant/",
+    ):
+        assert path in text
+    assert [message for message in messages if "\\" in message] == []
 
 
 # Reading YAML without PyYAML

@@ -68,21 +68,21 @@ def test_other_findings_stay_open_and_name_only_number_and_link(config, root):
     assert all(alert["state"] == "open" for alert in github.alert_store)
 
 
-def test_without_accepted_findings_or_code_scanning(config, root):
+def test_without_accepted_findings_or_code_scanning(config):
     github = FakeGitHub(config)
-    assert assistant.watch_findings(github, root) == ([], 0)
+    assert assistant.watch_findings(github, config.root) == ([], 0)
     github.alert_store = None
-    assert assistant.watch_findings(github, root) == (
+    assert assistant.watch_findings(github, config.root) == (
         ["Code scanning isn't set up; there is nothing to check."],
         0,
     )
 
 
-def test_other_errors_of_code_scanning_are_raised(config, root):
+def test_other_errors_of_code_scanning_are_raised(config):
     github = FakeGitHub(config)
     github.alert_error = "gh api: Resource not accessible by integration (HTTP 403)"
     with pytest.raises(assistant.GitHubError):
-        assistant.watch_findings(github, root)
+        assistant.watch_findings(github, config.root)
 
 
 def test_a_dry_run_dismisses_nothing(config, root):
