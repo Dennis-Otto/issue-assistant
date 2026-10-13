@@ -115,14 +115,15 @@ Every task of the AI is one of four: `triage` for a new issue, `follow-up` when 
 ```mermaid
 flowchart TB
   accTitle: Which task an event of an issue gives the AI
-  accDescr: An event of a bot, on a pull request, or a new issue that a maintainer opened gives the AI no task. Otherwise, a new issue gives it triage. An answer of the reporter to the assistant's questions gives it follow-up, at most twice and only while no maintainer joined the conversation since the questions. A comment of a maintainer on a reporter's issue that waits for nobody gives it maintainer-reply. A comment of the reporter within 30 days after a release closed the issue gives it release-reply. A task runs only while the AI is on and its secret is set; otherwise no analysis comes, and labels, reminders and closing go on.
+  accDescr: An event of a bot, on a pull request, or a new issue that a maintainer opened gives the AI no task. Otherwise, a new issue gives it triage. An answer of the reporter to the assistant's questions gives it follow-up, at most twice and only while no maintainer joined the conversation since the questions. A comment of a maintainer on a reporter's issue that waits for nobody gives it maintainer-reply. A comment of the reporter within 30 days after a release closed the issue gives it release-reply. Any other event, such as a comment of someone else, gives it no task. A task runs only while the AI is on and its secret is set; otherwise no analysis comes, and labels, reminders and closing go on.
   start(["an event of an issue"]) --> who{"a bot, a pull<br/>request, or a<br/>maintainer's<br/>new issue?"}
   who -- "yes" --> none["no task"]
   who -- "no" --> what{"what<br/>happened?"}
   what --> triage["<b>triage</b><br/>a new issue"]
   what --> followup["<b>follow-up</b><br/>the reporter<br/>answered; at most<br/>twice, and no<br/>maintainer since"]
-  what --> reply["<b>maintainer-reply</b><br/>a maintainer<br/>wrote on a<br/>reporter's issue that<br/>waits for nobody"]
-  what --> persists["<b>release-reply</b><br/>the reporter<br/>wrote within<br/>30 days after a<br/>release closed it"]
+  what --> reply["<b>maintainer-reply</b><br/>a maintainer<br/>wrote on a<br/>reporter's issue<br/>that waits<br/>for nobody"]
+  what --> persists["<b>release-reply</b><br/>the reporter<br/>wrote within<br/>30 days after<br/>a release<br/>closed it"]
+  what -- "anything else" --> none
   triage & followup & reply & persists --> on{"the AI on,<br/>and its<br/>secret set?"}
   on -- "yes" --> analyze["<b>analyze</b><br/>the AI reads<br/>and answers"]
   on -- "no" --> paused["no analysis;<br/>labels, reminders<br/>and closing go on"]
@@ -267,10 +268,10 @@ flowchart TB
   shipped --> released(["closed with a link to the release,<br/>under its milestone"])
   later --> released
   next --> released
-  classDef fixed fill:#c2e0c666,stroke:#1a7f37
-  classDef question fill:#d4a72c33,stroke:#bf8700
-  classDef release fill:#0969da26,stroke:#0969da
-  classDef done fill:#8250df1f,stroke:#8250df
+  classDef fixed fill:#c2e0c666,stroke:#1a7f37,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef release fill:#0969da26,stroke:#0969da,stroke-width:2px
+  classDef done fill:#8250df1f,stroke:#8250df,stroke-width:2px
   class label fixed
   class fixes,who question
   class shipped,later,next release
