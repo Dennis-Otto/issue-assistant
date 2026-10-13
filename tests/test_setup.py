@@ -2,12 +2,15 @@
 
 import dataclasses
 import json
+import shutil
 from pathlib import Path, PurePath, PurePosixPath
 
 import pytest
 
 import issue_assistant as assistant
 from support import REF, REPOSITORY, FakeGitHub, make_alert, run_main
+
+SAMPLE = Path(__file__).parent / "sample"
 
 
 def test_the_settings_are_read_with_defaults(config, root):
@@ -58,9 +61,33 @@ def test_install_writes_the_workflows_with_the_release(sample_root):
     for name in ("issue-lifecycle.yml", "labels.yml"):
         assert (sample_root / ".github/workflows" / name).is_file()
     assert (sample_root / ".github/egress-firewall.yaml").read_text("utf-8") == (
-        assistant.TOOL / assistant.FIREWALL
+        assistant.TEMPLATES / assistant.FIREWALL
     ).read_text("utf-8")
     assert "/.issue-assistant/" in (sample_root / ".gitignore").read_text("utf-8")
+
+
+def test_install_and_check_read_the_templates_from_templates_alone(
+    monkeypatch, tmp_path
+):
+    """This repository's own workflows and firewall policy are the blueprint's
+    copies of an earlier release, so that a change of a template doesn't fail the
+    required check of the issue assistant; install and check never read them."""
+    monkeypatch.setattr(assistant, "TOOL", tmp_path / "no-tool-folder")
+    root = tmp_path / "project"
+    shutil.copytree(SAMPLE, root)
+    assistant.install(root, REF, "v1.0.0")
+    for name in assistant.TEMPLATE_WORKFLOWS:
+        template = assistant.TEMPLATES / assistant.WORKFLOWS / name
+        # Byte for byte the template, with the release in the pin of the action.
+        assert (root / assistant.WORKFLOWS / name).read_bytes() == (
+            assistant.ACTION_PIN.sub(
+                f"{assistant.ACTION}@{REF} # v1.0.0", template.read_text("utf-8")
+            ).encode()
+        )
+    assert (root / assistant.FIREWALL).read_bytes() == (
+        assistant.TEMPLATES / assistant.FIREWALL
+    ).read_bytes()
+    assert assistant.check(assistant.load_config(root, REPOSITORY)) == []
 
 
 def test_install_keeps_what_the_repository_has(tmp_path):
@@ -323,10 +350,12 @@ def test_the_tool_files_are_where_the_action_expects_them():
     assert tool == assistant.TOOL
     for name in ("rules.md", "triage.md", "follow-up.md", "maintainer-reply.md"):
         assert (assistant.PROMPTS / name).is_file()
+    assert tool / "templates" == assistant.TEMPLATES
     for starter in assistant.STARTERS:
         assert (assistant.TEMPLATES / starter).is_file()
     for name in assistant.TEMPLATE_WORKFLOWS:
-        assert (assistant.TOOL / assistant.WORKFLOWS / name).is_file()
+        assert (assistant.TEMPLATES / assistant.WORKFLOWS / name).is_file()
+    assert (assistant.TEMPLATES / assistant.FIREWALL).is_file()
 
 
 def test_another_checkout_can_be_checked(monkeypatch, tmp_path, sample_root):

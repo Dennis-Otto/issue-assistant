@@ -14,6 +14,7 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 - `check` and `install` name the files of a repository with slashes on Windows too, such as `.github/labels.toml` instead of `.github\labels.toml`.
 - `check` and `engine` no longer need `GH_REPO`, so the check runs on your computer as well. A command that calls GitHub and finds no repository, or one that isn't written as `owner/name`, stops with one clear error instead of a Python traceback.
+- A change of the templates can be released again. The workflows and the firewall policy that `install` writes now live in `templates/`, apart from this repository's own copies, which the repository blueprint brings; before, a pull request that changed a template failed the required check of the set-up. `install` writes exactly what it wrote before, so no repository needs to install again.
 
 ## 1.2.2
 

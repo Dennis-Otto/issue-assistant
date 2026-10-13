@@ -2,8 +2,9 @@
 
 The GitHub Action in action.yml runs this script in the repository it looks after.
 That repository keeps its labels in .github/labels.toml, a description of the
-project and its settings in .github/issue-assistant/, and copies of the three
-workflows with which this repository looks after its own issues; see README.md.
+project and its settings in .github/issue-assistant/, and copies of the four
+workflows and the firewall policy, which install writes from templates/.github/;
+see README.md.
 
 An AI engine from ENGINES writes the analysis. It only reads: the checkout and a
 context folder that `context` writes, with the prompt and the JSON schema of its
@@ -32,7 +33,10 @@ from urllib.parse import quote, urlsplit
 
 TOOL = Path(__file__).resolve().parent
 PROMPTS = TOOL / "prompts"
-# The starter files a repository gets, in the places they go.
+# The files a repository gets, in the places they go: the workflows, the firewall
+# policy and the starter files. This repository's own copies of the workflows and
+# the policy are the blueprint's, of the release that it pins; install and check
+# never read them.
 TEMPLATES = TOOL / "templates"
 # Files of the repository the assistant looks after, relative to its root. Messages
 # name them, so they are written with slashes on every system, Windows too;
@@ -52,9 +56,9 @@ STARTERS = (
     FINDINGS_FILE,
 )
 FIREWALL_RUNNER = "ubuntu-24.04-firewall"
-# The workflows with which this repository looks after its own issues are the
-# templates: install copies them, with the commit hash of the release in the pin of
-# the action, and check compares a repository's workflows with them.
+# The workflows of the templates: install copies them, with the commit hash of the
+# release in the pin of the action, and check compares a repository's workflows
+# with them.
 TEMPLATE_WORKFLOWS = (
     "issue-assistant.yml",
     "issue-lifecycle.yml",
@@ -2549,7 +2553,7 @@ def check_forms(config: Config) -> list[str]:
 def check_workflows(config: Config) -> list[str]:
     problems: list[str] = []
     for name in TEMPLATE_WORKFLOWS:
-        template = TOOL / WORKFLOWS / name
+        template = TEMPLATES / WORKFLOWS / name
         path = config.root / WORKFLOWS / name
         where = str(WORKFLOWS / name)
         if not path.is_file():
@@ -2567,7 +2571,7 @@ def check_workflows(config: Config) -> list[str]:
         problems.append(f"{FIREWALL} is missing; run the install command")
     else:
         policy = load_yaml(firewall)
-        needed = set(load_yaml(TOOL / FIREWALL)["allow"])
+        needed = set(load_yaml(TEMPLATES / FIREWALL)["allow"])
         hosts = set(policy.get("allow") or [])
         if policy.get("mode") != "enforce":
             problems.append(f"{FIREWALL}: mode must be enforce")
@@ -2668,7 +2672,7 @@ def install(root: Path, ref: str, version: str) -> list[str]:
         target.parent.mkdir(parents=True, exist_ok=True)
         content = ACTION_PIN.sub(
             f"{ACTION}@{ref} # {version}",
-            (TOOL / WORKFLOWS / name).read_text(encoding="utf-8"),
+            (TEMPLATES / WORKFLOWS / name).read_text(encoding="utf-8"),
         )
         target.write_text(content, encoding="utf-8", newline="\n")
         done.append(f"wrote {WORKFLOWS / name}")
@@ -2676,7 +2680,7 @@ def install(root: Path, ref: str, version: str) -> list[str]:
     if firewall.is_file():
         done.append(f"kept {FIREWALL}; check that it allows the template's hosts")
     else:
-        shutil.copyfile(TOOL / FIREWALL, firewall)
+        shutil.copyfile(TEMPLATES / FIREWALL, firewall)
         done.append(f"wrote {FIREWALL}")
     for starter in STARTERS:
         target = root / starter
