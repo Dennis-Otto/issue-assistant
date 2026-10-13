@@ -73,7 +73,28 @@ python3 -m venv .venv-docs
 .venv-docs/bin/mkdocs serve
 ```
 
-The pictures in `docs/images` show a demo project, never real issues or people. `scripts/render-images.sh` renders them in Docker, each light and dark, from the texts of `issue_assistant.py` itself; run it after a change of those texts, and commit the pictures with the change. The README shows them with their address on `main`, and `scripts/mkdocs_hooks.py` gives the website its own copies. Diagrams are Mermaid in the Markdown, which GitHub and the website both draw.
+The pictures in `docs/images` show a demo project, never real issues or people. `scripts/render-images.sh` renders them in Docker, each light and dark, from the texts of `issue_assistant.py` itself; run it after a change of those texts, and commit the pictures with the change. They are WebP: the still pictures lossless, as sharp as a PNG at less than a third of its size, and the animation of the life of an issue twice, wide and upright for phones, each with a still picture for readers who asked for less motion. The `<source>`s of a `<picture>` choose among them, the first whose condition holds:
+
+```mermaid
+flowchart TB
+  accTitle: Which picture of the animation a reader sees
+  accDescr: A reader who asked for less motion sees a still picture, upright on a screen up to 600 pixels wide and wide otherwise. Every other reader sees the animation, upright on such a screen and wide otherwise. Each picture comes light or dark, after the theme of the reader.
+  reader(["the README or<br/>the home page"]) --> motion{"less motion<br/>asked for?"}
+  motion -- "yes" --> narrow{"screen up to<br/>600 px wide?"}
+  narrow -- "yes" --> upright["hero-mobile-still"]
+  narrow -- "no" --> still["hero-still"]
+  motion -- "no" --> phone{"screen up to<br/>600 px wide?"}
+  phone -- "yes" --> mobile["hero-mobile,<br/>animated"]
+  phone -- "no" --> hero["hero,<br/>animated"]
+  classDef question fill:#d4a72c33,stroke:#bf8700
+  classDef still fill:#8c959f1f,stroke:#8c959f
+  classDef animated fill:#8250df33,stroke:#8250df
+  class motion,narrow,phone question
+  class upright,still still
+  class mobile,hero animated
+```
+
+Each of them ends in `-light` or `-dark`, after the theme of the reader. The README shows the pictures with their address on `main`, and `scripts/mkdocs_hooks.py` gives the website its own copies: one for each theme, so that the switch in the header chooses, each loaded only while it is shown and with its size, so that the page doesn't jump when it arrives. Diagrams are Mermaid in the Markdown, which GitHub and the website both draw; on a phone, the website lets them scroll sideways.
 
 ## Releases
 

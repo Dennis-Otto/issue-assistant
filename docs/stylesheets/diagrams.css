@@ -1,0 +1,11 @@
+/* The Mermaid diagrams of the website. A diagram fits the width of the page, so on a
+   phone its text would shrink to a few pixels; below this width it keeps it and
+   scrolls sideways instead. scripts/mkdocs_hooks.py puts each diagram into a
+   .diagram, since the theme draws the diagram itself in a closed shadow root. */
+.md-typeset .diagram {
+  overflow-x: auto;
+}
+
+.md-typeset .diagram > .mermaid {
+  min-width: 640px;
+}

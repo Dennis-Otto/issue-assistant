@@ -12,6 +12,12 @@ A GitHub Action that looks after the issues of a repository: a first analysis of
 [Latest release](https://github.com/Dennis-Otto/issue-assistant/releases/latest){ .md-button }
 
 <picture>
+  <source media="(prefers-reduced-motion: reduce) and (max-width: 600px) and (prefers-color-scheme: dark)" srcset="images/hero-mobile-still-dark.webp">
+  <source media="(prefers-reduced-motion: reduce) and (max-width: 600px)" srcset="images/hero-mobile-still-light.webp">
+  <source media="(prefers-reduced-motion: reduce) and (prefers-color-scheme: dark)" srcset="images/hero-still-dark.webp">
+  <source media="(prefers-reduced-motion: reduce)" srcset="images/hero-still-light.webp">
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="images/hero-mobile-dark.webp">
+  <source media="(max-width: 600px)" srcset="images/hero-mobile-light.webp">
   <source media="(prefers-color-scheme: dark)" srcset="images/hero-dark.webp">
   <img src="images/hero-light.webp" alt="Animation: the life of an issue in a demo project. A reporter opens an issue with the bug form; the event job adds the labels area: dashboard and needs-triage; the issue assistant posts a first analysis with the likely cause in the code and the information still needed, and adds connectivity and needs-info; the reporter answers and needs-info goes; a merged pull request marks the issue fixed-in-next-release; the release v1.4.0 closes it with a link to the release">
 </picture>
