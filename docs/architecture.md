@@ -20,7 +20,7 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 | Lifecycle | `sweep` | Reminders after 15 days, closing after 30 days, closing duplicates after 3 days, marking fixed issues, closing them with the release and filing them under its milestone |
 | Labels | `sync_labels` | Create and update the labels of `labels.toml`, never delete one |
 | Findings | `watch_findings` | Dismiss the findings of code scanning that `findings.toml` accepts and fail while others are open |
-| Set-up | `install`, `check` | Write the four workflows and the starter files into a repository, and check that its set-up still fits the templates; both need only the checkout and name its files with slashes on every system |
+| Set-up | `install`, `check` | Write the four workflows, the firewall policy and the starter files of `templates/` into a repository, and check that its set-up still fits the templates; both need only the checkout and name its files with slashes on every system |
 
 ## The workflows of a repository
 
@@ -85,7 +85,46 @@ sequenceDiagram
   P->>G: comment and labels, only on #35;12
 ```
 
-The workflows of this repository are the templates: `install` copies them with the commit hash of the release, and `check` fails when a repository's copy differs in anything but that hash.
+`install` copies the workflows of `templates/` with the commit hash of the release, and `check` fails when a repository's copy differs in anything but the commit hashes of its actions.
+
+## How a change of a template reaches the repositories
+
+The templates are in `templates/.github/`: the four workflows, the firewall policy and the starter files that `install` writes. This repository looks after its own issues with the same workflows, but its copies in `.github/` belong to the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint): every update of the blueprint writes them anew, as the templates of the release of the issue assistant that the blueprint pins. Nothing reads these copies, and no test compares them with `templates/`, because they are a release behind after every change of a template. [Decision 0007](decisions/0007-templates-live-in-templates.md) explains why.
+
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
+flowchart TB
+    accTitle: How a change of a template reaches the repositories
+    accDescr: A pull request in this repository changes templates/. Its checks lint the templates and check the set-up with them installed, while the required check issue-assistant compares this repository's own workflows with the release that they pin, so it stays green. Merged, the change becomes a release. A pull request in the repository blueprint installs that release there and moves the pins of the action. The next release of the blueprint brings it to every repository made from it, this one too. Repositories without the blueprint get the release from Dependabot and run install again.
+
+    change["Pull request here<br>changes <code>templates/</code> alone"]
+    checks["Its checks pass<br>templates linted and installed<br>own workflows: the pinned release"]
+    release["Release <b>vX.Y.Z</b><br>its notes name the changed templates"]
+    sync["Pull request in the blueprint<br><code>install</code> of vX.Y.Z<br>new pins of the action"]
+    rollout(["Blueprint bot<br>an update pull request<br>in every repository of the blueprint"])
+    fleet["Every repository of the blueprint<br>this one too<br>the templates of vX.Y.Z"]
+    others["Repositories without the blueprint<br>Dependabot moves the pin<br><code>install</code> again"]
+
+    change --> checks --> release
+    release --> sync --> rollout --> fleet
+    release --> others
+
+    classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
+    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
+    class sync,rollout bot
+    class change,others person
+    class fleet done
+```
+
+1. **A pull request here** changes `templates/`, never the copies in `.github/`. `tests/test_templates.py` pins the rules of the templates. The Action test lints them with actionlint and zizmor, installs them into the sample repository and into a copy of this repository, and checks both set-ups through the action. The required check `issue-assistant` runs `check` of the release that the Lint workflow pins, on this repository's own copies, which the pull request leaves as they are.
+2. **The release** of the change is a new minor version, and its notes say that repositories run `install` again.
+3. **The blueprint takes the release over** in a pull request of its own: it runs `install` of the release in its root, takes over the firewall policy of `templates/` and moves every pin of the action, that of the check in its Lint workflow too. A pull request that changed only the blueprint's copies would fail the check `issue-assistant` there in the same way.
+4. **The next release of the blueprint** reaches every repository made from it, this one too, as an update pull request of the blueprint bot. Repositories that use the action without the blueprint receive the release as a Dependabot pull request and run `install` again.
 
 ## Design decisions
 

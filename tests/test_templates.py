@@ -5,9 +5,11 @@ engine a write permission, a tool that runs code or reaches the network, when an
 engine has no rules here, or when untrusted text reaches a shell script.
 """
 
+import dataclasses
 import json
 import re
 import shlex
+import shutil
 import tomllib
 from pathlib import Path
 
@@ -17,8 +19,12 @@ import yaml
 import issue_assistant as assistant
 
 ROOT = Path(assistant.__file__).parent
-# The workflows with which this repository looks after its issues are the templates.
-TEMPLATES = OWN = ROOT / assistant.WORKFLOWS
+# The workflows that install writes into a repository.
+TEMPLATES = assistant.TEMPLATES / assistant.WORKFLOWS
+# This repository's own workflows. The blueprint brings them, the four of the issue
+# assistant too, which are the templates of the release that it pins; no test
+# compares those with the templates of this commit.
+OWN = ROOT / assistant.WORKFLOWS
 NAMES = assistant.TEMPLATE_WORKFLOWS
 
 
@@ -83,11 +89,18 @@ def steps(path):
     ]
 
 
-WORKFLOWS = sorted(OWN.glob("*.yml"))
+# The templates and this repository's own workflows.
+WORKFLOWS = sorted(TEMPLATES.glob("*.yml")) + sorted(OWN.glob("*.yml"))
 
 
-def test_the_templates_are_three_of_this_repository_s_workflows():
-    assert set(NAMES) <= {path.name for path in WORKFLOWS}
+def workflow_id(path):
+    return path.relative_to(ROOT).as_posix()
+
+
+def test_the_templates_are_the_workflows_that_install_writes():
+    assert sorted(path.name for path in TEMPLATES.iterdir()) == sorted(NAMES)
+    # This repository looks after its own issues with them as well.
+    assert set(NAMES) <= {path.name for path in OWN.glob("*.yml")}
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -101,7 +114,7 @@ def test_templates_start_without_permissions_and_not_in_forks(name):
     assert "!github.event.repository.fork" in first["if"]
 
 
-@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
+@pytest.mark.parametrize("path", WORKFLOWS, ids=workflow_id)
 def test_actions_are_pinned_and_checkouts_keep_no_credentials(path):
     # Workflows that issues, comments or other workflows start run the default branch;
     # the release workflow checks out the tag that it releases.
@@ -134,7 +147,7 @@ def test_install_finds_every_pin_of_the_action():
         assert uses and all(assistant.ACTION_PIN.fullmatch(pin) for pin in uses)
 
 
-@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
+@pytest.mark.parametrize("path", WORKFLOWS, ids=workflow_id)
 def test_untrusted_text_never_reaches_a_shell_script(path):
     for job_name, step in steps(path):
         script = step.get("run", "")
@@ -300,7 +313,7 @@ def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
 
 
 def test_the_firewall_template_allows_only_named_hosts():
-    policy = load(ROOT / assistant.FIREWALL)
+    policy = load(assistant.TEMPLATES / assistant.FIREWALL)
     assert policy["mode"] == "enforce"
     assert "no-default-urls" not in policy
     hosts = policy["allow"]
@@ -349,10 +362,31 @@ def test_the_action_metadata_is_complete():
     assert len(ACTION["description"]) <= 125, "the Marketplace shows 125 characters"
 
 
-def test_this_repository_s_own_settings_fit():
+def test_this_repository_s_own_settings_fit(tmp_path):
+    """The repository uses the action itself, so the whole check applies.
+
+    Its workflows and firewall policy are the blueprint's copies of the templates of
+    the release that it pins, which the check issue-assistant of the Lint workflow
+    compares with them. Here the check of this commit sees the set-up as the
+    blueprint brings it with the next release: with the templates of this commit.
+    """
     config = assistant.load_config(ROOT, "Dennis-Otto/issue-assistant")
-    # The repository uses the action itself, so the whole check applies.
-    assert assistant.check(config) == []
+    own = tmp_path / "issue-assistant"
+    shutil.copytree(
+        ROOT / ".github",
+        own / ".github",
+        ignore=shutil.ignore_patterns("node_modules"),
+    )
+    for name in (".gitignore", *config.notices):
+        (own / name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / name, own / name)
+    (own / assistant.FIREWALL).unlink()
+    done = assistant.install(own, "0" * 40, "v1.0.0")
+    # The starter files and the entry of .gitignore are all there already.
+    assert done == [f"wrote {assistant.WORKFLOWS / name}" for name in NAMES] + [
+        f"wrote {assistant.FIREWALL}"
+    ]
+    assert assistant.check(dataclasses.replace(config, root=own)) == []
     defined = {label.name for label in config.labels}
     # The labels that the release bot, the branch bot and Dependabot set.
     used = {"autorelease: pending", "autorelease: tagged", "merge-conflict"}

@@ -5,4 +5,15 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["local>Dennis-Otto/issue-assistant//.github/renovate-blueprint.json5"],
+  packageRules: [
+    {
+      // Renovate's manager for GitHub Actions reads templates/.github/workflows/
+      // too, so the actions of the templates stay current. The pins of the issue
+      // assistant itself there are placeholders: install writes the commit hash of
+      // its release into them.
+      matchFileNames: ["templates/**"],
+      matchDepNames: ["Dennis-Otto/issue-assistant"],
+      enabled: false,
+    },
+  ],
 }
