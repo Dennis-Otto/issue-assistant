@@ -9,6 +9,10 @@ All notable changes of the issue assistant. The complete notes of every version,
 - The website loads only the pictures that it shows: the copy for the other theme is no longer downloaded, so the home page needs about half the data, 650 KB instead of 1.25 MB on a phone. The still pictures are lossless WebP instead of PNG, at less than a third of the size, and keep their place on the page while they load.
 - On a phone, the animation of the life of an issue stands upright, with text that is readable, on GitHub and on the website. Readers who asked their system for less motion see a still picture of the first analysis instead. Diagrams on the website scroll sideways on a phone instead of shrinking their text to a few pixels.
 
+### Security
+
+- One issue can no longer stall the AI analysis of a whole repository. Each analysis reads the text of every issue, and some crafted texts, such as a form heading `###` followed by many blanks, or many `<!--` or `<a` without an end, kept the reading busy for hours, so every later analysis ran until its job timed out. The answers of issue forms, HTML comments and tags are now read in time that grows only with the length of a text, at most GitHub's 65,536 characters. The AI reads at most 20,000 characters of each text of its issue, marked "(shortened)" after that, and a `<!--` without its end hides the rest of a text from it, as GitHub hides it from people. A new fuzz target, `fuzz/fuzz_issue_text.py`, fails when reading a crafted text takes longer than half a second.
+
 ### Fixed
 
 - `check` and `install` name the files of a repository with slashes on Windows too, such as `.github/labels.toml` instead of `.github\labels.toml`.

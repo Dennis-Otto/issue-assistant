@@ -13,7 +13,7 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 | GitHub client | the class `GitHub` | Every read and write through `gh api`; in a dry run it only records what it would write |
 | Settings | `load_config`, `load_labels`, `load_findings` | Read `.github/issue-assistant/config.toml`, `.github/labels.toml` and `.github/findings.toml` of the repository |
 | Events | `handle_event` | Labels from the issue forms, and the next task of the engine: `triage`, `follow-up`, `maintainer-reply` or `release-reply` |
-| Context | `write_context` | Writes the issue, its comments, related issues and discussions, the labels, the prompt and the JSON schema of the answer into `.issue-assistant/`, for the engine to read |
+| Context | `write_context` | Writes the issue, its comments, related issues and discussions, the labels, the prompt and the JSON schema of the answer into `.issue-assistant/`, for the engine to read; [each text is read in linear time](#reading-the-text-of-issues) |
 | Prompts | `prompts/` | The rules of every task, which call the content of the issue data, not instructions |
 | Checks of the answer | `answer_schema`, `validate`, `parse_answer`, `looks_secret`, `sanitize` | Check the engine's JSON against its schema, the labels and the issues that exist; refuse anything that looks like a secret; clean the text of mentions, images, HTML and links to other sites |
 | Writing | `apply_answer` and the `render_*` functions | Post the comment, set the labels and mark duplicates, only on the issue of the event |
@@ -87,9 +87,36 @@ sequenceDiagram
 
 The workflows of this repository are the templates: `install` copies them with the commit hash of the release, and `check` fails when a repository's copy differs in anything but that hash.
 
+## Reading the text of issues
+
+Anyone can write an issue, and every analysis reads the text of every issue of the repository, open or closed, for the excerpts of the other issues. One text that kept a pattern busy for minutes would stall every analysis until its job timed out. So the time to read a text grows only with its length:
+
+```mermaid
+flowchart TB
+  accTitle: How the assistant reads the text of an issue
+  accDescr: The text of an issue or a comment, which anyone can write, is read up to GitHub's 65,536 characters. The answers of a form are cut out between their headings, which are found once; HTML comments and tags go in one pass. From that come the labels of the form and the reporter's language, an excerpt of each other issue from the start of its text, and issue.md with up to 20,000 characters of each text.
+  text["issue or comment text,<br/>which anyone writes"] --> cap["at most 65,536 characters,<br/>as much as GitHub keeps"]
+  cap --> forms["<b>form_fields</b><br/>each heading found once,<br/>answers cut out between"]
+  cap --> html["<b>strip_html</b><br/>comments and tags<br/>in one pass"]
+  forms --> event["labels of the form,<br/>the reporter's language"]
+  forms --> excerpt["<b>excerpt</b> of every other<br/>issue, from its start"]
+  html --> issue["<b>issue.md</b>, up to 20,000<br/>characters of each text"]
+  classDef untrusted fill:#cf222e26,stroke:#cf222e
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class text untrusted
+  class cap,forms,html job
+  class event,excerpt,issue safe
+```
+
+- **No pattern backtracks.** Each one looks at a character a bounded number of times: a form heading is one line, a tag ends on its line, and when no `>` closes a tag on its line, the rest of the line is passed over in one step.
+- **HTML comments go as GitHub hides them.** A comment without its end hides the rest of the text, as on GitHub after a line that starts with `<!--`, so instructions hidden that way don't reach the AI either.
+- **Tests and fuzzing time it.** The tests read texts of 64 KiB that took the earlier patterns up to hours, and compare the results with theirs on ordinary texts; `fuzz/fuzz_issue_text.py` fails when reading a crafted text takes longer than half a second.
+
 ## Design decisions
 
 - **The AI only reads, and a job without the AI writes.** The answer of the engine is data that `apply` checks before anything reaches GitHub.
 - **Everything but one step is independent of the engine.** Context, prompts, checks and writes are the same for every engine; a new engine is a step and an entry of `ENGINES`, as the [README](https://github.com/Dennis-Otto/issue-assistant#engines) describes.
+- **No text can make it slow.** Issues come from anyone, so every pattern that reads them takes time linear in the length of the text.
 - **No third-party packages.** The script needs only the standard library, `gh` and `git`, which GitHub's runners have.
 - **The maintainer has the last word.** The assistant labels, asks and suggests; it never decides on behalf of the maintainer.

@@ -32,6 +32,21 @@ Live card
 
 _No response_
 """
+# How the assistant read forms and HTML before its patterns took linear time, for
+# the tests to compare with. Their quantifiers overlap, so that some texts took the
+# form pattern hours and the HTML pattern seconds; give them short texts only.
+EARLIER_FORM_FIELD = re.compile(
+    r"^###[ \t]+(.+?)[ \t]*\n(.*?)(?=^###[ \t]|\Z)", re.MULTILINE | re.DOTALL
+)
+EARLIER_HTML = re.compile(r"<!--.*?-->|</?[A-Za-z][^>\n]*>", re.DOTALL)
+
+
+def earlier_form_fields(body):
+    fields = {}
+    for match in EARLIER_FORM_FIELD.finditer(body):
+        value = match[2].strip()
+        fields[match[1].strip()] = "" if value == "_No response_" else value
+    return fields
 
 
 def at(days_ago: float = 0) -> str:

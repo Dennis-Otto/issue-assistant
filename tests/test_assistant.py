@@ -5,6 +5,7 @@ import json
 import re
 import runpy
 import sys
+import time
 from datetime import UTC, datetime
 
 import pytest
@@ -18,6 +19,7 @@ from support import (
     FakeGitHub,
     analysis,
     at,
+    earlier_form_fields,
     make_answer,
     make_comment,
     make_follow_up,
@@ -26,6 +28,18 @@ from support import (
     make_release,
     run_main,
 )
+
+
+def fast(seconds, function, *args):
+    """Whether a call takes less processor time than the seconds, in the best of three
+    tries: a busy machine can slow down one try, but not a pattern that backtracks."""
+    for _ in range(3):
+        start = time.process_time()
+        function(*args)
+        if time.process_time() - start < seconds:
+            return True
+    return False
+
 
 # Reading issues
 
@@ -36,6 +50,83 @@ def test_form_answers_are_read_by_their_label():
     assert fields["Version"] == "1.9.0"
     assert fields["Last version that worked"] == ""
     assert assistant.form_fields("Just text") == {}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        BUG_BODY,
+        BUG_BODY.replace("\n", "\r\n"),
+        "### Area\n\nOther\n",
+        "### What happened?\n\nOld\n\n### Area\n\n_No response_\n",
+        "### What happened?\n\nThe card <!-- hidden --> is empty.\n",
+        # Headings back to back, with tabs, and an answer without a line break.
+        "### Area\n### Version\n1.9.0\n###\tSteps\t\n\n1. Throw\n2. Look",
+        "###  \n\nNo label\n",
+        # Text before the first heading; other headings and code in an answer.
+        "Hello\n\n### Logs\n\n```text\n#### not a heading\n###no blank\n```\n#### Sub\n",
+        # A label twice keeps its last answer, in the place of the first.
+        "### A\n\none\n\n### B\n\ntwo\n\n### A\n\nthree\n",
+        "### Größe\n\n12 cm\n\n### 型号\n\nX-1\n",
+        "Just text",
+        "",
+    ],
+)
+def test_forms_read_as_they_always_did(body):
+    assert assistant.form_fields(body) == earlier_form_fields(body)
+
+
+def test_a_form_heading_is_one_whole_line():
+    # The label of a heading is never the next line, and a heading at the very end
+    # of the text has an empty answer; earlier, neither was so.
+    assert assistant.form_fields("### \nArea\n") == {"": "Area"}
+    assert assistant.form_fields("### Area\n\nLive card\n\n### Version") == {
+        "Area": "Live card",
+        "Version": "",
+    }
+
+
+def test_only_as_much_of_a_text_as_github_keeps_is_read():
+    assert assistant.text_of({"body": "x" * 70_000}) == "x" * assistant.MAX_TEXT
+    assert assistant.text_of({"body": None}) == ""
+    assert assistant.text_of({}) == ""
+
+
+# Texts of 64 KiB on which the earlier patterns took up to hours: blanks after a
+# heading, comments and tags that never close, and many of them.
+SLOW_TEXTS = {
+    "blanks after a heading": "### " + " " * 65_000 + "x",
+    "tabs after a heading": "### " + "\t" * 65_000 + "x",
+    "headings alone": "### a\n" * 10_922,
+    "unclosed comments": "<!--" * 16_384,
+    "unclosed tags": "<a" * 32_768,
+    "unclosed tags and comments": "<a <!--\n" * 8_192,
+    "a tag on every line": "</a\n" * 16_384,
+}
+
+
+@pytest.mark.parametrize("text", SLOW_TEXTS.values(), ids=SLOW_TEXTS)
+def test_no_text_makes_reading_an_issue_slow(text):
+    issue = make_issue(body=text)
+    comments = [make_comment(number, "reporter", text, 0) for number in (1, 2, 3)]
+    for function, *args in (
+        (assistant.form_fields, text),
+        (assistant.excerpt, text, 1500),
+        (assistant.excerpt, text, assistant.MAX_TEXT // 4),
+        (assistant.render_issue, issue, comments),
+        (assistant.issue_language, issue, comments),
+    ):
+        assert fast(0.5, function, *args), function.__name__
+
+
+def test_html_is_removed_as_github_hides_it():
+    assert assistant.strip_html("a<b>b</b> <!-- c\n-->d") == "ab d"
+    # A comment without its end hides the rest, as on GitHub.
+    assert assistant.strip_html("Shown <!-- hidden\n\nto the end") == "Shown "
+    # A tag ends on its own line; tag starts that nothing closes stay text, and a
+    # comment after them still goes.
+    assert assistant.strip_html("<a <b\n<i>x</i> 1 < 2") == "<a <b\nx 1 < 2"
+    assert assistant.strip_html("<a <!-- x\n--> y") == "<a  y"
 
 
 def test_the_area_of_the_form_becomes_a_label(config):
@@ -539,6 +630,25 @@ def test_excerpts_are_short_and_without_empty_answers():
     assert assistant.excerpt("a   b\n\n\n\nc", 100) == "a b\n\nc"
 
 
+def test_an_excerpt_reads_only_the_start_of_a_text():
+    # Four times the length of the excerpt: here the comment ends within it, and with
+    # a shorter excerpt it doesn't, so it hides the rest.
+    text = "<!-- " + "x" * 400 + " -->Shown"
+    assert assistant.excerpt(text, 200) == "Shown"
+    assert assistant.excerpt(text, 100) == ""
+
+
+def test_the_engine_reads_at_most_20_000_characters_of_each_text():
+    long = "word " * 5_000
+    issue = make_issue(body=long)
+    text = assistant.render_issue(issue, [make_comment(2, "reporter", long, 0)])
+    assert text.count("word") == 2 * 4_000
+    assert text.count("word\n\n(shortened)\n") == 2
+    exact = "x" * assistant.MAX_RENDERED_TEXT
+    assert assistant.rendered_text(exact) == exact
+    assert assistant.rendered_text(exact + "y") == exact + "\n\n(shortened)"
+
+
 # The engine's answer
 
 
@@ -755,6 +865,25 @@ def test_tricky_text_is_cleaned_safely(config, text, cleaned):
 
 def test_code_written_next_to_code_keeps_its_own_backticks(config):
     assert assistant.joined(["`a`", "`b`", "c", "`d`"]) == "`a` `b`c`d`"
+
+
+@pytest.mark.parametrize(
+    ("text", "seconds"),
+    [
+        # Each glued mention or reference takes a round of its own.
+        ("#1" * 1_250, 2),
+        ("@a" * 1_250, 2),
+        ("<!--" * 16_384, 0.5),
+        ("<a" * 32_768, 0.5),
+    ],
+    ids=["references", "mentions", "unclosed comments", "unclosed tags"],
+)
+def test_no_text_makes_the_cleaning_slow(config, text, seconds):
+    assert fast(seconds, assistant.sanitize, text, config)
+
+
+def test_an_unclosed_comment_hides_the_rest_of_the_text(config):
+    assert assistant.sanitize("Done. <!-- @maintainer\n\nmore", config) == "Done."
 
 
 # Links to the repository

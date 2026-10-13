@@ -3,7 +3,8 @@
 The engine's answer may be steered by an issue, so these checks don't trust examples:
 Hypothesis generates the text, including the characters that Markdown treats
 specially, and looks for an output that would mention someone, link elsewhere or
-break the checks.
+break the checks. The reading of issues, which anyone writes, is checked the same
+way against how it read them before.
 """
 
 import json
@@ -14,7 +15,7 @@ from hypothesis import strategies as st
 
 import issue_assistant as assistant
 from oracle import CONFIG, problems
-from support import BOT_USER, REPOSITORY
+from support import BOT_USER, EARLIER_HTML, REPOSITORY, earlier_form_fields
 
 # Text made of the pieces that matter for Markdown, mentions and links.
 PIECES = st.sampled_from(
@@ -134,3 +135,72 @@ def test_issue_forms_and_languages_read_any_text(body):
         isinstance(key, str) and isinstance(value, str) for key, value in fields.items()
     )
     assert assistant.detect_language(body) in {"en", "de"}
+
+
+# Lines of issue forms, and of what people write around them.
+FORM_LINE = st.sampled_from(
+    [
+        "### Area",
+        "###\tVersion\t",
+        "###  ",
+        "### ",
+        "###",
+        "### Größe",
+        "### Area\r",
+        "Live card",
+        "_No response_",
+        "",
+        " ",
+        "#### Sub",
+        "###x",
+        " ### y",
+        "```",
+        "text ### z",
+    ]
+)
+FORM = st.one_of(
+    st.text(),
+    st.lists(FORM_LINE, max_size=12).map("\n".join),
+    st.lists(FORM_LINE, max_size=12).map(lambda lines: "\n".join(lines) + "\n"),
+)
+
+
+def headings_are_whole_lines(body):
+    """Whether each heading has a label and a line break after it.
+
+    The earlier reading took the next line as the label of a heading without one,
+    and passed over a heading at the very end of the text.
+    """
+    return all(
+        heading[1].strip() and heading.end() < len(body)
+        for heading in assistant.FORM_HEADING.finditer(body)
+    )
+
+
+@given(FORM)
+def test_any_form_reads_as_it_always_did(body):
+    hypothesis.assume(headings_are_whole_lines(body))
+    assert assistant.form_fields(body) == earlier_form_fields(body)
+
+
+HTML_TEXT = st.lists(
+    st.sampled_from(
+        ["<", ">", "/", "!", "-", "a", "B", " ", "\n", "<!--", "-->", "<b>", "</i>"]
+    ),
+    max_size=40,
+).map("".join)
+
+
+def comments_end(text):
+    """Whether every HTML comment of the text has its end.
+
+    The earlier pattern left a comment without an end as text; now it hides the rest.
+    """
+    start = text.rfind("<!--")
+    return start < 0 or "-->" in text[start + 4 :]
+
+
+@given(HTML_TEXT)
+def test_html_is_removed_as_it_always_was(text):
+    hypothesis.assume(comments_end(text))
+    assert assistant.strip_html(text) == EARLIER_HTML.sub("", text)
