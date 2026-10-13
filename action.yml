@@ -1,9 +1,12 @@
-name: Issue assistant
-description: First analysis of new issues by an AI that only reads, plus labels, duplicates and reminders, all checked before posting.
+# The name and the description are those of the listing on the GitHub Marketplace,
+# where an action named Issue Assistant exists already; the description shows there
+# with at most 125 characters, and the color is the violet of the project.
+name: Read-only issue assistant
+description: "Read-only AI issue triage, checked before posting: cause, missing info, duplicates and labels; reminders; closing on release."
 author: Dennis Otto
 branding:
   icon: message-circle
-  color: blue
+  color: purple
 
 inputs:
   command:
