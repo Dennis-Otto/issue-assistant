@@ -190,11 +190,11 @@ flowchart TB
   answered -- "yes" --> apply["<b>apply</b>, a dry run<br/>with a token that only reads:<br/>the checks of every answer"]
   apply -- "a check fails" --> red
   apply -- "it passes" --> green["the comment it would post,<br/>in the summary"]
-  classDef trigger fill:#d4a72c33,stroke:#bf8700
-  classDef ai fill:#8250df33,stroke:#8250df
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
   class start,fixture,answered trigger
   class analyze ai
   class apply job
