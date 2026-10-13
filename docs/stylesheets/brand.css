@@ -1,0 +1,69 @@
+/* The colours of the issue assistant: the violet of its badge on the Marketplace, of
+   the hero and of the social preview, for the header, the links and the buttons.
+   mkdocs.yml sets the primary and the accent colour of both themes to custom, so that
+   these apply. White on the violet has a contrast of 8.7:1, the paler text of the
+   tabs 5.1:1, and the links 8.7:1 on white and 6.3:1 on the dark theme;
+   tests/test_docs.py checks each of them. */
+:root > * {
+  --md-primary-fg-color: #5a32a3;
+  --md-primary-fg-color--light: #8250df;
+  --md-primary-fg-color--dark: #3f2178;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+  --md-accent-fg-color: #8250df;
+  --md-accent-fg-color--transparent: #8250df1a;
+  --md-accent-bg-color: #ffffff;
+  --md-accent-bg-color--light: #ffffffb3;
+}
+
+/* The dark theme keeps the violet header, but its links and what a pointer touches
+   are lighter, to stand out from the dark background. */
+[data-md-color-scheme="slate"][data-md-color-primary="custom"] {
+  --md-typeset-a-color: #b392f0;
+}
+
+[data-md-color-scheme="slate"][data-md-color-accent="custom"] {
+  --md-accent-fg-color: #d2a8ff;
+  --md-accent-fg-color--transparent: #d2a8ff1a;
+  /* The text on the light accent, such as that of a button under the pointer. */
+  --md-accent-bg-color: #1e2129;
+  --md-accent-bg-color--light: #1e2129b3;
+}
+
+/* A button without a fill takes the colour of the links, which the dark background
+   shows; the violet of the header would have a contrast of 1.9:1 there. */
+[data-md-color-scheme="slate"] .md-typeset .md-button:not(.md-button--primary, :hover, :focus) {
+  color: var(--md-typeset-a-color);
+}
+
+/* Links in the text are underlined, as on GitHub: their colour alone sets them apart
+   from the text around them by less than the 3:1 that WCAG asks for, 1.9:1 in the
+   light theme. Buttons, the anchors of headings and pictures stay as they are. */
+.md-typeset :is(p, li, td, dd) a:not(.md-button, .headerlink, .glightbox) {
+  text-decoration: underline;
+  text-decoration-thickness: max(1px, 0.06em);
+  text-underline-offset: 0.18em;
+}
+
+/* Code: the theme's grey of comments, punctuation and variables has 4.47:1 on the
+   grey of a code block, and its violet of constants and red of numbers 4.48:1 and
+   4.45:1 in the dark theme, just under the 4.5:1 of WCAG AA; these are a little
+   darker and lighter. */
+[data-md-color-scheme="default"] {
+  --md-code-hl-operator-color: #00000094;
+  --md-code-hl-punctuation-color: #00000094;
+  --md-code-hl-comment-color: #00000094;
+  --md-code-hl-generic-color: #00000094;
+  --md-code-hl-variable-color: #00000094;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-code-hl-number-color: #e9735f;
+  --md-code-hl-constant-color: #9a8be4;
+}
+
+/* Buttons that wrap onto a second line, as those of the home page on a phone, keep
+   a gap between the lines. */
+.md-typeset .md-button {
+  margin-block-end: 0.4rem;
+}

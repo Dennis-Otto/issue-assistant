@@ -14,25 +14,72 @@ repo_url: https://github.com/Dennis-Otto/issue-assistant
 repo_name: Dennis-Otto/issue-assistant
 copyright: "© 2026 Dennis Otto"
 
-# The pictures of the README come from the commit that the website is built from, the
-# switch between light and dark chooses them, and only the shown ones load:
-# scripts/mkdocs_hooks.py. This list replaces that of the blueprint, so it names the
+# The brand: the speech bubble of the social preview as the logo and the icon of the
+# tab, and the violet of the badge of the action for the header, the links and the
+# preview cards; docs/stylesheets/brand.css has the colours. The palette replaces
+# that of the blueprint, so it repeats its switch between light and dark, with the
+# colours of the brand.
+theme:
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+plugins:
+  social:
+    cards_layout_options:
+      background_color: "#5a32a3"
+      color: "#ffffff"
+
+# What the Markdown of the pages can't say itself: scripts/mkdocs_hooks.py. The
+# pictures of the README come from the commit that the website is built from, the
+# switch between light and dark chooses them, and only the shown ones load; the
+# comments of What reporters see and the tables of the inputs and outputs of the
+# action come from issue_assistant.py and action.yml; and every page gets a
+# description of its own. This list replaces that of the blueprint, so it names the
 # hooks of the blueprint too, which try a failed download again.
 hooks:
   - .github/mkdocs_blueprint.py
   - scripts/mkdocs_hooks.py
-# Diagrams that scroll sideways on phones instead of shrinking.
 extra_css:
+  - stylesheets/brand.css
+  # Diagrams that scroll sideways on phones instead of shrinking.
   - stylesheets/diagrams.css
+  # A picture in each theme, with no link to the hidden copy.
+  - stylesheets/pictures.css
+  # The comments of What reporters see, as GitHub shows them.
+  - stylesheets/comments.css
+  # The keys and names in the first column of a table on one line.
+  - stylesheets/tables.css
 
-# The menu. A tab in the header for each section.
+# The menu: a tab in the header for each section, and beside a page the other pages
+# of its section. Get started comes first, since a visitor comes to set it up.
 nav:
   - Home: index.md
-  - Guide: guide.md
-  - FAQ: faq.md
+  - Get started: getting-started.md
+  - Guide:
+      - Overview: guide.md
+      - How it works: how-it-works.md
+      - Configuration: configuration.md
+      - Reference: reference.md
+      - What reporters see: comments.md
+  - Help: faq.md
   - Compare: comparison.md
-  - Architecture: architecture.md
   - Security design: security.md
-  - Roadmap: roadmap.md
-  - Decisions: decisions/README.md
-  - Changelog: changelog.md
+  - Project:
+      - Architecture: architecture.md
+      - Roadmap: roadmap.md
+      - Decisions: decisions/README.md
+      - Changelog: changelog.md
