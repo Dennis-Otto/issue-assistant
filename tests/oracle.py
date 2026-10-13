@@ -26,14 +26,17 @@ examples:
 
 Where GitHub's rules depend on what exists, or on details that a cleaning should not
 rely on, the oracle errs on the safe side: it counts a mention or a reference after
-any character but a letter or a digit, any address that GitHub might link, also in
-the text of a link, and every cell of a table, whether its header fits or not.
+any character but a letter or a digit, and any address that GitHub might link, also
+in the text of a link. A paragraph that might hold a table it reads both as a table
+and as it is, since GitHub makes no table of it when the header has other cells than
+the delimiter row or a quote holds that row, and it counts what either finds.
 """
 
 import re
 import string
 import unicodedata
-from collections.abc import Collection, Iterator
+from collections import Counter
+from collections.abc import Collection, Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import unquote
@@ -61,6 +64,8 @@ class Parser(MarkdownIt):
 
 
 PARSER = Parser("commonmark").disable("text_join")
+# One way to read a paragraph: its parts, each read on its own.
+Reading = list[list[Token]]
 
 # The delimiter row of a table: cells of hyphens, each perhaps with a colon at its
 # ends, between pipes.
@@ -101,43 +106,65 @@ def problems(markdown: str, numbers: Collection[int], config: Config) -> list[st
     repository and the sites that it may link to.
     """
     found: list[str] = []
-    for children in inline_parts(markdown, found):
-        found += judged(children, set(numbers), config)
+    for readings in inline_parts(markdown, found):
+        found += either(
+            [
+                problem
+                for children in reading
+                for problem in judged(children, set(numbers), config)
+            ]
+            for reading in readings
+        )
     if "\0" in markdown or "\r" in markdown:
         found.append("a NUL or carriage return")
     return found
 
 
-def inline_parts(markdown: str, found: list[str]) -> Iterator[list[Token]]:
-    """The inline content of each heading, paragraph and cell of a table, each as
-    GitHub reads it on its own. The HTML blocks go to `found`."""
+def inline_parts(markdown: str, found: list[str]) -> Iterator[list[Reading]]:
+    """The ways in which GitHub might read each heading and paragraph. The HTML
+    blocks go to `found`."""
     env: dict[str, Any] = {}
     tokens = PARSER.parse(markdown, env)
     for index, token in enumerate(tokens):
         if token.type == "html_block":
             found.append(f"HTML {token.content.strip()!r}")
         elif token.type == "inline" and tokens[index - 1].type == "paragraph_open":
-            yield from table_parts(token, env)
+            yield readings(token, env)
         elif token.type == "inline":
-            yield token.children or []
+            yield [[token.children or []]]
 
 
-def table_parts(paragraph: Token, env: dict[str, Any]) -> Iterator[list[Token]]:
-    """A paragraph, or, when it holds a table, its lines before the table and each
-    cell of the table."""
+def readings(paragraph: Token, env: dict[str, Any]) -> list[Reading]:
+    """A paragraph as it is, and, when it might hold a table, first as its lines
+    before the table and each cell of the table."""
+    whole = [paragraph.children or []]
     lines = paragraph.content.split("\n")
     for row in range(1, len(lines)):
         delimiter = lines[row]
         if DELIMITER_ROW.fullmatch(delimiter) and (
             "|" in delimiter or ":" in delimiter
         ):
-            if row > 1:
-                yield inline("\n".join(lines[: row - 1]), env)
-            for line in [lines[row - 1], *lines[row + 1 :]]:
-                for cell in cells(line):
-                    yield inline(cell, env)
-            return
-    yield paragraph.children or []
+            table = [inline("\n".join(lines[: row - 1]), env)] if row > 1 else []
+            table += [
+                inline(cell, env)
+                for line in [lines[row - 1], *lines[row + 1 :]]
+                for cell in cells(line)
+            ]
+            return [table, whole]
+    return [whole]
+
+
+def either(found: Iterable[list[str]]) -> list[str]:
+    """What the readings of a paragraph find, in their order: each problem as often
+    as the reading that finds it most often."""
+    union: list[str] = []
+    for reading in found:
+        more = Counter(reading) - Counter(union)
+        for problem in reading:
+            if more[problem]:
+                more[problem] -= 1
+                union.append(problem)
+    return union
 
 
 def cells(row: str) -> list[str]:

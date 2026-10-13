@@ -12,6 +12,7 @@ import json
 import re
 
 import hypothesis
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -26,6 +27,7 @@ from support import (
     answer_of,
     at,
     earlier_form_fields,
+    make_answer,
     make_comment,
     make_issue,
     posted_comments,
@@ -215,8 +217,39 @@ def test_a_whole_comment_mentions_nobody_and_links_only_allowed_places(
     security policy."""
     answer = answer_of(assistant.answer_schema(mode, sample_config), Drawn(data))
     bodies, numbers = posted_comments(sample_config, mode, answer)
+    # How many answers the checks refuse, for --hypothesis-show-statistics.
+    hypothesis.event("posted" if bodies else "refused")
+    security = answer.get("security_report", False)
     for body in bodies:
-        assert stray_problems(body, numbers, sample_config) == [], body
+        found = stray_problems(body, numbers, sample_config, security=security)
+        assert found == [], body
+
+
+def test_only_the_comment_on_a_security_report_may_link_to_the_policy():
+    answer = make_answer(areas=[], security_report=True)
+    (body,), numbers = posted_comments(CONFIG, "triage", answer)
+    assert stray_problems(body, numbers, CONFIG, security=True) == []
+    assert stray_problems(body, numbers, CONFIG) == [f"link to {CONFIG.policy}"]
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "string", "minLength": 1, "maxLength": 3},
+        {"type": ["string", "null"], "maxLength": 3},
+        {"type": "number"},
+        {
+            "type": "object",
+            "properties": {"n": {"type": "integer", "minimum": 1, "maximum": 9}},
+            "required": ["n"],
+        },
+    ],
+)
+def test_answers_come_from_a_schema_only_if_every_keyword_is_followed(schema):
+    """A keyword that answer_of left out would make answers that the checks refuse,
+    and the property and the fuzzer would test nothing."""
+    with pytest.raises(ValueError, match="answer_of can't build"):
+        answer_of(schema, None)
 
 
 @given(TEXT)

@@ -101,8 +101,9 @@ def test_one_input(data: bytes) -> None:
     # The notice of the invisible characters that the checks remove.
     with contextlib.redirect_stdout(io.StringIO()):
         bodies, numbers = posted_comments(SETTINGS, mode, answer)
+    security = answer.get("security_report", False)
     for body in bodies:
-        found = stray_problems(body, numbers, SETTINGS)
+        found = stray_problems(body, numbers, SETTINGS, security=security)
         if found:
             raise AssertionError(f"{found} in {body!r} from {answer!r}")
 
