@@ -127,13 +127,38 @@ STRAY_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 # code points that Unicode calls default ignorable, which a program shows as nothing
 # when it doesn't know them, such as the variation selectors, which can carry a byte
 # each behind any character, and the fillers of Hangul. A test checks the list
-# against the Unicode of the Python that runs it.
+# against the Unicode of the Python that runs it. The pattern is built from the
+# numbers of the code points, first and last of each range: CodeQL takes the
+# characters above U+FFFF in a pattern for U+FFFD, and their ranges for overlapping.
+INVISIBLE_RANGES = (
+    (0x00AD, 0x00AD),
+    (0x034F, 0x034F),
+    (0x0600, 0x0605),
+    (0x061C, 0x061C),
+    (0x06DD, 0x06DD),
+    (0x070F, 0x070F),
+    (0x0890, 0x0891),
+    (0x08E2, 0x08E2),
+    (0x115F, 0x1160),
+    (0x17B4, 0x17B5),
+    (0x180B, 0x180F),
+    (0x200B, 0x200F),
+    (0x202A, 0x202E),
+    (0x2060, 0x206F),
+    (0x3164, 0x3164),
+    (0xFE00, 0xFE0F),
+    (0xFEFF, 0xFEFF),
+    (0xFFA0, 0xFFA0),
+    (0xFFF0, 0xFFFB),
+    (0x110BD, 0x110BD),
+    (0x110CD, 0x110CD),
+    (0x13430, 0x1343F),
+    (0x1BCA0, 0x1BCA3),
+    (0x1D173, 0x1D17A),
+    (0xE0000, 0xE0FFF),
+)
 INVISIBLE = re.compile(
-    "[\u00ad\u034f\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u115f\u1160"
-    "\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164"
-    "\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb\U000110bd\U000110cd"
-    "\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a"
-    "\U000e0000-\U000e0fff]"
+    "[" + "".join(f"{chr(first)}-{chr(last)}" for first, last in INVISIBLE_RANGES) + "]"
 )
 # Code that Markdown shows as it is, by the rules of CommonMark: a fenced block from
 # a fence line to a closing fence line of the same character and at least the same
