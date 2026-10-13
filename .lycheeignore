@@ -4,3 +4,8 @@
 # The pictures of the documentation on main, which a pull request that adds one can't
 # show yet; tests/test_docs.py checks that each one exists.
 ^https://raw\.githubusercontent\.com/Dennis-Otto/issue-assistant/main/docs/images/
+
+# The pages of the documentation on main, which a pull request that adds one can't
+# link yet; lychee asks raw.githubusercontent.com for them (lychee.toml), and
+# tests/test_docs.py checks that each one exists.
+^https://(github\.com/Dennis-Otto/issue-assistant/blob|raw\.githubusercontent\.com/Dennis-Otto/issue-assistant)/main/docs/[^#?]+\.md

@@ -149,6 +149,32 @@ def test_every_picture_that_the_documentation_shows_on_main_exists():
         assert (ROOT / path).is_file(), f"{name} shows {path}, which doesn't exist"
 
 
+def test_every_page_that_the_documentation_links_on_main_exists():
+    # The link check skips these addresses too, since a pull request that adds a page
+    # can't link it yet. The README links them in full, since the Marketplace shows it.
+    linked = [
+        (document.name, match[2])
+        for document in DOCUMENTS
+        for match in re.finditer(
+            r"https://(github\.com/Dennis-Otto/issue-assistant/blob|"
+            r"raw\.githubusercontent\.com/Dennis-Otto/issue-assistant)/main/"
+            r"(docs/[^#?\")\s]+\.md)",
+            document.read_text("utf-8"),
+        )
+    ]
+    assert ("README.md", "docs/comparison.md") in linked
+    for name, path in linked:
+        assert (ROOT / path).is_file(), f"{name} links {path}, which doesn't exist"
+
+
+def test_the_readme_links_only_full_addresses():
+    # The Marketplace shows the README on a page of its own, where a relative link leads
+    # nowhere.
+    readme = (ROOT / "README.md").read_text("utf-8")
+    relative = re.findall(r"\]\((?!https?://|mailto:|#)([^)]+)\)", readme)
+    assert not relative, f"the README links {relative} relatively"
+
+
 def test_every_picture_is_a_webp_that_comes_light_and_dark_and_is_shown():
     shown = "\n".join(document.read_text("utf-8") for document in DOCUMENTS)
     for picture in IMAGES.iterdir():

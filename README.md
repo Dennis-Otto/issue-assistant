@@ -542,7 +542,7 @@ Other tools cover parts of this; only GitHub Agentic Workflows, and the workflow
 
 <!-- --8<-- [end:compare] -->
 
-The [comparison](docs/comparison.md) has the whole table, with the source of every cell.
+The [comparison](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/comparison.md) has the whole table, with the source of every cell.
 
 ## Development
 
