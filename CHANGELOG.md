@@ -6,6 +6,7 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ### Changed
 
+- The action is ready for the GitHub Marketplace, as *Read-only issue assistant*, because another action there is already called Issue Assistant, and with a purple badge. Workflows keep using `Dennis-Otto/issue-assistant` as before. The README opens with what the assistant does, why an issue can't make its AI write, and three commands that install the latest release; the action, the repository and the website describe it as AI issue triage, and the repository has the topics that people browse, such as `triage`, `claude-code` and `prompt-injection`.
 - The website loads only the pictures that it shows: the copy for the other theme is no longer downloaded, so the home page needs about half the data, 650 KB instead of 1.25 MB on a phone. The still pictures are lossless WebP instead of PNG, at less than a third of the size, and keep their place on the page while they load.
 - On a phone, the animation of the life of an issue stands upright, with text that is readable, on GitHub and on the website. Readers who asked their system for less motion see a still picture of the first analysis instead. Diagrams on the website scroll sideways on a phone instead of shrinking their text to a few pixels.
 

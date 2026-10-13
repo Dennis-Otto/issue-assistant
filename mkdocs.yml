@@ -8,7 +8,7 @@
 # https://squidfunk.github.io/mkdocs-material/
 INHERIT: .github/mkdocs-blueprint.yml
 site_name: "Issue assistant"
-site_description: "A GitHub Action that looks after issues: a first analysis by an AI that only reads, labels, duplicates and reminders, all checked before posting."
+site_description: "Safe AI issue triage for GitHub: a read-only AI writes a first analysis of every new issue (likely cause, missing info, duplicates, labels), and a job without AI validates it before posting."
 site_url: https://dennis-otto.github.io/issue-assistant/
 repo_url: https://github.com/Dennis-Otto/issue-assistant
 repo_name: Dennis-Otto/issue-assistant
