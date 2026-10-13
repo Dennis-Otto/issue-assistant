@@ -1,13 +1,18 @@
 name: Fuzzing
 
-# Coverage-guided fuzzing with Atheris of every target in fuzz/: a minute each on
-# every change, a quarter of an hour each every week. A finding fails the run, with
-# the input that caused it in the log. https://github.com/Dennis-Otto/repo-blueprint
+# Coverage-guided fuzzing with Atheris of every target in fuzz/: a minute each in
+# every pull request that changes the code, the targets or the tools, a quarter of an
+# hour each every week. Not after a merge, which gives main the tree that its pull
+# request fuzzed. A finding fails the run, with the input that caused it in the log.
+# https://github.com/Dennis-Otto/repo-blueprint
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    paths:
+      - "**/*.py"
+      - fuzz/**
+      - "**/requirements*.txt"
+      - .github/workflows/fuzz.yml
   schedule:
     - cron: "23 3 * * 0"
   workflow_dispatch:
@@ -22,7 +27,11 @@ concurrency:
 jobs:
   fuzz:
     name: fuzz
-    runs-on: ubuntu-latest
+    # Not in the release pull request: the branch of the release bot in this repository.
+    if: >-
+      !startsWith(github.head_ref, 'release-please--') ||
+      github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Record the network traffic of the job

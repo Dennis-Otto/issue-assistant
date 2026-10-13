@@ -9,4 +9,11 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 python -m venv .venv
 .venv/bin/pip install --require-hashes -r requirements-dev.txt
 git config core.hooksPath .githooks
+# The tools of the website go into .venv-docs: for its preview with
+# .venv-docs/bin/mkdocs serve, and for scripts/check.sh, which builds it then. They
+# come last, so that the checks and their hook are ready even if they fail.
+if [[ -f mkdocs.yml ]]; then
+  python3 -m venv .venv-docs
+  .venv-docs/bin/pip install --require-hashes -r .github/docs-requirements.txt
+fi
 echo "Ready: bash scripts/check.sh runs the checks of the CI."
