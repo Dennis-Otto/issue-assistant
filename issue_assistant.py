@@ -26,7 +26,7 @@ import tomllib
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote, urlsplit
 
@@ -34,14 +34,16 @@ TOOL = Path(__file__).resolve().parent
 PROMPTS = TOOL / "prompts"
 # The starter files a repository gets, in the places they go.
 TEMPLATES = TOOL / "templates"
-# Files of the repository the assistant looks after, relative to its root.
-LABELS_FILE = Path(".github/labels.toml")
-SETTINGS = Path(".github/issue-assistant")
-CONTEXT = Path(".issue-assistant")
-WORKFLOWS = Path(".github/workflows")
-FIREWALL = Path(".github/egress-firewall.yaml")
-ACTIONLINT = Path(".github/actionlint.yaml")
-FINDINGS_FILE = Path(".github/findings.toml")
+# Files of the repository the assistant looks after, relative to its root. Messages
+# name them, so they are written with slashes on every system, Windows too;
+# `root / LABELS_FILE` is still a Path of the system.
+LABELS_FILE = PurePosixPath(".github/labels.toml")
+SETTINGS = PurePosixPath(".github/issue-assistant")
+CONTEXT = PurePosixPath(".issue-assistant")
+WORKFLOWS = PurePosixPath(".github/workflows")
+FIREWALL = PurePosixPath(".github/egress-firewall.yaml")
+ACTIONLINT = PurePosixPath(".github/actionlint.yaml")
+FINDINGS_FILE = PurePosixPath(".github/findings.toml")
 # Files that install writes only when a repository doesn't have them yet.
 STARTERS = (
     LABELS_FILE,
@@ -63,6 +65,9 @@ TEMPLATE_WORKFLOWS = (
 DISMISS_REASONS = ("false positive", "won't fix", "used in tests")
 ACTION = "Dennis-Otto/issue-assistant"
 ACTION_PIN = re.compile(rf"{re.escape(ACTION)}@[0-9a-f]{{40}} # \S+")
+# A repository as owner/name, in the characters GitHub allows; "." and ".." are no
+# names.
+REPOSITORY_NAME = re.compile(r"[\w-]+/(?!\.\.?\Z)[\w.-]+", re.ASCII)
 
 BOT = "github-actions[bot]"
 MAINTAINERS = {"OWNER", "MEMBER", "COLLABORATOR"}
@@ -1156,7 +1161,7 @@ def write_context(
     values = {
         "repository": config.repository,
         "issue": str(number),
-        "context": CONTEXT.as_posix(),
+        "context": str(CONTEXT),
         "release": github.latest_release() or "none yet",
     }
     prompt = "\n\n".join(
@@ -2412,7 +2417,7 @@ def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
         github.dismiss_alert(
             alert["number"],
             acceptance.reason,
-            f"{acceptance.comment} (accepted in {FINDINGS_FILE.as_posix()})",
+            f"{acceptance.comment} (accepted in {FINDINGS_FILE})",
         )
         done.append(
             f"Alert #{alert['number']} ({acceptance.tool} {acceptance.rule}) "
@@ -2421,8 +2426,7 @@ def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
     done += [f"Alert #{alert['number']} is open: {alert['html_url']}" for alert in left]
     if left:
         done.append(
-            f"Fix these findings, or accept them with a reason in "
-            f"{FINDINGS_FILE.as_posix()}."
+            f"Fix these findings, or accept them with a reason in {FINDINGS_FILE}."
         )
     return done, len(left)
 
@@ -2547,7 +2551,7 @@ def check_workflows(config: Config) -> list[str]:
     for name in TEMPLATE_WORKFLOWS:
         template = TOOL / WORKFLOWS / name
         path = config.root / WORKFLOWS / name
-        where = (WORKFLOWS / name).as_posix()
+        where = str(WORKFLOWS / name)
         if not path.is_file():
             problems.append(f"{where} is missing; run the install command")
             continue
@@ -2582,10 +2586,8 @@ def check_workflows(config: Config) -> list[str]:
         if FIREWALL_RUNNER not in labels:
             problems.append(f"{ACTIONLINT}: list the runner {FIREWALL_RUNNER}")
     ignore = config.root / ".gitignore"
-    if not ignore.is_file() or f"/{CONTEXT.as_posix()}/" not in ignore.read_text(
-        "utf-8"
-    ):
-        problems.append(f".gitignore: add /{CONTEXT.as_posix()}/")
+    if not ignore.is_file() or f"/{CONTEXT}/" not in ignore.read_text("utf-8"):
+        problems.append(f".gitignore: add /{CONTEXT}/")
     return problems
 
 
@@ -2627,9 +2629,9 @@ def check_accepted_findings(config: Config) -> list[str]:
         return [str(error)]
     problems = []
     for item in accepted:
-        where = f"{FINDINGS_FILE.as_posix()}: {item.tool} {item.rule}"
+        where = f"{FINDINGS_FILE}: {item.tool} {item.rule}"
         if not item.tool.strip() or not item.rule.strip():
-            problems.append(f"{FINDINGS_FILE.as_posix()}: name the tool and the rule")
+            problems.append(f"{FINDINGS_FILE}: name the tool and the rule")
         if item.reason not in DISMISS_REASONS:
             problems.append(
                 f"{where}: the reason must be one of {', '.join(DISMISS_REASONS)}"
@@ -2669,23 +2671,21 @@ def install(root: Path, ref: str, version: str) -> list[str]:
             (TOOL / WORKFLOWS / name).read_text(encoding="utf-8"),
         )
         target.write_text(content, encoding="utf-8", newline="\n")
-        done.append(f"wrote {target.relative_to(root).as_posix()}")
+        done.append(f"wrote {WORKFLOWS / name}")
     firewall = root / FIREWALL
     if firewall.is_file():
-        done.append(
-            f"kept {FIREWALL.as_posix()}; check that it allows the template's hosts"
-        )
+        done.append(f"kept {FIREWALL}; check that it allows the template's hosts")
     else:
         shutil.copyfile(TOOL / FIREWALL, firewall)
-        done.append(f"wrote {FIREWALL.as_posix()}")
+        done.append(f"wrote {FIREWALL}")
     for starter in STARTERS:
         target = root / starter
         if not target.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(TEMPLATES / starter, target)
-            done.append(f"wrote {starter.as_posix()}; adapt it")
+            done.append(f"wrote {starter}; adapt it")
     ignore = root / ".gitignore"
-    entry = f"/{CONTEXT.as_posix()}/"
+    entry = f"/{CONTEXT}/"
     lines = ignore.read_text(encoding="utf-8").splitlines() if ignore.is_file() else []
     if entry not in lines:
         ignore.write_text(
@@ -2744,6 +2744,20 @@ def choose_engine(config: Config, ready: str) -> tuple[str, bool, str]:
     return key, available, config.model or ENGINES[key].model
 
 
+def repository_of_run(*, needed: bool) -> str:
+    """The repository the run looks after: GH_REPO, or else GITHUB_REPOSITORY.
+
+    Only the commands that call GitHub need it; a name that is given must fit.
+    """
+    name = os.environ.get("GH_REPO") or os.environ.get("GITHUB_REPOSITORY", "")
+    if (name or needed) and not REPOSITORY_NAME.fullmatch(name):
+        raise AssistantError(
+            "GH_REPO or GITHUB_REPOSITORY must name the repository as owner/name"
+            + (f", not {name!r}." if name else ".")
+        )
+    return name
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
@@ -2790,9 +2804,25 @@ def main(argv: list[str] | None = None) -> int:
             for line in install(root, arguments.ref, arguments.version):
                 print(line)
             return 0
-        repository = os.environ.get("GH_REPO") or os.environ.get(
-            "GITHUB_REPOSITORY", ""
+        # check and engine read only the checkout, so they run anywhere, also on a
+        # computer without GH_REPO; the other commands call GitHub.
+        repository = repository_of_run(
+            needed=arguments.command not in {"check", "engine"}
         )
+        if arguments.command == "check":
+            problems = check(load_config(root, repository))
+            for problem in problems:
+                print(f"::error::{problem}")
+            summary("Issue assistant set-up", problems or ["Everything fits."], False)
+            return 1 if problems else 0
+        if arguments.command == "engine":
+            key, available, model = choose_engine(
+                load_config(root, repository), os.environ.get("READY_ENGINES", "")
+            )
+            output("engine", key)
+            output("ready", str(available).lower())
+            output("model", model)
+            return 0
         github = GitHub(repository, dry_run=dry_run)
         if arguments.command == "findings":
             # Independent of the settings of the issues.
@@ -2803,24 +2833,10 @@ def main(argv: list[str] | None = None) -> int:
             summary("Findings", lines or ["No open findings."], dry_run)
             return 1 if left else 0
         config = load_config(root, repository)
-        if arguments.command == "check":
-            problems = check(config)
-            for problem in problems:
-                print(f"::error::{problem}")
-            summary("Issue assistant set-up", problems or ["Everything fits."], False)
-            return 1 if problems else 0
         if arguments.command in {"context", "apply"} and not (
             arguments.issue and arguments.mode
         ):
             raise AssistantError(f"{arguments.command} needs an issue and a mode.")
-        if arguments.command == "engine":
-            key, available, model = choose_engine(
-                config, os.environ.get("READY_ENGINES", "")
-            )
-            output("engine", key)
-            output("ready", str(available).lower())
-            output("model", model)
-            return 0
         if arguments.command == "context":
             written = write_context(github, arguments.issue, arguments.mode, config)
             output("prompt", written["prompt"])

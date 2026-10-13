@@ -503,6 +503,8 @@ def test_the_context_holds_the_issue_the_other_issues_and_discussions(config, ro
     assert (folder / "prompt.md").read_text("utf-8") == prompt
 
 
+# The context is written into config.root, which is then a copy of the sample.
+@pytest.mark.usefixtures("root")
 def test_the_context_works_without_releases_and_discussions(config):
     github = FakeGitHub(config, make_issue())
     github.release = None
@@ -758,8 +760,8 @@ def test_code_written_next_to_code_keeps_its_own_backticks(config):
 # Links to the repository
 
 
-def test_references_link_to_existing_files_lines_and_headings(config, root):
-    tracked = assistant.tracked_files(root)
+def test_references_link_to_existing_files_lines_and_headings(config):
+    tracked = assistant.tracked_files(config.root)
     link = assistant.reference_link(
         {
             "path": "docs/troubleshooting.md",
@@ -801,8 +803,8 @@ def test_references_link_to_existing_files_lines_and_headings(config, root):
         {"path": "src/app.py", "line": 99999},
     ],
 )
-def test_references_outside_the_repository_are_dropped(config, root, reference):
-    tracked = assistant.tracked_files(root)
+def test_references_outside_the_repository_are_dropped(config, reference):
+    tracked = assistant.tracked_files(config.root)
     assert (
         assistant.reference_link(
             {**reference, "reason": ""}, tracked, "abc", "en", config
@@ -1800,14 +1802,16 @@ def test_the_engine_of_the_config_runs_only_with_its_secret(config, capsys):
 # The command line
 
 
-def test_the_event_command_writes_the_next_task(monkeypatch, tmp_path, root, config):
+def test_the_event_command_writes_the_next_task(
+    monkeypatch, tmp_path, sample_root, config
+):
     issue = make_issue(labels=("bug",))
     payload = tmp_path / "event.json"
     payload.write_text(json.dumps(event("opened", issue)), encoding="utf-8")
     code, outputs, summary = run_main(
         monkeypatch,
         tmp_path,
-        root,
+        sample_root,
         FakeGitHub(config, issue),
         "event",
         GITHUB_EVENT_NAME="issues",
@@ -1819,13 +1823,13 @@ def test_the_event_command_writes_the_next_task(monkeypatch, tmp_path, root, con
 
 
 def test_the_engine_command_names_the_engine_and_its_model(
-    monkeypatch, tmp_path, root, config
+    monkeypatch, tmp_path, sample_root
 ):
     code, outputs, _ = run_main(
         monkeypatch,
         tmp_path,
-        root,
-        FakeGitHub(config),
+        sample_root,
+        None,
         "engine",
         READY_ENGINES="claude",
     )
@@ -1850,18 +1854,22 @@ def test_the_context_command_writes_multiline_outputs(
 
 
 def test_context_and_apply_need_an_issue_and_a_mode(
-    monkeypatch, tmp_path, root, config, capsys
+    monkeypatch, tmp_path, sample_root, config, capsys
 ):
-    code, _, _ = run_main(monkeypatch, tmp_path, root, FakeGitHub(config), "context")
+    code, _, _ = run_main(
+        monkeypatch, tmp_path, sample_root, FakeGitHub(config), "context"
+    )
     assert code == 1
     assert "context needs an issue and a mode" in capsys.readouterr().out
 
 
-def test_the_apply_command_previews_a_dry_run(monkeypatch, tmp_path, root, config):
+def test_the_apply_command_previews_a_dry_run(
+    monkeypatch, tmp_path, sample_root, config
+):
     code, _, summary = run_main(
         monkeypatch,
         tmp_path,
-        root,
+        sample_root,
         FakeGitHub(config, make_issue(), dry_run=True),
         "apply",
         "--issue",
@@ -1881,13 +1889,13 @@ def test_the_apply_command_previews_a_dry_run(monkeypatch, tmp_path, root, confi
 
 
 def test_the_apply_command_fails_on_a_bad_answer(
-    monkeypatch, tmp_path, root, config, capsys
+    monkeypatch, tmp_path, sample_root, config, capsys
 ):
     github = FakeGitHub(config, make_issue())
     code, _, _ = run_main(
         monkeypatch,
         tmp_path,
-        root,
+        sample_root,
         github,
         "apply",
         ISSUE="12",
@@ -1900,15 +1908,15 @@ def test_the_apply_command_fails_on_a_bad_answer(
 
 
 def test_the_sweep_and_label_commands_report_what_they_did(
-    monkeypatch, tmp_path, root, config
+    monkeypatch, tmp_path, sample_root, config
 ):
     # The command uses the real clock, which may be hours before the tests' NOW.
     code, _, summary = run_main(
-        monkeypatch, tmp_path, root, waiting(config, 16), "sweep"
+        monkeypatch, tmp_path, sample_root, waiting(config, 16), "sweep"
     )
     assert code == 0 and "### Issue lifecycle\n\n- #12: reminded" in summary
     code, _, summary = run_main(
-        monkeypatch, tmp_path, root, FakeGitHub(config), "sync-labels"
+        monkeypatch, tmp_path, sample_root, FakeGitHub(config), "sync-labels"
     )
     assert code == 0 and "### Labels\n\nNothing to do." in summary
 
@@ -1919,6 +1927,90 @@ def test_a_repository_without_settings_is_told_what_to_add(
     code, _, _ = run_main(monkeypatch, tmp_path, tmp_path, None, "sweep")
     assert code == 1
     assert "project.md are needed" in capsys.readouterr().out
+
+
+def test_the_repository_comes_from_gh_repo_or_the_workflow(
+    monkeypatch, tmp_path, sample_root, config
+):
+    connected = []
+
+    def connect(repository, dry_run):
+        connected.append(repository)
+        return FakeGitHub(config)
+
+    monkeypatch.setattr(assistant, "GitHub", connect)
+    for gh_repo, workflow in (
+        ("", "owner/from-the-workflow"),
+        ("Some-Org/project.github.io", "owner/from-the-workflow"),
+        ("my_org/under_score", ""),
+    ):
+        code, _, _ = run_main(
+            monkeypatch,
+            tmp_path,
+            sample_root,
+            None,
+            "sync-labels",
+            GH_REPO=gh_repo,
+            GITHUB_REPOSITORY=workflow,
+        )
+        assert code == 0
+    assert connected == [
+        "owner/from-the-workflow",
+        "Some-Org/project.github.io",
+        "my_org/under_score",
+    ]
+
+
+@pytest.mark.parametrize("command", ["findings", "sweep", "sync-labels"])
+def test_commands_that_call_github_need_the_repository(
+    monkeypatch, tmp_path, sample_root, capsys, command
+):
+    code, _, summary = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        None,
+        command,
+        GH_REPO="",
+        GITHUB_REPOSITORY="",
+    )
+    assert (code, summary) == (1, "")
+    assert capsys.readouterr().out == (
+        "::error::GH_REPO or GITHUB_REPOSITORY must name the repository as "
+        "owner/name.\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "repository",
+    [
+        "project",
+        "owner/project/issues",
+        "owner/..",
+        "../project",
+        "own er/project",
+        "owner/projekt-ä",
+        "owner/project\n::warning::injected",
+    ],
+)
+@pytest.mark.parametrize("command", ["findings", "sync-labels", "check"])
+def test_a_malformed_repository_is_one_clear_error(
+    monkeypatch, tmp_path, sample_root, capsys, command, repository
+):
+    code, _, summary = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        None,
+        command,
+        GH_REPO=repository,
+        GITHUB_REPOSITORY="",
+    )
+    assert (code, summary) == (1, "")
+    assert capsys.readouterr().out == (
+        "::error::GH_REPO or GITHUB_REPOSITORY must name the repository as "
+        f"owner/name, not {repository!r}.\n"
+    )
 
 
 def test_without_a_summary_file_the_outputs_are_printed(monkeypatch, capsys):

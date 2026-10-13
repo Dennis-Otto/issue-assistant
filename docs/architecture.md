@@ -20,7 +20,7 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 | Lifecycle | `sweep` | Reminders after 15 days, closing after 30 days, closing duplicates after 3 days, marking fixed issues, closing them with the release and filing them under its milestone |
 | Labels | `sync_labels` | Create and update the labels of `labels.toml`, never delete one |
 | Findings | `watch_findings` | Dismiss the findings of code scanning that `findings.toml` accepts and fail while others are open |
-| Set-up | `install`, `check` | Write the four workflows and the starter files into a repository, and check that its set-up still fits the templates |
+| Set-up | `install`, `check` | Write the four workflows and the starter files into a repository, and check that its set-up still fits the templates; both need only the checkout and name its files with slashes on every system |
 
 ## The workflows of a repository
 

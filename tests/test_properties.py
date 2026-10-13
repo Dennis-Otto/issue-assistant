@@ -109,8 +109,10 @@ def test_a_token_anywhere_in_the_answer_is_refused(before, token, after):
     assert assistant.looks_secret(f"{before} {token} {after}")
 
 
-ATTRIBUTE = st.from_regex(r"[\w.+/-]+", fullmatch=True).filter(
-    lambda value: "--" not in value and value.isascii()
+# The values of `[\w.+/-]+` in ASCII, which the bot writes. A class of ASCII
+# characters generates them far faster than a filter that drops every other letter.
+ATTRIBUTE = st.from_regex(r"[A-Za-z0-9_.+/-]+", fullmatch=True).filter(
+    lambda value: "--" not in value
 )
 
 
