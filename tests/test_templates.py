@@ -10,8 +10,8 @@ import json
 import re
 import shlex
 import shutil
-import subprocess
 import tomllib
+from glob import iglob as files_matching
 from pathlib import Path
 
 import pytest
@@ -427,13 +427,14 @@ def test_the_area_labels_of_pull_requests_exist_and_match_files():
     config = assistant.load_config(ROOT, "Dennis-Otto/issue-assistant")
     areas = {label.name for label in config.labels if label.group == "area"}
     assert LABELER and set(LABELER) <= areas, set(LABELER) - areas
-    tracked = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True, text=True
-    ).stdout.split("\0")
-    # A glob that matches no file has lost its file, or names it wrong.
+    # A glob that matches no file has lost its file, or names it wrong. It looks at
+    # the files on disk, not at git: the mutation tests run a copy without .git.
     for label in LABELER:
-        for glob in area_globs(label):
-            assert any(matches(glob, path) for path in tracked), glob
+        for pattern in area_globs(label):
+            found = files_matching(
+                pattern, root_dir=ROOT, recursive=True, include_hidden=True
+            )
+            assert any((ROOT / path).is_file() for path in found), pattern
 
 
 def test_a_change_of_what_install_writes_is_labeled_setup():
