@@ -73,6 +73,35 @@ python3 -m venv .venv-docs
 .venv-docs/bin/mkdocs serve
 ```
 
+Each page of the website has one topic. It includes the parts of the README that belong to it, between the markers `<!-- --8<-- [start:name] -->` and `<!-- --8<-- [end:name] -->`, so that nothing is written twice, and `tests/test_docs.py` checks that each part is on the website once. `scripts/mkdocs_hooks.py` adds what no file of `docs/` holds:
+
+```mermaid
+flowchart TB
+  accTitle: Where the pages of the website come from
+  accDescr: The parts of the README become the pages Get started, How it works, Configuration, Reference, Help and the quick start of the home page. The hook of the website makes every comment of What reporters see from the functions and texts of issue_assistant.py, and the tables of the inputs and outputs on the Reference from action.yml. Every page gets a description of its own, from its front matter or its first paragraph.
+  readme(["README.md,<br/>in parts"]) --> pages["Get started, How it works,<br/>Configuration, Reference,<br/>Help, Home"]
+  script(["issue_assistant.py:<br/>TEXT and render_*()"]) --> hook
+  action(["action.yml"]) --> hook
+  hook["<b>scripts/mkdocs_hooks.py</b><br/>with every build"] --> comments["What reporters see:<br/>every comment,<br/>English and German"]
+  hook --> tables["Reference: the inputs<br/>and outputs of the action"]
+  hook --> described["a description of its own<br/>for every page"]
+  pages --> described
+  classDef source fill:#d4a72c33,stroke:#bf8700
+  classDef code fill:#8250df33,stroke:#8250df
+  classDef page fill:#8c959f1f,stroke:#8c959f
+  class readme,script,action source
+  class hook code
+  class pages,comments,tables,described page
+```
+
+- **What reporters see** shows every comment that the assistant posts, in English and in German. The hook makes them with every build, by the functions and with the texts of `issue_assistant.py`, for the demo project of the pictures, in place of the part of `docs/comments.md` between `<!-- comments of issue_assistant.py -->` and `<!-- end of the comments -->`. A new text in `TEXT` or a new kind of comment needs an example in the hook; a test fails without one.
+- **The reference** has a table of the inputs or the outputs of `action.yml` where a page has the line `<!-- action.yml: inputs -->` or `<!-- action.yml: outputs -->`. The tables of the keys of the settings on the page *Configuration* are written by hand, and tests compare them with the code: every key, its default and the values that `check` accepts.
+- **Every page has a description of its own** for search engines and the cards of shared links: the `description` of its front matter, or else its first paragraph.
+- **Links from before keep working.** The guide was one page; a link to one of its anchors, such as `guide.html#settings`, leads to the page that has the anchor now, by a script that the hook adds to the overview of the guide.
+- **The brand** is the speech bubble of the social preview in `docs/assets/logo.svg`, the logo of the header and the icon of the tab, and the violet of the badge of the action in `docs/stylesheets/brand.css`, light and dark. Tests make sure that each colour has the contrast that WCAG asks for; links in the text are underlined, as on GitHub, since their colour alone sets them apart too little.
+
+The social plugin, which draws the cards of shared links, needs the library Cairo; without it, as on Windows, build the website in a Linux container or let the check *docs* build it.
+
 The pictures in `docs/images` show a demo project, never real issues or people. `scripts/render-images.sh` renders them in Docker, each light and dark, from the texts of `issue_assistant.py` itself; run it after a change of those texts, and commit the pictures with the change. They are WebP: the still pictures lossless, as sharp as a PNG at less than a third of its size, and the animation of the life of an issue twice, wide and upright for phones, each with a still picture for readers who asked for less motion. The `<source>`s of a `<picture>` choose among them, the first whose condition holds:
 
 ```mermaid

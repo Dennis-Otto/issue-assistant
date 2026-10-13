@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- The speech bubble of .github/social-preview.html: the logo of the website and its favicon. -->
+  <defs>
+    <linearGradient id="bubble" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <path d="M18 14h60a10 10 0 0 1 10 10v36a10 10 0 0 1-10 10H46L28 84V70H18A10 10 0 0 1 8 60V24a10 10 0 0 1 10-10z" fill="url(#bubble)"/>
+  <circle cx="48" cy="42" r="15" fill="none" stroke="#fff" stroke-width="6"/>
+  <circle cx="48" cy="42" r="4" fill="#fff"/>
+</svg>
