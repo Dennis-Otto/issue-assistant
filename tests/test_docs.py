@@ -763,6 +763,118 @@ def test_the_comparison_is_dated_and_every_cell_has_a_source():
     assert all("](https://" in source for source in sources.values())
 
 
+# The diagrams: Mermaid in the Markdown, which GitHub and the website both draw. A
+# page of the website shows a diagram of the README by including the part of the
+# README around it, so that each diagram is written once.
+
+FIGURES = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", *DOCUMENTS[1:]]
+
+
+def diagrams(text: str) -> list[tuple[int, str]]:
+    """The Mermaid diagrams of a Markdown text: the line where each starts, and its
+    source."""
+    return [
+        (text.count("\n", 0, match.start()) + 1, match[1])
+        for match in re.finditer(
+            r"^```mermaid\n(.*?)^```$", text, re.MULTILINE | re.DOTALL
+        )
+    ]
+
+
+def every_diagram() -> list[tuple[str, str]]:
+    """Every diagram of the documentation, by its file and line, with its source."""
+    return [
+        (f"{document.relative_to(ROOT).as_posix()}:{line}", source)
+        for document in FIGURES
+        for line, source in diagrams(document.read_text("utf-8"))
+    ]
+
+
+def statements(source: str) -> list[str]:
+    """The lines of a diagram that say something: no front matter, no comment."""
+    source = re.sub(r"\A---\n.*?\n---\n", "", source, flags=re.DOTALL)
+    lines = [line.strip() for line in source.splitlines()]
+    return [line for line in lines if line and not line.startswith("%%")]
+
+
+def test_the_diagrams_are_found_where_they_are():
+    text = (
+        "Before\n\n```mermaid\n---\nconfig:\n  look: classic\n---\nflowchart TB\n"
+        "  %% a comment\n  a --> b\n```\n\n```python\nprint()\n```\n"
+    )
+    ((line, source),) = diagrams(text)
+    assert line == 3
+    assert statements(source) == ["flowchart TB", "a --> b"]
+    assert len(every_diagram()) >= 20
+
+
+def test_every_diagram_says_what_it_shows():
+    # A screen reader reads the title and the description of a diagram, whose words
+    # it can't follow along the arrows, and the description says what the arrows say.
+    titles = []
+    for place, source in every_diagram():
+        lines = statements(source)
+        title = [
+            line[len("accTitle: ") :] for line in lines if line.startswith("accTitle: ")
+        ]
+        described = [
+            line[len("accDescr: ") :] for line in lines if line.startswith("accDescr: ")
+        ]
+        assert len(title) == 1 and len(described) == 1, (
+            f"{place}: add a line accTitle: and a line accDescr: below its first line"
+        )
+        assert len(described[0]) > 2 * len(title[0]), f"{place}: describe it in full"
+        titles.append(title[0])
+    assert len(set(titles)) == len(titles), "two diagrams have the same title"
+
+
+def test_every_diagram_runs_from_top_to_bottom():
+    # From left to right, a diagram grows wider than the page and shrinks to fit it,
+    # to text of 9 pixels; from top to bottom it keeps its size and grows longer,
+    # which the page scrolls, on a phone too.
+    for place, source in every_diagram():
+        kind, *lines = statements(source)
+        assert kind in {"flowchart TB", "sequenceDiagram"}, (
+            f"{place}: draw {kind} as flowchart TB"
+        )
+        sideways = [line for line in lines if re.fullmatch(r"direction \w+", line)]
+        assert set(sideways) <= {"direction TB"}, f"{place}: {sideways}"
+
+
+def test_every_box_of_a_diagram_has_a_border_that_stands_out():
+    # The borders of the blueprint's diagrams: 2 pixels keep a tinted box apart from
+    # the page, light and dark.
+    for place, source in every_diagram():
+        for line in statements(source):
+            if line.startswith("classDef "):
+                assert re.search(r"[ ,]stroke-width:2px(,|$)", line), (
+                    f"{place}: end {line!r} with ,stroke-width:2px"
+                )
+
+
+def test_each_diagram_is_written_once():
+    # A copy drifts away from its original. A page of the website includes the part
+    # of the README with the diagram instead, such as workflows-diagram.
+    shown = every_diagram()
+    sources = [source for _, source in shown]
+    copies = [place for place, source in shown if sources.count(source) > 1]
+    assert not copies, f"the same diagram is at {copies}"
+    readme = (ROOT / "README.md").read_text("utf-8")
+    names = re.findall(r"^<!-- --8<-- \[start:([a-z-]+)\] -->$", readme, re.MULTILINE)
+    parts = [readme_part(name) for name in names]
+    for line, source in diagrams(readme):
+        assert any(source in part for part in parts), (
+            f"README.md:{line} is in no part of the README that the website includes"
+        )
+    for page, name in [
+        ("architecture.md", "workflows-diagram"),
+        ("security.md", "trust-boundaries-diagram"),
+    ]:
+        text = (ROOT / "docs" / page).read_text("utf-8")
+        assert f'--8<-- "README.md:{name}"' in text.splitlines()
+        assert readme_part(name).strip().startswith("```mermaid")
+
+
 # The pages of the website that the code makes or completes: every comment of the
 # assistant, the inputs and outputs of the action, and every key of the settings.
 

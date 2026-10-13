@@ -63,37 +63,41 @@ The [documentation website](https://dennis-otto.github.io/issue-assistant/) has 
 
 ## How it works
 
+<!-- --8<-- [start:workflows-diagram] -->
+
 ```mermaid
-flowchart LR
+flowchart TB
   accTitle: The four workflows of a repository and what starts them
-  accDescr: A change of labels.toml starts sync-labels in labels.yml. A scan of code scanning on main and every morning start findings in findings.yml. Every morning, a merged pull request, a published release and the end of a release run that no schedule started start sweep in issue-lifecycle.yml. A new issue, an edit or a comment starts issue-assistant.yml, where event chooses the next task, analyze lets the AI read the checkout and answer with JSON, and apply checks the answer and is the only job that writes.
-  changed(["change of<br/>labels.toml"]) --> sync
-  subgraph labelling ["labels.yml"]
-    sync["<b>sync-labels</b><br/>creates and updates<br/>the labels"]
-  end
-  scanned(["a scan of code<br/>scanning on main"]) --> findings
-  subgraph scanning ["findings.yml"]
-    findings["<b>findings</b><br/>dismisses accepted findings,<br/>fails on the others"]
-  end
-  daily(["every morning"]) --> findings
-  daily --> sweep
-  shipped(["merged pull request,<br/>published release,<br/>end of a release run"]) --> sweep
+  accDescr: Four workflows, each with what starts it. In issue-assistant.yml, a new issue, an edit or a comment starts event, which sets the labels of the form and chooses the next task; analyze lets the AI read the checkout and answer with JSON; apply checks the answer and is the only job that writes. In issue-lifecycle.yml, every morning, a merged pull request, a release and the end of a release run start sweep, which sends reminders, closes issues, closes duplicates and marks fixed issues. In labels.yml, a change of labels.toml on main starts sync-labels, which creates and updates the labels. In findings.yml, every morning, a scan on main and a change of findings.toml start findings, which dismisses the accepted findings and fails on the others.
   subgraph lifecycle ["issue-lifecycle.yml"]
-    sweep["<b>sweep</b><br/>reminders, closing,<br/>duplicates, fixed issues"]
+    direction TB
+    shipped(["every morning, a merged<br/>pull request, a release,<br/>the end of a release run"]) --> sweep["<b>sweep</b><br/>reminders, closing,<br/>duplicates, fixed issues"]
   end
-  opened(["new issue, edit<br/>or comment"]) --> event
   subgraph assistant ["issue-assistant.yml"]
-    direction LR
-    event["<b>event</b><br/>labels from the form,<br/>the next task"] --> analyze["<b>analyze</b><br/>the AI reads the checkout<br/>and answers with JSON"]
+    direction TB
+    opened(["a new issue, an edit<br/>or a comment"]) --> event["<b>event</b><br/>labels from the form,<br/>the next task"]
+    event --> analyze["<b>analyze</b><br/>the AI reads the checkout<br/>and answers with JSON"]
     analyze --> apply["<b>apply</b><br/>checks the answer,<br/>the only job that writes"]
   end
-  classDef ai fill:#8250df33,stroke:#8250df
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef trigger fill:#d4a72c33,stroke:#bf8700
+  subgraph scanning ["findings.yml"]
+    direction TB
+    scanned(["every morning, a scan<br/>on main, a change<br/>of findings.toml"]) --> findings["<b>findings</b><br/>dismisses the accepted<br/>findings, fails on others"]
+  end
+  subgraph labelling ["labels.yml"]
+    direction TB
+    changed(["a change of<br/>labels.toml on main"]) --> sync["<b>sync-labels</b><br/>creates and updates<br/>the labels"]
+  end
+  assistant ~~~ labelling
+  lifecycle ~~~ scanning
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
   class analyze ai
   class event,apply,sweep,sync,findings job
-  class opened,daily,shipped,changed,scanned trigger
+  class opened,shipped,changed,scanned trigger
 ```
+
+<!-- --8<-- [end:workflows-diagram] -->
 
 Four workflows run in the repository. Only the violet job runs an AI, and it can't write:
 
@@ -106,7 +110,33 @@ Four workflows run in the repository. Only the violet job runs an AI, and it can
 
 Every job runs on `ubuntu-24.04`, the AI's on GitHub's egress-firewall runner of the same version. The events of one issue wait for each other, first in, first out, so a comment written while an analysis runs is handled after it, never dropped. A run of the lifecycle or the findings whose job has nothing to do, such as after the hourly scheduled run of a release workflow, takes no runner and never takes the place of one that waits.
 
-Every task of the AI is one of four: `triage` for a new issue, `follow-up` when the reporter answered the assistant's questions (at most twice, and never once the maintainer joined the conversation), `maintainer-reply` to decide whether a maintainer's comment waits for the reporter, and `release-reply` to decide whether the reporter of an issue that a release closed says that the problem persists.
+Every task of the AI is one of four: `triage` for a new issue, `follow-up` when the reporter answered the assistant's questions (at most twice, and never once the maintainer joined the conversation), `maintainer-reply` to decide whether a maintainer's comment waits for the reporter, and `release-reply` to decide whether the reporter of an issue that a release closed says that the problem persists. Which one an event of an issue gives it:
+
+```mermaid
+flowchart TB
+  accTitle: Which task an event of an issue gives the AI
+  accDescr: An event of a bot, on a pull request, or a new issue that a maintainer opened gives the AI no task. Otherwise, a new issue gives it triage. An answer of the reporter to the assistant's questions gives it follow-up, at most twice and only while no maintainer joined the conversation since the questions. A comment of a maintainer on a reporter's issue that waits for nobody gives it maintainer-reply. A comment of the reporter within 30 days after a release closed the issue gives it release-reply. A task runs only while the AI is on and its secret is set; otherwise no analysis comes, and labels, reminders and closing go on.
+  start(["an event of an issue"]) --> who{"a bot, a pull<br/>request, or a<br/>maintainer's<br/>new issue?"}
+  who -- "yes" --> none["no task"]
+  who -- "no" --> what{"what<br/>happened?"}
+  what --> triage["<b>triage</b><br/>a new issue"]
+  what --> followup["<b>follow-up</b><br/>the reporter<br/>answered; at most<br/>twice, and no<br/>maintainer since"]
+  what --> reply["<b>maintainer-reply</b><br/>a maintainer<br/>wrote on a<br/>reporter's issue that<br/>waits for nobody"]
+  what --> persists["<b>release-reply</b><br/>the reporter<br/>wrote within<br/>30 days after a<br/>release closed it"]
+  triage & followup & reply & persists --> on{"the AI on,<br/>and its<br/>secret set?"}
+  on -- "yes" --> analyze["<b>analyze</b><br/>the AI reads<br/>and answers"]
+  on -- "no" --> paused["no analysis;<br/>labels, reminders<br/>and closing go on"]
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  class start trigger
+  class who,what,on question
+  class triage,followup,reply,persists,analyze ai
+  class none,paused job
+```
+
+Every other event, such as a comment of someone else, gives it none. A run by hand, under *Actions → Issue assistant → Run workflow*, gives it the task chosen there, `triage` by default. The AI is off while the repository variable `ISSUE_ASSISTANT_AI` is `off`, and pauses while the engine's secret is missing.
 
 A first analysis looks like this, here on an issue of a demo project:
 
@@ -121,35 +151,37 @@ Labels say where an issue stands, and the lifecycle moves it on; each box has th
 
 ```mermaid
 flowchart TB
+  accTitle: The life of an issue and its labels
+  accDescr: A new issue gets needs-triage, the labels of its form and a first analysis, and the maintainer takes over. When information is missing, or the maintainer asks the reporter, it gets needs-info and waits for the reporter: on day 15 it gets stale and a reminder, and on day 30 it closes as not planned; an answer, also after the closing, brings it back to the maintainer. A sure duplicate gets possible-duplicate and a notice and closes as a duplicate on day 3, unless an objection, a comment or a thumbs down of the reporter or of someone who may push, brings it back to the maintainer. A merged fix gives it fixed-in-next-release, and the release closes it with a link; a comment within 30 days that it is still broken brings it back to the maintainer.
   opened(["new issue"]) --> triage["<b>needs-triage</b><br/>labels from the form,<br/>a first analysis"]
   triage --> maintainer["the maintainer<br/>takes over"]
-  triage -- "information missing" --> waiting
-  maintainer -- "asks the reporter" --> waiting
+  triage -- "information<br/>missing" --> waiting
+  maintainer -- "asks the<br/>reporter" --> waiting
   subgraph unanswered [" "]
     direction TB
-    waiting["<b>needs-info</b><br/>waits for the reporter"] -- "day 15" --> stale["<b>stale</b><br/>a reminder"]
+    waiting["<b>needs-info</b><br/>waits for<br/>the reporter"] -- "day 15" --> stale["<b>stale</b><br/>a reminder"]
     stale -- "day 30" --> closed["closed as<br/>not planned"]
   end
   unanswered -- "an answer, also<br/>after the closing" --> maintainer
-  triage -- "sure duplicate" --> notice
+  triage -- "sure<br/>duplicate" --> notice
   subgraph duplicates [" "]
     direction TB
     notice["<b>possible-duplicate</b><br/>a notice"] -- "day 3" --> duplicate["closed as<br/>a duplicate"]
   end
-  notice -- "a comment, or a thumbs<br/>down of the reporter<br/>or a maintainer" --> maintainer
+  notice -- "an objection" --> maintainer
   maintainer -- "fix merged" --> fixed
   subgraph release [" "]
     direction TB
     fixed["<b>fixed-in-next-release</b><br/>waits for the release"] -- "release" --> released["closed with a link<br/>to the release"]
   end
   released -- "still broken,<br/>within 30 days" --> maintainer
-  classDef triage fill:#fbca0466,stroke:#bf8700
-  classDef info fill:#fef2c059,stroke:#d4a72c
-  classDef stale fill:#f9d0c466,stroke:#bc4c00
-  classDef duplicate fill:#8c959f33,stroke:#6e7781
-  classDef fixed fill:#c2e0c666,stroke:#1a7f37
-  classDef done fill:#8250df1f,stroke:#8250df
-  classDef person fill:#0969da26,stroke:#0969da
+  classDef triage fill:#fbca0466,stroke:#bf8700,stroke-width:2px
+  classDef info fill:#fef2c059,stroke:#d4a72c,stroke-width:2px
+  classDef stale fill:#f9d0c466,stroke:#bc4c00,stroke-width:2px
+  classDef duplicate fill:#8c959f33,stroke:#6e7781,stroke-width:2px
+  classDef fixed fill:#c2e0c666,stroke:#1a7f37,stroke-width:2px
+  classDef done fill:#8250df1f,stroke:#8250df,stroke-width:2px
+  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
   class triage triage
   class waiting info
   class stale stale
@@ -158,6 +190,36 @@ flowchart TB
   class closed,duplicate,released done
   class maintainer person
 ```
+
+### A duplicate
+
+A sure duplicate closes only when nobody objects. The AI must be sure, and the original must be older, open, and opened or triaged by a maintainer; any other duplicate becomes a suggestion for the maintainer, in GitHub's panel, and a related issue in the comment:
+
+```mermaid
+sequenceDiagram
+  accTitle: A duplicate, from the notice to its closing
+  accDescr: The reporter opens an issue. The analysis of issue-assistant.yml says that it looks like a duplicate of an older issue and closes in 3 days, and adds possible-duplicate. A comment of anyone in those days removes possible-duplicate at once, and the issue stays open. A thumbs down on the notice by the reporter or by someone who may push makes the morning sweep of issue-lifecycle.yml remove possible-duplicate after the 3 days, and the issue stays open. Without an objection, the morning sweep posts a comment, closes the issue as a duplicate of the original and labels it duplicate.
+  actor R as Reporter
+  participant I as Issue #35;14
+  participant A as issue-assistant.yml
+  participant L as issue-lifecycle.yml
+  R->>I: opens it
+  I->>A: a new issue
+  A->>I: the analysis, with a<br/>notice: a duplicate of<br/>#35;9, closes in 3 days
+  A->>I: label possible-duplicate
+  Note over I: 3 days for<br/>an objection
+  alt a comment of anyone
+    I->>A: the comment
+    A->>I: removes possible-<br/>duplicate at once
+  else a 👎 on the notice, of the reporter<br/>or of someone who may push
+    L->>I: the morning sweep:<br/>removes possible-duplicate
+  else no objection
+    L->>I: the morning sweep: a comment,<br/>closed as a duplicate of #35;9
+    L->>I: label duplicate
+  end
+```
+
+The closing comment asks the reporter to go on in the original, where a 👍 shows that more people are affected. The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md#how-the-text-of-an-issue-reaches-the-ai) says why only an original that a maintainer vouches for closes another issue.
 
 ### From the fix to the release
 
@@ -169,22 +231,24 @@ Apps and integrations reach their users with a release, not with a merge. So an 
 
 ```mermaid
 sequenceDiagram
+  accTitle: A fixed issue, from the merge to the release
+  accDescr: The maintainer merges a pull request with Fixes #12. issue-lifecycle.yml labels the issue fixed-in-next-release and comments that it closes with the next release; it stays open, since users don't have the fix yet. When the maintainer publishes the release v1.2.0, the lifecycle comments with the link to the release, closes the issue and files it under the milestone v1.2.0, and the reporter is asked to update. When the reporter comments within 30 days that it is still broken, issue-assistant.yml lets the AI read the comment and reopens the issue with needs-triage; after thanks or a question, it stays closed.
   actor M as Maintainer
   participant L as issue-lifecycle.yml
   participant I as Issue #35;12
   actor R as Reporter
   participant A as issue-assistant.yml
-  M->>L: merges a pull request with "Fixes #35;12"
-  L->>I: label fixed-in-next-release,<br/>comment: closes with the next release
-  Note over I: stays open: users don't have the fix yet
-  M->>L: publishes the release v1.2.0
-  L->>I: comment with the link to the release,<br/>closes it, milestone v1.2.0
+  M->>L: merges a pull request<br/>with "Fixes #35;12"
+  L->>I: fixed-in-next-release,<br/>a comment: closes with<br/>the next release
+  Note over I: stays open: users<br/>don't have the fix yet
+  M->>L: publishes the<br/>release v1.2.0
+  L->>I: a comment with the link<br/>to the release, closed,<br/>milestone v1.2.0
   I-->>R: please update
   alt within 30 days: "still broken"
-    R->>A: comments on the closed issue
-    A->>I: the AI reads the comment: reopens it, needs-triage
+    R->>A: comments on<br/>the closed issue
+    A->>I: the AI reads it:<br/>reopened, needs-triage
   else thanks or a question
-    R->>A: comments on the closed issue
+    R->>A: comments on<br/>the closed issue
     A->>I: stays closed
   end
 ```
@@ -202,15 +266,16 @@ flowchart TB
   call["a call to GitHub"] --> answer{"GitHub<br/>answers"}
   answer -- "with the thing" --> on["the run goes on"]
   answer -- "not found" --> left["left out: it<br/>doesn't exist"]
-  answer -- "secondary<br/>rate limit" --> minute["again after a minute,<br/>also a write"]
-  answer -- "server error" --> read["a read: again after<br/>2, 4 and 8 seconds"]
-  answer -- "any other error,<br/>or it stays" --> stop["the run stops with<br/>one error and names<br/>what it wrote"]
+  answer -- "with an error" --> error{"which<br/>error?"}
+  error -- "secondary<br/>rate limit" --> minute["again after a minute,<br/>also a write"]
+  error -- "server error" --> read["a read: again after<br/>2, 4 and 8 seconds"]
+  error -- "any other,<br/>or one that stays" --> stop["the run stops with<br/>one error and names<br/>what it wrote"]
   stop --> again["running it again<br/>completes it, without<br/>a second comment"]
-  classDef question fill:#d4a72c33,stroke:#bf8700
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
-  classDef stop fill:#cf222e26,stroke:#cf222e
-  class answer question
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  class answer,error question
   class call,minute,read job
   class on,left,again safe
   class stop stop
@@ -231,37 +296,41 @@ flowchart TB
 
 Issues come from anyone, so the design assumes that an issue tries to steer the AI. Red is what anyone can write; the numbers are the trust boundaries of the [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md#trust-boundaries):
 
+<!-- --8<-- [start:trust-boundaries-diagram] -->
+
 ```mermaid
 flowchart TB
+  accTitle: The trust boundaries of the issue assistant
+  accDescr: Anyone can write an issue, its comments, other issues and discussions, and a pull request. The text reaches the event job, which runs no AI and chooses the task, and, as data in files, the job analyze: the first boundary. There the AI reads with Read, Grep and Glob alone, behind a firewall, with a read-only token and the engine's secret. Its answer in JSON crosses the second boundary into the job apply, which runs no AI and holds no secret. Its checks want the schema, labels and issues that exist, and no secret, mention, image, HTML or foreign link. When they fail, nothing is posted; when they pass, apply writes to GitHub, only to the issue of the event: the third boundary. A merged pull request starts issue-lifecycle.yml on the default branch, without AI, which learns only the issues that it fixes, the fourth boundary, and writes to GitHub.
   text["issue, comments,<br/>other issues, discussions"]
   merged(["merged pull request"])
-  subgraph run ["issue-assistant.yml"]
-    event["<b>event</b><br/>no AI"]
-    subgraph firewall ["firewall, read-only token"]
-      analyze["<b>analyze</b><br/>the AI with Read,<br/>Grep and Glob,<br/>the engine's secret"]
-    end
-    subgraph checked ["apply: no AI, no secret"]
-      checks("<b>checks</b><br/>schema, labels and<br/>issues that exist; no<br/>secret, mention, image,<br/>HTML or foreign link")
-      refused["nothing is posted"]
-    end
+  event["<b>event</b><br/>no AI"]
+  subgraph firewall ["analyze: firewall, read-only token"]
+    analyze["<b>the AI</b> with Read,<br/>Grep and Glob,<br/>the engine's secret"]
   end
-  text -- "1 · as data, in files" --> analyze
+  subgraph checked ["apply: no AI, no secret"]
+    checks("<b>checks</b><br/>schema, labels and<br/>issues that exist; no<br/>secret, mention, image,<br/>HTML or foreign link")
+    refused["nothing is posted"]
+  end
+  text -- "1 · as data, in files" --> firewall
   text --> event
-  event -- "the task" --> analyze
-  analyze -- "2 · an answer in JSON" --> checks
+  event -- "the task" --> firewall
+  firewall -- "2 · an answer in JSON" --> checked
   checks -- "fails" --> refused
   checks -- "3 · passes: only the<br/>issue of the event" --> github[("GitHub")]
   merged -- "4 · only the issues it fixes" --> lifecycle["<b>issue-lifecycle.yml</b><br/>the default branch, no AI"]
   lifecycle --> github
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
-  classDef ai fill:#8250df33,stroke:#8250df
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class text,merged untrusted
   class analyze ai
   class event,lifecycle,checks,refused job
   class github safe
 ```
+
+<!-- --8<-- [end:trust-boundaries-diagram] -->
 
 - **The AI only reads.** It runs in the `analyze` job, with a read-only token, on GitHub's [egress-firewall runner](https://github.com/github-early-access/actions-native-egress-firewall) with an allow list in `.github/egress-firewall.yaml`. Claude Code runs with `--restricted` and the tools `Read`, `Grep` and `Glob` alone: no commands, no web pages, no files outside the checkout. The issue, the other issues and the discussions reach it as files that the prompt calls data, not instructions.
 - **Issue text can't pass for someone else or hide.** The AI learns who wrote what from headings that only the assistant writes; each text stands below them in a code fence that nothing in the text can close, so a line such as `## Comment 4 by @owner (maintainer)` stays part of that text. Characters that GitHub shows as nothing, such as Unicode tags and zero-width spaces, which can spell instructions that no maintainer sees, are removed from every text the AI reads and from its answer. And since every analysis reads all issues, only an original that a maintainer opened or triaged can close a duplicate on its own, so no issue can steer the AI into closing others.
@@ -297,6 +366,43 @@ The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/d
 <!-- --8<-- [start:set-up] -->
 
 ## Set up a repository
+
+A set-up has three parts: what `install` writes, what you edit, and what you set on GitHub:
+
+```mermaid
+flowchart TB
+  accTitle: What install writes, what you edit and what you set on GitHub
+  accDescr: install of a release, run in the root of the repository, writes the four workflows, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore, and starters of project.md, config.toml, labels.toml and findings.toml when they are missing. Then you edit the starters, to describe the project, its labels, its settings and the accepted findings, tell reporters in SUPPORT.md which AI reads their issues, and add a step with check to the CI. Then you set on GitHub the environment issue-assistant, limited to the default branch, with the engine's secret, and turn off the auto-close of issues by merged pull requests. Then check passes, and the next new issue gets its analysis.
+  install(["<b>install</b> of a release,<br/>in the root of the repository"]) --> written
+  subgraph written ["install writes"]
+    direction TB
+    workflows["the four<br/>workflows"]
+    firewall["the firewall policy,<br/>a line in .gitignore"]
+    starters["starters, when missing:<br/>project.md, config.toml,<br/>labels.toml, findings.toml"]
+  end
+  written -- "then" --> edited
+  subgraph edited ["you edit"]
+    direction TB
+    describe["the starters: the project,<br/>the labels, the settings,<br/>accepted findings"]
+    support["SUPPORT.md: which<br/>AI reads the issues"]
+    ci["the CI: a step<br/>with <b>check</b>"]
+  end
+  edited -- "then" --> settings
+  subgraph settings ["you set on GitHub"]
+    direction TB
+    environment["the environment<br/>issue-assistant: the default<br/>branch, the engine's secret"]
+    autoclose["no auto-close of issues<br/>by merged pull requests"]
+  end
+  settings --> check(["<b>check</b> passes, and the next<br/>new issue gets its analysis"])
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class install trigger
+  class workflows,firewall,starters job
+  class describe,support,ci,environment,autoclose person
+  class check safe
+```
 
 <!-- --8<-- [start:quick-start] -->
 
@@ -352,6 +458,8 @@ The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/d
         ignore:
           - 'unexpected key "queue" for "concurrency" section'
     ```
+
+10. **Let the release close fixed issues:** under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**, so that a fixed issue stays open until the release that ships the fix. A repository without releases sets `close_with_release = false` in `config.toml` instead.
 
 <!-- --8<-- [end:quick-start] -->
 
