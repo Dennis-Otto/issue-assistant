@@ -1,0 +1,25 @@
+flowchart TB
+  accTitle: The pattern that PromptPwnd attacks, and the assistant's
+  accDescr: In the attacked pattern, the text of an issue goes into the prompt of an AI that holds a write token, a shell and the network, so a steered AI writes to GitHub or sends secrets away. In the assistant, the text of the issue goes into files that the prompt calls material; the AI reads them with a read-only token and reading tools alone, behind a firewall, and answers with JSON. A job without AI and without the engine's secret checks that answer and is the only one that writes to GitHub.
+  subgraph attacked ["the attacked pattern"]
+    direction TB
+    issue1["issue text"] --> prompt1["in the prompt"]
+    prompt1 --> agent1["`**AI**<br>write token, shell,<br>network`"]
+    agent1 --> github1[("GitHub")]
+    agent1 --> leak(["secrets sent away"])
+  end
+  subgraph assistant ["the issue assistant"]
+    direction TB
+    issue2["issue text"] --> files["files that the prompt<br>calls material"]
+    files --> agent2["`**AI**<br>read-only token, Read,<br>Grep, Glob, firewall`"]
+    agent2 -- "JSON" --> apply("`**apply**<br>no AI, no secret:<br>checks, then writes`")
+    apply --> github2[("GitHub")]
+  end
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class issue1,issue2,leak untrusted
+  class agent1,agent2 ai
+  class prompt1,files,apply job
+  class github1,github2 safe

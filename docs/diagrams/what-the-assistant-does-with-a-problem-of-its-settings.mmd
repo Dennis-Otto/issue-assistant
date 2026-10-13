@@ -1,0 +1,20 @@
+flowchart TB
+  accTitle: What the assistant does with a problem of its settings
+  accDescr: Every command reads labels.toml and config.toml. A file that isn't TOML stops every command, with the line of the mistake. A value of another type than its key's stops every other command with an error that names the key; check reads the rest with the defaults and names every problem at once. A key that the assistant doesn't know changes nothing, so check fails on it and names the key that was probably meant, while the other commands warn of it and keep the default.
+  read(["labels.toml and<br>config.toml"]) --> toml{"TOML?"}
+  toml -- "no" --> broken["every command stops,<br>naming the line"]
+  toml -- "yes" --> typed{"each value of<br>its key's type?"}
+  typed -- "no" --> which{"check?"}
+  which -- "no" --> stops["the command stops,<br>naming each value"]
+  which -- "yes" --> named["check names it<br>with every other problem"]
+  typed -- "yes" --> known{"each key<br>known?"}
+  known -- "no" --> typo["check fails with the key<br>that was probably meant;<br>other commands warn"]
+  known -- "yes" --> runs["the command runs"]
+  classDef source fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class read source
+  class toml,typed,which,known question
+  class broken,stops,named,typo stop
+  class runs safe

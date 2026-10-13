@@ -1,0 +1,15 @@
+flowchart TB
+  accTitle: When a duplicate that the AI found closes on its own
+  accDescr: A duplicate that the AI is sure of, of an older open issue, gets the notice that closes it after three days only when a maintainer opened the original or triaged it, so that it no longer has needs-triage. Otherwise it becomes a suggestion for the maintainer and a related issue in the comment. A notice closes nothing when someone comments, when the reporter or anyone who may push to the repository reacts with a thumbs down, or when the original is closed or no longer vouched for by then.
+  sure["a sure duplicate of an<br>older, open issue"] --> vouched{"a maintainer opened<br>it or triaged it?"}
+  vouched -- "no" --> suggestion["a suggestion for the<br>maintainer, a related issue"]
+  vouched -- "yes" --> notice["`**possible-duplicate**<br>the notice`"]
+  notice --> objected{"in 3 days: a comment,<br>or a thumbs down of the<br>reporter or of someone<br>who may push?"}
+  objected -- "yes" --> open["stays open for<br>the maintainer"]
+  objected -- "no" --> closed["closed as a duplicate"]
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class vouched,objected question
+  class sure,notice,closed job
+  class suggestion,open safe

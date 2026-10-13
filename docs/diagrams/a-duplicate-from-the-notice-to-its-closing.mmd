@@ -1,0 +1,21 @@
+sequenceDiagram
+  accTitle: A duplicate, from the notice to its closing
+  accDescr: The reporter opens an issue. The analysis of issue-assistant.yml says that it looks like a duplicate of an older issue and closes in 3 days, and adds possible-duplicate. A comment of anyone in those days removes possible-duplicate at once, and the issue stays open. A thumbs down on the notice by the reporter or by someone who may push makes the morning sweep of issue-lifecycle.yml remove possible-duplicate after the 3 days, and the issue stays open. Without an objection, the morning sweep posts a comment, closes the issue as a duplicate of the original and labels it duplicate.
+  actor R as Reporter
+  participant I as Issue #35;14
+  participant A as issue-assistant.yml
+  participant L as issue-lifecycle.yml
+  R->>I: opens it
+  I->>A: a new issue
+  A->>I: the analysis, with a<br>notice: a duplicate of<br>#35;9, closes in 3 days
+  A->>I: label possible-duplicate
+  Note over I: 3 days for<br>an objection
+  alt a comment of anyone
+    I->>A: the comment
+    A->>I: removes possible-<br>duplicate at once
+  else a 👎 on the notice, of the reporter<br>or of someone who may push
+    L->>I: the morning sweep:<br>removes possible-duplicate
+  else no objection
+    L->>I: the morning sweep: a comment,<br>closed as a duplicate of #35;9
+    L->>I: label duplicate
+  end

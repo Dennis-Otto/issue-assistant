@@ -1,0 +1,16 @@
+flowchart TB
+  accTitle: Which picture of the animation a reader sees
+  accDescr: A reader who asked for less motion sees a still picture, upright on a screen up to 600 pixels wide and wide otherwise. Every other reader sees the animation, upright on such a screen and wide otherwise. Each picture comes light or dark, after the theme of the reader.
+  reader(["the README or<br>the home page"]) --> motion{"less motion<br>asked for?"}
+  motion -- "yes" --> narrow{"screen up to<br>600 px wide?"}
+  narrow -- "yes" --> upright["hero-mobile-still"]
+  narrow -- "no" --> still["hero-still"]
+  motion -- "no" --> phone{"screen up to<br>600 px wide?"}
+  phone -- "yes" --> mobile["hero-mobile,<br>animated"]
+  phone -- "no" --> hero["hero,<br>animated"]
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef still fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef animated fill:#8250df33,stroke:#8250df,stroke-width:2px
+  class motion,narrow,phone question
+  class upright,still still
+  class mobile,hero animated

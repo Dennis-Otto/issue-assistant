@@ -1,0 +1,39 @@
+flowchart TB
+  accTitle: The life of an issue and its labels
+  accDescr: A new issue gets needs-triage, the labels of its form and a first analysis, and the maintainer takes over. When information is missing, or the maintainer asks the reporter, it gets needs-info and waits for the reporter: on day 15 it gets stale and a reminder, and on day 30 it closes as not planned; an answer, also after the closing, brings it back to the maintainer. A sure duplicate gets possible-duplicate and a notice and closes as a duplicate on day 3, unless an objection, a comment or a thumbs down of the reporter or of someone who may push, brings it back to the maintainer. A merged fix gives it fixed-in-next-release, and the release closes it with a link; a comment within 30 days that it is still broken brings it back to the maintainer.
+  opened(["new issue"]) --> triage["`**needs-triage**<br>labels from the form,<br>a first analysis`"]
+  triage --> maintainer["the maintainer<br>takes over"]
+  triage -- "information<br>missing" --> waiting
+  maintainer -- "asks the<br>reporter" --> waiting
+  subgraph unanswered [" "]
+    direction TB
+    waiting["`**needs-info**<br>waits for<br>the reporter`"] -- "day 15" --> stale["`**stale**<br>a reminder`"]
+    stale -- "day 30" --> closed["closed as<br>not planned"]
+  end
+  unanswered -- "an answer, also<br>after the closing" --> maintainer
+  triage -- "sure<br>duplicate" --> notice
+  subgraph duplicates [" "]
+    direction TB
+    notice["`**possible-duplicate**<br>a notice`"] -- "day 3" --> duplicate["closed as<br>a duplicate"]
+  end
+  notice -- "an objection" --> maintainer
+  maintainer -- "fix merged" --> fixed
+  subgraph release [" "]
+    direction TB
+    fixed["`**fixed-in-next-release**<br>waits for the release`"] -- "release" --> released["closed with a link<br>to the release"]
+  end
+  released -- "still broken,<br>within 30 days" --> maintainer
+  classDef triage fill:#fbca0466,stroke:#bf8700,stroke-width:2px
+  classDef info fill:#fef2c059,stroke:#d4a72c,stroke-width:2px
+  classDef stale fill:#f9d0c466,stroke:#bc4c00,stroke-width:2px
+  classDef duplicate fill:#8c959f33,stroke:#6e7781,stroke-width:2px
+  classDef fixed fill:#c2e0c666,stroke:#1a7f37,stroke-width:2px
+  classDef done fill:#8250df1f,stroke:#8250df,stroke-width:2px
+  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
+  class triage triage
+  class waiting info
+  class stale stale
+  class notice duplicate
+  class fixed fixed
+  class closed,duplicate,released done
+  class maintainer person

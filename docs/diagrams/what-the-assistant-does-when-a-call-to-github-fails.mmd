@@ -1,0 +1,19 @@
+flowchart TB
+  accTitle: What the assistant does when a call to GitHub fails
+  accDescr: A call to GitHub that succeeds lets the run go on. Not found means that the thing doesn't exist, and it is left out. A secondary rate limit runs the call again after a minute, up to three times. A server error runs a read again after 2, 4 and 8 seconds. Every other error, and one that stays, stops the run with one error that names what it wrote; running it again completes the rest without a second comment.
+  call["a call to GitHub"] --> answer{"GitHub<br>answers"}
+  answer -- "with the thing" --> on["the run goes on"]
+  answer -- "not found" --> left["left out: it<br>doesn't exist"]
+  answer -- "with an error" --> error{"which<br>error?"}
+  error -- "secondary<br>rate limit" --> minute["again after a minute,<br>also a write"]
+  error -- "server error" --> read["a read: again after<br>2, 4 and 8 seconds"]
+  error -- "any other,<br>or one that stays" --> stop["the run stops with<br>one error and names<br>what it wrote"]
+  stop --> again["running it again<br>completes it, without<br>a second comment"]
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  class answer,error question
+  class call,minute,read job
+  class on,left,again safe
+  class stop stop

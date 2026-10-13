@@ -38,27 +38,10 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 
 The three jobs of `issue-assistant.yml` hand the issue on; only the middle one sees the AI and its secret, and only the last one writes:
 
-```mermaid
-sequenceDiagram
-  accTitle: One run of issue-assistant.yml for a new issue
-  accDescr: GitHub sends the event of the new issue 12 to the job event, which adds the labels of the form and needs-triage and hands the issue and the task triage to the job analyze. Its context step writes the issue, the other issues, the discussions, the labels, the prompt and the schema into .issue-assistant/ and hands the prompt and the schema to the engine, which runs with a read-only token, behind the egress firewall, with the engine's secret. The engine reads the checkout with Read, Grep and Glob and hands its answer in JSON to the job apply, which runs no AI and has no secret. apply checks the answer against the schema, the labels and the issues, cleans the text, and writes the labels, the comment and then needs-info, only on issue 12.
-  participant G as GitHub
-  participant E as event
-  participant C as analyze: context
-  participant AI as analyze: engine
-  participant P as apply
-  G->>E: a new issue, #35;12
-  E->>G: labels from the form,<br/>needs-triage
-  E->>C: issue 12, task triage
-  C->>C: writes the issue, other<br/>issues, discussions, labels,<br/>prompt and schema into<br/>.issue-assistant/
-  C->>AI: prompt and schema
-  Note over C,AI: read-only token, egress<br/>firewall, the engine's secret
-  AI->>AI: reads the checkout<br/>with Read, Grep, Glob
-  AI->>P: the answer, JSON
-  Note over P: no AI,<br/>no secret
-  P->>P: checks the answer against<br/>the schema, the labels and<br/>the issues, cleans the text
-  P->>G: the labels, the comment,<br/>then needs-info, only on #35;12
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/one-run-of-issue-assistant-yml-for-a-new-issue.dark.svg">
+  <img src="images/diagrams/one-run-of-issue-assistant-yml-for-a-new-issue.svg" alt="One run of issue-assistant.yml for a new issue: GitHub sends the event of the new issue 12 to the job event, which adds the labels of the form and needs-triage and hands the issue and the task triage to the job analyze. Its context step writes the issue, the other issues, the discussions, the labels, the prompt and the schema into .issue-assistant/ and hands the prompt and the schema to the engine, which runs with a read-only token, behind the egress firewall, with the engine's secret. The engine reads the checkout with Read, Grep and Glob and hands its answer in JSON to the job apply, which runs no AI and has no secret. apply checks the answer against the schema, the labels and the issues, cleans the text, and writes the labels, the comment and then needs-info, only on issue 12.">
+</picture>
 
 `install` copies the workflows of `templates/` with the commit hash of the release, and `check` fails when a repository's copy differs in anything but the commit hashes of its actions.
 
@@ -66,47 +49,19 @@ sequenceDiagram
 
 **The events of one issue wait in line.** The runs of `issue-assistant.yml` for one issue share the concurrency group `issue-assistant-<number>` with `queue: max`: up to 100 runs wait for their turn, first in, first out. An analysis takes about two and a half minutes, and without the queue a group keeps a single waiting run, which the next event cancels. A reporter who answered twice during an analysis then got no follow-up to the first answer, and a "still broken" after a release could stay without effect.
 
-```mermaid
-sequenceDiagram
-  accTitle: Comments while an analysis runs
-  accDescr: A new issue starts the first run, which analyzes it. Two comments arrive during the analysis; their runs wait in the group of the issue, first in, first out. When the analysis is posted, the run of the first comment follows, then the run of the second one. Without the queue, the second run would have cancelled the first waiting one.
-  participant G as GitHub
-  participant Q as group issue-assistant-12
-  G->>Q: #35;12 opened: run 1 analyzes
-  G->>Q: comment 1: run 2 waits
-  G->>Q: comment 2: run 3 waits behind run 2
-  Note over Q: without the queue, run 3<br/>would cancel run 2
-  Q->>G: run 1 posts the analysis
-  Q->>G: run 2, then run 3
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/comments-while-an-analysis-runs.dark.svg">
+  <img src="images/diagrams/comments-while-an-analysis-runs.svg" alt="Comments while an analysis runs: A new issue starts the first run, which analyzes it. Two comments arrive during the analysis; their runs wait in the group of the issue, first in, first out. When the analysis is posted, the run of the first comment follows, then the run of the second one. Without the queue, the second run would have cancelled the first waiting one.">
+</picture>
 
 **A run with nothing to do takes no runner and no place in a line.** The sweep and the findings work on the whole repository, so one waiting run is enough, and their jobs, not their runs, wait in the groups `issue-lifecycle` and `findings`. A run waits for the group of its workflow before its jobs check their conditions, so a run that would only skip its job, such as after the scan of a pull request, took the place of a waiting one that had work to do; a skipped job never enters the group of a job. The release workflow of the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint) runs every hour as a safety net and mostly releases nothing: the lifecycle skips the ends of these scheduled runs, and the morning sweep catches a release that one of them made.
 
 **The jobs without the AI reach only GitHub.** Every job runs on `ubuntu-24.04`, so a new image behind `ubuntu-latest` never reaches the repositories untested. The jobs that write start with Harden-Runner in block mode; the AI runs behind GitHub's egress firewall instead. [Decision 0008](decisions/0008-the-jobs-that-write-reach-only-github.md) explains why:
 
-```mermaid
-flowchart TB
-  accTitle: Where the jobs run and which hosts they reach
-  accDescr: The jobs event, apply, sweep, sync-labels and findings run on ubuntu-24.04 behind Harden-Runner in block mode, without sudo and containers, and reach api.github.com and github.com. The job analyze runs on ubuntu-24.04-firewall and reaches the hosts of .github/egress-firewall.yaml. Every other host is blocked for both.
-  subgraph blocked ["ubuntu-24.04, Harden-Runner: block, no sudo, no containers"]
-    writers["<b>event</b>, <b>apply</b>, <b>sweep</b>,<br/><b>sync-labels</b>, <b>findings</b><br/>no AI, a write token"]
-  end
-  subgraph firewall ["ubuntu-24.04-firewall, GitHub's egress firewall"]
-    analyze["<b>analyze</b><br/>the AI, a read-only token"]
-  end
-  writers --> github[("api.github.com<br/>github.com")]
-  analyze --> hosts[("the hosts of<br/>egress-firewall.yaml")]
-  writers --x other(["every other host"])
-  analyze --x other
-  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  class analyze ai
-  class writers job
-  class github,hosts safe
-  class other untrusted
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/where-the-jobs-run-and-which-hosts-they-reach.dark.svg">
+  <img src="images/diagrams/where-the-jobs-run-and-which-hosts-they-reach.svg" alt="Where the jobs run and which hosts they reach: The jobs event, apply, sweep, sync-labels and findings run on ubuntu-24.04 behind Harden-Runner in block mode, without sudo and containers, and reach api.github.com and github.com. The job analyze runs on ubuntu-24.04-firewall and reaches the hosts of .github/egress-firewall.yaml. Every other host is blocked for both.">
+</picture>
 
 The checkout reaches `github.com` and the GitHub CLI `api.github.com`; Harden-Runner allows the hosts of the runner itself, such as those of the logs and the summary. The action turns off the telemetry of the GitHub CLI, which would only knock at a blocked host. The job `egress` of the Action test runs the action behind the same block, so a host that it starts to need fails there, before a release blocks it in every repository. In a private repository the block needs a subscription or trial of StepSecurity; without one, Harden-Runner lets the job run unblocked, as the [security design](security.md) says among its residual risks.
 
@@ -114,35 +69,10 @@ The checkout reaches `github.com` and the GitHub CLI `api.github.com`; Harden-Ru
 
 The templates are in `templates/.github/`: the four workflows, the firewall policy and the starter files that `install` writes. This repository looks after its own issues with the same workflows, but its copies in `.github/` belong to the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint): every update of the blueprint writes them anew, as the templates of the release of the issue assistant that the blueprint pins. `install` and `check` of this commit never read these copies, only the check of the pinned release in the Lint workflow does (step 1 below), and no test compares them with `templates/`, because they are a release behind after every change of a template. [Decision 0007](decisions/0007-templates-live-in-templates.md) explains why.
 
-```mermaid
----
-config:
-  flowchart:
-    wrappingWidth: 400
----
-flowchart TB
-    accTitle: How a change of a template reaches the repositories
-    accDescr: A pull request in this repository changes templates/. Its checks lint the templates and check the set-up with them installed, while the required check issue-assistant compares this repository's own workflows with the release that they pin, so it stays green. Merged, the change becomes a release. A pull request in the repository blueprint installs that release there and moves the pins of the action. The next release of the blueprint brings it to every repository made from it, this one too. Repositories without the blueprint get the release from Dependabot and run install again.
-
-    change["Pull request here<br>changes <code>templates/</code> alone"]
-    checks["Its checks pass<br>templates linted and installed<br>own workflows: the pinned release"]
-    release["Release <b>vX.Y.Z</b><br>its notes name the changed templates"]
-    sync["Pull request in the blueprint<br><code>install</code> of vX.Y.Z<br>new pins of the action"]
-    rollout(["Blueprint bot<br>an update pull request<br>in every repository of the blueprint"])
-    fleet["Every repository of the blueprint<br>this one too<br>the templates of vX.Y.Z"]
-    others["Repositories without the blueprint<br>Dependabot moves the pin<br><code>install</code> again"]
-
-    change --> checks --> release
-    release --> sync --> rollout --> fleet
-    release --> others
-
-    classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
-    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
-    classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
-    class sync,rollout bot
-    class change,others person
-    class fleet done
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/how-a-change-of-a-template-reaches-the-repositories.dark.svg">
+  <img src="images/diagrams/how-a-change-of-a-template-reaches-the-repositories.svg" alt="How a change of a template reaches the repositories: A pull request in this repository changes templates/. Its checks lint the templates and check the set-up with them installed, while the required check issue-assistant compares this repository's own workflows with the release that they pin, so it stays green. Merged, the change becomes a release. A pull request in the repository blueprint installs that release there and moves the pins of the action. The next release of the blueprint brings it to every repository made from it, this one too. Repositories without the blueprint get the release from Dependabot and run install again.">
+</picture>
 
 1. **A pull request here** changes `templates/`, never the copies in `.github/`. `tests/test_templates.py` pins the rules of the templates. The Action test lints them with actionlint and zizmor, installs them into the sample repository and into a copy of this repository, and checks both set-ups through the action. The required check `issue-assistant` runs `check` of the release that the Lint workflow pins, on this repository's own copies, which the pull request leaves as they are.
 2. **The release** of the change is a new minor version, and its notes say that repositories run `install` again. A change of `issue-assistant.yml` or of the firewall policy starts [the canary](#the-canary) with its merge, and the release waits until it passed.
@@ -153,23 +83,10 @@ flowchart TB
 
 Most tests replace GitHub with the fake in `tests/support.py`, which answers the calls of the script from the issues, comments and pull requests that a test sets up. The fake knows a GraphQL query by its words, so it can't tell a misspelt field from a right one, or a field that GitHub renamed last week. The script, for its part, falls back where one of GitHub's newer fields fails: labels go without their rationale, and an issue closes through REST, without the link to its original. Such a mistake would show only as a notice in the log of a repository that uses the action, so three checks look for it before a release:
 
-```mermaid
-flowchart TB
-  accTitle: Three checks of the requests to GitHub
-  accDescr: The GraphQL documents of issue_assistant.py meet a copy of GitHub's schema in the required check of every pull request. The commands sweep, sync-labels and context run against GitHub itself with a token that can only read, on every pull request, on main and every week. Every week the documents also meet the schema that GitHub publishes that day, and a notice says when the copy is behind it.
-  script["<b>issue_assistant.py</b><br/>its GraphQL documents<br/>and REST requests"]
-  copy[("the copy of GitHub's schema<br/>in tests/github/")]
-  github[("GitHub itself")]
-  today[("GitHub's schema<br/>of the day")]
-  script -- "every pull request,<br/>in the required check" --> copy
-  script -- "every pull request,<br/>main and every week:<br/>sweep, sync-labels, context,<br/>a token that only reads" --> github
-  script -- "every week" --> today
-  today -. "a notice when<br/>the copy is behind" .-> copy
-  classDef code fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class script code
-  class copy,github,today safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/three-checks-of-the-requests-to-github.dark.svg">
+  <img src="images/diagrams/three-checks-of-the-requests-to-github.svg" alt="Three checks of the requests to GitHub: The GraphQL documents of issue_assistant.py meet a copy of GitHub's schema in the required check of every pull request. The commands sweep, sync-labels and context run against GitHub itself with a token that can only read, on every pull request, on main and every week. Every week the documents also meet the schema that GitHub publishes that day, and a notice says when the copy is behind it.">
+</picture>
 
 1. **Every GraphQL document meets GitHub's schema.** `tests/test_graphql_contract.py` runs each method of the class `GitHub` that sends GraphQL, catches what it hands to `gh` and checks it against GitHub's public schema, whose copy is `tests/github/schema.docs.graphql`: every field and argument must exist and none may be deprecated, and every variable must fit its type, such as the reason for closing an issue. The answer is worked out from the schema as well, so it holds only the fields that the document asks for, and the method can read no other. A document that the test doesn't know fails it, so a new one comes with its case.
 2. **The commands that read run against GitHub.** The job `egress` of the Action test runs the action of the pull request as dry runs of `sweep` and `sync-labels` on this repository, and `context` for a closed issue of [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), a public repository that uses the action, with its comments, the other issues and the discussions. Its token can only read, so a write that a dry run let through would fail too.
@@ -179,28 +96,10 @@ flowchart TB
 
 The tests replace the engine, and the Action test runs everything but it, so the path that matters most, from an issue through the engine to the checked answer, ran only when someone opened an issue: here that is rare, and every repository that uses the action runs it with its own secret. A renamed output of the engine's action, a host that the firewall blocks or an expired secret would show as issues without an answer, in every repository at once. The Canary, `.github/workflows/canary.yml`, runs the whole path every Monday, after every change on `main` of what it runs, and by hand:
 
-```mermaid
-flowchart TB
-  accTitle: How the Canary runs the path of an issue through the AI
-  accDescr: The Canary starts every Monday, after a change on main of the script, the prompts, the action, the workflow template, the firewall policy, the settings or the canary's issue, and by hand. Its job analyze is that of the template: on the firewall runner, with the engine's secret of the environment issue-assistant, context reads the issue of tests/fixtures/canary-issue.json instead of one on GitHub, and the engine answers with JSON. Without the secret or without an answer, the canary fails. Its job apply checks the answer as for a real issue, as a dry run with a token that can only read: an answer that breaks a check fails the canary, and one that passes shows the comment it would post in the summary.
-  start(["every Monday, a change<br/>on main, or by hand"]) --> analyze
-  fixture[("tests/fixtures/<br/>canary-issue.json")] --> analyze
-  analyze["<b>analyze</b>, as in the template:<br/>the firewall runner,<br/>the secret, the engine"] --> answered{"a structured<br/>answer?"}
-  answered -- "no" --> red["the canary fails:<br/>no release"]
-  answered -- "yes" --> apply["<b>apply</b>, a dry run<br/>with a token that only reads:<br/>the checks of every answer"]
-  apply -- "a check fails" --> red
-  apply -- "it passes" --> green["the comment it would post,<br/>in the summary"]
-  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  class start,fixture,answered trigger
-  class analyze ai
-  class apply job
-  class green safe
-  class red untrusted
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/how-the-canary-runs-the-path-of-an-issue-through-the-ai.dark.svg">
+  <img src="images/diagrams/how-the-canary-runs-the-path-of-an-issue-through-the-ai.svg" alt="How the Canary runs the path of an issue through the AI: The Canary starts every Monday, after a change on main of the script, the prompts, the action, the workflow template, the firewall policy, the settings or the canary's issue, and by hand. Its job analyze is that of the template: on the firewall runner, with the engine's secret of the environment issue-assistant, context reads the issue of tests/fixtures/canary-issue.json instead of one on GitHub, and the engine answers with JSON. Without the secret or without an answer, the canary fails. Its job apply checks the answer as for a real issue, as a dry run with a token that can only read: an answer that breaks a check fails the canary, and one that passes shows the comment it would post in the summary.">
+</picture>
 
 - **The issue exists nowhere.** `tests/fixtures/canary-issue.json` holds an issue of the bug report form of this repository and a comment, as GitHub's REST API gives them. The environment variable `ISSUE_ASSISTANT_FIXTURE` gives them to `context` and `apply` in place of an issue on GitHub; the other issues, the discussions, the labels and the latest release come from GitHub, as for a real issue. With a fixture, `apply` is a dry run whatever `dry-run` says, and the tokens of the jobs `analyze` and `apply` can only read, so nothing reaches an issue. A test keeps the issue fitting the form and the labels of this repository.
 - **The engine runs as in every repository.** `tests/test_templates.py` keeps the job `analyze` of the canary equal to that of the template: the runner, the environment, the permissions, the outputs and the steps of the engines, with their pins. Only the steps of the issue assistant run the action of the commit, as `./`, and the engines also accept a run that a bot started, as the canary's own runs after a push are. Where a repository's run skips the AI, without the secret or without an answer, the canary fails.
@@ -221,24 +120,10 @@ Every call goes through `gh api`, in `GitHub._gh`. When it fails, the `GitHubErr
 
 Only the places that look a thing up catch an error, and only when it is `missing()`. Every other error stops the command: `main` prints it as one escaped `::error::` and the summary lists the writes of the run before it, and the write that failed. A run again repeats nothing, because every step checks first what is done:
 
-```mermaid
-flowchart TB
-  accTitle: How a run of apply after a failed one avoids a second comment
-  accDescr: Apply looks for the comment of an earlier run of the same event. Without one, it adds the labels and possible-duplicate, posts the comment, and adds needs-info last, so that an issue never waits for an answer to a question that GitHub didn't post. With one, it posts nothing: it adds the labels of the answer and the lifecycle labels that the comment named, except the labels that anyone changed since the comment, and needs-info once the reporter answered.
-  apply["<b>apply</b>, the answer<br/>checked"] --> earlier{"a comment of an<br/>earlier run?"}
-  earlier -- "no" --> labels["the labels of the answer<br/>and possible-duplicate"]
-  labels --> comment["the comment"]
-  comment --> waiting["needs-info, last"]
-  earlier -- "yes" --> changed["leave out the labels that<br/>anyone changed since"]
-  changed --> complete["the missing labels;<br/>needs-info and<br/>possible-duplicate<br/>as the comment says"]
-  complete --> none["no second comment"]
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class earlier question
-  class apply,labels,comment,changed,complete job
-  class waiting,none safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/how-a-run-of-apply-after-a-failed-one-avoids-a-second-comment.dark.svg">
+  <img src="images/diagrams/how-a-run-of-apply-after-a-failed-one-avoids-a-second-comment.svg" alt="How a run of apply after a failed one avoids a second comment: Apply looks for the comment of an earlier run of the same event. Without one, it adds the labels and possible-duplicate, posts the comment, and adds needs-info last, so that an issue never waits for an answer to a question that GitHub didn't post. With one, it posts nothing: it adds the labels of the answer and the lifecycle labels that the comment named, except the labels that anyone changed since the comment, and needs-info once the reporter answered.">
+</picture>
 
 The sweep runs each step and each issue through `isolate`: a `GitHubError` becomes a `::warning::` and a line of `SweepIncomplete`, which `main` reports with what was done before it fails the run. The steps of the sweep check what an earlier one did: a fixed issue loses `needs-info` and `stale` and gets `fixed-in-next-release` before its notice, so a failed notice never leaves it waiting for an answer, a comment of the release, of the closing of an unanswered issue or of a duplicate isn't posted twice, and an issue closes before its labels are removed, so the next sweep still finds one that GitHub didn't close.
 
@@ -248,26 +133,10 @@ The sweep runs each step and each issue through `isolate`: a `GitHubError` becom
 
 Anyone can write an issue, and every analysis reads the text of every issue of the repository, open or closed, for the excerpts of the other issues. One text that kept a pattern busy for minutes would stall every analysis until its job timed out. So the time to read a text grows only with its length:
 
-```mermaid
-flowchart TB
-  accTitle: How the assistant reads the text of an issue
-  accDescr: The text of an issue or a comment, which anyone can write, is read up to GitHub's 65,536 characters. The answers of a form are cut out between their headings, which are found once; from them come the labels of the form and the reporter's language. For the AI, the answers of a form and HTML comments make an excerpt of each other issue, and HTML comments and tags go in one pass for issue.md. Then the characters that GitHub shows as nothing go, in one pass, after the HTML, so that none can end an HTML comment that GitHub never ends. The excerpts go into issues.jsonl, and issue.md holds up to 20,000 characters of each text in a code fence that the text can't close.
-  text["issue or comment text,<br/>which anyone writes"] --> cap["at most 65,536 characters,<br/>as much as GitHub keeps"]
-  cap --> forms["<b>form_fields</b><br/>each heading found once,<br/>answers cut out between"]
-  forms --> event["labels of the form,<br/>the reporter's language"]
-  cap --> excerpt["<b>excerpt</b> of every<br/>other issue: form answers,<br/>no HTML comments"]
-  cap --> html["<b>strip_html</b><br/>comments and tags<br/>in one pass"]
-  excerpt --> visible["<b>Visible</b><br/>invisible characters<br/>out, in one pass"]
-  html --> visible
-  visible -- "the other issues" --> jsonl["<b>issues.jsonl</b>,<br/>an excerpt of each"]
-  visible -- "the issue" --> issue["<b>issue.md</b>, up to 20,000<br/>characters of each text,<br/>each in its own fence"]
-  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class text untrusted
-  class cap,forms,excerpt,html,visible job
-  class event,jsonl,issue safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/how-the-assistant-reads-the-text-of-an-issue.dark.svg">
+  <img src="images/diagrams/how-the-assistant-reads-the-text-of-an-issue.svg" alt="How the assistant reads the text of an issue: The text of an issue or a comment, which anyone can write, is read up to GitHub's 65,536 characters. The answers of a form are cut out between their headings, which are found once; from them come the labels of the form and the reporter's language. For the AI, the answers of a form and HTML comments make an excerpt of each other issue, and HTML comments and tags go in one pass for issue.md. Then the characters that GitHub shows as nothing go, in one pass, after the HTML, so that none can end an HTML comment that GitHub never ends. The excerpts go into issues.jsonl, and issue.md holds up to 20,000 characters of each text in a code fence that the text can't close.">
+</picture>
 
 - **No pattern backtracks.** Each one looks at a character a bounded number of times: a form heading is one line, a tag ends on its line, and when no `>` closes a tag on its line, the rest of the line is passed over in one step.
 - **HTML comments go as GitHub hides them.** A line that starts with a `<!--` that never ends hides the rest of the text, as on GitHub, so instructions hidden that way don't reach the AI either. A `<!--` without its end within a line stays text, as GitHub shows it.

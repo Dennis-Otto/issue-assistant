@@ -1,0 +1,16 @@
+flowchart TB
+  accTitle: Where the pages of the website come from
+  accDescr: The parts of the README become the pages Get started, How it works, Configuration, Reference, Help and the quick start of the home page. The hook of the website makes every comment of What reporters see from the functions and texts of issue_assistant.py, and the tables of the inputs and outputs on the Reference from action.yml. Every page gets a description of its own, from its front matter or its first paragraph.
+  readme(["README.md,<br>in parts"]) --> pages["Get started, How it works,<br>Configuration, Reference,<br>Help, Home"]
+  script(["issue_assistant.py:<br>TEXT and render_*()"]) --> hook
+  action(["action.yml"]) --> hook
+  hook["`**scripts/mkdocs_hooks.py**<br>with every build`"] --> comments["What reporters see:<br>every comment,<br>English and German"]
+  hook --> tables["Reference: the inputs<br>and outputs of the action"]
+  hook --> described["a description of its own<br>for every page"]
+  pages --> described
+  classDef source fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef code fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef page fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  class readme,script,action source
+  class hook code
+  class pages,comments,tables,described page

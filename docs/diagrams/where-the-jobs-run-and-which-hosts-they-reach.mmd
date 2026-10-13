@@ -1,0 +1,21 @@
+flowchart TB
+  accTitle: Where the jobs run and which hosts they reach
+  accDescr: The jobs event, apply, sweep, sync-labels and findings run on ubuntu-24.04 behind Harden-Runner in block mode, without sudo and containers, and reach api.github.com and github.com. The job analyze runs on ubuntu-24.04-firewall and reaches the hosts of .github/egress-firewall.yaml. Every other host is blocked for both.
+  subgraph blocked ["ubuntu-24.04, Harden-Runner: block, no sudo, no containers"]
+    writers["`**event**, **apply**, **sweep**,<br>**sync-labels**, **findings**<br>no AI, a write token`"]
+  end
+  subgraph firewall ["ubuntu-24.04-firewall, GitHub's egress firewall"]
+    analyze["`**analyze**<br>the AI, a read-only token`"]
+  end
+  writers --> github[("api.github.com<br>github.com")]
+  analyze --> hosts[("the hosts of<br>egress-firewall.yaml")]
+  writers --x other(["every other host"])
+  analyze --x other
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  class analyze ai
+  class writers job
+  class github,hosts safe
+  class other untrusted
