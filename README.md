@@ -61,17 +61,19 @@ The [documentation website](https://dennis-otto.github.io/issue-assistant/) has 
 
 ```mermaid
 flowchart LR
+  accTitle: The four workflows of a repository and what starts them
+  accDescr: A change of labels.toml starts sync-labels in labels.yml. A scan of code scanning on main and every morning start findings in findings.yml. Every morning, a merged pull request, a published release and the end of a release run that no schedule started start sweep in issue-lifecycle.yml. A new issue, an edit or a comment starts issue-assistant.yml, where event chooses the next task, analyze lets the AI read the checkout and answer with JSON, and apply checks the answer and is the only job that writes.
   changed(["change of<br/>labels.toml"]) --> sync
   subgraph labelling ["labels.yml"]
     sync["<b>sync-labels</b><br/>creates and updates<br/>the labels"]
   end
-  scanned(["code scanning"]) --> findings
+  scanned(["a scan of code<br/>scanning on main"]) --> findings
   subgraph scanning ["findings.yml"]
     findings["<b>findings</b><br/>dismisses accepted findings,<br/>fails on the others"]
   end
   daily(["every morning"]) --> findings
   daily --> sweep
-  shipped(["merged pull request,<br/>published release"]) --> sweep
+  shipped(["merged pull request,<br/>published release,<br/>end of a release run"]) --> sweep
   subgraph lifecycle ["issue-lifecycle.yml"]
     sweep["<b>sweep</b><br/>reminders, closing,<br/>duplicates, fixed issues"]
   end
@@ -94,9 +96,11 @@ Four workflows run in the repository. Only the violet job runs an AI, and it can
 | Workflow | When | What |
 | --- | --- | --- |
 | `issue-assistant.yml` | new issues, edits of their reporters, new comments, by hand | labels from the form, the first analysis, follow-ups when the reporter answers, whether a maintainer's comment waits for the reporter, and whether a comment after the release reopens the issue |
-| `issue-lifecycle.yml` | every morning, merged pull requests, published releases, the end of a workflow named Release or Release integration | reminders after 15 days, closing after 30 days, closing duplicates 3 days after the notice, marking fixed issues and closing them with the release |
+| `issue-lifecycle.yml` | every morning, merged pull requests, published releases, the end of a workflow named Release or Release integration that no schedule started | reminders after 15 days, closing after 30 days, closing duplicates 3 days after the notice, marking fixed issues and closing them with the release |
 | `labels.yml` | when `.github/labels.toml` changes on main | creates and updates the labels; never deletes one |
-| `findings.yml` | every morning, after code scanning on main, when `.github/findings.toml` changes | dismisses the accepted findings of code scanning and fails while others are open |
+| `findings.yml` | every morning, after each scan of CodeQL, OpenSSF Scorecard, Workflow security and OSV-Scanner on main, when `.github/findings.toml` changes | dismisses the accepted findings of code scanning and fails while others are open |
+
+Every job runs on `ubuntu-24.04`, the AI's on GitHub's egress-firewall runner of the same version. The events of one issue wait for each other, first in, first out, so a comment written while an analysis runs is handled after it, never dropped. A run of the lifecycle or the findings whose job has nothing to do, such as after the hourly scheduled run of a release workflow, takes no runner and never takes the place of one that waits.
 
 Every task of the AI is one of four: `triage` for a new issue, `follow-up` when the reporter answered the assistant's questions (at most twice, and never once the maintainer joined the conversation), `maintainer-reply` to decide whether a maintainer's comment waits for the reporter, and `release-reply` to decide whether the reporter of an issue that a release closed says that the problem persists.
 
@@ -226,6 +230,7 @@ flowchart TB
 - **Nothing is posted unchecked.** The AI's answer is JSON with a fixed schema. The `apply` job, which runs no AI and never sees its secret, checks it against the schema, the repository's labels and the issues that exist, refuses anything that looks like a token or key, turns mentions into code, drops images, HTML and links to other sites, and links files only when git tracks them. It writes only to the issue of the event.
 - **The secret stays in one place:** the environment `issue-assistant`, which only the default branch may use.
 - **No code of a pull request runs.** The lifecycle workflow starts on `pull_request_target` only to learn which issues a merged pull request fixes. It checks out the default branch, runs no AI and skips Dependabot's pull requests.
+- **The jobs that write reach only GitHub.** Every job without the AI starts with [Harden-Runner](https://github.com/step-security/harden-runner) in block mode: the network allows `api.github.com` and `github.com` alone, besides the runner's own hosts, and no step can use sudo or containers to lift the block. A compromised action or tool in a job with a write token can't send it anywhere else. The Action test of this repository runs the action behind the same block.
 - **Findings stay private.** Code scanning alerts are only shown to maintainers, but the logs of a public repository's runs are public. So the Findings workflow names an open alert by its number and link only, never its rule, file or message, and nothing becomes an issue.
 - **Every repository uses exactly the templates.** The templates are the four workflows and the firewall policy in `templates/`, which this repository uses for its own issues and findings too. `check` fails when a repository's workflow differs from its template in anything but the commit hashes of its actions, and the tests of this repository pin the rules of the templates.
 
@@ -286,7 +291,17 @@ The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/d
     gh secret set CLAUDE_CODE_OAUTH_TOKEN --env issue-assistant --repo OWNER/REPO
     ```
 
-9. If the repository runs actionlint, list the runner `ubuntu-24.04-firewall` under `self-hosted-runner.labels` in `.github/actionlint.yaml`.
+9. If the repository runs actionlint, list the runner `ubuntu-24.04-firewall` under `self-hosted-runner.labels` in `.github/actionlint.yaml`. actionlint 1.7.12 doesn't know the queue of a concurrency group yet, so let it ignore that message in `issue-assistant.yml` too:
+
+    ```yaml
+    self-hosted-runner:
+      labels:
+        - ubuntu-24.04-firewall
+    paths:
+      .github/workflows/issue-assistant.yml:
+        ignore:
+          - 'unexpected key "queue" for "concurrency" section'
+    ```
 
 <!-- --8<-- [end:quick-start] -->
 

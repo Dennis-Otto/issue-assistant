@@ -1,9 +1,10 @@
 name: Action test
 
 # The templates in templates/, which every repository that uses the action gets,
-# pass actionlint and zizmor. Then the action runs as its users run it: installed
-# into the sample repository and into a copy of this repository, whose set-ups it
-# checks. The action runs on the runner's own Python, without PyYAML: check falls
+# pass actionlint and zizmor. Then the action runs as its users run it, on the
+# runner of the templates: installed into the sample repository and into a copy of
+# this repository, whose set-ups it checks, and behind the egress block of the
+# templates. The action runs on the runner's own Python, without PyYAML: check falls
 # back to yq, as it does in every repository that uses the action.
 # https://github.com/Dennis-Otto/repo-blueprint
 
@@ -23,19 +24,23 @@ concurrency:
 jobs:
   action:
     name: action
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The Lint workflow lints this repository's own workflows only.
+      # The Lint workflow lints this repository's own workflows only. actionlint
+      # 1.7.12, the newest release, doesn't know the queue of a concurrency group,
+      # which GitHub has documented since 2026-05-07; only that message is ignored.
       - name: Lint the templates
         env:
           ACTIONLINT: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         run: |
           docker run --rm --volume "$PWD:/repo" --workdir /repo "$ACTIONLINT" \
-            -config-file .github/actionlint.yaml templates/.github/workflows/*.yml
+            -config-file .github/actionlint.yaml \
+            -ignore 'unexpected key "queue" for "concurrency" section' \
+            templates/.github/workflows/*.yml
       # The Workflow security workflow reports zizmor's findings to code scanning;
       # a finding in the templates fails this check, before any repository gets it.
       # The log names the files of a finding; annotations would name them relative
@@ -76,3 +81,37 @@ jobs:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/own
         with:
           command: check
+
+  # The action behind the egress block of the templates, in dry runs of the commands
+  # that read the most of GitHub. A host that the action or the GitHub CLI starts to
+  # need fails here, before a release blocks it in every repository.
+  egress:
+    name: action behind the egress block
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Block every host but GitHub's
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Remind and close, as a dry run
+        uses: ./
+        with:
+          command: sweep
+          dry-run: true
+      - name: Create and update the labels, as a dry run
+        uses: ./
+        with:
+          command: sync-labels
+          dry-run: true

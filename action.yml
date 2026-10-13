@@ -79,5 +79,8 @@ runs:
         DRY_RUN: ${{ inputs.dry-run }}
         GH_TOKEN: ${{ inputs.github-token }}
         GH_REPO: ${{ github.repository }}
+        # The jobs of the templates block every host but GitHub's, and the GitHub
+        # CLI's telemetry would only knock at another one.
+        GH_TELEMETRY: "false"
       # Every value reaches the script through the environment, never the script text.
       run: python3 "$GITHUB_ACTION_PATH/issue_assistant.py" "$COMMAND"

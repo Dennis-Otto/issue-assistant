@@ -38,6 +38,16 @@ JOBS = ASSISTANT["jobs"]
 ANALYZE = JOBS["analyze"]
 STEPS = {step.get("id"): step for step in ANALYZE["steps"]}
 ACTION = load(ROOT / "action.yml")
+LIFECYCLE = load(TEMPLATES / "issue-lifecycle.yml")
+FINDINGS = load(TEMPLATES / "findings.yml")
+
+# The runner of every job without the AI: a fixed version of Ubuntu, so that a new
+# image behind ubuntu-latest never reaches the repositories untested.
+RUNNER = "ubuntu-24.04"
+HARDEN_RUNNER = "step-security/harden-runner"
+# The hosts that a job without the AI reaches: the checkout and the GitHub CLI.
+# Harden-Runner allows the hosts of the runner itself, such as those of the logs.
+GITHUB_HOSTS = ["api.github.com:443", "github.com:443"]
 
 
 def claude_reads_only(step):
@@ -112,6 +122,80 @@ def test_templates_start_without_permissions_and_not_in_forks(name):
         assert job["timeout-minutes"] <= 20, job_name
     first = next(iter(workflow["jobs"].values()))
     assert "!github.event.repository.fork" in first["if"]
+
+
+# Every job of the templates, as (workflow, job name, job).
+TEMPLATE_JOBS = [
+    (name, job_name, job)
+    for name in NAMES
+    for job_name, job in load(TEMPLATES / name)["jobs"].items()
+]
+WITHOUT_AI = [item for item in TEMPLATE_JOBS if item[1] != "analyze"]
+
+
+def template_job_id(item):
+    return f"{item[0]}:{item[1]}"
+
+
+@pytest.mark.parametrize("item", TEMPLATE_JOBS, ids=template_job_id)
+def test_every_job_runs_on_a_fixed_version_of_ubuntu(item):
+    name, job_name, job = item
+    # The AI runs behind GitHub's egress firewall, whose runner has a label of its own.
+    expected = assistant.FIREWALL_RUNNER if job_name == "analyze" else RUNNER
+    assert job["runs-on"] == expected, (name, job_name)
+
+
+@pytest.mark.parametrize("item", WITHOUT_AI, ids=template_job_id)
+def test_jobs_without_the_ai_reach_only_github(item):
+    """Every job that writes blocks every host but GitHub's, before any other step.
+
+    A compromised action or tool in a job with a write token could send it anywhere;
+    Harden-Runner in block mode stops it, and without sudo and containers no later
+    step can lift the block.
+    """
+    name, job_name, job = item
+    first, *rest = job["steps"]
+    action, _, ref = first["uses"].partition("@")
+    assert action == HARDEN_RUNNER and assistant.SHA.fullmatch(ref), (name, job_name)
+    assert first["with"] == {
+        "egress-policy": "block",
+        "disable-sudo-and-containers": True,
+        "allowed-endpoints": " ".join(GITHUB_HOSTS),
+    }
+    assert not any(step.get("uses", "").startswith(HARDEN_RUNNER) for step in rest)
+
+
+def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
+    """The Action test runs the action behind the egress block of the templates.
+
+    So a new host that the action or the GitHub CLI needs fails a check here, before
+    a release blocks it in every repository.
+    """
+    jobs = load(OWN / "action-test.yml")["jobs"]
+    (job,) = [
+        job
+        for job in jobs.values()
+        if job["steps"][0].get("uses", "").startswith(f"{HARDEN_RUNNER}@")
+    ]
+    assert job["runs-on"] == RUNNER
+    assert job["steps"][0] == JOBS["event"]["steps"][0]
+    runs = [step["with"] for step in job["steps"] if step.get("uses") == "./"]
+    # Dry runs of the commands that read the most of GitHub, which only read.
+    assert runs == [
+        {"command": "sweep", "dry-run": True},
+        {"command": "sync-labels", "dry-run": True},
+    ]
+    assert job["permissions"] == {
+        "contents": "read",
+        "issues": "read",
+        "pull-requests": "read",
+    }
+
+
+def test_the_github_cli_sends_no_telemetry():
+    # Its telemetry would only knock at a host that the block doesn't allow.
+    (step,) = ACTION["runs"]["steps"]
+    assert step["env"]["GH_TELEMETRY"] == "false"
 
 
 @pytest.mark.parametrize("path", WORKFLOWS, ids=workflow_id)
@@ -203,7 +287,6 @@ def test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions():
     assert ANALYZE["runs-on"] == assistant.FIREWALL_RUNNER
     assert ANALYZE["environment"] == {"name": "issue-assistant", "deployment": False}
     for name in ("event", "apply"):
-        assert JOBS[name]["runs-on"] == "ubuntu-latest"
         assert "environment" not in JOBS[name]
         for rules in ENGINE_RULES.values():
             for secret in rules["secrets"]:
@@ -251,8 +334,7 @@ def test_the_manual_run_offers_every_task_and_starts_as_a_dry_run():
     inputs = ASSISTANT[True]["workflow_dispatch"]["inputs"]
     assert inputs["mode"]["options"] == list(assistant.MODES)
     assert inputs["dry_run"]["default"] is True
-    lifecycle = load(TEMPLATES / "issue-lifecycle.yml")
-    assert lifecycle[True]["workflow_dispatch"]["inputs"]["dry_run"]["default"] is True
+    assert LIFECYCLE[True]["workflow_dispatch"]["inputs"]["dry_run"]["default"] is True
 
 
 def test_the_events_the_assistant_handles_trigger_it():
@@ -264,9 +346,46 @@ def test_the_events_the_assistant_handles_trigger_it():
     assert "github.event.sender.type != 'Bot'" in condition
 
 
+def test_the_events_of_an_issue_wait_their_turn_instead_of_being_dropped():
+    """Runs for one issue run one after the other, first in, first out, and none is
+    dropped.
+
+    By default a group keeps one waiting run and cancels it for the next one, so a
+    comment written while an analysis ran could be lost: an answer of the reporter
+    without a follow-up, or a "still broken" after a release that reopens nothing.
+    """
+    assert ASSISTANT["concurrency"] == {
+        "group": "issue-assistant-${{ github.event.issue.number || inputs.issue }}",
+        # GitHub refuses a queue together with cancel-in-progress.
+        "cancel-in-progress": False,
+        "queue": "max",
+    }
+
+
+@pytest.mark.parametrize(
+    ("workflow", "group"),
+    [(LIFECYCLE, "issue-lifecycle"), (FINDINGS, "findings")],
+    ids=["issue-lifecycle.yml", "findings.yml"],
+)
+def test_a_run_that_skips_its_job_never_takes_the_place_of_a_waiting_one(
+    workflow, group
+):
+    """The job, not the run, waits for the group.
+
+    A whole run waits for a group of the workflow before its job checks its
+    condition, so a run that would skip its job, such as after a scheduled Release
+    run or a scan of a pull request, cancelled the waiting run that had work to do.
+    A job that its condition skips never enters the group of the job: on GitHub, a
+    run whose jobs were all skipped left a job waiting in their group alone
+    (2026-10-13).
+    """
+    assert "concurrency" not in workflow
+    (job,) = workflow["jobs"].values()
+    assert job["concurrency"] == {"group": group, "cancel-in-progress": False}
+
+
 def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_code():
-    lifecycle = load(TEMPLATES / "issue-lifecycle.yml")
-    triggers = lifecycle[True]
+    triggers = LIFECYCLE[True]
     assert triggers["pull_request_target"] == {"types": ["closed"]}
     assert triggers["release"] == {"types": ["published"]}
     # A release published with the GITHUB_TOKEN starts no workflow.
@@ -275,41 +394,57 @@ def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_co
         "types": ["completed"],
     }
     assert "pull_request" not in triggers
-    (job,) = lifecycle["jobs"].values()
+    (job,) = LIFECYCLE["jobs"].values()
     condition = " ".join(job["if"].split())
     assert "github.event.pull_request.merged" in condition
     assert "github.event.pull_request.user.login != 'dependabot[bot]'" in condition
-    assert "github.event.workflow_run.conclusion == 'success'" in condition
+    # A release workflow that runs every hour as a safety net mostly releases
+    # nothing; the morning sweep catches a release of a scheduled run.
+    assert (
+        "(github.event_name != 'workflow_run' || "
+        "(github.event.workflow_run.conclusion == 'success' && "
+        "github.event.workflow_run.event != 'schedule'))"
+    ) in condition
     assert job["permissions"] == {
         "contents": "read",
         "issues": "write",
         "pull-requests": "read",
     }
-    checkout, step = job["steps"]
+    _, checkout, step = job["steps"]
     # The default branch: no ref of the pull request, no credentials left behind.
     assert checkout["with"] == {"persist-credentials": False}
     assert step["with"]["command"] == "sweep"
 
 
 def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
-    findings = load(TEMPLATES / "findings.yml")
-    triggers = findings[True]
+    triggers = FINDINGS[True]
     assert set(triggers) == {"schedule", "push", "workflow_run", "workflow_dispatch"}
     assert triggers["push"] == {
         "branches": ["main"],
         "paths": [assistant.FINDINGS_FILE.as_posix()],
     }
+    # Every workflow of the blueprint that reports to code scanning: a new finding
+    # is accepted or reported right after the scan, not the next morning.
+    assert triggers["workflow_run"] == {
+        "workflows": [
+            "CodeQL",
+            "OpenSSF Scorecard",
+            "Workflow security",
+            "OSV-Scanner",
+        ],
+        "types": ["completed"],
+    }
     assert triggers["workflow_dispatch"]["inputs"]["dry_run"]["default"] is True
-    (job,) = findings["jobs"].values()
+    (job,) = FINDINGS["jobs"].values()
     assert job["permissions"] == {"contents": "read", "security-events": "write"}
     condition = " ".join(job["if"].split())
     # Only code scanning of the default branch of this repository, never of a fork.
     assert "head_repository.full_name == github.repository" in condition
     assert "head_branch == github.event.repository.default_branch" in condition
-    checkout, step = job["steps"]
+    _, checkout, step = job["steps"]
     assert checkout["with"] == {"persist-credentials": False}
     assert step["with"]["command"] == "findings"
-    assert "environment" not in job and job["runs-on"] == "ubuntu-latest"
+    assert "environment" not in job
 
 
 def test_the_firewall_template_allows_only_named_hosts():

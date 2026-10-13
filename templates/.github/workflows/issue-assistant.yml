@@ -9,6 +9,8 @@ name: Issue assistant
 #          egress-firewall runner (.github/egress-firewall.yaml)
 # apply    no AI: checks the engine's answer and is the only job that writes
 #
+# event and apply block every host but GitHub's with Harden-Runner.
+#
 # Without the engine's secret in the environment issue-assistant, or with the
 # repository variable ISSUE_ASSISTANT_AI set to "off", only labels and the lifecycle
 # work. The issue assistant's check command keeps this file equal to its template.
@@ -36,9 +38,12 @@ on:
 
 permissions: {}
 
+# The runs of one issue run one after the other. Up to 100 wait their turn, first
+# in, first out, so an answer written while an analysis runs is never dropped.
 concurrency:
   group: issue-assistant-${{ github.event.issue.number || inputs.issue }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   event:
@@ -50,7 +55,7 @@ jobs:
          github.event.sender.type != 'Bot' &&
          (github.event.action != 'edited' ||
           github.event.sender.login == github.event.issue.user.login)))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -59,6 +64,14 @@ jobs:
       issue: ${{ steps.event.outputs.issue }}
       mode: ${{ steps.event.outputs.mode }}
     steps:
+      - name: Block every host but GitHub's
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
       # Issue events always run the workflow and the settings of the default branch.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -146,13 +159,21 @@ jobs:
     name: Check and post the analysis
     needs: [event, analyze]
     if: needs.analyze.outputs.answer != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
       issues: write
       discussions: read
     steps:
+      - name: Block every host but GitHub's
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
