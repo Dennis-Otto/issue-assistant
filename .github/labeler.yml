@@ -3,7 +3,7 @@
 # issue_assistant.py alone get no area: the file serves all of them.
 "area: analysis":
   - changed-files:
-      - any-glob-to-any-file: ["prompts/**", "fuzz/**", "tests/oracle.py", "tests/test_properties.py"]
+      - any-glob-to-any-file: ["prompts/**", "fuzz/**", "tests/oracle.py", "tests/test_oracle.py", "tests/test_properties.py"]
 # Everything that install writes into a repository comes from templates/;
 # tests/test_templates.py checks it. This repository's own copies of the workflows
 # in .github/ are the blueprint's and change with its updates.
