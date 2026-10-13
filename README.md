@@ -44,7 +44,7 @@ A GitHub Action that looks after the issues of a repository:
 - **A first analysis of every new issue** by an AI that only reads: a summary, the likely cause with links to the lines of code and the documentation involved, what the reporter can try, the information still missing, and related issues and discussions, in English or German.
 - **Labels** from the issue forms and from the analysis, each with its reason.
 - **Duplicates:** a sure duplicate of an issue that a maintainer opened or triaged gets a notice and closes, linked to the original, three days later unless someone objects; other ones become suggestions for the maintainer.
-- **Unanswered questions:** questions of the assistant or the maintainer mark an issue `needs-info`; after 15 days the reporter gets a reminder, after 30 days the issue closes, and an answer reopens it.
+- **Unanswered questions:** questions of the assistant or the maintainer mark an issue `needs-info`; after 15 days the reporter gets a reminder that names the day the issue closes, and after 30 days it closes on that day. An answer, in a comment or by an edit of the issue, ends the waiting, and a comment reopens a closed issue.
 - **From the fix to the release:** a merged pull request that fixes an issue (`Fixes #12`) marks it `fixed-in-next-release`, and the issue stays open until a release ships the fix. Then it closes with a link to the release. If the reporter writes that the problem persists, it reopens.
 - **Labels as code** in `.github/labels.toml`.
 - **Findings of code scanning:** the findings that `.github/findings.toml` accepts are dismissed with their reason; any other open finding fails a daily run, without a public issue.
@@ -191,6 +191,13 @@ flowchart TB
   class closed,duplicate,released done
   class maintainer person
 ```
+
+An issue that waits for its reporter keeps what the comments of the assistant promise:
+
+- **An answer is a comment or an edit of the text,** as the questions offer. Either ends the waiting, also when the event job missed it, since the sweep reads the comments and the history of the text. A new title alone answers nothing, and the AI gets no follow-up to write for it.
+- **The reminder names the day, and the issue closes on it.** The waiting counts days of the calendar in UTC, and the hidden marker of the reminder records the day, so the sweep of that morning closes the issue, whatever minute it starts.
+- **A comment of the reporter reopens the issue** that the sweep closed for a missing answer, as the closing comment promises, whatever its labels say: also when an answer came in while the sweep closed it and took them.
+- **A follow-up waits for no maintainer.** The AI writes for a minute or two; the job that posts its follow-up checks again, and posts nothing once a maintainer joined the conversation.
 
 ### A duplicate
 
@@ -776,6 +783,7 @@ The summary of each run says what the assistant did and why; the runs are under 
 | `check` says that a workflow *differs from the template of the issue assistant* | The workflow was changed by hand, or comes from another release than the action that it pins | Run `install` again with the release that the workflows pin |
 | An issue closed when its fix was merged, not with the release | GitHub closes the issues that a merged pull request names | Under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**; a repository without releases sets `close_with_release = false` |
 | An issue with `fixed-in-next-release` stays open after a release | The release is a draft or a pre-release, it doesn't contain every pull request that fixes the issue, or a maintainer set the label by hand after it, which waits for the next one | Publish a final release that contains the fixes; the sweep of the next morning closes the issue, or start *Issue lifecycle* by hand |
+| An issue still waits for its reporter after they changed the title | Only a comment or an edit of the text answers the questions | Nothing to fix: the reporter answers in a comment or in the text. To end the waiting yourself, remove `needs-info` |
 | A label of `.github/labels.toml` is missing in the repository | The Labels workflow runs when `labels.toml` changes on `main`, not before | Run it by hand: `gh workflow run labels.yml` |
 | actionlint calls `ubuntu-24.04-firewall` an unknown label | actionlint doesn't know the runner of the preview | List it in `.github/actionlint.yaml`, as step 9 of the set-up shows |
 
