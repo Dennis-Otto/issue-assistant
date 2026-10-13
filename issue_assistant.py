@@ -88,6 +88,12 @@ MAX_FOLLOW_UPS = 2
 MERGE_LOOKBACK = timedelta(days=14)
 # How long a comment of the reporter can reopen an issue that a release closed.
 REOPEN_AFTER_RELEASE = timedelta(days=30)
+# GitHub keeps at most this many characters of the text of an issue or a comment;
+# the assistant reads no more of any text.
+MAX_TEXT = 65_536
+# The most of one text, the issue's or a comment's, that the engine reads in
+# issue.md; a longer one is cut off with a note.
+MAX_RENDERED_TEXT = 20_000
 
 NEEDS_TRIAGE = "needs-triage"
 NEEDS_INFO = "needs-info"
@@ -138,7 +144,32 @@ AUTOLINK_AFTER = frozenset(" \t\n*_~(")
 MENTION = re.compile(r"(?<![A-Za-z0-9])@([A-Za-z0-9][A-Za-z0-9-]{0,38}(?:/[\w-]+)?)")
 CROSS_REFERENCE = re.compile(r"(?<![A-Za-z0-9])([\w.-]+/[\w.-]+#\d+)")
 ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)", re.IGNORECASE)
-HTML = re.compile(r"<!--.*?-->|</?[A-Za-z][^>\n]*>", re.DOTALL)
+# The patterns that read the text of an issue look at each character a bounded
+# number of times, so that no text, however crafted, makes them slow. The tests and
+# fuzz/fuzz_issue_text.py time them on texts that took earlier patterns hours.
+#
+# An HTML comment. comment_parts splits a text where its last `-->` ends, so that
+# this pattern only reads the part in which a `-->` follows every `<!--`.
+HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+# A line that starts with `<!--`: on GitHub, an HTML block that runs to its `-->`, or
+# without one, hides the rest of the text.
+COMMENT_LINE = re.compile(r"^ {0,3}<!--", re.MULTILINE)
+# An HTML tag within one line.
+TAG = r"</?[A-Za-z][^>\n]*>"
+# An HTML comment, or a tag. When no `>` closes a tag on its line, no later tag on
+# that line can close either: the third alternative takes them all in one step, up
+# to the next comment, and strip_html keeps them as they are.
+HTML = re.compile(
+    rf"{HTML_COMMENT.pattern}|{TAG}"
+    r"|(?P<open></?[A-Za-z][^>\n<]*(?:<(?!!--)[^>\n<]*)*)",
+    re.DOTALL,
+)
+# The same for the part of a text after its last `-->`, where no comment can end:
+# a `<!--` there is text, and a tag start without its `>` takes the rest of its line.
+HTML_TAG = re.compile(rf"{TAG}|(?P<open></?[A-Za-z][^>\n]*)")
+# A heading of an issue form: GitHub writes the label of each field as `### Label`
+# above its answer.
+FORM_HEADING = re.compile(r"^###[ \t]+(.*)$", re.MULTILINE)
 HEADING_LINE = re.compile(r"^\s{0,3}#{1,6}\s+", re.MULTILINE)
 SECRET = re.compile(
     r"gh[pousr]_[A-Za-z0-9]{20,}"
@@ -818,6 +849,11 @@ def is_maintainer(item: dict[str, Any]) -> bool:
     return item.get("author_association") in MAINTAINERS
 
 
+def text_of(item: dict[str, Any]) -> str:
+    """The text of an issue or a comment, as much of it as GitHub keeps."""
+    return str(item.get("body") or "")[:MAX_TEXT]
+
+
 def moment(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
@@ -830,7 +866,7 @@ def marker(comment: dict[str, Any]) -> tuple[str, dict[str, str]] | None:
     """The kind and attributes of an assistant comment; None for every other comment."""
     if login(comment.get("user")) != BOT:
         return None
-    match = MARKER.search(comment.get("body") or "")
+    match = MARKER.search(text_of(comment))
     if not match:
         return None
     attributes = dict(part.split("=", 1) for part in match[2].split())
@@ -848,18 +884,28 @@ def render_marker(kind: str, **attributes: object) -> str:
 
 
 def form_fields(body: str) -> dict[str, str]:
-    """The answers of an issue form, by the label of their field."""
+    """The answers of an issue form, by the label of their field.
+
+    An answer is the text between its heading and the next one. Each heading is
+    found once and the answers are cut out between them, so the time grows with the
+    length of the text and no faster. GitHub writes an answer under every heading of
+    a form, so a heading on the last line, with no line break after it, is a heading
+    of free text and starts no field.
+    """
+    body = body or ""
+    headings = list(FORM_HEADING.finditer(body))
+    starts = [heading.start() for heading in headings] + [len(body)]
     fields = {}
-    for match in re.finditer(
-        r"^###[ \t]+(.+?)[ \t]*\n(.*?)(?=^###[ \t]|\Z)", body or "", re.M | re.S
-    ):
-        value = match[2].strip()
-        fields[match[1].strip()] = "" if value == "_No response_" else value
+    for heading, end in zip(headings, starts[1:], strict=True):
+        if heading.end() == len(body):
+            continue
+        value = body[heading.end() : end].strip()
+        fields[heading[1].strip()] = "" if value == "_No response_" else value
     return fields
 
 
 def form_labels(issue: dict[str, Any], config: Config) -> list[str]:
-    area = form_fields(issue.get("body") or "").get(config.area_field, "")
+    area = form_fields(text_of(issue)).get(config.area_field, "")
     return [
         label.name for label in config.labels if area and area in label.form_options
     ]
@@ -879,13 +925,10 @@ def issue_language(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str
         if found and found[0] in {"analysis", "follow-up"} and "lang" in found[1]:
             return found[1]["lang"] if found[1]["lang"] in {"en", "de"} else "en"
     author = login(issue.get("user"))
-    answers = " ".join(form_fields(issue.get("body") or "").values()) or (
-        issue.get("body") or ""
-    )
+    body = text_of(issue)
+    answers = " ".join(form_fields(body).values()) or body
     texts = [answers] + [
-        comment.get("body") or ""
-        for comment in comments
-        if login(comment.get("user")) == author
+        text_of(comment) for comment in comments if login(comment.get("user")) == author
     ]
     return detect_language(" ".join(texts))
 
@@ -1053,11 +1096,18 @@ def reopen_if_answered(
 
 
 def excerpt(text: str, limit: int) -> str:
-    """The text of an issue in short: form answers as lines, without empty answers."""
+    """The text of an issue in short: form answers as lines, without empty answers.
+
+    The whole text is read, because comments and empty answers can come before the
+    words that count, such as the instructions of an issue template; each step takes
+    time linear in its length.
+    """
+    text = (text or "")[:MAX_TEXT]
     fields = form_fields(text)
     if fields:
         text = "\n".join(f"{key}: {value}" for key, value in fields.items() if value)
-    text = re.sub(r"<!--.*?-->", "", text or "", flags=re.DOTALL)
+    comments, rest = comment_parts(text)
+    text = HTML_COMMENT.sub("", comments) + rest
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
@@ -1087,7 +1137,7 @@ def render_issue(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str:
         "",
         "## Text of the issue",
         "",
-        HTML.sub("", issue.get("body") or "").strip() or "(empty)",
+        rendered_text(text_of(issue)) or "(empty)",
     ]
     for index, comment in enumerate(comments, start=1):
         lines += [
@@ -1095,9 +1145,17 @@ def render_issue(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str:
             f"## Comment {index} by {describe_author(comment, reporter)}, "
             f"{comment['created_at'][:10]}",
             "",
-            HTML.sub("", comment.get("body") or "").strip(),
+            rendered_text(text_of(comment)),
         ]
     return "\n".join(lines) + "\n"
+
+
+def rendered_text(text: str) -> str:
+    """A text for issue.md: without HTML, and cut off after MAX_RENDERED_TEXT."""
+    text = strip_html(text).strip()
+    if len(text) <= MAX_RENDERED_TEXT:
+        return text
+    return text[:MAX_RENDERED_TEXT].rstrip() + "\n\n(shortened)"
 
 
 def render_labels(config: Config) -> str:
@@ -1446,7 +1504,7 @@ def clean_prose(text: str, numbers: set[int], config: Config) -> str:
     previous = None
     while text != previous:
         previous = text
-        text = HTML.sub("", text)
+        text = strip_html(text)
         text = LINK_DEFINITION.sub("", text)
         text = IMAGE.sub(r"\1", text)
         text = MARKDOWN_LINK.sub(link, text)
@@ -1473,6 +1531,33 @@ def clean_prose(text: str, numbers: set[int], config: Config) -> str:
     return joined(
         kept[int(piece)] if index % 2 else piece for index, piece in enumerate(pieces)
     )
+
+
+def comment_parts(text: str) -> tuple[str, str]:
+    """A text in two parts: up to the end of its last `-->`, and what GitHub shows of
+    the rest.
+
+    In the first part, a `-->` follows every `<!--`, so a pattern finds the end of
+    each comment without reading on to the end of the text. In the rest, no comment
+    can end: a `<!--` within a line stays text, as GitHub shows it, and one that
+    starts a line hides the rest of the text, as GitHub hides it.
+    """
+    last = text.rfind("-->")
+    middle = last + 3 if last >= 0 else 0
+    hidden = COMMENT_LINE.search(text, middle)
+    return text[:middle], text[middle : hidden.start() if hidden else len(text)]
+
+
+def strip_html(text: str) -> str:
+    """The text as GitHub shows it, without HTML comments and tags, in time linear
+    in its length."""
+    comments, rest = comment_parts(text)
+    return HTML.sub(open_tag, comments) + HTML_TAG.sub(open_tag, rest)
+
+
+def open_tag(match: re.Match[str]) -> str:
+    """What stays of an HTML match: a tag start that no `>` closes, or nothing."""
+    return match["open"] or ""
 
 
 def joined(pieces: Iterable[str]) -> str:
