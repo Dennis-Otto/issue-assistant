@@ -73,6 +73,7 @@ python3 -m venv .venv-docs
 .venv-docs/bin/mkdocs serve
 ```
 
+<<<<<<< before updating
 The pictures in `docs/images` show a demo project, never real issues or people. `scripts/render-images.sh` renders them in Docker, each light and dark, from the texts of `issue_assistant.py` itself; run it after a change of those texts, and commit the pictures with the change. They are WebP: the still pictures lossless, as sharp as a PNG at less than a third of its size, and the animation of the life of an issue twice, wide and upright for phones, each with a still picture for readers who asked for less motion. The `<source>`s of a `<picture>` choose among them, the first whose condition holds:
 
 ```mermaid
@@ -95,6 +96,9 @@ flowchart TB
 ```
 
 Each of them ends in `-light` or `-dark`, after the theme of the reader. The README shows the pictures with their address on `main`, and `scripts/mkdocs_hooks.py` gives the website its own copies: one for each theme, so that the switch in the header chooses, each loaded only while it is shown and with its size, so that the page doesn't jump when it arrives. Diagrams are Mermaid in the Markdown, which GitHub and the website both draw; on a phone, the website lets them scroll sideways.
+=======
+On Windows, use `py -3` in place of `python3` and `.venv-docs/Scripts/` in place of `.venv-docs/bin/`; the dev container sets these tools up on its own. With them, `bash scripts/check.sh` builds the website strictly as well, as the check *docs* does, and without them it leaves that to the CI. The preview cards for social media come from the CI alone, because they need the Cairo library, which Windows doesn't have; where it is installed, `CI=true` before the command draws them too.
+>>>>>>> after updating
 
 ## Releases
 
