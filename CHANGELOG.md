@@ -8,6 +8,8 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 - Try the assistant on an issue that exists nowhere: name a JSON file with the issue and its comments, as GitHub's REST API gives them, in the environment variable `ISSUE_ASSISTANT_FIXTURE`, and `context` and `apply` read that issue instead of one on GitHub and write nothing, as in a dry run. The project's own Canary analyzes such an issue every week with the engine, on the firewall runner, so that an update of the engine's action, a host that the firewall blocks or an expired secret shows before a release instead of as issues without an answer.
 
+## [1.3.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.3.0...v1.3.1) (2026-10-13)
+
 ### Fixed
 
 - A fixed issue that waited for an answer gets `fixed-in-next-release` again also when GitHub fails to list the releases while the morning sweep sees the merge. Since 1.3.0 the sweep asked first whether a release already ships the fix, so such a failure kept `needs-info` or `stale` on the issue, and the same sweep could remind its reporter or close it as unanswered. Now the labels come first, and the release closes the issue as before.
