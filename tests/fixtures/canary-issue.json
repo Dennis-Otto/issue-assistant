@@ -1,0 +1,43 @@
+{
+  "issue": {
+    "number": 1000000,
+    "node_id": "I_canary",
+    "title": "check fails with \"differs from the template\" after Dependabot moved the pin",
+    "user": {
+      "login": "canary-reporter",
+      "type": "User"
+    },
+    "author_association": "NONE",
+    "labels": [
+      {
+        "name": "bug"
+      },
+      {
+        "name": "needs-triage"
+      },
+      {
+        "name": "area: setup"
+      }
+    ],
+    "state": "open",
+    "state_reason": null,
+    "locked": false,
+    "body": "### What happened?\n\nDependabot moved the pin of the issue assistant in our workflows from v1.1.0 to v1.2.2, and we merged it. Since then the step of our CI that runs `check` fails, although nobody changed the workflows by hand. I expected the new pin to be all that a new release needs.\n\n### Area\n\nInstall, check, templates or labels\n\n### Release of the issue assistant\n\nv1.2.2\n\n### Link to the workflow run\n\n_No response_\n\n### Log lines\n\n```text\n::error::.github/workflows/issue-assistant.yml differs from the template of the issue assistant; only the refs of its actions may differ\n::error::.github/workflows/issue-lifecycle.yml differs from the template of the issue assistant; only the refs of its actions may differ\n```\n\n### Checklist\n\n- [X] I searched the existing issues and did not find this problem.\n- [X] I removed tokens, keys and personal data from everything I posted.\n",
+    "created_at": "2026-10-13T07:00:00Z",
+    "updated_at": "2026-10-13T07:10:00Z",
+    "closed_at": null,
+    "comments": 1
+  },
+  "comments": [
+    {
+      "id": 1,
+      "user": {
+        "login": "canary-reporter",
+        "type": "User"
+      },
+      "author_association": "NONE",
+      "body": "labels.yml and findings.yml still pass the check; only the two workflows above fail.",
+      "created_at": "2026-10-13T07:10:00Z"
+    }
+  ]
+}

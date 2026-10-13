@@ -27,6 +27,7 @@ import sys
 import time
 import tomllib
 from collections.abc import Callable, Collection, Iterable
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from functools import cache, partial
@@ -855,6 +856,107 @@ def label_names(issue: dict[str, Any]) -> set[str]:
     return {label["name"] for label in issue.get("labels") or []}
 
 
+# A fixture: an issue from a file
+
+
+@dataclass(frozen=True)
+class Fixture:
+    """An issue and its comments from a file, as GitHub's REST API gives them.
+
+    context and apply read it in place of an issue on GitHub when the environment
+    variable ISSUE_ASSISTANT_FIXTURE names the file, and write nothing. So the Canary
+    runs the AI's whole path without a public issue, and a prompt can be tried on an
+    issue that exists nowhere.
+    """
+
+    issue: dict[str, Any]
+    comments: list[dict[str, Any]]
+
+    @property
+    def number(self) -> int:
+        number: int = self.issue["number"]
+        return number
+
+
+FIXTURE_VARIABLE = "ISSUE_ASSISTANT_FIXTURE"
+FIXTURE_KEYS = ("issue", "comments")
+
+
+def is_time(value: object) -> bool:
+    """Whether a value is a moment as GitHub writes it, such as 2026-10-13T07:23:00Z."""
+    if not isinstance(value, str):
+        return False
+    try:
+        moment(value)
+    except ValueError:
+        return False
+    return True
+
+
+def fixture_problems(item: object, where: str, *, issue: bool) -> list[str]:
+    """What keeps an issue or a comment of a fixture from being read as GitHub's:
+    the keys that the assistant reads, in their types."""
+    if not isinstance(item, dict):
+        return [f"{where} must be an object"]
+    problems = []
+    if issue:
+        number = item.get("number")
+        if isinstance(number, bool) or not isinstance(number, int) or number < 1:
+            problems.append(f"{where}.number must be a whole number, 1 or more")
+        if not fits(item.get("title"), str):
+            problems.append(f"{where}.title must be a string")
+        if item.get("state") not in {"open", "closed"}:
+            problems.append(f'{where}.state must be "open" or "closed"')
+        labels = item.get("labels") or []
+        if not isinstance(labels, list) or not all(
+            isinstance(label, dict) and fits(label.get("name"), str) for label in labels
+        ):
+            problems.append(f"{where}.labels must be a list of objects with a name")
+    if not fits(item.get("body") or "", str):
+        problems.append(f"{where}.body must be a string")
+    user = item.get("user")
+    if not isinstance(user, dict) or not fits(user.get("login"), str):
+        problems.append(f"{where}.user must be an object with a login")
+    if not is_time(item.get("created_at")):
+        problems.append(
+            f"{where}.created_at must be a moment, such as 2026-10-13T07:23:00Z"
+        )
+    return problems
+
+
+def read_fixture(root: Path, name: str) -> Fixture:
+    """The fixture file that ISSUE_ASSISTANT_FIXTURE names, relative to the checkout:
+    a JSON object with the issue and the list of its comments, each as GitHub's REST
+    API gives it, such as the issue that `gh api repos/OWNER/REPO/issues/12` prints."""
+    try:
+        data = json.loads((root / name).read_text(encoding="utf-8"))
+    except OSError as error:
+        raise AssistantError(
+            f"The fixture {name} can't be read: {error.strerror or error}."
+        ) from None
+    except ValueError as error:
+        raise AssistantError(f"The fixture {name} is no JSON: {error}.") from None
+    if not isinstance(data, dict):
+        raise AssistantError(
+            f"The fixture {name} must be an object with the issue and its comments."
+        )
+    problems = [
+        did_you_mean(f"unknown key {key}", key, FIXTURE_KEYS)
+        for key in data
+        if key not in FIXTURE_KEYS
+    ]
+    problems += fixture_problems(data.get("issue"), "issue", issue=True)
+    comments = data.get("comments", [])
+    if isinstance(comments, list):
+        for index, comment in enumerate(comments):
+            problems += fixture_problems(comment, f"comments[{index}]", issue=False)
+    else:
+        problems.append("comments must be a list")
+    if problems:
+        raise AssistantError(f"The fixture {name} doesn't fit: {'; '.join(problems)}.")
+    return Fixture(data["issue"], comments)
+
+
 # GitHub
 
 
@@ -869,6 +971,14 @@ class GitHub:
         # The comments a dry run would post, for the job summary.
         self.previews: list[str] = []
         self._labels: list[dict[str, Any]] | None = None
+        # The issue that a file holds in place of GitHub.
+        self.fixture: Fixture | None = None
+
+    def use_fixture(self, fixture: Fixture) -> None:
+        """Read the issue of the fixture and its comments from it, not from GitHub,
+        and from now on write nothing, as in a dry run: the issue exists nowhere."""
+        self.fixture = fixture
+        self.dry_run = True
 
     def _gh(self, args: list[str], data: object = None, *, read: bool = True) -> Any:
         """Run gh, and run it again when GitHub failed or refused it for a moment.
@@ -947,10 +1057,15 @@ class GitHub:
     # Reads
 
     def issue(self, number: int) -> dict[str, Any]:
+        if self.fixture and number == self.fixture.number:
+            # A copy, as GitHub sends a new one for every request.
+            return deepcopy(self.fixture.issue)
         issue: dict[str, Any] = self.rest(f"issues/{number}")
         return issue
 
     def comments(self, number: int) -> list[dict[str, Any]]:
+        if self.fixture and number == self.fixture.number:
+            return deepcopy(self.fixture.comments)
         comments: list[dict[str, Any]] = self.rest(
             f"issues/{number}/comments?per_page=100", pages=True
         )
@@ -4234,10 +4349,19 @@ def main(argv: list[str] | None = None) -> int:
         or os.environ.get("GITHUB_WORKSPACE")
         or os.getcwd()
     ).resolve()
-    dry_run = os.environ.get("DRY_RUN", "false").lower() == "true"
+    # A fixture stands in for the issue of context and apply, which then write
+    # nothing; see Fixture.
+    fixture_name = os.environ.get(FIXTURE_VARIABLE, "")
+    dry_run = os.environ.get("DRY_RUN", "false").lower() == "true" or fixture_name != ""
     github: GitHub | None = None
     title = f"Issue assistant: {arguments.command}"
     try:
+        # Every other command would work on the real repository.
+        if fixture_name and arguments.command not in {"context", "apply"}:
+            raise AssistantError(
+                f"{FIXTURE_VARIABLE} is for context and apply; "
+                f"unset it for {arguments.command}."
+            )
         if arguments.command == "install":
             for line in install(root, arguments.ref, arguments.version):
                 print(line)
@@ -4271,6 +4395,20 @@ def main(argv: list[str] | None = None) -> int:
             summary("Findings", lines or ["No open findings."], dry_run)
             return 1 if left else 0
         config = load_config(root, repository)
+        if fixture_name:
+            fixture = read_fixture(root, fixture_name)
+            if arguments.issue not in {None, fixture.number}:
+                raise AssistantError(
+                    f"The fixture {fixture_name} holds issue #{fixture.number}, "
+                    f"not #{arguments.issue}."
+                )
+            arguments.issue = fixture.number
+            github.use_fixture(fixture)
+            command(
+                "notice",
+                f"Issue #{fixture.number} comes from the fixture {fixture_name}; "
+                "nothing is written.",
+            )
         if arguments.command == "apply":
             title = f"Issue assistant: {arguments.mode} of #{arguments.issue}"
         if arguments.command in {"context", "apply"} and not (

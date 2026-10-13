@@ -574,6 +574,14 @@ claude -p "$(cat .issue-assistant/prompt.md)" --restricted --tools "Read,Grep,Gl
 RESULT="$(jq -c .structured_output answer.json)" python3 issue_assistant.py apply --issue 12 --mode triage
 ```
 
+To try it on an issue that exists nowhere, write the issue and its comments into a JSON file, as GitHub's REST API gives them, and name the file in `ISSUE_ASSISTANT_FIXTURE`, relative to the checkout. `context` and `apply` then read that issue instead of one on GitHub, take its number, and write nothing, as in a dry run; the other issues, the discussions and the labels still come from GitHub. [`tests/fixtures/canary-issue.json`](https://github.com/Dennis-Otto/issue-assistant/blob/main/tests/fixtures/canary-issue.json) is an example:
+
+```sh
+gh api repos/OWNER/REPO/issues/12 | jq '{issue: ., comments: []}' > issue.json    # then change it
+export ISSUE_ASSISTANT_FIXTURE=issue.json
+python3 issue_assistant.py context --mode triage
+```
+
 <!-- --8<-- [end:try-a-prompt] -->
 <!-- --8<-- [start:faq] -->
 
@@ -685,6 +693,8 @@ The [comparison](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/c
 See [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). The script needs only Python 3.12's standard library, `gh` and `git`, which GitHub's runners have; `check` reads YAML with PyYAML or `yq`.
 
 The tests check every GraphQL request of the script against GitHub's schema, and every pull request runs the commands that only read against GitHub itself; [the architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md#how-the-requests-to-github-are-tested) shows how.
+
+Every week, and after every change on `main` of the path of an issue through the AI, the Canary runs that whole path, with the engine on the firewall runner and an issue that exists nowhere, as a dry run that writes nothing; [the architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md#the-canary) shows how.
 
 The templates that `install` writes are in `templates/`. This repository's own copies in `.github/` come from the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint) with the release that it pins, so a pull request changes only `templates/`; [the architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories) shows how a change of a template reaches every repository.
 

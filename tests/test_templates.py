@@ -87,6 +87,8 @@ ENGINE_RULES = {
         "output": "structured_output",
         "host": "api.anthropic.com",
         "reads_only": claude_reads_only,
+        # The inputs that let a run of the Canary that a bot started use the engine.
+        "canary": {"allowed_bots": "*"},
     },
 }
 
@@ -217,6 +219,128 @@ def test_the_graphql_documents_meet_github_s_schema_of_the_day_every_week():
         step for step in job["steps"] if "GRAPHQL_SCHEMA" in step.get("env", {})
     ]
     assert check["run"].endswith("tests/test_graphql_contract.py")
+
+
+# The Canary runs the AI's path of the template every week, for an issue of a file.
+CANARY = load(OWN / "canary.yml")
+CANARY_ISSUE = "tests/fixtures/canary-issue.json"
+
+
+def test_the_canary_runs_the_ai_as_the_template_does():
+    """The Canary's job analyze is the template's: the runner, the environment, the
+    permissions, the outputs and the steps of the engines.
+
+    So an update of an engine's action that renames its output or needs another
+    host, or a secret that expired, fails there before a release brings it to every
+    repository. Only the steps of the issue assistant run the action of this commit.
+    """
+    analyze = CANARY["jobs"]["analyze"]
+    for key in ("runs-on", "timeout-minutes", "environment", "permissions", "outputs"):
+        assert analyze[key] == ANALYZE[key], key
+    assert analyze["if"] == "github.event_name != 'push'"
+    steps = {step.get("id"): step for step in analyze["steps"]}
+    assert analyze["steps"][0] == ANALYZE["steps"][0]
+    for engine, rules in ENGINE_RULES.items():
+        inputs = dict(STEPS[engine]["with"], **rules["canary"])
+        assert steps[engine] == dict(STEPS[engine], **{"with": inputs}), engine
+    assert steps["engine"] == dict(STEPS["engine"], uses="./")
+    context = steps["context"]
+    assert context["uses"] == "./" and context["if"] == STEPS["context"]["if"]
+    assert context["with"] == {"command": "context", "mode": "triage"}
+    assert context["env"] == {assistant.FIXTURE_VARIABLE: CANARY_ISSUE}
+    order = [step.get("id") for step in analyze["steps"]]
+    assert (
+        order.index("engine")
+        < order.index("context")
+        < min(order.index(engine) for engine in ENGINE_RULES)
+    )
+    # Where a repository's run skips the AI, without its secret or without an
+    # answer, the canary fails.
+    (unready,) = [
+        step
+        for step in analyze["steps"]
+        if step.get("if") == "steps.engine.outputs.ready != 'true'"
+    ]
+    assert unready["run"].rstrip().endswith("exit 1")
+    answered = analyze["steps"][-1]
+    assert answered["env"] == {"ANSWER": ANALYZE["outputs"]["answer"]}
+    assert '[[ -z "$ANSWER" ]]' in answered["run"]
+
+
+def test_the_canary_checks_the_answer_as_apply_does_and_writes_nothing():
+    assert CANARY["permissions"] == {}
+    jobs = CANARY["jobs"]
+    # Only the job start may write, and only to start the canary.
+    assert jobs["start"]["permissions"] == {"actions": "write"}
+    for name, job in jobs.items():
+        if name != "start":
+            assert "write" not in job["permissions"].values(), name
+        assert "id-token" not in job["permissions"], name
+    apply = CANARY["jobs"]["apply"]
+    template = JOBS["apply"]
+    assert apply["needs"] == "analyze"
+    assert apply["runs-on"] == template["runs-on"]
+    # The template's job may write to the issue; the canary's can only read.
+    assert apply["permissions"] == dict(template["permissions"], issues="read")
+    assert apply["steps"][0] == template["steps"][0]
+    (step,) = [step for step in apply["steps"] if step.get("uses") == "./"]
+    assert step["with"] == {
+        "command": "apply",
+        "mode": "triage",
+        "engine": "${{ needs.analyze.outputs.engine }}",
+        "answer": "${{ needs.analyze.outputs.answer }}",
+        "dry-run": True,
+    }
+    assert step["env"] == {assistant.FIXTURE_VARIABLE: CANARY_ISSUE}
+    assert "environment" not in apply
+    for rules in ENGINE_RULES.values():
+        for secret in rules["secrets"]:
+            assert secret not in yaml.safe_dump(apply)
+
+
+def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
+    triggers = CANARY[True]
+    assert triggers["schedule"] and "workflow_dispatch" in triggers
+    # Only main may use the engine's secret, so no pull request runs the canary.
+    assert set(triggers) == {"schedule", "push", "workflow_dispatch"}
+    assert triggers["push"]["branches"] == ["main"]
+    # The engine's action refuses a push, so a push starts the canary by hand.
+    start = CANARY["jobs"]["start"]
+    assert start["if"] == "github.event_name == 'push'"
+    assert start["runs-on"] == RUNNER
+    assert start["steps"][0] == JOBS["event"]["steps"][0]
+    (run,) = [step["run"] for step in start["steps"] if "run" in step]
+    assert run == 'gh workflow run canary.yml --ref "$GITHUB_REF_NAME"'
+    paths = triggers["push"]["paths"]
+    for path in (
+        "action.yml",
+        "issue_assistant.py",
+        "prompts/**",
+        f"templates/{assistant.WORKFLOWS}/issue-assistant.yml",
+        f"templates/{assistant.FIREWALL}",
+        f"{assistant.WORKFLOWS}/canary.yml",
+        CANARY_ISSUE,
+    ):
+        assert path in paths, path
+    for pattern in paths:
+        assert next(ROOT.glob(pattern), None), f"{pattern} matches no file"
+
+
+def test_the_canary_s_issue_is_one_that_this_repository_could_get():
+    """An open issue of the bug report form from someone who doesn't maintain the
+    repository, labeled as the job event leaves it for its first analysis."""
+    config = assistant.load_config(ROOT, "Dennis-Otto/issue-assistant")
+    fixture = assistant.read_fixture(ROOT, CANARY_ISSUE)
+    issue = fixture.issue
+    assert issue["state"] == "open" and not issue["locked"]
+    assert not assistant.is_maintainer(issue) and not assistant.is_bot(issue["user"])
+    form = load(ROOT / ".github/ISSUE_TEMPLATE/bug_report.yml")
+    questions = [item["attributes"]["label"] for item in form["body"][1:]]
+    assert list(assistant.form_fields(issue["body"])) == questions
+    labels = assistant.label_names(issue)
+    assert labels == {*form["labels"], *assistant.form_labels(issue, config)}
+    assert labels <= {label.name for label in config.labels}
+    assert not any(assistant.kind_of(comment) for comment in fixture.comments)
 
 
 def test_the_github_cli_sends_no_telemetry():
