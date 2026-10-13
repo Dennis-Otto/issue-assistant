@@ -419,7 +419,8 @@ WORDS: dict[str, dict[str, Any]] = {
         "still_missing": ["Die Version der Dashboard-App, unter Einstellungen → Über."],
     },
 }
-# Each comment of the page: its heading, and when the assistant posts it.
+# Each comment of the page: its heading, and when the assistant posts it. The
+# fields in braces are the timing rules of issue_assistant.py, see timings().
 KINDS = {
     "analysis": (
         "The first analysis",
@@ -431,8 +432,8 @@ KINDS = {
     "duplicate": (
         "A sure duplicate",
         "When the AI is sure that an open, older issue reports the same, the analysis "
-        "says so first. The issue gets the label `possible-duplicate` and closes three "
-        "days later, unless someone writes a comment or reacts with 👎.",
+        "says so first. The issue gets the label `possible-duplicate` and closes "
+        "{duplicate_grace} days later, unless someone writes a comment or reacts with 👎.",
     ),
     "secret": (
         "A secret in the issue",
@@ -455,18 +456,18 @@ KINDS = {
     "follow-up": (
         "A follow-up",
         "When the reporter answers the questions of an analysis, the AI reads the "
-        "answer and replies, with what is still missing. It follows up at most twice, "
+        "answer and replies, with what is still missing. It follows up at most {follow_ups}, "
         "and never once the maintainer has joined the conversation.",
     ),
     "reminder": (
         "A reminder",
-        "15 days after a question of the assistant or of the maintainer, an issue "
+        "{remind_after} days after a question of the assistant or of the maintainer, an issue "
         "without an answer gets the label `stale` and a reminder. No AI writes this "
         "comment or any of those below.",
     ),
     "closed-unanswered": (
         "Closed without an answer",
-        "30 days after the question, an issue still without an answer closes as not "
+        "{close_after} days after the question, an issue still without an answer closes as not "
         "planned.",
     ),
     "reopened": (
@@ -475,7 +476,7 @@ KINDS = {
     ),
     "closed-duplicate": (
         "Closed as a duplicate",
-        "Three days after the notice of a sure duplicate, without a comment or a 👎, "
+        "{duplicate_grace} days after the notice of a sure duplicate, without a comment or a 👎, "
         "the issue closes as a duplicate of the original.",
     ),
     "fixed": (
@@ -490,7 +491,7 @@ KINDS = {
     ),
     "reopened-release": (
         "Reopened after the release",
-        "When the reporter writes within 30 days of the release that the problem "
+        "When the reporter writes within {reopen_after_release} days of the release that the problem "
         "persists, the AI reads the comment and the issue reopens. Thanks or "
         "questions keep it closed.",
     ),
@@ -686,7 +687,24 @@ def examples() -> list[Example]:
         for language in LANGUAGES:
             for kind, text in comments(ia, config, language).items():
                 texts[kind][language] = text
-    return [Example(kind, *KINDS[kind], texts[kind]) for kind in KINDS]
+    rules = timings(ia)
+    return [
+        Example(kind, title, when.format(**rules), texts[kind])
+        for kind, (title, when) in KINDS.items()
+    ]
+
+
+def timings(ia: ModuleType) -> dict[str, Any]:
+    """The timing rules of issue_assistant.py, for the texts of KINDS."""
+    return {
+        "remind_after": ia.REMIND_AFTER.days,
+        "close_after": ia.CLOSE_AFTER.days,
+        "duplicate_grace": ia.DUPLICATE_GRACE.days,
+        "reopen_after_release": ia.REOPEN_AFTER_RELEASE.days,
+        "follow_ups": {1: "once", 2: "twice"}.get(
+            ia.MAX_FOLLOW_UPS, f"{ia.MAX_FOLLOW_UPS} times"
+        ),
+    }
 
 
 def thanks_rows(ia: ModuleType) -> list[str]:

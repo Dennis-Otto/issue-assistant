@@ -8,7 +8,7 @@ import json
 import re
 import textwrap
 import tomllib
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -843,6 +843,32 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
     assert (
         "### Summary" not in english["security"] and "[!CAUTION]" in english["security"]
     )
+
+
+def test_the_comments_page_takes_its_timing_rules_from_the_assistant(monkeypatch):
+    when = {example.kind: example.when for example in hooks.examples()}
+    assert when["reminder"].startswith("15 days after a question")
+    assert when["closed-unanswered"].startswith("30 days after the question")
+    assert "closes 3 days later" in when["duplicate"]
+    assert when["closed-duplicate"].startswith("3 days after the notice")
+    assert "at most twice," in when["follow-up"]
+    assert "within 30 days of the release" in when["reopened-release"]
+    # Other rules change the page, with no text of its own to keep current.
+    monkeypatch.setattr(assistant, "REMIND_AFTER", timedelta(days=10))
+    monkeypatch.setattr(assistant, "CLOSE_AFTER", timedelta(days=20))
+    monkeypatch.setattr(assistant, "DUPLICATE_GRACE", timedelta(days=5))
+    monkeypatch.setattr(assistant, "REOPEN_AFTER_RELEASE", timedelta(days=60))
+    for follow_ups, words in ((1, "once"), (3, "3 times")):
+        monkeypatch.setattr(assistant, "MAX_FOLLOW_UPS", follow_ups)
+        rules = hooks.timings(assistant)
+        assert rules["follow_ups"] == words
+    when = {kind: text.format(**rules) for kind, (_, text) in hooks.KINDS.items()}
+    assert when["reminder"].startswith("10 days after a question")
+    assert when["closed-unanswered"].startswith("20 days after the question")
+    assert "closes 5 days later" in when["duplicate"]
+    assert when["closed-duplicate"].startswith("5 days after the notice")
+    assert "at most 3 times," in when["follow-up"]
+    assert "within 60 days of the release" in when["reopened-release"]
 
 
 def test_a_comment_looks_as_github_shows_it():
