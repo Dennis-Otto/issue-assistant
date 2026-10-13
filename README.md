@@ -228,6 +228,7 @@ flowchart TB
 
 - **The AI only reads.** It runs in the `analyze` job, with a read-only token, on GitHub's [egress-firewall runner](https://github.com/github-early-access/actions-native-egress-firewall) with an allow list in `.github/egress-firewall.yaml`. Claude Code runs with `--restricted` and the tools `Read`, `Grep` and `Glob` alone: no commands, no web pages, no files outside the checkout. The issue, the other issues and the discussions reach it as files that the prompt calls data, not instructions.
 - **Nothing is posted unchecked.** The AI's answer is JSON with a fixed schema. The `apply` job, which runs no AI and never sees its secret, checks it against the schema, the repository's labels and the issues that exist, refuses anything that looks like a token or key, turns mentions into code, drops images, HTML and links to other sites, and links files only when git tracks them. It writes only to the issue of the event.
+- **Its words run nothing outside a comment either.** The AI's words also reach the log of the run, its summary and, as the reason for a label or a suggested duplicate, the timeline of the issue. There they are cleaned like a comment and put on one line, every error and notice of the assistant is escaped, and the summary turns workflow commands off while it prints, so that no answer can run one, such as `::add-mask::`. A possible security report gets a fixed reason on the timeline instead of the AI's words, and neither label names nor the model of `config.toml` can add arguments to the command line of the engine.
 - **No issue can stall it.** Every analysis reads the text of every issue, so the assistant reads each text in time that grows only with its length, and no more of it than GitHub keeps. The AI gets at most 20,000 characters of each text of its issue. Tests and fuzzing check that no crafted text takes longer than half a second.
 - **The secret stays in one place:** the environment `issue-assistant`, which only the default branch may use.
 - **No code of a pull request runs.** The lifecycle workflow starts on `pull_request_target` only to learn which issues a merged pull request fixes. It checks out the default branch, runs no AI and skips Dependabot's pull requests.
@@ -338,7 +339,7 @@ ask = false                               # never ask reporters of this kind for
 ```toml
 [engine]
 name = "claude"                 # the engine of ENGINES
-# model = "claude-opus-5-5"     # the engine's default model if left out
+# model = "claude-opus-5-5"     # the engine's default model if left out; letters, digits and ._:@/[]- only
 
 [links]
 hosts = ["docs.example.com"]    # besides this repository

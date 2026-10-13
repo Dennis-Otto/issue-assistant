@@ -4,11 +4,13 @@ import dataclasses
 import json
 import re
 import runpy
+import shlex
 import sys
 import time
 from datetime import UTC, datetime
 
 import pytest
+from markdown_it import MarkdownIt
 
 import issue_assistant as assistant
 from support import (
@@ -679,9 +681,15 @@ def test_the_engine_reads_at_most_20_000_characters_of_each_text():
 
 @pytest.mark.parametrize("mode", assistant.MODES)
 def test_the_schemas_fit_into_the_engine_arguments(config, mode):
-    schema = json.dumps(assistant.answer_schema(mode, config), separators=(",", ":"))
-    # The workflow wraps the schema in single quotes.
-    assert "'" not in schema
+    guide = assistant.Label("area: user's guide", "bfdadc", "The guide", "area")
+    config = dataclasses.replace(config, labels=(*config.labels, guide))
+    schema = assistant.schema_json(mode, config)
+    # The workflow wraps the schema in single quotes, and the engine's action splits
+    # its arguments as a shell does; an apostrophe of a label would end the quotes.
+    assert "'" not in schema and "\n" not in schema
+    arguments = shlex.split(f"--max-turns 40\n--json-schema '{schema}'")
+    assert arguments[:3] == ["--max-turns", "40", "--json-schema"]
+    assert json.loads(arguments[3]) == assistant.answer_schema(mode, config)
     assert assistant.validate(json.loads(schema), None) == ["answer is not an object"]
 
 
@@ -714,6 +722,12 @@ def test_a_complete_answer_fits_the_schema(config):
         ),
         ({"security_report": "no"}, "answer.security_report is not true or false"),
         ({"extra": 1}, "answer.extra is not expected"),
+        # A key that the engine made up can't add a line to the message.
+        (
+            {"y\n::warning title=Injected::x": 1},
+            'answer["y\\n::warning title=Injected::x"] is not expected',
+        ),
+        ({"k" * 41: 1}, f'answer["{"k" * 40}..."] is not expected'),
         (
             {"duplicates": [{"number": 0, "confidence": "high", "reason": "x"}]},
             "answer.duplicates[0].number is below 1",
@@ -922,6 +936,33 @@ def test_an_unclosed_comment_hides_the_rest_of_the_text(config):
     )
 
 
+# The engine's text outside its comments: the log, the job summary and the timeline
+
+
+def test_a_line_of_the_engine_s_text_is_cleaned_and_one_line(config):
+    text = (
+        "Like #5, ask\n@octocat <b>now</b>:\r\n"
+        "![x](https://evil.example/x.png) \x1b[8mhidden\n::add-mask::y"
+    )
+    assert assistant.plain(text, config) == (
+        "Like `#5`, ask `@octocat` now: x \\[8mhidden ::add-mask::y"
+    )
+    # In a code block, a mention stays as it is; on one line, the block is text.
+    assert assistant.plain("~~~\n@octocat\n~~~", config) == "~~~ `@octocat` ~~~"
+
+
+def test_a_shortened_line_keeps_its_cleaning(config):
+    # Cut after the cleaning, the line would end in "`@octoca" without the backtick
+    # that keeps the mention in its code.
+    text = "a " * 135 + "@octocat x"
+    line = assistant.plain(text, config)
+    assert len(line) == 280 and line.endswith(" `@octoca`…")
+    assert assistant.plain(text, config, 10) == "a a a a a…"
+    # Escapes make the cleaned text longer than the engine's.
+    line = assistant.plain("<" * 280, config)
+    assert len(line) <= 280 and line == "&lt;" * 69 + "…"
+
+
 # Links to the repository
 
 
@@ -1109,6 +1150,31 @@ def test_other_duplicate_candidates_become_one_suggestion_and_related_issues(con
     assert "possible-duplicate" not in github.labels_of(12)
 
 
+def test_the_reasons_on_the_timeline_are_cleaned_like_comments(config):
+    """GitHub shows the rationale of labels and of a suggested duplicate on the
+    timeline of the issue, where the engine's words mention nobody either."""
+    github = FakeGitHub(config, make_issue(5), make_issue(12))
+    answer = make_answer(
+        label_rationale="Like #5, ask\n@octocat <b>now</b>.",
+        duplicates=[
+            {
+                "number": 5,
+                "confidence": "medium",
+                "reason": "Same as @octocat's\n\n![x](https://evil.example/x.png)",
+            }
+        ],
+    )
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    assert github.rationales[(12, "L_area: cards")] == "Like `#5`, ask `@octocat` now."
+    assert [item["rationale"] for item in github.suggestions] == [
+        "Same as `@octocat`'s x"
+    ]
+    spam = FakeGitHub(config, make_issue(12))
+    answer = make_answer(kind="spam", label_rationale="Buy at\nhttps://evil.example")
+    assistant.apply_answer(spam, "triage", 12, json.dumps(answer), config, "abc")
+    assert spam.rationales[(12, "L_invalid")] == "Buy at `https://evil.example`"
+
+
 def test_a_candidate_named_twice_is_listed_once(config):
     github = FakeGitHub(config, make_issue(7), make_issue(12))
     answer = make_answer(
@@ -1217,6 +1283,7 @@ def test_a_possible_vulnerability_is_not_discussed_in_public(config):
         security_report=True,
         missing_information=["Which endpoint?"],
         duplicates=[{"number": 7, "confidence": "high", "reason": "Same."}],
+        label_rationale="An SQL injection in the id parameter of /login.",
     )
     assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
     (body,) = github.posted(12)
@@ -1224,6 +1291,11 @@ def test_a_possible_vulnerability_is_not_discussed_in_public(config):
     assert "(https://github.com/owner/project/security/policy)" in body
     assert "Summary" not in body and "First analysis" not in body
     assert github.labels_of(12) & {"needs-info", "possible-duplicate"} == set()
+    # The timeline shows a fixed rationale, not the engine's words about it.
+    assert set(github.rationales.values()) == {
+        "Possible security report; see the security policy."
+    }
+    assert not github.suggestions
 
 
 def test_spam_is_marked_without_a_comment(config):
@@ -1418,6 +1490,27 @@ def test_thanks_after_the_release_keep_the_issue_closed(config):
         github, "release-reply", 12, release_reply(), config, "abc"
     )
     assert done == ["#12 is open or locked; nothing to reopen."]
+
+
+def test_the_engine_s_reasons_in_the_log_are_one_cleaned_line(config):
+    reason = "Thanks\n::add-mask::x @octocat\r\n<img src=x>"
+    answer = json.dumps({"waiting_for_reporter": False, "reason": reason})
+    github = FakeGitHub(config, make_issue())
+    done = assistant.apply_answer(github, "maintainer-reply", 12, answer, config, "a")
+    assert done == [
+        "#12 does not wait for the reporter: Thanks ::add-mask::x `@octocat`"
+    ]
+    answer = json.dumps({"waiting_for_reporter": True, "reason": reason})
+    done = assistant.apply_answer(github, "maintainer-reply", 12, answer, config, "a")
+    assert done == ["#12 waits for the reporter: Thanks ::add-mask::x `@octocat`"]
+    github = closed_by_release(config)
+    answer = release_reply(problem_persists=False, reason=reason)
+    done = assistant.apply_answer(github, "release-reply", 12, answer, config, "a")
+    assert done == ["#12 stays closed: Thanks ::add-mask::x `@octocat`"]
+    done = assistant.apply_answer(
+        github, "release-reply", 12, release_reply(reason=reason), config, "a"
+    )
+    assert done == ["#12 reopened: Thanks ::add-mask::x `@octocat`"]
 
 
 # The daily sweep
@@ -1945,7 +2038,7 @@ def test_every_engine_has_a_name_a_vendor_and_a_model():
     assert assistant.DEFAULT_ENGINE in assistant.ENGINES
     for key, engine in assistant.ENGINES.items():
         assert re.fullmatch(r"[a-z][a-z0-9]*", key)
-        assert engine.name and engine.vendor and engine.model
+        assert engine.name and engine.vendor and assistant.is_model_name(engine.model)
 
 
 def test_the_engine_of_the_config_runs_only_with_its_secret(config, capsys):
@@ -1962,6 +2055,36 @@ def test_the_engine_of_the_config_runs_only_with_its_secret(config, capsys):
     unknown = dataclasses.replace(config, engine="unknown")
     with pytest.raises(assistant.AssistantError, match="known engines: claude"):
         assistant.choose_engine(unknown, "claude")
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "claude-opus-4-6[1m]",
+        "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "claude-sonnet-4-5@20250929",
+        "arn:aws:bedrock:eu-central-1:123456789012:inference-profile/eu.model",
+    ],
+)
+def test_names_and_ids_of_models_are_taken(config, model):
+    custom = dataclasses.replace(config, model=model)
+    assert assistant.choose_engine(custom, "claude")[2] == model
+
+
+# The workflow passes the model to the engine's command line without quotes.
+@pytest.mark.parametrize(
+    "model", ["x --dangerously", "x'", 'x"', "x\n--y", "x;y", "x$y", "x y", 5]
+)
+def test_a_model_that_would_add_arguments_is_refused(config, capsys, model):
+    custom = dataclasses.replace(config, model=model)
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.choose_engine(custom, "claude")
+    assert str(refused.value) == (
+        f".github/issue-assistant/config.toml: the model {model!r} is no model "
+        "name, such as claude-opus-5-5"
+    )
+    assert assistant.check_config(custom) == [str(refused.value)]
+    assert capsys.readouterr().out == ""
 
 
 # The command line
@@ -2050,7 +2173,7 @@ def test_the_apply_command_previews_a_dry_run(
     assert code == 0
     assert "### Issue assistant: triage of #12 (dry run)" in summary
     assert "<details><summary>Comment</summary>" in summary
-    assert "````markdown\n<!-- issue-assistant:analysis" in summary
+    assert "\n```markdown\n<!-- issue-assistant:analysis" in summary
 
 
 def test_the_apply_command_fails_on_a_bad_answer(
@@ -2183,7 +2306,120 @@ def test_without_a_summary_file_the_outputs_are_printed(monkeypatch, capsys):
     monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     assistant.output("mode", "triage")
     assistant.summary("Title", [], False)
-    assert capsys.readouterr().out == "mode=triage\n### Title\n\nNothing to do.\n"
+    assert re.fullmatch(
+        r"mode=triage\n::stop-commands::(\w+)\n### Title\n\nNothing to do\.\n::\1::\n",
+        capsys.readouterr().out,
+    )
+
+
+# The engine's text in the log
+
+
+def commands_run(output):
+    """The lines of the output that the runner reads as workflow commands.
+
+    It reads a line that starts with :: after its blanks, or that has the older form
+    ##[ anywhere, unless the line is between ::stop-commands::<token> and ::<token>::.
+    """
+    found, stopped = [], ""
+    for line in output.splitlines():
+        line = line.lstrip()
+        if stopped:
+            if line == f"::{stopped}::":
+                stopped = ""
+        elif line.startswith("::stop-commands::"):
+            stopped = line.removeprefix("::stop-commands::")
+        elif line.startswith("::") or "##[" in line:
+            found.append(line)
+    return found
+
+
+def test_a_workflow_command_keeps_its_message_on_its_line(capsys):
+    assistant.command("error", "100% sure\r\n::warning::injected")
+    output = capsys.readouterr().out
+    assert output == "::error::100%25 sure%0D%0A::warning::injected\n"
+    assert commands_run(output) == [output.strip()]
+
+
+def test_no_text_of_the_engine_runs_a_workflow_command(
+    monkeypatch, tmp_path, sample_root, config, capsys
+):
+    # An answer that breaks the schema, with a key that would start a warning.
+    injected = "y\n::warning title=Injected::x"
+    code, _, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        FakeGitHub(config, make_issue()),
+        "apply",
+        ISSUE="12",
+        MODE="triage",
+        RESULT=json.dumps(make_answer(**{injected: 1})),
+    )
+    assert code == 1
+    assert commands_run(capsys.readouterr().out) == [
+        "::error::The engine's answer breaks the schema: "
+        'answer["y\\n::warning title=Injected::x"] is not expected'
+    ]
+    # A dry run shows the comment, here with commands in its code, in the log.
+    code_block = "```\n::add-mask::x\n  ::stop-commands::y\n##[add-mask]z\n```"
+    code, _, summary = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        FakeGitHub(config, make_issue(), dry_run=True),
+        "apply",
+        ISSUE="12",
+        MODE="triage",
+        RESULT=json.dumps(make_answer(analysis=f"Run this:\n\n{code_block}")),
+        GITHUB_EVENT_NAME="workflow_dispatch",
+        DRY_RUN="true",
+    )
+    output = capsys.readouterr().out
+    assert code == 0 and code_block in summary and code_block in output
+    assert commands_run(output) == []
+    # The reasons of the result lines are shown too.
+    answer = {"waiting_for_reporter": False, "reason": "x\n::add-mask::y ##[add-mask]z"}
+    code, _, summary = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        FakeGitHub(config, make_issue()),
+        "apply",
+        ISSUE="12",
+        MODE="maintainer-reply",
+        RESULT=json.dumps(answer),
+    )
+    output = capsys.readouterr().out
+    assert code == 0 and "reporter: x ::add-mask::y" in output
+    assert commands_run(output) == []
+
+
+def test_each_summary_stops_the_commands_with_a_token_of_its_own(
+    monkeypatch, tmp_path, capsys
+):
+    path = tmp_path / "summary"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(path))
+    for _ in range(2):
+        assistant.summary("Title", ["::add-mask::x"], False)
+    output = capsys.readouterr().out
+    tokens = re.findall(r"^::stop-commands::([0-9a-f]{32})$", output, re.MULTILINE)
+    assert len(set(tokens)) == 2
+    assert commands_run(output) == []
+    # The summary of the job shows the lines as they are.
+    assert path.read_text("utf-8") == "### Title\n\n- ::add-mask::x\n" * 2
+
+
+def test_a_preview_can_t_close_its_fence(monkeypatch, tmp_path, capsys):
+    path = tmp_path / "summary"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(path))
+    preview = "Before\n``````\n</details>\n\n# Injected\n``````\n~~~~\nafter"
+    assistant.summary("Title", [], True, [preview])
+    tokens = MarkdownIt("commonmark").parse(path.read_text("utf-8"))
+    assert [token.content for token in tokens if token.type == "fence"] == [
+        preview + "\n"
+    ]
+    assert [token.tag for token in tokens if token.type == "heading_open"] == ["h3"]
 
 
 def test_the_script_runs_as_a_program(monkeypatch, capsys):

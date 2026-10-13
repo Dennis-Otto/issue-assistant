@@ -297,6 +297,29 @@ def test_the_check_command_reports_problems(monkeypatch, tmp_path, root, capsys)
     assert "::error::.gitignore: add /.issue-assistant/" in capsys.readouterr().out
 
 
+def test_a_model_that_would_add_arguments_fails_the_check_and_the_engine(
+    monkeypatch, tmp_path, root, capsys
+):
+    """The workflow passes the model to the engine's command line without quotes."""
+    settings = root / assistant.SETTINGS / "config.toml"
+    settings.write_text(
+        settings.read_text("utf-8").replace(
+            'name = "claude"', 'name = "claude"\nmodel = "x --dangerously"'
+        ),
+        encoding="utf-8",
+    )
+    error = (
+        "::error::.github/issue-assistant/config.toml: the model 'x --dangerously' "
+        "is no model name, such as claude-opus-5-5\n"
+    )
+    code, _, _ = run_main(monkeypatch, tmp_path, root, None, "check")
+    assert code == 1 and capsys.readouterr().out.startswith(error)
+    code, outputs, _ = run_main(
+        monkeypatch, tmp_path, root, None, "engine", READY_ENGINES="claude"
+    )
+    assert (code, outputs, capsys.readouterr().out) == (1, "", error)
+
+
 def test_the_install_command_writes_into_the_workspace(monkeypatch, tmp_path, capsys):
     target = tmp_path / "target"
     target.mkdir()

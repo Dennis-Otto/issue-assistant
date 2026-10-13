@@ -9,6 +9,7 @@ What the issue assistant protects, what it trusts and which risks remain. [SECUR
 - The AI only reads: the checkout of the default branch and the context that the assistant writes for it. It runs no commands, opens no web pages and reads no files outside the checkout, on a runner whose network allows only the hosts of `.github/egress-firewall.yaml`.
 - Nothing the AI writes reaches GitHub unchecked. A job that runs no AI and never sees its secret checks the answer and writes it, only to the issue of the event.
 - No comment of the assistant mentions anyone, links to a site that `config.toml` doesn't allow, shows an image or HTML, or contains something that looks like a token or a key.
+- The same holds for the AI's words outside its comments: in the log of the run, in its summary and in the reasons for labels and duplicates that GitHub shows on the timeline of the issue. They stay on one line there, and no answer can run a workflow command, such as `::add-mask::` or `::stop-commands::`.
 - No issue can stall the assistant. It reads every text in time that grows only with the length of the text, and no more of a text than GitHub keeps, 65,536 characters.
 - The secret of the engine stays in the environment `issue-assistant`, which only the default branch may use; only the job that runs the engine sees it.
 - No code of a pull request runs in a workflow of the assistant.
@@ -74,6 +75,34 @@ flowchart TB
 4. **Pull requests → the lifecycle.** The lifecycle workflow starts on `pull_request_target` only to learn which issues a merged pull request fixes. It checks out the default branch, runs no AI and skips Dependabot's pull requests.
 5. **The action → the repository that uses it.** The repository pins the action by the commit hash of a release, and the workflows grant each job only the permissions it needs.
 
+## Where the AI's words go
+
+The comment is not the only place that shows what the AI wrote. Each place gets its own guard, so that the words stay text wherever they appear:
+
+```mermaid
+flowchart TB
+  accTitle: Where the AI's words go and how each place is guarded
+  accDescr: The answer of the AI must fit its schema and hold nothing like a secret. Its texts for the comment are cleaned before they are posted. Its reasons are put on one line and cleaned, at most 280 characters, before they become a rationale on the timeline or a line of the log and the job summary; a possible security report gets a fixed rationale. The log prints them while workflow commands are turned off with a random token, and errors are escaped. The schema and the model reach the command line of the engine only in a form that adds no arguments.
+  answer["the AI's answer"] --> checks("schema and<br/>secret check")
+  checks -- "summary, analysis,<br/>steps, questions" --> cleaned["cleaned: no mention,<br/>image, HTML or<br/>foreign link"]
+  cleaned --> posted[("comment on<br/>the issue")]
+  checks -- "reasons" --> oneline["one line, then cleaned,<br/>at most 280 characters"]
+  oneline -- "labels, duplicates;<br/>fixed for a security report" --> rationale[("rationale on<br/>the timeline")]
+  oneline --> jobsummary[("job summary")]
+  oneline --> runlog[("log of the run")]
+  checks -- "refused" --> refusal["an escaped<br/>::error::"]
+  refusal --> runlog
+  settings["labels.toml,<br/>config.toml"] -- "schema with \u0027,<br/>model as a name" --> cli[("command line<br/>of the engine")]
+  classDef untrusted fill:#cf222e26,stroke:#cf222e
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class answer untrusted
+  class checks,cleaned,oneline,refusal,settings job
+  class posted,rationale,jobsummary,runlog,cli safe
+```
+
+The log prints the lines and the comments of a dry run between `::stop-commands::` and a random token, so that the runner reads none of them as a workflow command.
+
 ## Threats and countermeasures
 
 | Threat | Countermeasure | Evidence |
@@ -82,11 +111,14 @@ flowchart TB
 | An issue makes the AI post a mention, a link, an image or HTML | `apply` removes mentions, images, HTML and headings, and keeps only links to allowed sites and to issues that exist | `test_mentions_images_html_and_headings_are_removed`, `test_only_links_to_known_places_stay_links`, `test_tricky_text_is_cleaned_safely` in `tests/test_assistant.py`; property tests against a CommonMark parser in `tests/test_properties.py`; fuzzing with Atheris in `fuzz/fuzz_sanitize.py` |
 | An issue keeps the assistant busy, so that no analysis of the repository finishes, because each one reads every issue | Each text is read up to GitHub's 65,536 characters, by patterns that look at each character a bounded number of times; the AI reads at most 20,000 characters of each text of its issue, and HTML comments are removed as GitHub hides them, also one that starts a line and never ends | `test_no_text_makes_reading_an_issue_slow`, `test_no_text_makes_the_cleaning_slow`, `test_forms_read_as_they_always_did` in `tests/test_assistant.py`; property tests against the earlier patterns in `tests/test_properties.py`; fuzzing with Atheris in `fuzz/fuzz_issue_text.py`, which fails on a reading that takes longer than half a second |
 | The AI posts a secret that it found or was given | An answer with anything that looks like a token or a key is never posted | `test_an_answer_with_something_like_a_secret_is_never_posted`, `test_a_token_anywhere_in_the_answer_is_refused` |
+| An answer runs a workflow command in the log of the run, such as `::add-mask::`, `::stop-commands::` or a forged `::error::`, or its comment ends the code block of the preview in the summary of a dry run | Every error and notice of the assistant is escaped as GitHub's Actions toolkit escapes it, and a key of the answer that the schema doesn't know shows as a short JSON string. The summary turns workflow commands off with a random token while it prints the engine's words, and the fence of a preview is longer than any run of backticks in the comment | `test_no_text_of_the_engine_runs_a_workflow_command`, `test_a_workflow_command_keeps_its_message_on_its_line`, `test_each_summary_stops_the_commands_with_a_token_of_its_own`, `test_a_preview_can_t_close_its_fence` in `tests/test_assistant.py` |
+| An answer mentions someone or links elsewhere in a reason outside its comment: a line of the log and the summary, or the reason for a label or a duplicate on the timeline | Such reasons are cleaned like a comment, joined into one line before the cleaning, so that no code block keeps a mention as it is, and shortened to 280 characters before the cleaning, so that no cut loses the backtick that keeps a mention in its code | `test_the_reasons_on_the_timeline_are_cleaned_like_comments`, `test_the_engine_s_reasons_in_the_log_are_one_cleaned_line`, `test_a_shortened_line_keeps_its_cleaning` in `tests/test_assistant.py`; property tests in `tests/test_properties.py`; fuzzing with Atheris in `fuzz/fuzz_sanitize.py` |
+| A label name or the model of `config.toml` adds arguments to the command line of the engine, or breaks it, so that no issue gets an analysis | The schema writes an apostrophe of a label name as `\u0027`, which ends no quotes and reads back as the same JSON. `check` and the `engine` command refuse a model that is not a name of letters, digits and `._:@/[]-` | `test_the_schemas_fit_into_the_engine_arguments`, `test_a_model_that_would_add_arguments_is_refused` in `tests/test_assistant.py`; `test_a_model_that_would_add_arguments_fails_the_check_and_the_engine` in `tests/test_setup.py` |
 | An answer that breaks the schema changes the wrong labels or issues | The answer is checked against the schema of its task, the labels and the issues that exist | `test_an_answer_that_breaks_the_schema_is_refused`, `test_any_answer_is_checked_or_refused` |
 | Text of an issue runs as a shell command in a workflow | Every input goes through the environment; no expression of untrusted text stands in a `run:` script | `test_untrusted_text_never_reaches_a_shell_script`, `test_the_action_passes_every_input_through_the_environment` |
 | A pull request runs its code with the permissions of the lifecycle | The lifecycle checks out the default branch and runs no code of the pull request | `test_merges_and_releases_start_the_lifecycle_without_running_pull_request_code` |
 | A compromised action or tool in a job with a write token sends the token elsewhere | Harden-Runner blocks every host but `api.github.com` and `github.com` in every job without the AI, before any other step, and turns off sudo and containers so that no step lifts the block; the Action test runs the action behind the same block | `test_jobs_without_the_ai_reach_only_github`, `test_the_action_runs_in_ci_behind_the_block_of_the_templates` in `tests/test_templates.py` |
-| A public log reveals a possible vulnerability | The Findings workflow names an open alert by number and link only, and can only dismiss alerts | `test_other_findings_stay_open_and_name_only_number_and_link`, `test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai` |
+| A public log or timeline reveals a possible vulnerability | The Findings workflow names an open alert by number and link only, and can only dismiss alerts. The comment on a possible security report only points to private reporting, the timeline shows a fixed reason for its labels, and the prompt asks for one neutral sentence without details in its summary, analysis and reason | `test_other_findings_stay_open_and_name_only_number_and_link`, `test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai`, `test_a_possible_vulnerability_is_not_discussed_in_public` |
 | A repository's copy of a workflow drifts into something weaker | `check` compares every workflow with its template, and the tests pin the security rules of the templates | `tests/test_templates.py` |
 
 ## Residual risks
@@ -97,3 +129,4 @@ flowchart TB
 - The assistant is as safe as the permissions that the workflows of a repository grant it; `check` keeps them equal to the templates.
 - Harden-Runner fails open. In a private repository whose owner has no subscription or trial of StepSecurity, and when StepSecurity answers at the start of a job that its service is unavailable, Harden-Runner installs no agent, and the job runs without the block. Its write token could then reach any host, as before the block; the pins of the actions to commit hashes and jobs that run no AI and no code of an issue or a pull request stay the defense.
 - StepSecurity, the maker of Harden-Runner, is a third party that receives data from every job without the AI: the repository, the run and the job at its start, and what its agent records during the job, the hosts that the steps connect to, blocked or allowed, and the processes that connect. Its insights page for the run shows them.
+- The runner shows the inputs of a step in its log, and the log of a public repository's run is public, for 90 days unless the repository keeps logs for less. So the log of the `apply` job holds the whole answer of the AI, also what is never posted, such as its summary of a possible security report. The prompt asks for one neutral sentence without details there, but an AI can miss that; hiding the answer would take an artifact between the jobs. A maintainer who finds too much in a run deletes its logs.
