@@ -103,7 +103,7 @@ def test_a_dry_run_dismisses_nothing(config, root):
             '[[accept]]\ntool = "Scorecard"\n',
             "every [[accept]] needs tool, rule, reason and comment (KeyError",
         ),
-        ("[[accept]\n", "every [[accept]] needs tool, rule, reason and comment"),
+        ("[[accept]\n", ".github/findings.toml is no valid TOML: "),
         (
             '[[accept]]\ntool = ""\nrule = "x"\nreason = "won\'t fix"\ncomment = "y"\n',
             ".github/findings.toml: name the tool and the rule",

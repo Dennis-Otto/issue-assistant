@@ -642,7 +642,7 @@ def read_toml(path: Path, where: PurePosixPath) -> dict[str, Any]:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
-        raise AssistantError(f"{where} is no valid TOML: {error}") from None
+        raise SettingsError([f"{where} is no valid TOML: {error}"]) from None
 
 
 def load_labels(path: Path, problems: Problems) -> tuple[Label, ...]:
@@ -765,6 +765,12 @@ def load_config(root: Path, repository: str, *, lenient: bool = False) -> Config
             f"{LABELS_FILE} and {SETTINGS / 'project.md'} are needed; "
             "see https://github.com/Dennis-Otto/issue-assistant#set-up-a-repository."
         )
+    try:
+        project = project_file.read_text(encoding="utf-8").strip()
+    except UnicodeDecodeError as error:
+        raise SettingsError(
+            [f"{SETTINGS / 'project.md'} is no UTF-8 text: {error}"]
+        ) from None
     problems = Problems()
     labels = load_labels(root / LABELS_FILE, problems)
     values = read_settings(root / SETTINGS / "config.toml", problems)
@@ -779,7 +785,7 @@ def load_config(root: Path, repository: str, *, lenient: bool = False) -> Config
         root=root,
         repository=repository,
         labels=labels,
-        project=project_file.read_text(encoding="utf-8").strip(),
+        project=project,
         **values,
     )
 
@@ -808,8 +814,8 @@ def load_findings(root: Path) -> tuple[Acceptance, ...]:
     path = root / FINDINGS_FILE
     if not path.is_file():
         return ()
+    data = read_toml(path, FINDINGS_FILE)
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
         items = data.get("accept", [])
         accepted = tuple(
             Acceptance(
@@ -821,7 +827,7 @@ def load_findings(root: Path) -> tuple[Acceptance, ...]:
             )
             for item in items
         )
-    except (tomllib.TOMLDecodeError, UnicodeDecodeError, KeyError, TypeError) as error:
+    except (KeyError, TypeError) as error:
         raise SettingsError(
             [
                 f"{FINDINGS_FILE}: every [[accept]] needs tool, rule, reason and "
@@ -3783,8 +3789,11 @@ def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
 # Checking a repository's set-up
 
 
-def load_yaml(path: Path) -> Any:
-    """A YAML file as data, with PyYAML or with yq, which GitHub's runners have."""
+def load_yaml(path: Path, where: str = "") -> Any:
+    """A YAML file as data, with PyYAML or with yq, which GitHub's runners have.
+
+    A file that isn't YAML is a SettingsError that names it as `where`.
+    """
     try:
         import yaml
     except ImportError:
@@ -3800,8 +3809,16 @@ def load_yaml(path: Path) -> Any:
                 "Reading the workflows needs PyYAML or yq; install one of them, "
                 "for example with: pip install pyyaml"
             ) from None
-        return json.loads(result.stdout)
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+        except subprocess.CalledProcessError as error:
+            reason = error.stderr.strip()
+        else:
+            return json.loads(result.stdout)
+    else:
+        try:
+            return yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (yaml.YAMLError, UnicodeDecodeError) as error:
+            reason = str(error)
+    raise SettingsError([f"{where or path} is no valid YAML: {reason}"])
 
 
 def normalized(node: Any, problems: list[str], where: str) -> Any:
@@ -3880,8 +3897,12 @@ def check_forms(config: Config) -> list[str]:
     for path in sorted((config.root / ".github/ISSUE_TEMPLATE").glob("*.y*ml")):
         if path.stem == "config":
             continue
-        form = load_yaml(path)
         where = path.relative_to(config.root).as_posix()
+        try:
+            form = load_yaml(path, where)
+        except SettingsError as error:
+            problems += error.problems
+            continue
         if not isinstance(form, dict):
             problems.append(f"{where} is no issue form")
             continue
@@ -3926,7 +3947,7 @@ def check_workflows(config: Config) -> list[str]:
             problems.append(f"{where} is missing; run the install command")
             continue
         expected = normalized(load_yaml(template), [], template.name)
-        actual = normalized(load_yaml(path), problems, where)
+        actual = normalized(load_yaml(path, where), problems, where)
         if actual != expected:
             problems.append(
                 f"{where} differs from the template of the issue assistant; "
@@ -3936,7 +3957,7 @@ def check_workflows(config: Config) -> list[str]:
     if not firewall.is_file():
         problems.append(f"{FIREWALL} is missing; run the install command")
     else:
-        policy = load_yaml(firewall)
+        policy = load_yaml(firewall, str(FIREWALL))
         needed = set(load_yaml(TEMPLATES / FIREWALL)["allow"])
         hosts = set(policy.get("allow") or [])
         if policy.get("mode") != "enforce":
@@ -3950,9 +3971,10 @@ def check_workflows(config: Config) -> list[str]:
                 problems.append(f"{FIREWALL}: name the host {host} in full")
     actionlint = config.root / ACTIONLINT
     if actionlint.is_file():
-        labels = ((load_yaml(actionlint) or {}).get("self-hosted-runner") or {}).get(
-            "labels"
-        ) or []
+        labels = (
+            (load_yaml(actionlint, str(ACTIONLINT)) or {}).get("self-hosted-runner")
+            or {}
+        ).get("labels") or []
         if FIREWALL_RUNNER not in labels:
             problems.append(f"{ACTIONLINT}: list the runner {FIREWALL_RUNNER}")
     ignore = config.root / ".gitignore"

@@ -177,6 +177,23 @@ def test_a_file_that_is_no_toml_stops_every_command(
         assert reason in out and "Traceback" not in out
 
 
+def test_a_project_md_that_is_no_utf_8_stops_every_command(
+    monkeypatch, tmp_path, root, capsys
+):
+    # Saved in Latin-1, with the umlauts of how to address German reporters.
+    (root / ".github/issue-assistant/project.md").write_bytes(
+        "Ein Projekt für Leser, die Deutsch schreiben.\n".encode("latin-1")
+    )
+    for command in ("check", "engine"):
+        code, _, _ = run_main(monkeypatch, tmp_path, root, None, command)
+        out = capsys.readouterr().out
+        assert code == 1
+        assert out.startswith(
+            "::error::.github/issue-assistant/project.md is no UTF-8 text: "
+        )
+        assert "can't decode byte 0xfc" in out and "Traceback" not in out
+
+
 def test_unknown_keys_are_named_with_the_key_they_probably_mean(
     monkeypatch, tmp_path, root, capsys
 ):
@@ -434,6 +451,28 @@ def test_the_labels_of_a_form_may_be_one_text_separated_by_commas(config, root):
         ".github/labels.toml",
         ".github/ISSUE_TEMPLATE/empty.yml is no issue form",
     ]
+
+
+def test_a_form_that_is_no_yaml_is_named_with_the_other_problems(config, root):
+    form = root / ".github/ISSUE_TEMPLATE/bug_report.yml"
+    form.write_text("name: Bug\nlabels: [bug\n", "utf-8")
+    (root / ".github/ISSUE_TEMPLATE/latin.yml").write_bytes(b"name: F\xfcr\n")
+    problems = assistant.check_forms(config)
+    assert problems[0].startswith(
+        ".github/ISSUE_TEMPLATE/bug_report.yml is no valid YAML: "
+    )
+    assert problems[1].startswith(".github/ISSUE_TEMPLATE/latin.yml is no valid YAML: ")
+    assert "can't decode byte 0xfc" in problems[1]
+
+
+def test_a_workflow_that_is_no_yaml_stops_the_check_with_one_error(
+    monkeypatch, tmp_path, root, capsys
+):
+    (root / ".github/workflows/issue-assistant.yml").write_text("on: [push\n", "utf-8")
+    code, _, _ = run_main(monkeypatch, tmp_path, root, None, "check")
+    out = capsys.readouterr().out
+    assert code == 1 and "Traceback" not in out
+    assert "::error::.github/workflows/issue-assistant.yml is no valid YAML: " in out
 
 
 def test_a_multiple_choice_area_fits(config, root):
@@ -801,6 +840,21 @@ def test_yaml_is_read_with_yq_without_pyyaml(monkeypatch, tmp_path):
     monkeypatch.setattr(assistant.subprocess, "run", run)
     assert assistant.load_yaml(workflow) == {"on": "push"}
     assert calls == [["yq", "-o=json", ".", str(workflow)]]
+
+
+def test_yaml_that_yq_cant_read_is_named(monkeypatch, tmp_path):
+    def run(command, **kwargs):
+        raise assistant.subprocess.CalledProcessError(
+            1, command, "", "Error: bad file: yaml: line 2\n"
+        )
+
+    monkeypatch.setitem(assistant.sys.modules, "yaml", None)
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    with pytest.raises(assistant.SettingsError) as raised:
+        assistant.load_yaml(tmp_path / "form.yml", "form.yml")
+    assert raised.value.problems == [
+        "form.yml is no valid YAML: Error: bad file: yaml: line 2"
+    ]
 
 
 def test_yaml_without_pyyaml_or_yq_says_what_to_install(monkeypatch, tmp_path):
