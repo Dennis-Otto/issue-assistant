@@ -7,8 +7,8 @@ name: Action test
 # templates. The action runs on the runner's own Python, without PyYAML: check falls
 # back to yq, as it does in every repository that uses the action. The commands
 # that only read run against GitHub itself, and every week the GraphQL documents of
-# the script meet GitHub's schema of that day, so that a change of GitHub's API
-# fails here before it fails in a repository that uses the action.
+# the script meet GitHub's schema of that day, so that a field that GitHub
+# deprecates fails here months before GitHub removes it.
 # https://github.com/Dennis-Otto/repo-blueprint
 
 on:

@@ -6,8 +6,9 @@ repository that uses the action, the request then fails, and a fallback hides it
 behind a notice: labels lose their rationale, a duplicate its link. Here the real
 request code runs down to `gh`, and what it sends there is checked against GitHub's
 public schema, kept in tests/github/schema.docs.graphql: every field and argument
-exists, every variable fits its type, and the answer, worked out from the schema,
-holds only the fields that the document asks for, so that the method reads no other.
+exists, and none that GitHub has marked for removal, every variable fits its type,
+and the answer, worked out from the schema, holds only the fields that the document
+asks for, so that the method reads no other.
 
 The Action test workflow checks the documents every week against the schema of that
 day, which GRAPHQL_SCHEMA names. Refresh the copy here with
@@ -19,6 +20,7 @@ day, which GRAPHQL_SCHEMA names. Refresh the copy here with
 import ast
 import json
 import os
+import re
 import subprocess
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -34,6 +36,7 @@ from graphql import (
     print_ast,
     validate,
 )
+from graphql.validation import NoDeprecatedCustomRule, specified_rules
 
 import issue_assistant as assistant
 from support import REF, REPOSITORY
@@ -45,6 +48,12 @@ SCHEMA = Path(
 ISSUE = {"number": 12, "node_id": "I_kwDOMpLSs86Xc1Ab"}
 ORIGINAL = {"number": 7, "node_id": "I_kwDOMpLSs86Xa9Zz"}
 REASONS = ("COMPLETED", "NOT_PLANNED", "DUPLICATE")
+# GitHub deprecates a field, an argument or a value months before it removes it.
+RULES = (*specified_rules, NoDeprecatedCustomRule)
+# The Mutation workflow runs the tests on a copy of the script in which every
+# function has mutants beside it: xǁGitHubǁclose__mutmut_1, _2, … and the original,
+# xǁGitHubǁclose__mutmut_orig.
+MUTANT = re.compile(r"__mutmut_\d+$")
 
 
 @pytest.fixture(scope="module")
@@ -59,8 +68,8 @@ def schema() -> GraphQLSchema:
 class GitHubOfTheSchema:
     """`gh api` that answers GraphQL as GitHub would, from the data that it holds.
 
-    A document that the schema refuses, or variables that don't fit it, fail the
-    test at once: an AssertionError passes every fallback of the script, which
+    A document that the schema refuses or that uses what GitHub deprecated, or
+    variables that don't fit it, fail the test at once: an AssertionError passes every fallback of the script, which
     would turn the error of GitHub into a notice.
     """
 
@@ -82,7 +91,7 @@ class GitHubOfTheSchema:
         request = json.loads(input)
         self.requests.append(request)
         document = parse(request["query"])
-        problems = validate(self.schema, document)
+        problems = validate(self.schema, document, RULES)
         assert not problems, "\n".join(problem.message for problem in problems)
         result = execute_sync(
             self.schema,
@@ -238,15 +247,24 @@ def normal(document: str) -> str:
     return print_ast(parse(document))
 
 
-def calls_in_the_script(name: str) -> Iterator[ast.Call]:
-    tree = ast.parse(Path(assistant.__file__).read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
+def calls(source: str, name: str) -> Iterator[ast.Call]:
+    """The calls of a method by that name in the source, without those of mutants."""
+    nodes: list[ast.AST] = [ast.parse(source)]
+    while nodes:
+        node = nodes.pop()
+        if isinstance(node, ast.FunctionDef) and MUTANT.search(node.name):
+            continue
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == name
         ):
             yield node
+        nodes.extend(ast.iter_child_nodes(node))
+
+
+def calls_in_the_script(name: str) -> Iterator[ast.Call]:
+    return calls(Path(assistant.__file__).read_text(encoding="utf-8"), name)
 
 
 @pytest.mark.parametrize("name", REQUESTS)
@@ -304,6 +322,27 @@ def test_every_reason_for_closing_is_checked():
     assert reasons == set(REASONS)
 
 
+def test_the_mutants_of_the_mutation_workflow_are_not_the_script():
+    """mutmut keeps each original beside its mutants, which break what they like."""
+    source = """
+def x_close__mutmut_orig(self, issue):
+    self.graphql("query { viewer { login } }", {})
+    github.close(issue, "COMPLETED", "Done.")
+def x_close__mutmut_1(self, issue):
+    self.graphql(None, {})
+    github.close(issue, "XXCOMPLETEDXX", "Done.")
+def x_close__mutmut_2(self, issue):
+    self.graphql({})
+    github.close(issue, None, "Done.")
+"""
+    assert [ast.literal_eval(node.args[0]) for node in calls(source, "graphql")] == [
+        "query { viewer { login } }"
+    ]
+    assert [ast.literal_eval(node.args[1]) for node in calls(source, "close")] == [
+        "COMPLETED"
+    ]
+
+
 def test_a_field_that_github_does_not_know_fails(monkeypatch, schema):
     """The check catches a misspelt field, as a renamed one in GitHub's schema."""
     request = REQUESTS["merged pull requests"]
@@ -315,6 +354,21 @@ def test_a_field_that_github_does_not_know_fails(monkeypatch, schema):
         AssertionError, match="Cannot query field 'sha' on type 'Commit'"
     ):
         assistant.GitHub(REPOSITORY).graphql(broken, sent["variables"])
+
+
+def test_a_field_that_github_will_remove_fails(monkeypatch, schema):
+    """GitHub announces a removal with the deprecation, months ahead of it."""
+    request = REQUESTS["merged pull requests"]
+    _, (sent,) = send(monkeypatch, schema, request)
+    deprecated = sent["query"].replace(
+        "mergeCommit { oid }", "mergeCommit { oid pushedDate }"
+    )
+    github = GitHubOfTheSchema(schema, request.holds, {})
+    monkeypatch.setattr(assistant.subprocess, "run", github.run)
+    with pytest.raises(
+        AssertionError, match="The field Commit.pushedDate is deprecated"
+    ):
+        assistant.GitHub(REPOSITORY).graphql(deprecated, sent["variables"])
 
 
 def test_a_variable_that_does_not_fit_its_type_fails(monkeypatch, schema):
