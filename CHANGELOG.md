@@ -24,6 +24,7 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ### Fixed
 
+- A fixed issue closes with the release that shipped its fix, also when the morning sweep labeled it `fixed-in-next-release` only after that release, as when the run of the merge failed; before, it waited for the release after and named that one. An issue whose fix a release ships already when the sweep first sees the merge closes at once. A pull request of another repository that names the issue, such as `Fixes owner/project#12`, no longer keeps it open or appears in the comment of the release, and in a busy repository the sweep reads every pull request merged in the last 14 days instead of the latest 30.
 - `check` and `install` name the files of a repository with slashes on Windows too, such as `.github/labels.toml` instead of `.github\labels.toml`.
 - `check` and `engine` no longer need `GH_REPO`, so the check runs on your computer as well. A command that calls GitHub and finds no repository, or one that isn't written as `owner/name`, stops with one clear error instead of a Python traceback.
 - A change of the templates can be released again. The workflows and the firewall policy that `install` writes now live in `templates/`, apart from this repository's own copies, which the repository blueprint brings; before, a pull request that changed a template failed the required check of the set-up. `install` writes exactly what it wrote before, so no repository needs to install again.

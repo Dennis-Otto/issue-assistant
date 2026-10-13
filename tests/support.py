@@ -130,20 +130,38 @@ def make_follow_up(**changes):
     return answer
 
 
-def make_pull(number=40, fixes=(12,), *, days_ago=1, base="main", merged=True, **extra):
-    """A merged pull request with the issues that it fixes."""
+def make_pull(
+    number=40,
+    fixes=(12,),
+    *,
+    days_ago=1,
+    base="main",
+    merged=True,
+    repository=REPOSITORY,
+    **extra,
+):
+    """A merged pull request with the issues that it fixes, last updated at its merge.
+
+    `fixes` holds numbers of this repository's issues, or `owner/name#number`.
+    """
+    references = []
+    for issue in fixes:
+        where, _, number_ = str(issue).rpartition("#")
+        references.append(
+            {
+                "number": int(number_),
+                "repository": {"nameWithOwner": where or REPOSITORY},
+            }
+        )
     return {
         "number": number,
         "merged": merged,
         "mergedAt": at(days_ago),
+        "updatedAt": at(days_ago),
         "baseRefName": base,
         "mergeCommit": {"oid": f"{number:040x}"},
-        "closingIssuesReferences": {
-            "nodes": [
-                {"number": issue, "repository": {"nameWithOwner": REPOSITORY}}
-                for issue in fixes
-            ]
-        },
+        "repository": {"nameWithOwner": repository},
+        "closingIssuesReferences": {"nodes": references},
         **extra,
     }
 
@@ -157,6 +175,20 @@ def make_release(tag="v1.10.0", days_ago=0.5, **extra):
         "prerelease": False,
         **extra,
     }
+
+
+def release_history(*ages, **changes):
+    """Final releases published the given days ago, oldest first, up to v1.10.0.
+
+    `changes` change the release of a tag, such as `{"v1.9.0": {"prerelease": True}}`
+    passed as `**{"v1.9.0": ...}`.
+    """
+    first = 11 - len(ages)
+    releases = []
+    for offset, days_ago in enumerate(ages):
+        tag = f"v1.{first + offset}.0"
+        releases.append(make_release(tag, days_ago, **changes.get(tag, {})))
+    return releases
 
 
 def make_alert(number=1, tool="Scorecard", rule="CodeReviewID", path="no file"):
@@ -220,6 +252,8 @@ class FakeGitHub(assistant.GitHub):
         self.release = "v1.9.0"
         self.branch = "main"
         self.pull_store: list[dict] = []
+        # The pages of merged pull requests read, which no test needs many of.
+        self.pages = 0
         self.release_store: list[dict] = []
         # Pairs of a merge commit and the tag of a release that contains it.
         self.contained: set[tuple[str, str]] = set()
@@ -303,7 +337,13 @@ class FakeGitHub(assistant.GitHub):
                     raise not_found()
                 return {"tag_name": self.release}
             if route == "releases":
-                return deepcopy(self.release_store)
+                # GitHub lists the newest first, and a page of them.
+                newest = sorted(
+                    self.release_store,
+                    key=lambda item: item["published_at"],
+                    reverse=True,
+                )
+                return deepcopy(newest[: int(query["per_page"][0])])
             if route == "milestones":
                 return deepcopy(self.milestone_store)
             if route == "code-scanning/alerts":
@@ -350,6 +390,9 @@ class FakeGitHub(assistant.GitHub):
                 issue.update(data)
                 if data.get("state") == "open":
                     issue["state_reason"] = "reopened"
+                    self.event_store.setdefault(int(match[1]), []).append(
+                        {"event": "reopened", "actor": BOT_USER, "created_at": at()}
+                    )
                 return issue
             if match := re.fullmatch(r"code-scanning/alerts/(\d+)", route):
                 alert = next(
@@ -392,22 +435,57 @@ class FakeGitHub(assistant.GitHub):
                 )
             return {"repository": {"discussion": found[0]}}
         if "pullRequests(states: MERGED" in query:
+            # This repository's merged pull requests, by their last update, a page of
+            # them after the cursor, which is the place in the list.
+            assert "orderBy: {field: UPDATED_AT, direction: DESC}" in query
+            # Paging that never ends fails the test instead of filling the memory.
+            self.pages += 1
+            assert self.pages <= 50, "endless paging of the merged pull requests"
+            size = int(re.search(r"pullRequests\([^)]*first: (\d+)", query)[1])
+            pulls = sorted(
+                (
+                    pull
+                    for pull in self.pull_store
+                    if pull["merged"]
+                    and pull["repository"]["nameWithOwner"] == REPOSITORY
+                ),
+                key=lambda pull: pull["updatedAt"],
+                reverse=True,
+            )
+            start = int(variables["cursor"] or 0)
+            end = start + size
             return {
                 "repository": {
                     "defaultBranchRef": {"name": self.branch},
-                    "pullRequests": {"nodes": deepcopy(self.pull_store)},
+                    "pullRequests": {
+                        "pageInfo": {
+                            "hasNextPage": end < len(pulls),
+                            "endCursor": str(end),
+                        },
+                        "nodes": deepcopy(pulls[start:end]),
+                    },
                 }
             }
         if "closedByPullRequestsReferences" in query:
+            # Every pull request that names the issue, of any repository.
             nodes = [
                 {
                     key: pull[key]
-                    for key in ("number", "merged", "mergedAt", "baseRefName")
+                    for key in (
+                        "number",
+                        "merged",
+                        "mergedAt",
+                        "baseRefName",
+                        "repository",
+                    )
                 }
                 | {"mergeCommit": pull["mergeCommit"] if pull["merged"] else None}
                 for pull in self.pull_store
-                if variables["number"]
-                in {ref["number"] for ref in pull["closingIssuesReferences"]["nodes"]}
+                if (variables["number"], REPOSITORY)
+                in {
+                    (ref["number"], ref["repository"]["nameWithOwner"])
+                    for ref in pull["closingIssuesReferences"]["nodes"]
+                }
             ]
             return {
                 "repository": {
@@ -426,6 +504,8 @@ class FakeGitHub(assistant.GitHub):
             self.suggestions.append(variables)
             return {"closeIssue": {"issue": {"number": number}}}
         if "closeIssue" in query:
+            # The values of GitHub's IssueClosedStateReason.
+            assert variables["reason"] in {"COMPLETED", "NOT_PLANNED", "DUPLICATE"}
             issue = self._issue(number)
             issue["state"] = "closed"
             issue["state_reason"] = variables["reason"].lower()
