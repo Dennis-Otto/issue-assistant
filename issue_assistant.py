@@ -28,7 +28,7 @@ import tomllib
 from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from functools import partial
+from functools import cache, partial
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote, unquote, urlsplit
@@ -722,34 +722,60 @@ class GitHub:
             return False
         return compared["status"] in {"ahead", "identical"}
 
-    def merged_pulls(self) -> tuple[str, list[dict[str, Any]]]:
-        """The default branch and its latest merged pull requests with the issues they fix."""
-        data = self.graphql(
-            """
-            query($owner: String!, $name: String!) {
-              repository(owner: $owner, name: $name) {
-                defaultBranchRef { name }
-                pullRequests(states: MERGED, first: 30,
-                             orderBy: {field: UPDATED_AT, direction: DESC}) {
-                  nodes {
-                    number mergedAt baseRefName
-                    mergeCommit { oid }
-                    closingIssuesReferences(first: 10) {
-                      nodes { number repository { nameWithOwner } }
+    def owns(self, node: dict[str, Any]) -> bool:
+        """Whether a pull request or an issue of GraphQL belongs to this repository."""
+        name: str = node["repository"]["nameWithOwner"]
+        return name.lower() == self.repository.lower()
+
+    def merged_pulls(self, since: datetime) -> tuple[str, list[dict[str, Any]]]:
+        """The default branch, and the pull requests merged since `since`.
+
+        Each with the issues that it fixes. GitHub lists them by their last update,
+        which a merge is, so the pages end with one that nobody updated since then;
+        a busy repository merges far more than one page in MERGE_LOOKBACK.
+        """
+        pulls: list[dict[str, Any]] = []
+        cursor = None
+        while True:
+            data = self.graphql(
+                """
+                query($owner: String!, $name: String!, $cursor: String) {
+                  repository(owner: $owner, name: $name) {
+                    defaultBranchRef { name }
+                    pullRequests(states: MERGED, first: 100, after: $cursor,
+                                 orderBy: {field: UPDATED_AT, direction: DESC}) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        number mergedAt updatedAt baseRefName
+                        mergeCommit { oid }
+                        closingIssuesReferences(first: 10) {
+                          nodes { number repository { nameWithOwner } }
+                        }
+                      }
                     }
                   }
                 }
-              }
-            }
-            """,
-            {"owner": self.owner, "name": self.name},
-        )
-        repository = data["repository"]
-        pulls: list[dict[str, Any]] = repository["pullRequests"]["nodes"]
-        return repository["defaultBranchRef"]["name"], pulls
+                """,
+                {"owner": self.owner, "name": self.name, "cursor": cursor},
+            )
+            repository = data["repository"]
+            page = repository["pullRequests"]
+            pulls += [
+                pull for pull in page["nodes"] if moment(pull["mergedAt"]) >= since
+            ]
+            if (
+                not page["pageInfo"]["hasNextPage"]
+                or moment(page["nodes"][-1]["updatedAt"]) < since
+            ):
+                return repository["defaultBranchRef"]["name"], pulls
+            cursor = page["pageInfo"]["endCursor"]
 
     def fixing_pulls(self, number: int) -> list[dict[str, Any]]:
-        """The merged pull requests into the default branch that fix the issue."""
+        """This repository's merged pull requests into the default branch that fix the issue.
+
+        A pull request of another repository can name the issue too, as
+        `Fixes owner/project#12`; its commit isn't here, and no release here ships it.
+        """
         data = self.graphql(
             """
             query($owner: String!, $name: String!, $number: Int!) {
@@ -757,7 +783,10 @@ class GitHub:
                 defaultBranchRef { name }
                 issue(number: $number) {
                   closedByPullRequestsReferences(first: 10, includeClosedPrs: true) {
-                    nodes { number merged mergedAt baseRefName mergeCommit { oid } }
+                    nodes {
+                      number merged mergedAt baseRefName mergeCommit { oid }
+                      repository { nameWithOwner }
+                    }
                   }
                 }
               }
@@ -770,7 +799,10 @@ class GitHub:
         return [
             pull
             for pull in repository["issue"]["closedByPullRequestsReferences"]["nodes"]
-            if pull["merged"] and pull["baseRefName"] == branch and pull["mergeCommit"]
+            if self.owns(pull)
+            and pull["merged"]
+            and pull["baseRefName"] == branch
+            and pull["mergeCommit"]
         ]
 
     def discussions(self) -> list[dict[str, Any]]:
@@ -2823,25 +2855,30 @@ def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> li
     The issue stays open until a release ships the fix. A maintainer who removes the
     label keeps it removed: the notice of a pull request is never repeated.
     """
-    branch, pulls = github.merged_pulls()
+    branch, pulls = github.merged_pulls(now - MERGE_LOOKBACK)
+    # Read once, by the first issue to mark.
+    releases = cache(github.releases)
     done = []
     for pull in sorted(pulls, key=lambda item: item["mergedAt"]):
-        merged = moment(pull["mergedAt"])
-        if pull["baseRefName"] != branch or now - merged > MERGE_LOOKBACK:
+        if pull["baseRefName"] != branch:
             continue
         for reference in pull["closingIssuesReferences"]["nodes"]:
-            same = reference["repository"]["nameWithOwner"].lower()
-            if same != github.repository.lower():
+            if not github.owns(reference):
                 continue
             number = reference["number"]
             done += isolate(
-                f"#{number}", partial(mark_issue_fixed, github, number, pull, branch)
+                f"#{number}",
+                partial(mark_issue_fixed, github, number, pull, branch, releases),
             )
     return done
 
 
 def mark_issue_fixed(
-    github: GitHub, number: int, pull: dict[str, Any], branch: str
+    github: GitHub,
+    number: int,
+    pull: dict[str, Any],
+    branch: str,
+    releases: Callable[[], list[dict[str, Any]]],
 ) -> list[str]:
     try:
         issue = github.issue(number)
@@ -2861,6 +2898,12 @@ def mark_issue_fixed(
         for comment in comments
     ):
         return []
+    # A sweep that sees the merge late, as the run of the merge failed, may find a
+    # release that ships the fix already: then the issue closes with it at once,
+    # without a notice that promises the next release.
+    shipped = pull["mergeCommit"] and first_release(
+        github, releases(), [pull["mergeCommit"]["oid"]], moment(pull["mergedAt"])
+    )
     # The labels before the notice: the label closes the issue with the release,
     # and every later sweep skips an issue that has it or the notice. So the
     # issue stops waiting for its reporter first, or the sweep would remind the
@@ -2870,6 +2913,15 @@ def mark_issue_fixed(
         if name in current:
             github.remove_label(number, name)
     github.add_labels(number, [FIXED])
+    marked = {
+        **issue,
+        "labels": [
+            {"name": name} for name in sorted(current - {NEEDS_INFO, STALE} | {FIXED})
+        ],
+    }
+    # Unless another pull request that fixes the issue waits for its release.
+    if shipped and (closed := close_issue_released(github, marked, releases())):
+        return closed
     github.comment(
         number,
         render_fixed(pull["number"], branch, issue_language(issue, comments)),
@@ -2896,18 +2948,33 @@ def close_issue_released(
     github: GitHub, issue: dict[str, Any], releases: list[dict[str, Any]]
 ) -> list[str]:
     number = issue["number"]
-    labeled = [
-        created(event)
-        for event in github.events(number)
-        if event["event"] == "labeled"
-        and (event.get("label") or {}).get("name") == FIXED
+    events = github.events(number)
+    labeled = max(
+        [
+            created(event)
+            for event in events
+            if event["event"] == "labeled"
+            and (event.get("label") or {}).get("name") == FIXED
+        ]
+        or [created(issue)]
+    )
+    reopened = [created(event) for event in events if event["event"] == "reopened"]
+    # The fixes that the label waits for: merged since the issue was last reopened,
+    # as a fix that it was reopened after didn't help, and at most MERGE_LOOKBACK
+    # before the label, the latest that a sweep sets it.
+    pulls = [
+        pull
+        for pull in github.fixing_pulls(number)
+        if all(moment(pull["mergedAt"]) >= when for when in reopened)
+        and labeled - moment(pull["mergedAt"]) <= MERGE_LOOKBACK
     ]
-    pulls = github.fixing_pulls(number)
-    shas = [pull["mergeCommit"]["oid"] for pull in pulls]
-    # The label promises the next release: one published after it, with every
-    # fixing pull request merged.
-    since = max(labeled or [created(issue)])
-    release = first_release(github, releases, shas, since)
+    # The first release that ships them all, published after the last of them was
+    # merged: also before the label, when a sweep set it late. Without one, such as
+    # for a label set by hand, the label promises the next release after it.
+    since = max((moment(pull["mergedAt"]) for pull in pulls), default=labeled)
+    release = first_release(
+        github, releases, [pull["mergeCommit"]["oid"] for pull in pulls], since
+    )
     if not release:
         return []
     comments = github.comments(number)
