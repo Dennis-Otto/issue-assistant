@@ -2073,7 +2073,20 @@ def test_names_and_ids_of_models_are_taken(config, model):
 
 # The workflow passes the model to the engine's command line without quotes.
 @pytest.mark.parametrize(
-    "model", ["x --dangerously", "x'", 'x"', "x\n--y", "x;y", "x$y", "x y", 5]
+    "model",
+    [
+        "x --dangerously",
+        "x'",
+        'x"',
+        "x\n--y",
+        "x;y",
+        "x$y",
+        "x y",
+        # The engine's action reads a word with a leading dash as its next flag.
+        "--dangerously-skip-permissions",
+        "-p",
+        5,
+    ],
 )
 def test_a_model_that_would_add_arguments_is_refused(config, capsys, model):
     custom = dataclasses.replace(config, model=model)
@@ -2408,6 +2421,21 @@ def test_each_summary_stops_the_commands_with_a_token_of_its_own(
     assert commands_run(output) == []
     # The summary of the job shows the lines as they are.
     assert path.read_text("utf-8") == "### Title\n\n- ::add-mask::x\n" * 2
+
+
+def test_only_a_terminal_outside_a_runner_gets_the_summary_alone(monkeypatch, capsys):
+    """Such as `check` on one's own computer; the runner reads any other output."""
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    assistant.summary("Title", ["Everything fits."], False)
+    assert capsys.readouterr().out == "### Title\n\n- Everything fits.\n"
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assistant.summary("Title", ["Everything fits."], False)
+    assert re.fullmatch(
+        r"::stop-commands::(\w{32})\n### Title\n\n- Everything fits\.\n::\1::\n",
+        capsys.readouterr().out,
+    )
 
 
 def test_a_preview_can_t_close_its_fence(monkeypatch, tmp_path, capsys):

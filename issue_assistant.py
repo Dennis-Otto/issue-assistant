@@ -237,8 +237,9 @@ ENGINES = {"claude": Engine("Claude", "Anthropic", "claude-opus-5-5")}
 DEFAULT_ENGINE = "claude"
 # The workflow passes the model to the engine's command line without quotes. The
 # names and IDs of models fit, also with a version after @ or :, a path or a suffix
-# in brackets; a blank, a quote or a line break would add arguments.
-MODEL_NAME = re.compile(r"[A-Za-z0-9._:@/\[\]-]+")
+# in brackets; a blank, a quote or a line break would add arguments, and so would a
+# leading dash, which the engine's action reads as the next flag.
+MODEL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:@/\[\]-]*")
 
 
 def is_model_name(model: object) -> bool:
@@ -2933,9 +2934,14 @@ def summary(
             f"{marks}markdown\n{body}\n{marks}\n\n</details>"
         )
     # The lines and the comments hold the engine's text, which the runner must not
-    # read as workflow commands; it reads them again after the random token.
-    token = os.urandom(16).hex()
-    print(f"::stop-commands::{token}\n{text}\n::{token}::")
+    # read as workflow commands; it reads them again after the random token. Only a
+    # terminal outside a runner, such as a check on one's own computer, shows the
+    # text alone: the runner reads every other output, also that of a container.
+    if sys.stdout.isatty() and os.environ.get("GITHUB_ACTIONS") != "true":
+        print(text)
+    else:
+        token = os.urandom(16).hex()
+        print(f"::stop-commands::{token}\n{text}\n::{token}::")
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if path:
         with open(path, "a", encoding="utf-8") as handle:

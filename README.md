@@ -339,7 +339,7 @@ ask = false                               # never ask reporters of this kind for
 ```toml
 [engine]
 name = "claude"                 # the engine of ENGINES
-# model = "claude-opus-5-5"     # the engine's default model if left out; letters, digits and ._:@/[]- only
+# model = "claude-opus-5-5"     # the engine's default model if left out; a letter or digit, then letters, digits and ._:@/[]- only
 
 [links]
 hosts = ["docs.example.com"]    # besides this repository
