@@ -24,37 +24,7 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 
 ## The workflows of a repository
 
-```mermaid
-flowchart LR
-  accTitle: The four workflows of a repository and what starts them
-  accDescr: A change of labels.toml starts sync-labels in labels.yml. A scan of code scanning on main and every morning start findings in findings.yml. Every morning, a merged pull request, a published release and the end of a release run that no schedule started start sweep in issue-lifecycle.yml. A new issue, an edit or a comment starts issue-assistant.yml, where event chooses the next task, analyze lets the AI read the checkout and answer with JSON, and apply checks the answer and is the only job that writes.
-  changed(["change of<br/>labels.toml"]) --> sync
-  subgraph labelling ["labels.yml"]
-    sync["<b>sync-labels</b><br/>creates and updates<br/>the labels"]
-  end
-  scanned(["a scan of code<br/>scanning on main"]) --> findings
-  subgraph scanning ["findings.yml"]
-    findings["<b>findings</b><br/>dismisses accepted findings,<br/>fails on the others"]
-  end
-  daily(["every morning"]) --> findings
-  daily --> sweep
-  shipped(["merged pull request,<br/>published release,<br/>end of a release run"]) --> sweep
-  subgraph lifecycle ["issue-lifecycle.yml"]
-    sweep["<b>sweep</b><br/>reminders, closing,<br/>duplicates, fixed issues"]
-  end
-  opened(["new issue, edit<br/>or comment"]) --> event
-  subgraph assistant ["issue-assistant.yml"]
-    direction LR
-    event["<b>event</b><br/>labels from the form,<br/>the next task"] --> analyze["<b>analyze</b><br/>the AI reads the checkout<br/>and answers with JSON"]
-    analyze --> apply["<b>apply</b><br/>checks the answer,<br/>the only job that writes"]
-  end
-  classDef ai fill:#8250df33,stroke:#8250df
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef trigger fill:#d4a72c33,stroke:#bf8700
-  class analyze ai
-  class event,apply,sweep,sync,findings job
-  class opened,daily,shipped,changed,scanned trigger
-```
+--8<-- "README.md:workflows-diagram"
 
 | Workflow | Jobs |
 | --- | --- |
@@ -69,22 +39,24 @@ The three jobs of `issue-assistant.yml` hand the issue on; only the middle one s
 
 ```mermaid
 sequenceDiagram
+  accTitle: One run of issue-assistant.yml for a new issue
+  accDescr: GitHub sends the event of the new issue 12 to the job event, which adds the labels of the form and needs-triage and hands the issue and the task triage to the job analyze. Its context step writes the issue, the other issues, the discussions, the labels, the prompt and the schema into .issue-assistant/ and hands the prompt and the schema to the engine, which runs with a read-only token, behind the egress firewall, with the engine's secret. The engine reads the checkout with Read, Grep and Glob and hands its answer in JSON to the job apply, which runs no AI and has no secret. apply checks the answer against the schema, the labels and the issues, cleans the text, and writes the labels, the comment and then needs-info, only on issue 12.
   participant G as GitHub
   participant E as event
   participant C as analyze: context
   participant AI as analyze: engine
   participant P as apply
   G->>E: a new issue, #35;12
-  E->>G: labels from the form, needs-triage
+  E->>G: labels from the form,<br/>needs-triage
   E->>C: issue 12, task triage
-  C->>C: writes the issue, other issues, discussions,<br/>labels, prompt and schema into .issue-assistant/
+  C->>C: writes the issue, other<br/>issues, discussions, labels,<br/>prompt and schema into<br/>.issue-assistant/
   C->>AI: prompt and schema
-  Note over C,AI: read-only token, egress firewall, the engine's secret
-  AI->>AI: reads the checkout with Read, Grep, Glob
+  Note over C,AI: read-only token, egress<br/>firewall, the engine's secret
+  AI->>AI: reads the checkout<br/>with Read, Grep, Glob
   AI->>P: the answer, JSON
-  Note over P: no AI, no secret
-  P->>P: checks the answer against the schema,<br/>the labels and the issues, cleans the text
-  P->>G: the labels, the comment, then needs-info,<br/>only on #35;12
+  Note over P: no AI,<br/>no secret
+  P->>P: checks the answer against<br/>the schema, the labels and<br/>the issues, cleans the text
+  P->>G: the labels, the comment,<br/>then needs-info, only on #35;12
 ```
 
 `install` copies the workflows of `templates/` with the commit hash of the release, and `check` fails when a repository's copy differs in anything but the commit hashes of its actions.
@@ -125,10 +97,10 @@ flowchart TB
   analyze --> hosts[("the hosts of<br/>egress-firewall.yaml")]
   writers --x other(["every other host"])
   analyze --x other
-  classDef ai fill:#8250df33,stroke:#8250df
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
   class analyze ai
   class writers job
   class github,hosts safe
@@ -192,8 +164,8 @@ flowchart TB
   script -- "every pull request,<br/>main and every week:<br/>sweep, sync-labels, context,<br/>a token that only reads" --> github
   script -- "every week" --> today
   today -. "a notice when<br/>the copy is behind" .-> copy
-  classDef code fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef code fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class script code
   class copy,github,today safe
 ```
@@ -226,9 +198,9 @@ flowchart TB
   earlier -- "yes" --> changed["leave out the labels that<br/>anyone changed since"]
   changed --> complete["the missing labels;<br/>needs-info and<br/>possible-duplicate<br/>as the comment says"]
   complete --> none["no second comment"]
-  classDef question fill:#d4a72c33,stroke:#bf8700
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class earlier question
   class apply,labels,comment,changed,complete job
   class waiting,none safe
@@ -255,9 +227,9 @@ flowchart TB
   html --> visible
   visible -- "the other issues" --> jsonl["<b>issues.jsonl</b>,<br/>an excerpt of each"]
   visible -- "the issue" --> issue["<b>issue.md</b>, up to 20,000<br/>characters of each text,<br/>each in its own fence"]
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class text untrusted
   class cap,forms,excerpt,html,visible job
   class event,jsonl,issue safe
