@@ -230,10 +230,10 @@ flowchart TB
   oracle{"<b>the oracle</b>: what would<br/>GitHub mention, reference,<br/>link or show?"}
   oracle -- "only the assistant's<br/>own words" --> passes(["the test passes"])
   oracle -- "anything else" --> fails(["the test fails"])
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
-  classDef question fill:#d4a72c33,stroke:#bf8700
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class known,random,answers,fuzzed,fails untrusted
   class oracle question
   class clean,post job
