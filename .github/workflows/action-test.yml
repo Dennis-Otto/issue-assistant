@@ -126,7 +126,8 @@ jobs:
       # This repository has few issues and no discussions. A closed issue with
       # comments of a public repository that uses the action, among its other issues
       # and discussions, reads all that context reads, the GraphQL query of the
-      # discussions too, whose error would only leave the discussions out.
+      # discussions too: an error of it fails context, and an empty answer fails the
+      # check of discussions.jsonl.
       - name: Write the context of a real issue
         env:
           GH_TOKEN: ${{ github.token }}

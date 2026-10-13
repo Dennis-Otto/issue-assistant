@@ -170,6 +170,23 @@ def make_alert(number=1, tool="Scorecard", rule="CodeReviewID", path="no file"):
     }
 
 
+def not_found(message="Not Found"):
+    """The error of gh for a thing that doesn't exist."""
+    return assistant.GitHubError(f"gh api: {message} (HTTP 404)", status=404)
+
+
+def rate_limited():
+    """The error of gh when the token used up its requests of the hour."""
+    return assistant.GitHubError(
+        "gh api: API rate limit exceeded for installation ID 1. (HTTP 403)", status=403
+    )
+
+
+def server_error():
+    """The error of gh when GitHub fails, as in an incident."""
+    return assistant.GitHubError("gh api: HTTP 502", status=502)
+
+
 def analysis(comment_id=1, days_ago=1, **attributes):
     marker = assistant.render_marker("analysis", lang="en", **attributes)
     return make_comment(comment_id, "bot", f"{marker}\nFirst analysis", days_ago)
@@ -208,10 +225,21 @@ class FakeGitHub(assistant.GitHub):
         self.suggestions: list[dict] = []
         self.rationales: dict[tuple[int, str], str] = {}
         self.graphql_error: str | None = None
+        # Patterns of the calls that fail, such as "^GET issues/7$", with their error.
+        self.failures: list[tuple[str, assistant.GitHubError]] = []
+
+    def fail(self, pattern, error=None):
+        """Let every call whose method and path or query match the pattern fail."""
+        self.failures.append((pattern, error or rate_limited()))
+
+    def _failing(self, call):
+        for pattern, error in self.failures:
+            if re.search(pattern, call):
+                raise error
 
     def _issue(self, number):
         if number not in self.store:
-            raise assistant.GitHubError("gh api: Not Found (HTTP 404)")
+            raise not_found()
         return self.store[number]
 
     def _add(self, number, names):
@@ -230,6 +258,7 @@ class FakeGitHub(assistant.GitHub):
 
     def rest(self, path, *, method="GET", data=None, pages=False):
         self.calls.append((method, path, deepcopy(data)))
+        self._failing(f"{method} {path}")
         parts = urlsplit(path)
         route, query = parts.path, parse_qs(parts.query)
         if method == "GET":
@@ -256,7 +285,7 @@ class FakeGitHub(assistant.GitHub):
                 return deepcopy(self.label_store)
             if route == "releases/latest":
                 if not self.release:
-                    raise assistant.GitHubError("gh api: Not Found (HTTP 404)")
+                    raise not_found()
                 return {"tag_name": self.release}
             if route == "releases":
                 return deepcopy(self.release_store)
@@ -266,12 +295,12 @@ class FakeGitHub(assistant.GitHub):
                 if self.alert_error:
                     raise assistant.GitHubError(self.alert_error)
                 if self.alert_store is None:
-                    raise assistant.GitHubError("gh api: no analysis found (HTTP 404)")
+                    raise not_found("no analysis found")
                 return deepcopy(self.alert_store)
             if match := re.fullmatch(r"compare/([0-9a-f]+)\.\.\.(.+)", route):
                 tag = unquote(match[2])
                 if tag not in {item["tag_name"] for item in self.release_store}:
-                    raise assistant.GitHubError("gh api: Not Found (HTTP 404)")
+                    raise not_found()
                 inside = (match[1], tag) in self.contained
                 return {"status": "ahead" if inside else "diverged"}
         if method == "POST":
@@ -295,7 +324,7 @@ class FakeGitHub(assistant.GitHub):
             issue = self._issue(int(match[1]))
             name = unquote(match[2])
             if name not in assistant.label_names(issue):
-                raise assistant.GitHubError("gh api: Label does not exist (HTTP 404)")
+                raise not_found("Label does not exist")
             issue["labels"] = [
                 label for label in issue["labels"] if label["name"] != name
             ]
@@ -327,19 +356,26 @@ class FakeGitHub(assistant.GitHub):
 
     def graphql(self, query, variables):
         self.calls.append(("GRAPHQL", query, deepcopy(variables)))
+        self._failing(f"GRAPHQL {query}")
         if self.graphql_error:
             raise assistant.GitHubError(self.graphql_error)
         if "discussions(" in query:
-            if self.discussion_store is None:
-                raise assistant.GitHubError("Discussions are not enabled")
-            return {"repository": {"discussions": {"nodes": self.discussion_store}}}
+            # A repository without discussions has none, as GitHub answers.
+            nodes = self.discussion_store or []
+            return {"repository": {"discussions": {"nodes": nodes}}}
         if "discussion(number" in query:
             found = [
                 item
                 for item in self.discussion_store or []
                 if item["number"] == variables["number"]
             ]
-            return {"repository": {"discussion": found[0] if found else None}}
+            if not found:
+                raise assistant.GitHubError(
+                    "Could not resolve to a Discussion with the number of "
+                    f"{variables['number']}.",
+                    types={"NOT_FOUND"},
+                )
+            return {"repository": {"discussion": found[0]}}
         if "pullRequests(states: MERGED" in query:
             return {
                 "repository": {
