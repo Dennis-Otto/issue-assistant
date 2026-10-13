@@ -10,6 +10,7 @@ import json
 import re
 import shlex
 import shutil
+import subprocess
 import tomllib
 from glob import iglob as files_matching
 from pathlib import Path
@@ -309,8 +310,12 @@ def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
     assert start["if"] == "github.event_name == 'push'"
     assert start["runs-on"] == RUNNER
     assert start["steps"][0] == JOBS["event"]["steps"][0]
-    (run,) = [step["run"] for step in start["steps"] if "run" in step]
-    assert run == 'gh workflow run canary.yml --ref "$GITHUB_REF_NAME"'
+    assert "actions/workflows/canary.yml/dispatches" in start_script()
+    # It waits for the canary's analysis, which may wait for an earlier one, and
+    # for its apply.
+    jobs = CANARY["jobs"]
+    waits = 2 * jobs["analyze"]["timeout-minutes"] + jobs["apply"]["timeout-minutes"]
+    assert start["timeout-minutes"] >= waits
     paths = triggers["push"]["paths"]
     for path in (
         "action.yml",
@@ -324,6 +329,78 @@ def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
         assert path in paths, path
     for pattern in paths:
         assert next(ROOT.glob(pattern), None), f"{pattern} matches no file"
+
+
+def start_script():
+    (script,) = [s["run"] for s in CANARY["jobs"]["start"]["steps"] if "run" in s]
+    return script
+
+
+# The GitHub CLI of the job start, as a shell function: it notes its arguments and
+# answers with the run that GitHub started and that run's conclusion.
+FAKE_GH = """
+gh() {
+  echo "gh $*" >> "$CALLS"
+  case "$1 $2" in
+    "api --method") [[ -z "$RUN" ]] || echo "$RUN" ;;
+    "run view") echo "$CONCLUSION" ;;
+  esac
+}
+"""
+
+
+@pytest.mark.parametrize(
+    ("run", "conclusion", "code", "says"),
+    [
+        ("42", "success", 0, "The canary passed."),
+        # A later push's canary took the place of its waiting analysis.
+        ("42", "cancelled", 0, "::notice::The canary was cancelled"),
+        ("42", "failure", 1, "::error::The canary ended as failure: "),
+        ("42", "timed_out", 1, "::error::The canary ended as timed_out: "),
+        # GitHub may start a run without naming it.
+        ("", "", 0, "::warning::GitHub started the canary without naming its run"),
+    ],
+)
+def test_the_push_fails_when_the_canary_that_it_started_fails(
+    tmp_path, run, conclusion, code, says
+):
+    """GitHub mails a failed run to the person who started it, and nobody started
+    the canary's run after a push but the job's token: the push's own run, which
+    the person who merged started, carries the canary's result."""
+    calls = tmp_path / "calls"
+    env = {
+        "CALLS": str(calls),
+        "RUN": run,
+        "CONCLUSION": conclusion,
+        "GH_REPO": "octo/assistant",
+        "GITHUB_REF_NAME": "main",
+        "GITHUB_SERVER_URL": "https://github.com",
+    }
+    result = subprocess.run(
+        [shutil.which("bash"), "-e", "-c", FAKE_GH + start_script()],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == code, result.stderr
+    assert says in result.stdout
+    started, *rest = calls.read_text(encoding="utf-8").splitlines()
+    assert started == (
+        "gh api --method POST repos/octo/assistant/actions/workflows/canary.yml/"
+        "dispatches -f ref=main -F return_run_details=true --jq .workflow_run_id"
+    )
+    if run:
+        url = "https://github.com/octo/assistant/actions/runs/42"
+        assert f"The canary runs at {url}" in result.stdout
+        assert rest == [
+            "gh run watch 42 --interval 60",
+            "gh run view 42 --json conclusion --jq .conclusion",
+        ]
+        if code:
+            assert result.stdout.rstrip().endswith(url)
+    else:
+        assert rest == []
 
 
 def test_the_canary_s_issue_is_one_that_this_repository_could_get():

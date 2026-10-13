@@ -43,12 +43,17 @@ permissions: {}
 
 jobs:
   # The engine's action runs for a schedule or a run by hand, not for a push. So a
-  # push starts the canary as a run by hand, which the job's token may start.
+  # push starts the canary as a run by hand, which the job's token may start, and
+  # waits for its result. GitHub mails a failed run to the person who started it:
+  # a run that the job's token started has none, but the push run fails with it,
+  # and its mail reaches the person who merged.
   start:
-    name: Start the canary for the new main
+    name: Start the canary for the new main and wait for its result
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # Long enough for an analysis that waits for an earlier one, then its own
+    # analysis and apply.
+    timeout-minutes: 60
     permissions:
       actions: write
     steps:
@@ -60,12 +65,31 @@ jobs:
           allowed-endpoints: >-
             api.github.com:443
             github.com:443
-      - name: Start the canary
+      - name: Start the canary and wait for its result
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           GH_TELEMETRY: "false"
-        run: gh workflow run canary.yml --ref "$GITHUB_REF_NAME"
+        run: |
+          # GitHub answers with the number of the run that it started.
+          run=$(gh api --method POST "repos/$GH_REPO/actions/workflows/canary.yml/dispatches"             -f ref="$GITHUB_REF_NAME" -F return_run_details=true --jq .workflow_run_id)
+          if [[ -z "$run" ]]; then
+            echo "::warning::GitHub started the canary without naming its run; its result is under Actions."
+            exit 0
+          fi
+          url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run"
+          echo "The canary runs at $url"
+          gh run watch "$run" --interval 60 > /dev/null
+          conclusion=$(gh run view "$run" --json conclusion --jq .conclusion)
+          case "$conclusion" in
+            success) echo "The canary passed." ;;
+            # The analysis of a later push's canary took the place of its waiting one.
+            cancelled) echo "::notice::The canary was cancelled; a later one checks main: $url" ;;
+            *)
+              echo "::error::The canary ended as $conclusion: $url"
+              exit 1
+              ;;
+          esac
 
   # The job analyze of the template; a test keeps its runner, environment,
   # permissions, outputs and engine steps equal to the template's. The steps of the
