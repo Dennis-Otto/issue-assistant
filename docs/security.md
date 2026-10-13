@@ -24,6 +24,61 @@ What the checks make of an answer that an issue steered, in a demo project:
   <img src="images/cleaning-light.webp" alt="What the apply job makes of an answer that an issue steered: a mention becomes code, a link to another site keeps only its text, an image keeps only its description, HTML is removed, unknown issue numbers become code, links into the repository and to existing issues stay links, and an answer with something like a token is refused as a whole">
 </picture>
 
+## Against PromptPwnd and Comment and Control
+
+Two published attacks show what goes wrong when an AI in GitHub Actions reads text that anyone can write:
+
+- **PromptPwnd**, published by [Aikido Security](https://www.aikido.dev/blog/promptpwnd-github-actions-ai-agents) in December 2025: the text of an issue or a pull request lands in the prompt of an AI agent that holds a strong token, and makes it run commands or write secrets into the issue.
+- **Comment and Control**, published in April 2026, as [SecurityWeek](https://www.securityweek.com/claude-code-gemini-cli-github-copilot-agents-vulnerable-to-prompt-injection-via-comments/) reports: one pull request or comment made Claude Code Security Review, the Gemini CLI action and the GitHub Copilot agent leak their secrets into public logs or comments.
+
+The [research note of the Cloud Security Alliance](https://labs.cloudsecurityalliance.org/research/csa-research-note-ai-github-actions-security-20260503-csa-st/) of May 2026 describes both and lists what protects a workflow. The difference to the assistant in one picture:
+
+```mermaid
+flowchart TB
+  accTitle: The pattern that PromptPwnd attacks, and the assistant's
+  accDescr: In the attacked pattern, the text of an issue goes into the prompt of an AI that holds a write token, a shell and the network, so a steered AI writes to GitHub or sends secrets away. In the assistant, the text of the issue goes into files that the prompt calls material; the AI reads them with a read-only token and reading tools alone, behind a firewall, and answers with JSON. A job without AI and without the engine's secret checks that answer and is the only one that writes to GitHub.
+  subgraph attacked ["the attacked pattern"]
+    direction TB
+    issue1["issue text"] --> prompt1["in the prompt"]
+    prompt1 --> agent1["<b>AI</b><br/>write token, shell,<br/>network"]
+    agent1 --> github1[("GitHub")]
+    agent1 --> leak(["secrets sent away"])
+  end
+  subgraph assistant ["the issue assistant"]
+    direction TB
+    issue2["issue text"] --> files["files that the prompt<br/>calls material"]
+    files --> agent2["<b>AI</b><br/>read-only token, Read,<br/>Grep, Glob, firewall"]
+    agent2 -- "JSON" --> apply("<b>apply</b><br/>no AI, no secret:<br/>checks, then writes")
+    apply --> github2[("GitHub")]
+  end
+  classDef untrusted fill:#cf222e26,stroke:#cf222e
+  classDef ai fill:#8250df33,stroke:#8250df
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class issue1,issue2,leak untrusted
+  class agent1,agent2 ai
+  class prompt1,files,apply job
+  class github1,github2 safe
+```
+
+Each mitigation that the three sources recommend, how the assistant implements it, and the test that pins it:
+
+| Mitigation | Recommended by | In the assistant | Pinned by |
+| --- | --- | --- | --- |
+| Give the agent no tool that writes to issues or pull requests, and no shell | Aikido, CSA | Claude Code runs with `--restricted` and the tools `Read`, `Grep` and `Glob` alone, with a token that only reads | `test_each_engine_can_only_read_the_checkout`, `test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions` in `tests/test_templates.py` |
+| Keep untrusted text out of the prompt, or clearly apart from its instructions | Aikido, CSA | The prompt names files. The issue, its comments, the other issues and the discussions reach the AI in them, and the rules call them material to analyze, never instructions; no expression of their text stands in a script of a workflow | `test_the_prompt_keeps_the_text_of_issues_apart_from_its_instructions` in `tests/test_assistant.py`; `test_untrusted_text_never_reaches_a_shell_script` in `tests/test_templates.py` |
+| Treat the output of the AI as untrusted | Aikido | `apply` checks the answer against its schema, the labels and the issues that exist, refuses it when it holds anything like a secret, and cleans every text of mentions, images, HTML and foreign links | `test_an_answer_that_breaks_the_schema_is_refused`, `test_any_answer_is_checked_or_refused`, `test_tricky_text_is_cleaned_safely` in `tests/test_assistant.py`; `tests/test_properties.py`; `fuzz/fuzz_sanitize.py` |
+| Keep the AI apart from the credentials that write, and write only after its output is checked | CSA | `analyze` holds the engine's secret and a token that only reads. `apply` holds the token that writes, runs no AI, never sees the engine's secret and starts only after `analyze` | `test_the_answer_reaches_github_only_through_the_checks`, `test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions` |
+| Limit what a leaked token can reach: Aikido suggests GitHub's IP allow lists, CSA monitoring on the runner | Aikido, CSA | The AI's own token only reads and ends with its job, and the AI runs behind GitHub's egress firewall with an allow list. Every job with a token that writes starts with Harden-Runner, which blocks every host but GitHub's | `test_the_firewall_template_allows_only_named_hosts`, `test_jobs_without_the_ai_reach_only_github` |
+| Keep secrets out of public logs and comments | Comment and Control, CSA | The AI has no shell and reads no file outside the checkout, so its environment stays out of reach. An answer with anything like a token is refused as a whole, and no answer can run a workflow command | `test_a_token_anywhere_in_the_answer_is_refused`, `test_no_text_of_the_engine_runs_a_workflow_command` |
+| Explicit, least permissions in every workflow | CSA | Each template starts with `permissions: {}`, and each job names the permissions it needs; no job may ask for an OIDC token | `test_templates_start_without_permissions_and_not_in_forks` |
+| Pin every action to a full commit hash | CSA | Every action of the templates is pinned, and `check` keeps each repository's workflows equal to the templates | `test_actions_are_pinned_and_checkouts_keep_no_credentials` |
+| No `pull_request_target` that runs code of the pull request | CSA | The lifecycle starts on `pull_request_target` only to learn which issues a merge fixes; it checks out the default branch and runs no code of the pull request | `test_merges_and_releases_start_the_lifecycle_without_running_pull_request_code` |
+| Keys for the AI that are scoped to their environment | CSA | The engine's secret lives in the environment `issue-assistant`, which only the default branch may use, and only `analyze` gets it. How long the key lives is the choice of whoever creates it | `test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions` |
+| Attack the workflow with prompt injection before it ships | CSA | Steered answers are tests: crafted examples, property tests against an independent CommonMark parser, and fuzzing on every change and every week | `test_tricky_text_is_cleaned_safely`; `tests/test_properties.py`; `fuzz/fuzz_sanitize.py` |
+
+Two of the recommendations of the Cloud Security Alliance have nothing to apply to here: the templates sign in to no cloud, so there is no OIDC trust policy to narrow, and the assistant keeps no credential file of an AI tool in a repository.
+
 ## What is protected
 
 | Asset | Where it lives | Protection |

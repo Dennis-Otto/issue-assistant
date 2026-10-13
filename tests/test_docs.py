@@ -1,9 +1,10 @@
-"""The pictures of the documentation, the hooks of its website, and how the project
-presents itself on GitHub and its Marketplace."""
+"""The pictures of the documentation, the hooks of its website, how the project
+presents itself on GitHub and its Marketplace, and what its documentation says."""
 
 import importlib.util
 import re
 import tomllib
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -146,6 +147,32 @@ def test_every_picture_that_the_documentation_shows_on_main_exists():
     assert shown
     for name, path in shown:
         assert (ROOT / path).is_file(), f"{name} shows {path}, which doesn't exist"
+
+
+def test_every_page_that_the_documentation_links_on_main_exists():
+    # The link check skips these addresses too, since a pull request that adds a page
+    # can't link it yet. The README links them in full, since the Marketplace shows it.
+    linked = [
+        (document.name, match[2])
+        for document in DOCUMENTS
+        for match in re.finditer(
+            r"https://(github\.com/Dennis-Otto/issue-assistant/blob|"
+            r"raw\.githubusercontent\.com/Dennis-Otto/issue-assistant)/main/"
+            r"(docs/[^#?\")\s]+\.md)",
+            document.read_text("utf-8"),
+        )
+    ]
+    assert ("README.md", "docs/comparison.md") in linked
+    for name, path in linked:
+        assert (ROOT / path).is_file(), f"{name} links {path}, which doesn't exist"
+
+
+def test_the_readme_links_only_full_addresses():
+    # The Marketplace shows the README on a page of its own, where a relative link leads
+    # nowhere.
+    readme = (ROOT / "README.md").read_text("utf-8")
+    relative = re.findall(r"\]\((?!https?://|mailto:|#)([^)]+)\)", readme)
+    assert not relative, f"the README links {relative} relatively"
 
 
 def test_every_picture_is_a_webp_that_comes_light_and_dark_and_is_shown():
@@ -545,3 +572,132 @@ def test_the_repository_has_topics_that_github_takes(settings):
     assert not set(extra) & set(base) and len(set(extra)) == len(extra)
     assert set(topics) == set(base) | set(extra)
     assert {"triage", "claude-code", "github-action", "prompt-injection"} <= set(topics)
+
+
+# What the documentation says: every part of the README on the website, the same
+# users everywhere, and claims that a reader can check.
+
+# The repositories whose issues the assistant looks after, besides its own.
+USERS = {
+    "ha-autodarts",
+    "paperless-unified-search",
+    "paperless-sync",
+    "repo-blueprint",
+    "dennis-otto.github.io",
+}
+
+
+def readme_part(name: str) -> str:
+    """The part of the README between the markers that the website includes."""
+    text = (ROOT / "README.md").read_text("utf-8")
+    match = re.search(
+        rf"^<!-- --8<-- \[start:{name}\] -->\n(.*?)^<!-- --8<-- \[end:{name}\] -->$",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert match, f"the README has no part {name}"
+    return match[1]
+
+
+def users(text: str, start: str) -> set[str]:
+    """The repositories that the line starting with start links."""
+    (line,) = [line for line in text.splitlines() if line.startswith(start)]
+    return set(re.findall(r"\(https://github\.com/Dennis-Otto/([\w.-]+)\)", line))
+
+
+def test_every_part_of_the_readme_is_on_the_website_once():
+    text = (ROOT / "README.md").read_text("utf-8")
+    starts = re.findall(r"^<!-- --8<-- \[start:([a-z-]+)\] -->$", text, re.MULTILINE)
+    ends = re.findall(r"^<!-- --8<-- \[end:([a-z-]+)\] -->$", text, re.MULTILINE)
+    assert sorted(starts) == sorted(ends) and len(set(starts)) == len(starts)
+    assert {"requirements", "faq", "troubleshooting", "compare"} <= set(starts)
+    included = [
+        match
+        for page in sorted((ROOT / "docs").rglob("*.md"))
+        for match in re.findall(
+            r'^--8<-- "README\.md:([a-z-]+)"$', page.read_text("utf-8"), re.MULTILINE
+        )
+    ]
+    assert sorted(included) == sorted(starts)
+
+
+def test_the_menu_leads_to_the_questions_and_the_comparison():
+    nav = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))["nav"]
+    pages = {title: page for item in nav for title, page in item.items()}
+    assert pages["FAQ"] == "faq.md" and pages["Compare"] == "comparison.md"
+    assert all((ROOT / "docs" / page).is_file() for page in pages.values())
+    faq = (ROOT / "docs" / "faq.md").read_text("utf-8")
+    assert '--8<-- "README.md:faq"' in faq
+    assert '--8<-- "README.md:troubleshooting"' in faq
+
+
+def test_every_page_names_the_same_users():
+    readme = (ROOT / "README.md").read_text("utf-8")
+    home = (ROOT / "docs" / "index.md").read_text("utf-8")
+    roadmap = (ROOT / "docs" / "roadmap.md").read_text("utf-8")
+    assert users(readme, "**Used by**") == USERS
+    assert users(home, "**Used by**") == USERS
+    assert users(roadmap, "- **The repositories that use it.**") == USERS
+
+
+def test_the_requirements_say_that_the_firewall_runner_is_a_preview():
+    workflow = yaml.safe_load(
+        (
+            ROOT / "templates" / ".github" / "workflows" / "issue-assistant.yml"
+        ).read_text("utf-8")
+    )
+    runner = workflow["jobs"]["analyze"]["runs-on"]
+    requirements = readme_part("requirements")
+    assert f"`{runner}`" in requirements
+    assert "technical preview" in requirements and "Linux only" in requirements
+    assert (
+        "(https://github.com/github-early-access/actions-native-egress-firewall)"
+        in requirements
+    )
+
+
+def test_every_test_that_the_documentation_names_exists():
+    # The security design pins each countermeasure to its tests; a renamed test
+    # would leave the claim without its evidence.
+    tests = "\n".join(
+        path.read_text("utf-8") for path in (ROOT / "tests").glob("test_*.py")
+    )
+    defined = set(re.findall(r"^def (test_\w+)", tests, re.MULTILINE))
+    texts = [
+        document.read_text("utf-8")
+        for document in (*DOCUMENTS, ROOT / "CONTRIBUTING.md")
+    ]
+    named = {name for text in texts for name in re.findall(r"`(test_\w+)`", text)}
+    assert (
+        "test_the_prompt_keeps_the_text_of_issues_apart_from_its_instructions" in named
+    )
+    assert not named - defined, sorted(named - defined)
+    files = {
+        path
+        for text in texts
+        for path in re.findall(r"`((?:tests|fuzz)/[\w/.]+\.py)`", text)
+    }
+    assert files and all((ROOT / path).is_file() for path in files), files
+
+
+def test_the_comparison_is_dated_and_every_cell_has_a_source():
+    (checked,) = re.findall(r"Checked on (\d{4}-\d{2}-\d{2})", readme_part("compare"))
+    assert date.fromisoformat(checked) <= date.today()
+    page = (ROOT / "docs" / "comparison.md").read_text("utf-8")
+    rows = [
+        [cell.strip() for cell in line.strip("|").split("|")]
+        for line in page.splitlines()
+        if line.startswith("| ") and not line.startswith("| ---")
+    ]
+    columns, *body = rows
+    assert columns[1] == "Issue assistant" and len(body) >= 10
+    for row in body:
+        assert len(row) == len(columns), row[0]
+        # The column of the issue assistant is what this documentation describes;
+        # every other cell names the source that it was checked against.
+        for column, cell in zip(columns[2:], row[2:], strict=True):
+            assert re.search(r"\[\^[\w-]+\]", cell), (row[0], column)
+    referenced = set(re.findall(r"\[\^([\w-]+)\](?!:)", page))
+    sources = dict(re.findall(r"^\[\^([\w-]+)\]: (.+)$", page, re.MULTILINE))
+    assert referenced == set(sources)
+    assert all("](https://" in source for source in sources.values())

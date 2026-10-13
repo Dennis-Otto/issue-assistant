@@ -120,6 +120,8 @@ def test_templates_start_without_permissions_and_not_in_forks(name):
     assert workflow["permissions"] == {}
     for job_name, job in workflow["jobs"].items():
         assert "permissions" in job, job_name
+        # No job can sign in to a cloud: there is no OIDC token to steal.
+        assert "id-token" not in job["permissions"], job_name
         assert job["timeout-minutes"] <= 20, job_name
     first = next(iter(workflow["jobs"].values()))
     assert "!github.event.repository.fork" in first["if"]

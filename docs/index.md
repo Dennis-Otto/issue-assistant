@@ -66,11 +66,57 @@ hide:
 
 The maintainer reads every issue and has the last word.
 
+**Used by** [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), the website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and the issue assistant itself. **See it live:** [the first analysis of a feature request in Paperless Sync](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710), posted 2 minutes 39 seconds after the issue was opened.
+
+## Careful by design
+
+What the assistant does on its own, so that an answer never makes matters worse:
+
+<div class="grid cards" markdown>
+
+- :material-cancel:{ .lg .middle } **Spam gets no answer**
+
+    ---
+
+    An issue that the AI takes for advertising or nonsense gets the label `invalid` and no comment, so its author gets no reply. Closing or deleting it stays with the maintainer.
+
+- :material-key-alert-outline:{ .lg .middle } **Secrets and personal data**
+
+    ---
+
+    A token, a key or a password in an issue gets a warning to remove it, also from the edit history, and to replace it. Personal data, such as an e-mail address, gets a note on how to remove it. The AI never repeats either.
+
+- :material-shield-bug-outline:{ .lg .middle } **Vulnerabilities stay private**
+
+    ---
+
+    A possible security report gets only a pointer to the private reporting of the security policy: no analysis, no questions, no duplicates, and a fixed reason for its labels.
+
+- :material-account-tie-outline:{ .lg .middle } **A maintainer's issue gets labels only**
+
+    ---
+
+    Issues that the owner, a member or a collaborator opens get the labels of their form, but no analysis. A run by hand gives one anyway.
+
+- :material-forum-outline:{ .lg .middle } **The conversation stays the maintainer's**
+
+    ---
+
+    When the reporter answers its questions, the assistant follows up at most twice, and never once the maintainer has joined the conversation.
+
+- :material-lock-outline:{ .lg .middle } **Nothing twice, nothing on closed issues**
+
+    ---
+
+    An analysis is not posted on an issue that was closed or locked in the meantime, and a task that already has its comment gets no second one, unless a maintainer runs it by hand.
+
+</div>
+
 ## Quick start
 
 --8<-- "README.md:quick-start"
 
-The [guide](guide.md) describes every step, the settings and the commands in detail.
+The [guide](guide.md) describes every step, the settings and the commands in detail, and the [requirements](guide.md#requirements) what a repository needs.
 
 ## Learn more
 
@@ -83,6 +129,22 @@ The [guide](guide.md) describes every step, the settings and the commands in det
     How the assistant works, how it keeps the AI in check, and its settings, engines and commands.
 
     [:octicons-arrow-right-24: Read the guide](guide.md)
+
+- :material-frequently-asked-questions:{ .lg .middle } **Questions and troubleshooting**
+
+    ---
+
+    What it costs, which data leaves GitHub, and what to do when an issue gets no comment.
+
+    [:octicons-arrow-right-24: FAQ](faq.md)
+
+- :material-compare-horizontal:{ .lg .middle } **Compared with other tools**
+
+    ---
+
+    The Claude Code action's examples, GitHub Agentic Workflows, actions/stale, Dosu and GitHub's duplicate detection, cell by cell with sources.
+
+    [:octicons-arrow-right-24: Comparison](comparison.md)
 
 - :material-sitemap-outline:{ .lg .middle } **Architecture**
 

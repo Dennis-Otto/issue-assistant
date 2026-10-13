@@ -29,6 +29,8 @@ extra_css:
 nav:
   - Home: index.md
   - Guide: guide.md
+  - FAQ: faq.md
+  - Compare: comparison.md
   - Architecture: architecture.md
   - Security design: security.md
   - Roadmap: roadmap.md
