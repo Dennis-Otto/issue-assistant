@@ -1,15 +1,21 @@
 """The pictures of the documentation, the hooks of its website, how the project
 presents itself on GitHub and its Marketplace, and what its documentation says."""
 
+import dataclasses
 import importlib.util
+import inspect
+import json
 import re
+import textwrap
 import tomllib
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import yaml
+
+import issue_assistant as assistant
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGES = ROOT / "docs" / "images"
@@ -405,7 +411,9 @@ def test_diagrams_scroll_sideways_on_small_screens(docs: Path):
 
 
 def test_the_hook_changes_the_html_of_each_page(docs: Path):
-    page = SimpleNamespace(file=SimpleNamespace(url="security.html"))
+    page = SimpleNamespace(
+        file=SimpleNamespace(url="security.html", src_uri="security.md")
+    )
     html = PICTURE.format(dark="images/b-dark.webp", light="images/b-light.webp")
     assert hooks.on_page_content(html, page, {"docs_dir": str(docs)}, None) == (
         '<img src="images/b-light.webp#only-light" alt="A demo" loading="lazy" '
@@ -621,14 +629,66 @@ def test_every_part_of_the_readme_is_on_the_website_once():
     assert sorted(included) == sorted(starts)
 
 
+def menu() -> dict[str, str]:
+    """The pages of the menu of the website, by their title, also those in sections."""
+
+    def walk(items: list[dict[str, object]]) -> dict[str, str]:
+        found: dict[str, str] = {}
+        for item in items:
+            for title, target in item.items():
+                if isinstance(target, list):
+                    found |= walk(target)
+                else:
+                    found[title] = str(target)
+        return found
+
+    return walk(yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))["nav"])
+
+
 def test_the_menu_leads_to_the_questions_and_the_comparison():
-    nav = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))["nav"]
-    pages = {title: page for item in nav for title, page in item.items()}
-    assert pages["FAQ"] == "faq.md" and pages["Compare"] == "comparison.md"
+    pages = menu()
+    assert pages["Help"] == "faq.md" and pages["Compare"] == "comparison.md"
     assert all((ROOT / "docs" / page).is_file() for page in pages.values())
     faq = (ROOT / "docs" / "faq.md").read_text("utf-8")
     assert '--8<-- "README.md:faq"' in faq
     assert '--8<-- "README.md:troubleshooting"' in faq
+
+
+def test_the_guide_has_a_page_for_each_topic():
+    # A visitor lands on what they look for, and the menu beside a page shows the
+    # other pages of the guide, not one page of 12,000 pixels.
+    nav = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))["nav"]
+    (guide,) = [item["Guide"] for item in nav if "Guide" in item]
+    assert [next(iter(item.values())) for item in guide] == [
+        "guide.md",
+        "how-it-works.md",
+        "configuration.md",
+        "reference.md",
+        "comments.md",
+    ]
+    assert menu()["Get started"] == "getting-started.md"
+    parts = {
+        "getting-started.md": ["requirements", "set-up"],
+        "how-it-works.md": ["how-it-works", "security"],
+        "configuration.md": ["settings", "findings"],
+        "reference.md": ["commands", "engines", "try-a-prompt"],
+        "faq.md": ["faq", "troubleshooting"],
+        "index.md": ["quick-start"],
+    }
+    for page, names in parts.items():
+        text = (ROOT / "docs" / page).read_text("utf-8")
+        assert re.findall(r'^--8<-- "README\.md:([a-z-]+)"$', text, re.M) == names
+    # The overview of the guide includes nothing and leads to each of its pages.
+    overview = (ROOT / "docs" / "guide.md").read_text("utf-8")
+    assert "--8<--" not in overview
+    for page in guide[1:]:
+        assert f"]({next(iter(page.values()))})" in overview
+    # Every page is in the menu, but the records of the decisions, which their
+    # list links.
+    pages = set(menu().values())
+    for path in (ROOT / "docs").rglob("*.md"):
+        page = path.relative_to(ROOT / "docs").as_posix()
+        assert page in pages or re.fullmatch(r"decisions/\d{4}-[a-z0-9-]+\.md", page)
 
 
 def test_every_page_names_the_same_users():
@@ -701,3 +761,649 @@ def test_the_comparison_is_dated_and_every_cell_has_a_source():
     sources = dict(re.findall(r"^\[\^([\w-]+)\]: (.+)$", page, re.MULTILINE))
     assert referenced == set(sources)
     assert all("](https://" in source for source in sources.values())
+
+
+# The pages of the website that the code makes or completes: every comment of the
+# assistant, the inputs and outputs of the action, and every key of the settings.
+
+
+def fake_html(text: str) -> str:
+    """The Markdown of a comment, marked, for the tests that run without MkDocs."""
+    return f"<converted>{text}</converted>"
+
+
+def page_meta(path: Path) -> tuple[dict, str]:
+    """The front matter of a page and its Markdown."""
+    text = path.read_text("utf-8")
+    match = re.match(r"---\n(.*?)\n---\n", text, re.DOTALL)
+    if not match:
+        return {}, text
+    return yaml.safe_load(match[1]), text[match.end() :]
+
+
+def all_texts(language: str) -> str:
+    """Every comment of the page in one language, and the table of how they begin."""
+    shown = hooks.examples()
+    return "\n".join(
+        [example.texts[language] for example in shown] + hooks.thanks_rows(assistant)
+    )
+
+
+def test_every_text_of_the_assistant_is_on_the_comments_page():
+    # Each text of TEXT, with its values filled in, is part of a comment of the page,
+    # so that a new text that no example shows fails here.
+    for language in hooks.LANGUAGES:
+        shown = all_texts(language)
+        for key, template in assistant.TEXT[language].items():
+            for fragment in re.split(r"\{[a-z]+\}", template):
+                assert fragment.strip() in shown, (language, key, fragment)
+
+
+def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
+    # Each function that writes a comment makes one example, in both languages.
+    writers = [
+        name
+        for name, function in inspect.getmembers(assistant, inspect.isfunction)
+        if name.startswith("render_")
+        and name != "render_marker"
+        and "render_marker(" in inspect.getsource(function)
+    ]
+    called: set[str] = set()
+    for name in writers:
+        original = getattr(assistant, name)
+
+        def record(*args, _name=name, _original=original, **kwargs):
+            called.add(_name)
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(assistant, name, record)
+    shown = hooks.examples()
+    assert called == set(writers) and len(writers) == 9
+    assert [example.kind for example in shown] == list(hooks.KINDS)
+    for example in shown:
+        for language in hooks.LANGUAGES:
+            text = example.texts[language]
+            kind = {
+                "duplicate": "analysis",
+                "secret": "analysis",
+                "personal": "analysis",
+                "security": "analysis",
+                "reopened-release": "reopened",
+            }.get(example.kind, example.kind)
+            assert text.startswith(f"<!-- issue-assistant:{kind}"), example.kind
+            if "lang=" in text.splitlines()[0]:
+                assert f"lang={language}" in text.splitlines()[0]
+    german = {example.kind: example.texts["de"] for example in shown}
+    assert "Danke für deine Meldung" in german["analysis"]
+    assert "Zeile 52" in german["analysis"] and "line 52" not in german["analysis"]
+    assert "2. November 2026" in german["reminder"]
+    # The AI never repeats a secret, and a possible vulnerability gets no analysis.
+    english = {example.kind: example.texts["en"] for example in shown}
+    assert "[!WARNING]" in english["secret"] and "[!NOTE]" in english["personal"]
+    assert (
+        "### Summary" not in english["security"] and "[!CAUTION]" in english["security"]
+    )
+
+
+def test_the_comments_page_takes_its_timing_rules_from_the_assistant(monkeypatch):
+    when = {example.kind: example.when for example in hooks.examples()}
+    assert when["reminder"].startswith("15 days after a question")
+    assert when["closed-unanswered"].startswith("30 days after the question")
+    assert "closes 3 days later" in when["duplicate"]
+    assert when["closed-duplicate"].startswith("3 days after the notice")
+    assert "at most twice," in when["follow-up"]
+    assert "within 30 days of the release" in when["reopened-release"]
+    # Other rules change the page, with no text of its own to keep current.
+    monkeypatch.setattr(assistant, "REMIND_AFTER", timedelta(days=10))
+    monkeypatch.setattr(assistant, "CLOSE_AFTER", timedelta(days=20))
+    monkeypatch.setattr(assistant, "DUPLICATE_GRACE", timedelta(days=5))
+    monkeypatch.setattr(assistant, "REOPEN_AFTER_RELEASE", timedelta(days=60))
+    for follow_ups, words in ((1, "once"), (3, "3 times")):
+        monkeypatch.setattr(assistant, "MAX_FOLLOW_UPS", follow_ups)
+        rules = hooks.timings(assistant)
+        assert rules["follow_ups"] == words
+    when = {kind: text.format(**rules) for kind, (_, text) in hooks.KINDS.items()}
+    assert when["reminder"].startswith("10 days after a question")
+    assert when["closed-unanswered"].startswith("20 days after the question")
+    assert "closes 5 days later" in when["duplicate"]
+    assert when["closed-duplicate"].startswith("5 days after the notice")
+    assert "at most 3 times," in when["follow-up"]
+    assert "within 60 days of the release" in when["reopened-release"]
+
+
+def test_a_comment_looks_as_github_shows_it():
+    text = (
+        "<!-- issue-assistant:analysis lang=en questions=1 engine=claude -->\n\n"
+        "Thanks for the report, @alex-demo!\n\n"
+        "> [!WARNING]\n> Remove the token.\n\n"
+        "### Related\n\n- #17: The same, see `#3` and `@not-a-mention`.\n"
+        "- [`chart.py`, line 52](https://github.com/demo-org/plant-monitor/blob/x/"
+        "chart.py#L52): returns early.\n\n"
+        "#5 is a reference.\n\n# A heading\n"
+    )
+    seen: list[str] = []
+    html = hooks.comment_html(text, lambda markdown: seen.append(markdown) or "")
+    assert html.startswith('<div class="ia-comment">')
+    (markdown,) = seen
+    assert "issue-assistant:analysis" not in markdown
+    # GitHub's alert as the admonition of the theme with the same look.
+    assert '!!! warning "Warning"\n    Remove the token.\n' in markdown
+    # A # without a blank after it starts no heading on GitHub, and one with does.
+    assert "\n- \\#17: " in markdown and "\n\\#5 is a reference" in markdown
+    assert "\n### Related\n" in markdown and markdown.endswith("\n# A heading\n")
+    converted = hooks.comment_html(
+        text,
+        lambda markdown: (
+            '<p>Thanks, @alex-demo! <a href="https://github.com/demo-org/plant-monitor/'
+            'blob/x/chart.py#L52"><code>chart.py</code>, line 52</a> and #17, '
+            "<code>#3 @not-a-mention</code>, a@b.example, "
+            '<a href="https://example.com/#9">#9</a>.</p>'
+        ),
+    )
+    assert '<span class="ia-mention">@alex-demo</span>' in converted
+    assert '<span class="ia-link"><code>chart.py</code>, line 52</span>' in converted
+    assert '<span class="ia-link">#17</span>' in converted
+    assert "<code>#3 @not-a-mention</code>" in converted
+    assert "a@b.example" in converted and 'href="https://example.com/#9"' in converted
+    # The picture of the app opens no lightbox, which would be a link without text.
+    assert f'class="ia-comment__avatar {hooks.NO_LIGHTBOX}"' in converted
+    assert 'alt=""' in converted
+
+
+def test_every_alert_of_github_becomes_an_admonition():
+    for kind, admonition in hooks.ALERTS.items():
+        text = f"Before.\n\n> [!{kind}]\n> One line.\n> Another line.\n\nAfter.\n"
+        assert hooks.admonitions(text) == (
+            f'Before.\n\n!!! {admonition} "{kind.title()}"\n    One line.\n'
+            "    Another line.\n\nAfter.\n"
+        )
+    # An alert at the end of the text, without a line break after it.
+    assert hooks.admonitions("> [!NOTE]\n> Last.") == '!!! note "Note"\n    Last.\n'
+    # One that GitHub may add later looks like a note.
+    assert hooks.admonitions("> [!LATER]\n> Text.\n").startswith('!!! note "Later"')
+
+
+def test_the_comments_take_the_place_that_the_page_keeps_for_them():
+    page = (ROOT / "docs" / "comments.md").read_text("utf-8")
+    hooks.GALLERY.clear()
+    markdown = hooks.with_gallery(page, fake_html)
+    # On GitHub, the page says where the comments are; on the website, they are there.
+    assert "The comments themselves are on the" in page
+    assert "The comments themselves are on the" not in markdown
+    assert markdown.startswith(page[: page.index("<!-- comments of")])
+    for kind in hooks.KINDS:
+        assert f"\n## {hooks.KINDS[kind][0]}\n" in markdown
+        for language, name in hooks.LANGUAGES.items():
+            key = hooks.placeholder(kind, language)
+            assert f'=== "{name}"\n\n    {key}\n' in markdown
+            assert hooks.GALLERY[key].startswith('<div class="ia-comment">')
+    assert "| `bug` | Thanks for the report, @alex-demo! |" in markdown
+    assert markdown.rstrip().endswith(
+        "| any other kind | Thanks for opening this issue, @alex-demo! | "
+        "Danke für dein Issue, @alex-demo! |"
+    )
+    # The HTML of the page gets the HTML of each comment for its placeholder.
+    key = hooks.placeholder("fixed", "de")
+    assert hooks.with_comments(f"<h2>Fixed</h2>\n<p>{key}</p>") == (
+        f"<h2>Fixed</h2>\n{hooks.GALLERY[key]}"
+    )
+    assert "Behoben durch" in hooks.GALLERY[key]
+    # A page without the place stays as it is.
+    assert hooks.with_gallery("# Other\n", fake_html) == "# Other\n"
+    assert hooks.with_comments("<p>ia-comment</p>") == "<p>ia-comment</p>"
+
+
+def test_the_markdown_of_a_comment_becomes_the_html_that_github_shows():
+    # With Python-Markdown and the extensions of the website, as MkDocs builds it.
+    (analysis,) = [
+        example for example in hooks.examples() if example.kind == "analysis"
+    ]
+    html = hooks.comment_html(analysis.texts["en"], hooks.markdown_html)
+    assert "<h3>Summary</h3>" in html and "<h1>" not in html
+    assert '<li><span class="ia-link">#17</span>: The same symptom' in html
+    assert "<sub>🤖 Automated first analysis by Claude" in html
+
+
+def test_every_input_and_output_of_the_action_is_in_the_reference():
+    action = yaml.safe_load((ROOT / "action.yml").read_text("utf-8"))
+    page = (ROOT / "docs" / "reference.md").read_text("utf-8")
+    markdown = hooks.action_tables(page, action)
+    assert "<!-- action.yml" not in markdown
+    rows = re.findall(r"^\| `([\w-]+)` \|(.*)\|$", markdown, re.MULTILINE)
+    named = [name for name, _ in rows]
+    assert named == [*action["inputs"], *action["outputs"]]
+    # The inputs come first; the outputs have names of inputs, such as issue, too.
+    cells = dict(rows[: len(action["inputs"])])
+    assert cells["command"].split("|")[0].strip() == "yes"
+    assert cells["dry-run"].split("|")[1].strip() == "`false`"
+    assert cells["issue"].split("|")[1].strip() == "none"
+    assert "`${{ github.token }}`" in cells["github-token"]
+    # The bars of a description would split its cell.
+    assert hooks.cell("a | b\n c") == "a \\| b c"
+    # Only a page that asks for the tables reads action.yml.
+    assert hooks.action_tables_of("# Other\n") == "# Other\n"
+    assert hooks.action_tables_of(page) == markdown
+
+
+def reference_table(heading: str) -> dict[str, dict[str, str]]:
+    """The rows of the table under a heading of the configuration, by their key."""
+    text = (ROOT / "docs" / "configuration.md").read_text("utf-8")
+    part = text.split(f"\n### {heading}\n", 1)[1].split("\n### ", 1)[0]
+    lines = [line for line in part.splitlines() if line.startswith("| ")]
+    columns = [cell.strip() for cell in lines[0].strip("|").split("|")]
+    rows = {}
+    for line in lines[2:]:
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        row = dict(zip(columns, cells, strict=True))
+        rows[row["Key"].strip("`")] = row
+    return rows
+
+
+def default(cell: str) -> object:
+    """The value of a default written as TOML, such as `["Other"]`."""
+    (literal,) = re.findall(r"^`([^`]*)`$", cell)
+    return tomllib.loads(f"value = {literal}")["value"]
+
+
+def test_the_reference_of_the_labels_and_the_findings_has_every_key():
+    for heading, kind in (
+        ("labels.toml", assistant.Label),
+        ("findings.toml", assistant.Acceptance),
+    ):
+        rows = reference_table(heading)
+        fields = {field.name: field for field in dataclasses.fields(kind)}
+        assert list(rows) == list(fields), heading
+        for key, row in rows.items():
+            if fields[key].default is dataclasses.MISSING:
+                assert row["Default"] == "required", key
+            else:
+                expected = fields[key].default
+                assert default(row["Default"]) == (
+                    list(expected) if isinstance(expected, tuple) else expected
+                ), key
+    groups = reference_table("labels.toml")["group"]
+    assert all(f"`{group}`" in groups["What it does"] for group in assistant.GROUPS)
+    reasons = reference_table("findings.toml")["reason"]["What `check` makes sure of"]
+    assert all(f"`{reason}`" in reasons for reason in assistant.DISMISS_REASONS)
+    page = (ROOT / "docs" / "configuration.md").read_text("utf-8")
+    assert all(f"`{label}`" in page for label in assistant.LIFECYCLE)
+
+
+# The keys of config.toml, as the reference names them, and what they set.
+SETTINGS = {
+    "[engine] name": ("engine", "other"),
+    "[engine] model": ("model", "sonnet"),
+    "[links] hosts": ("hosts", ["docs.example.com"]),
+    "[forms] area_field": ("area_field", "Component"),
+    "[forms] unmapped_options": ("unmapped_options", ["None"]),
+    "[transparency] files": ("notices", ["README.md"]),
+    "[releases] close_with_release": ("releases", False),
+}
+
+
+def plain(value: object) -> object:
+    """A value of the settings as TOML writes it."""
+    if isinstance(value, frozenset):
+        return sorted(value)
+    return list(value) if isinstance(value, tuple) else value
+
+
+def test_the_reference_of_config_toml_has_every_key_with_its_default(root: Path):
+    rows = reference_table("config.toml")
+    assert list(rows) == list(SETTINGS)
+    settings = root / ".github" / "issue-assistant" / "config.toml"
+    settings.unlink()
+    defaults = assistant.load_config(root, "owner/name")
+    for key, row in rows.items():
+        assert default(row["Default"]) == plain(getattr(defaults, SETTINGS[key][0]))
+    # Each key changes what the assistant reads.
+    sections: dict[str, dict[str, object]] = {}
+    for key, (_, value) in SETTINGS.items():
+        section, name = re.fullmatch(r"\[(\w+)\] (\w+)", key).groups()  # type: ignore[union-attr]
+        sections.setdefault(section, {})[name] = value
+
+    def toml(value: object) -> str:
+        if isinstance(value, bool):
+            return str(value).lower()
+        if isinstance(value, list):
+            return "[" + ", ".join(f'"{item}"' for item in value) + "]"
+        return f'"{value}"'
+
+    settings.write_text(
+        "".join(
+            f"[{section}]\n"
+            + "".join(f"{name} = {toml(value)}\n" for name, value in values.items())
+            for section, values in sections.items()
+        ),
+        "utf-8",
+    )
+    loaded = assistant.load_config(root, "owner/name")
+    for key, (attribute, value) in SETTINGS.items():
+        assert plain(getattr(loaded, attribute)) == value, key
+    # And the assistant reads no key that the reference leaves out.
+    source = inspect.getsource(assistant.load_config)
+    read = set(re.findall(r'\.get\("(\w+)"', source))
+    assert read == set(sections) | {
+        name for values in sections.values() for name in values
+    }
+
+
+def test_the_starters_have_only_keys_of_the_reference():
+    starter = tomllib.loads(
+        (ROOT / "templates/.github/issue-assistant/config.toml").read_text("utf-8")
+    )
+    documented = set(SETTINGS)
+    for section, values in starter.items():
+        for name in values:
+            assert f"[{section}] {name}" in documented
+    labels = reference_table("labels.toml")
+    for label in tomllib.loads(
+        (ROOT / "templates/.github/labels.toml").read_text("utf-8")
+    )["label"]:
+        assert set(label) <= set(labels)
+    accepted = reference_table("findings.toml")
+    for item in tomllib.loads(
+        (ROOT / "templates/.github/findings.toml").read_text("utf-8")
+    ).get("accept", []):
+        assert set(item) <= set(accepted)
+
+
+# How the website presents itself: a description of its own for each page, the title
+# of the home page and its preview card, and the colours of the brand.
+
+
+def heading(anchor: str, *children: SimpleNamespace) -> SimpleNamespace:
+    """A heading of the table of contents of a page, as MkDocs makes it."""
+    return SimpleNamespace(id=anchor, children=list(children))
+
+
+def page_of(source: str, toc: list[SimpleNamespace]) -> SimpleNamespace:
+    url = source.removesuffix(".md") + ".html"
+    return SimpleNamespace(
+        is_homepage=False,
+        meta={},
+        file=SimpleNamespace(src_uri=source, url=url),
+        toc=toc,
+    )
+
+
+def test_an_anchor_of_the_former_guide_leads_to_the_page_that_has_it(monkeypatch):
+    # The guide was one page: a link to guide.html#settings leads to the settings
+    # on the page Configuration now.
+    monkeypatch.setattr(hooks, "ANCHORS", {})
+    for source, toc in {
+        "configuration.md": [heading("settings", heading("engine")), heading("guide")],
+        # Earlier in the former guide, so its anchor wins.
+        "how-it-works.md": [heading("how-it-works"), heading("engine")],
+        # Never part of the former guide.
+        "security.md": [heading("threats")],
+    }.items():
+        hooks.on_page_content("", page_of(source, toc), {"docs_dir": "docs"}, None)
+    assert set(hooks.ANCHORS) == {"configuration.md", "how-it-works.md"}
+    guide = page_of("guide.md", [heading("guide")])
+    output = hooks.on_post_page("<body><p>The guide</p></body>", guide, None)
+    data = re.search(r"<script>\(function\(\)\{var targets=(\{[^}]*\}),", output)
+    assert data and output.endswith("</script></body>")
+    # The anchors of the overview itself stay where they are.
+    assert json.loads(data[1]) == {
+        "engine": "how-it-works.html",
+        "how-it-works": "how-it-works.html",
+        "settings": "configuration.html",
+    }
+    assert "location.replace(targets[anchor]+location.hash)" in output
+    # The paths are relative to the overview.
+    assert '"settings":"../configuration.html"' in hooks.forwarding("a/guide.html", [])
+    # Other pages get no script, and nor does the guide without anchors to forward.
+    faq = page_of("faq.md", [heading("faq")])
+    assert hooks.on_post_page("<body></body>", faq, None) == "<body></body>"
+    hooks.ANCHORS.clear()
+    assert hooks.on_post_page("<body></body>", guide, None) == "<body></body>"
+
+
+def test_the_former_guide_is_on_the_pages_that_forward_its_anchors():
+    # Each part of the README that the guide had is on one of those pages.
+    for page in hooks.FORMER_GUIDE:
+        assert (ROOT / "docs" / page).is_file()
+    assert set(hooks.FORMER_GUIDE) < set(menu().values())
+    assert menu()["Overview"] == hooks.GUIDE
+
+
+def test_every_page_has_a_description_of_its_own():
+    descriptions: dict[str, str] = {}
+    for path in sorted((ROOT / "docs").rglob("*.md")):
+        meta, markdown = page_meta(path)
+        hooks.described(markdown, meta)
+        page = path.relative_to(ROOT / "docs").as_posix()
+        assert meta.get("description"), f"{page} has no description"
+        descriptions[page] = meta["description"]
+    site = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))["site_description"]
+    for page, description in descriptions.items():
+        # What search engines show of it, without the description of the website.
+        assert 50 <= len(description) <= hooks.DESCRIPTION, (page, description)
+        assert description != site
+    repeated = {
+        d for d in descriptions.values() if list(descriptions.values()).count(d) > 1
+    }
+    assert not repeated, repeated
+    # A record of a decision is described by its context.
+    assert descriptions["decisions/0002-the-ai-only-reads.md"].startswith(
+        "Issues come from anyone"
+    )
+
+
+def test_a_description_comes_from_the_first_paragraph_of_prose():
+    markdown = (
+        "# Title\n\n[← README](https://example.com) · [Other](other.md)\n\n"
+        '- Status: accepted\n\n1. A list.\n\n| A | table |\n\n--8<-- "README.md:x"\n\n'
+        "The **first** paragraph, with [a link](a.md) and `code`.\nIts second line. "
+        "Another sentence that makes it long enough to need cutting somewhere along "
+        "the way, since descriptions are short. And one more.\n\nThe second paragraph."
+    )
+    assert hooks.lead(markdown) == (
+        "The first paragraph, with a link and code. Its second line. Another sentence "
+        "that makes it long enough to need cutting somewhere along the way, since "
+        "descriptions are short. And one more."
+    )
+    # Whole sentences, as many as fit, when they say enough.
+    sentence = "A sentence of forty characters, or so. "
+    assert len(sentence) == 39
+    assert hooks.shortened("Short. And short.") == "Short. And short."
+    assert hooks.shortened(sentence * 5) == (sentence * 4).strip()
+    # Too little before the next sentence, or one sentence that is too long: the
+    # words up to the limit.
+    for text in ("Too little. " + "word, " * 40, "word, " * 40):
+        cut = hooks.shortened(text)
+        assert len(cut) <= hooks.DESCRIPTION and cut.endswith("word…"), cut
+        assert len(cut) > hooks.DESCRIPTION - 10
+    # Never after a word that leads to the next one.
+    assert hooks.shortened("Brief. " + "much more and " * 20) == (
+        "Brief. " + "much more and " * 10 + "much more…"
+    )
+    assert hooks.lead("# Only a heading\n") == ""
+    meta: dict[str, str] = {}
+    hooks.described("# Only a heading\n", meta)
+    assert meta == {}
+    meta = {"description": "Its own."}
+    hooks.described(markdown, meta)
+    assert meta == {"description": "Its own."}
+
+
+def test_the_hook_describes_each_page_and_fills_in_what_it_asks_for():
+    page = SimpleNamespace(meta={})
+    markdown = (
+        "# Reference\n\nThe commands and the action.\n\n<!-- action.yml: outputs -->\n"
+    )
+    result = hooks.on_page_markdown(markdown, page, None, None)
+    assert page.meta == {"description": "The commands and the action."}
+    assert "| `prompt` | The prompt for the engine |" in result
+
+
+def test_the_home_page_has_a_title_with_its_words_and_a_card_with_its_name():
+    meta, _ = page_meta(ROOT / "docs" / "index.md")
+    website = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))
+    name = website["site_name"]
+    assert meta["title"].startswith(f"{name}: ") and "triage" in meta["title"]
+    assert meta["social"]["cards_layout_options"]["title"] == name
+    assert "triage" in meta["description"] and len(meta["description"]) <= 160
+    # The theme adds the name of the website to the title, which names it already.
+    output = f"<head><title>{meta['title']} - {name}</title></head><header></header>"
+    home = SimpleNamespace(
+        is_homepage=True, meta=meta, file=SimpleNamespace(src_uri="index.md")
+    )
+    assert hooks.on_post_page(output, home, website).startswith(
+        f"<head><title>{meta['title']}</title></head><header></header>"
+    )
+    other = SimpleNamespace(
+        is_homepage=False, meta={"title": "Other"}, file=SimpleNamespace(src_uri="o.md")
+    )
+    assert "<title>Other - Issue assistant</title>" in hooks.on_post_page(
+        "<title>Other - Issue assistant</title>", other, website
+    )
+    # The buttons lead to the set-up, to a real analysis and to the latest release.
+    text = (ROOT / "docs" / "index.md").read_text("utf-8")
+    buttons = re.findall(r"^\[([^\]]+)\]\(([^)]+)\)\{ \.md-button", text, re.MULTILINE)
+    assert [label for label, _ in buttons] == [
+        "Get started",
+        "See it live",
+        "Latest release",
+    ]
+    assert buttons[0][1] == "getting-started.md"
+    assert buttons[1][1] in (ROOT / "README.md").read_text("utf-8")
+
+
+def colours(css: str, selector: str) -> dict[str, str]:
+    """The custom properties that a rule of the stylesheet sets."""
+    block = css.split(selector + " {", 1)[1].split("}", 1)[0]
+    return dict(re.findall(r"(--[\w-]+): (#[0-9a-f]{6,8});", block))
+
+
+def luminance(colour: str) -> float:
+    channels = [int(colour[index : index + 2], 16) / 255 for index in (1, 3, 5)]
+    linear = [
+        value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
+        for value in channels
+    ]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def contrast(foreground: str, background: str) -> float:
+    """The contrast of two colours as WCAG defines it, with the alpha of the
+    foreground, such as that of the paler text of the tabs, mixed in."""
+    if len(foreground) == 9:
+        alpha = int(foreground[7:], 16) / 255
+        mixed = [
+            round(
+                int(foreground[i : i + 2], 16) * alpha
+                + int(background[i : i + 2], 16) * (1 - alpha)
+            )
+            for i in (1, 3, 5)
+        ]
+        foreground = "#" + "".join(f"{value:02x}" for value in mixed)
+    lighter, darker = sorted(
+        (luminance(foreground), luminance(background)), reverse=True
+    )
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+# The background of the dark theme of Material, as the browser shows it, and that of
+# a code block in each theme.
+SLATE = "#1e2129"
+CODE = "#f5f5f5"
+SLATE_CODE = "#272a35"
+# The colour of the text of the light theme.
+TEXT = "#212121"
+
+
+def test_the_colours_of_the_brand_are_readable():
+    css = (ROOT / "docs" / "stylesheets" / "brand.css").read_text("utf-8")
+    light = colours(css, ":root > *")
+    dark = colours(
+        css, '[data-md-color-scheme="slate"][data-md-color-primary="custom"]'
+    )
+    accent = colours(
+        css, '[data-md-color-scheme="slate"][data-md-color-accent="custom"]'
+    )
+    primary = light["--md-primary-fg-color"]
+    # The header, its tabs and the filled buttons: white, and paler white, on violet.
+    assert contrast(light["--md-primary-bg-color"], primary) >= 7
+    assert contrast(light["--md-primary-bg-color--light"], primary) >= 4.5
+    # Links, the violet itself, on white; under the pointer, the accent.
+    assert contrast(primary, "#ffffff") >= 7
+    assert contrast(light["--md-accent-fg-color"], "#ffffff") >= 4.5
+    assert contrast(light["--md-accent-bg-color"], light["--md-accent-fg-color"]) >= 4.5
+    # Links and buttons without a fill on the dark theme, and under the pointer.
+    assert contrast(dark["--md-typeset-a-color"], SLATE) >= 4.5
+    assert contrast(accent["--md-accent-fg-color"], SLATE) >= 4.5
+    assert (
+        contrast(accent["--md-accent-bg-color"], accent["--md-accent-fg-color"]) >= 4.5
+    )
+    assert ".md-button:not(.md-button--primary, :hover, :focus)" in css
+    # Links in the text are underlined, since their colour alone sets them apart
+    # from the text around them by less than the 3:1 of WCAG.
+    assert contrast(primary, TEXT) < 3
+    assert re.search(r"\) a:not\([^)]*\) \{\n  text-decoration: underline;", css)
+    # The greys of code in the light theme and its violet in the dark one.
+    code = colours(css, '[data-md-color-scheme="default"]')
+    assert len(code) == 5
+    assert all(contrast(colour, CODE) >= 4.5 for colour in code.values())
+    dark_code = colours(css, '[data-md-color-scheme="slate"]')
+    assert len(dark_code) == 2
+    assert all(contrast(colour, SLATE_CODE) >= 4.5 for colour in dark_code.values())
+    # The cards of shared links have the violet, with white text.
+    website = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))
+    card = website["plugins"]["social"]["cards_layout_options"]
+    assert card["background_color"] == primary
+    assert contrast(card["color"], card["background_color"]) >= 7
+
+
+def test_the_website_wears_the_brand():
+    website = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))
+    theme = website["theme"]
+    assert theme["logo"] == theme["favicon"] == "assets/logo.svg"
+    logo = (ROOT / "docs" / theme["logo"]).read_text("utf-8")
+    # The speech bubble of the social preview.
+    bubble = re.search(r'<path d="(M18 14h60[^"]+)"', logo)
+    assert bubble and bubble[1] in (ROOT / ".github" / "social-preview.html").read_text(
+        "utf-8"
+    )
+    # The palette is that of the blueprint, with the colours of the brand.
+    blueprint = (ROOT / ".github" / "mkdocs-blueprint.yml").read_text("utf-8")
+    # Read as text: the file has tags of Python that a safe loader refuses.
+    block = re.search(r"^  palette:\n((?:    .+\n)+)", blueprint, re.MULTILINE)
+    assert block
+    inherited = yaml.safe_load(textwrap.dedent(block[1]))
+    assert [
+        {
+            key: value
+            for key, value in scheme.items()
+            if key not in {"primary", "accent"}
+        }
+        for scheme in theme["palette"]
+    ] == inherited
+    assert all(
+        scheme["primary"] == scheme["accent"] == "custom" for scheme in theme["palette"]
+    )
+    assert website["extra_css"][0] == "stylesheets/brand.css"
+    assert all((ROOT / "docs" / sheet).is_file() for sheet in website["extra_css"])
+
+
+def test_the_hidden_copy_of_a_picture_has_no_link():
+    # The hook puts a copy of a picture on the page for each theme, and the theme
+    # hides the other one; the link of the lightbox around it goes with it, so that
+    # a keyboard never stops on a link with nothing to see or read.
+    html = hooks.localized(
+        f'<picture><source media="{hooks.DARK}" srcset="d.webp"><img src="l.webp" '
+        'alt="A" width="1" height="1"></picture>',
+        "page.html",
+        ROOT / "docs",
+    )
+    assert 'src="l.webp#only-light"' in html and 'src="d.webp#only-dark"' in html
+    css = (ROOT / "docs" / "stylesheets" / "pictures.css").read_text("utf-8")
+    for scheme, hidden in (("default", "dark"), ("slate", "light")):
+        assert (
+            f'[data-md-color-scheme="{scheme}"] .md-typeset '
+            f'.glightbox:has(> img[src$="#only-{hidden}"])'
+        ) in css
+    assert "display: none;" in css
+    website = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))
+    assert "stylesheets/pictures.css" in website["extra_css"]

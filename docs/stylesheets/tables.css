@@ -1,0 +1,5 @@
+/* The key, the input or the command in the first column of a table stays on one
+   line, where a reader looks for it; on a phone, the table scrolls sideways. */
+.md-typeset table:not([class]) td:first-child code {
+  white-space: nowrap;
+}

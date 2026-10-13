@@ -245,24 +245,27 @@ Anyone can write an issue, and every analysis reads the text of every issue of t
 ```mermaid
 flowchart TB
   accTitle: How the assistant reads the text of an issue
-  accDescr: The text of an issue or a comment, which anyone can write, is read up to GitHub's 65,536 characters. The answers of a form are cut out between their headings, which are found once; HTML comments and tags go in one pass. From that come the labels of the form and the reporter's language, an excerpt of each other issue, and issue.md with up to 20,000 characters of each text.
+  accDescr: The text of an issue or a comment, which anyone can write, is read up to GitHub's 65,536 characters. The answers of a form are cut out between their headings, which are found once; from them come the labels of the form and the reporter's language. For the AI, the answers of a form and HTML comments make an excerpt of each other issue, and HTML comments and tags go in one pass for issue.md. Then the characters that GitHub shows as nothing go, in one pass, after the HTML, so that none can end an HTML comment that GitHub never ends. The excerpts go into issues.jsonl, and issue.md holds up to 20,000 characters of each text in a code fence that the text can't close.
   text["issue or comment text,<br/>which anyone writes"] --> cap["at most 65,536 characters,<br/>as much as GitHub keeps"]
   cap --> forms["<b>form_fields</b><br/>each heading found once,<br/>answers cut out between"]
-  cap --> html["<b>strip_html</b><br/>comments and tags<br/>in one pass"]
   forms --> event["labels of the form,<br/>the reporter's language"]
-  forms --> excerpt["<b>excerpt</b> of every<br/>other issue"]
-  html --> excerpt
-  html --> issue["<b>issue.md</b>, up to 20,000<br/>characters of each text"]
+  cap --> excerpt["<b>excerpt</b> of every<br/>other issue: form answers,<br/>no HTML comments"]
+  cap --> html["<b>strip_html</b><br/>comments and tags<br/>in one pass"]
+  excerpt --> visible["<b>Visible</b><br/>invisible characters<br/>out, in one pass"]
+  html --> visible
+  visible -- "the other issues" --> jsonl["<b>issues.jsonl</b>,<br/>an excerpt of each"]
+  visible -- "the issue" --> issue["<b>issue.md</b>, up to 20,000<br/>characters of each text,<br/>each in its own fence"]
   classDef untrusted fill:#cf222e26,stroke:#cf222e
   classDef job fill:#8c959f1f,stroke:#8c959f
   classDef safe fill:#1a7f3726,stroke:#1a7f37
   class text untrusted
-  class cap,forms,html job
-  class event,excerpt,issue safe
+  class cap,forms,excerpt,html,visible job
+  class event,jsonl,issue safe
 ```
 
 - **No pattern backtracks.** Each one looks at a character a bounded number of times: a form heading is one line, a tag ends on its line, and when no `>` closes a tag on its line, the rest of the line is passed over in one step.
 - **HTML comments go as GitHub hides them.** A line that starts with a `<!--` that never ends hides the rest of the text, as on GitHub, so instructions hidden that way don't reach the AI either. A `<!--` without its end within a line stays text, as GitHub shows it.
+- **Each text keeps to its place.** `render_issue` puts each text in a code fence one backtick longer than its longest run of backticks, under a heading that only the script writes, so no text can pass for another comment, the maintainer or the assistant; `Visible` takes out the characters that GitHub shows as nothing before the fence is chosen, so that none can split a run of backticks, and after the HTML, so that none can end an HTML comment that GitHub never ends and show the AI what it hides. The [security design](security.md#how-the-text-of-an-issue-reaches-the-ai) shows why.
 - **Tests and fuzzing time it.** The tests read texts of 64 KiB that took the earlier patterns up to hours, and compare the results with theirs on ordinary texts; `fuzz/fuzz_issue_text.py` fails when reading a crafted text takes longer than half a second.
 
 ## Design decisions

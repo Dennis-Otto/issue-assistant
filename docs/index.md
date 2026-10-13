@@ -1,4 +1,9 @@
 ---
+title: "Issue assistant: AI issue triage for GitHub that only reads"
+description: Free GitHub Action for AI issue triage that only reads. Its first analysis of each new issue is checked before posting; labels and reminders come with it.
+social:
+  cards_layout_options:
+    title: Issue assistant
 hide:
   - navigation
   - toc
@@ -8,7 +13,8 @@ hide:
 
 **Safe AI issue triage for GitHub.** A read-only AI writes a first analysis of every new issue, and a job without AI checks it before anything is posted. Labels, duplicates, reminders and the closing of fixed issues with the release come with it.
 
-[Set up a repository](#quick-start){ .md-button .md-button--primary }
+[Get started](getting-started.md){ .md-button .md-button--primary }
+[See it live](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710){ .md-button }
 [Latest release](https://github.com/Dennis-Otto/issue-assistant/releases/latest){ .md-button }
 
 <picture>
@@ -42,7 +48,7 @@ hide:
 
     ---
 
-    A sure duplicate gets a notice and closes three days later, linked to the original, unless someone objects. Less sure ones become suggestions for the maintainer.
+    A sure duplicate of an issue that a maintainer opened or triaged gets a notice and closes three days later, linked to the original, unless someone objects. Other ones become suggestions for the maintainer.
 
 - :material-clock-alert-outline:{ .lg .middle } **Unanswered questions**
 
@@ -116,19 +122,43 @@ What the assistant does on its own, so that an answer never makes matters worse:
 
 --8<-- "README.md:quick-start"
 
-The [guide](guide.md) describes every step, the settings and the commands in detail, and the [requirements](guide.md#requirements) what a repository needs.
+[Get started](getting-started.md) has the [requirements](getting-started.md#requirements) of a repository, every step in detail and how to check that it works; [Configuration](configuration.md) has every setting.
 
 ## Learn more
 
 <div class="grid cards" markdown>
 
-- :material-book-open-variant:{ .lg .middle } **Guide**
+- :material-rocket-launch-outline:{ .lg .middle } **Get started**
 
     ---
 
-    How the assistant works, how it keeps the AI in check, and its settings, engines and commands.
+    What a repository needs, the set-up step by step, and how to check that it works before the first reporter comes.
 
-    [:octicons-arrow-right-24: Read the guide](guide.md)
+    [:octicons-arrow-right-24: Get started](getting-started.md)
+
+- :material-sitemap-outline:{ .lg .middle } **How it works**
+
+    ---
+
+    The four workflows, the life of an issue from its first analysis to the release that ships its fix, and what keeps the AI in check.
+
+    [:octicons-arrow-right-24: How it works](how-it-works.md)
+
+- :material-tune-variant:{ .lg .middle } **Configuration and reference**
+
+    ---
+
+    Every key of the labels, the settings and the accepted findings, the commands, and every input and output of the action.
+
+    [:octicons-arrow-right-24: Configuration](configuration.md) · [Reference](reference.md)
+
+- :material-comment-text-multiple-outline:{ .lg .middle } **What reporters see**
+
+    ---
+
+    Every comment that the assistant posts, from the first analysis to the release that ships the fix, in English and in German.
+
+    [:octicons-arrow-right-24: What reporters see](comments.md)
 
 - :material-frequently-asked-questions:{ .lg .middle } **Questions and troubleshooting**
 
@@ -162,21 +192,13 @@ The [guide](guide.md) describes every step, the settings and the commands in det
 
     [:octicons-arrow-right-24: Security design](security.md)
 
-- :material-map-marker-path:{ .lg .middle } **Roadmap**
+- :material-map-marker-path:{ .lg .middle } **Roadmap and decisions**
 
     ---
 
-    What the assistant intends to do in the next twelve months, and what it will not do.
+    What the assistant intends to do in the next twelve months and what it will not do, and the decisions that shape it, each with its reasons.
 
-    [:octicons-arrow-right-24: Roadmap](roadmap.md)
-
-- :material-scale-balance:{ .lg .middle } **Decisions**
-
-    ---
-
-    The decisions that shape the project, each with its reasons.
-
-    [:octicons-arrow-right-24: Decisions](decisions/README.md)
+    [:octicons-arrow-right-24: Roadmap](roadmap.md) · [Decisions](decisions/README.md)
 
 - :material-history:{ .lg .middle } **Releases and changelog**
 

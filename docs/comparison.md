@@ -1,4 +1,5 @@
 ---
+description: The issue assistant compared with the issue examples of the Claude Code action, GitHub Agentic Workflows, actions/stale, Dosu and GitHub's duplicate detection.
 hide:
   - navigation
 ---
@@ -19,7 +20,7 @@ Each cell names the sources of its tool, as of the day above; the column of the 
 | --- | --- | --- | --- | --- | --- | --- |
 | A first analysis of a new issue | The likely cause with links to the lines of code, what to try and what is missing, in English or German | No: the triage example only labels, and the duplicates example comments only on a duplicate[^cca] | A comment that explains its label and how the issue might be addressed[^aw] | No[^stale] | Not in its open-source workflows[^dosu] | No[^gh] |
 | Labels | From the issue forms and from the analysis, each with its reason; labels as code | The AI sets them[^cca] | One from an allow list[^aw] | Only its stale label[^stale] | auto-label, which learns from the corrections of maintainers[^dosu] | No[^gh] |
-| Duplicates | A notice, and closing after 3 days unless someone objects; less sure ones become suggestions | A comment and the label `duplicate`[^cca] | Not part of the triage workflow[^aw] | No[^stale] | Not in its open-source workflows[^dosu] | Up to 3 suggestions while the reporter writes[^gh] |
+| Duplicates | A notice for a sure duplicate of an issue that a maintainer opened or triaged, and closing after 3 days unless someone objects; other ones become suggestions | A comment and the label `duplicate`[^cca] | Not part of the triage workflow[^aw] | No[^stale] | Not in its open-source workflows[^dosu] | Up to 3 suggestions while the reporter writes[^gh] |
 | Issues that wait for their reporter | `needs-info`: a reminder after 15 days, closing after 30, and an answer reopens | No[^cca] | No[^aw] | Any inactive issue: stale after 60 days and closed 7 days later by default, or only those with a label[^stale] | better-stale-bot, whose AI reads the thread first; 60 and 7 days by default[^dosu] | No[^gh] |
 | Fixed issues close with the release that ships the fix | Yes, with a link to the release; "still broken" reopens | No[^cca] | No[^aw] | No[^stale] | No[^dosu] | No[^gh] |
 | The AI can write to GitHub | No: its token only reads | Yes: `issues: write`, and the AI applies labels and comments[^cca] | No: a token that only reads, and separate jobs write its *safe outputs*[^aw] | No AI[^stale] | No: built on gh-aw[^dosu] | Not an agent[^gh] |

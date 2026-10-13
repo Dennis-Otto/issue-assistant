@@ -233,6 +233,12 @@ class FakeGitHub(assistant.GitHub):
         self.comment_store: dict[int, list] = {}
         self.event_store: dict[int, list] = {}
         self.reaction_store: dict[int, list] = {}
+        # The permission and the role of the people who may do more than read, as
+        # GitHub names them: permission is admin, write, read or none, the role also
+        # maintain, triage or the name of a custom role.
+        self.permission_store: dict[str, tuple[str, str]] = {
+            "owner": ("admin", "admin")
+        }
         self.discussion_store: list[dict] | None = []
         self.label_store = [
             {
@@ -304,6 +310,15 @@ class FakeGitHub(assistant.GitHub):
                 return deepcopy(self.event_store.get(int(match[1]), []))
             if match := re.fullmatch(r"issues/comments/(\d+)/reactions", route):
                 return deepcopy(self.reaction_store.get(int(match[1]), []))
+            if match := re.fullmatch(r"collaborators/([^/]+)/permission", route):
+                user = unquote(match[1])
+                # Anyone else can read a public repository.
+                permission, role = self.permission_store.get(user, ("read", "read"))
+                return {
+                    "permission": permission,
+                    "role_name": role,
+                    "user": {"login": user, "type": "User"},
+                }
             if route == "issues":
                 items = [
                     issue
