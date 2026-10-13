@@ -6,6 +6,7 @@ import importlib.util
 import inspect
 import json
 import re
+import sys
 import textwrap
 import tomllib
 from datetime import date, timedelta
@@ -957,6 +958,24 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
     )
 
 
+def test_the_hook_loads_the_assistant_of_the_commit_it_builds(monkeypatch):
+    # MkDocs runs the hook without the import of the tests: it loads
+    # issue_assistant.py itself, under the name that its dataclasses look up.
+    monkeypatch.delitem(sys.modules, "issue_assistant")
+    loaded = hooks.assistant()
+    assert loaded is not assistant and sys.modules["issue_assistant"] is loaded
+    assert Path(loaded.__file__) == hooks.ROOT / "issue_assistant.py"
+    assert loaded.TEXT == assistant.TEXT
+    # And loads it once.
+    assert hooks.assistant() is loaded
+
+
+def test_a_reference_that_the_demo_project_lacks_fails_the_build(monkeypatch):
+    monkeypatch.setattr(assistant, "reference_link", lambda *_: "")
+    with pytest.raises(ValueError, match="the demo project has nothing for"):
+        hooks.examples()
+
+
 def test_the_comments_page_takes_its_timing_rules_from_the_assistant(monkeypatch):
     when = {example.kind: example.when for example in hooks.examples()}
     assert when["reminder"].startswith("15 days after a question")
@@ -1208,6 +1227,24 @@ def test_the_reference_of_config_toml_has_every_key_with_its_default(root: Path)
     }
 
 
+def test_the_documentation_names_the_engines_and_their_models_of_the_assistant():
+    # An engine or its default model changes in ENGINES alone; the reference and
+    # the README must follow, or name what the assistant no longer runs.
+    rows = reference_table("config.toml")
+    readme = (ROOT / "README.md").read_text("utf-8")
+    engines = assistant.ENGINES
+    known = rows["[engine] name"]["What `check` makes sure of"]
+    assert re.findall(r"`([^`]+)`", known.split(":", 1)[1]) == sorted(engines)
+    for engine in engines.values():
+        default = f"`{engine.model}` for {engine.name}"
+        assert default in rows["[engine] model"]["What it does"], engine
+        assert default in readme, engine
+        disclosed = rows["[transparency] files"]["What `check` makes sure of"]
+        assert f"{engine.name} and {engine.vendor}" in disclosed, engine
+    model = engines[assistant.DEFAULT_ENGINE].model
+    assert f'# model = "{model}"' in readme
+
+
 def test_the_starters_have_only_keys_of_the_reference():
     starter = tomllib.loads(
         (ROOT / "templates/.github/issue-assistant/config.toml").read_text("utf-8")
@@ -1311,6 +1348,16 @@ def test_every_page_has_a_description_of_its_own():
     )
 
 
+def test_every_page_has_a_title_that_names_it_alone():
+    # The tab of the browser and the card of a shared link take the title of the
+    # front matter, else the one of the menu, where "Overview" names no page.
+    vague = {"Home", "Index", "Introduction", "Overview"}
+    for title, page in menu().items():
+        meta, _ = page_meta(ROOT / "docs" / page)
+        assert meta.get("title", title) not in vague, (page, title)
+    assert page_meta(ROOT / "docs" / "guide.md")[0]["title"] == "Guide"
+
+
 def test_a_description_comes_from_the_first_paragraph_of_prose():
     markdown = (
         "# Title\n\n[← README](https://example.com) · [Other](other.md)\n\n"
@@ -1335,6 +1382,12 @@ def test_a_description_comes_from_the_first_paragraph_of_prose():
         cut = hooks.shortened(text)
         assert len(cut) <= hooks.DESCRIPTION and cut.endswith("word…"), cut
         assert len(cut) > hooks.DESCRIPTION - 10
+    # A first word that is longer than the limit, such as an address, and words
+    # that all lead to the next one: the characters up to the limit.
+    address = "https://example.com/" + "a" * 200 + " and more."
+    assert hooks.shortened(address) == address[: hooks.DESCRIPTION - 1] + "…"
+    leading = "And the " * 30
+    assert hooks.shortened(leading) == leading[: hooks.DESCRIPTION - 1].rstrip() + "…"
     # Never after a word that leads to the next one.
     assert hooks.shortened("Brief. " + "much more and " * 20) == (
         "Brief. " + "much more and " * 10 + "much more…"

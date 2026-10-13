@@ -8,7 +8,8 @@ addopts = "--strict-markers"
 
 [tool.coverage.run]
 branch = true
-source = ["issue_assistant"]
+# The action, and the hooks that build the website from it in scripts/.
+source = ["issue_assistant", "scripts"]
 
 [tool.coverage.report]
 fail_under = 100
