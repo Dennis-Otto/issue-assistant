@@ -4,14 +4,28 @@ The fake answers the REST and GraphQL calls of the script, so the real request c
 runs; only `gh` itself is replaced.
 """
 
+import json
 import re
+from collections import Counter
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import issue_assistant as assistant
+from oracle import problems
 
 REPOSITORY = "owner/project"
+# The settings that the property tests and the fuzzers clean with: a repository, a
+# kind of issue and one site besides GitHub that links may lead to.
+CONFIG = assistant.Config(
+    root=Path("."),
+    repository=REPOSITORY,
+    labels=(assistant.Label("bug", "d73a4a", "Bug", "type"),),
+    project="A project.",
+    hosts=frozenset({"docs.example.com"}),
+)
 # The commit hash that the sample repository installs the assistant with.
 REF = "0123456789abcdef0123456789abcdef01234567"
 NOW = datetime(2026, 10, 7, 12, tzinfo=UTC)
@@ -141,6 +155,40 @@ def make_follow_up(**changes):
     }
     answer.update(changes)
     return answer
+
+
+def answer_of(schema: dict[str, Any], choose: Any, key: str = "answer") -> Any:
+    """A value that fits the schema of the engine's answer, each choice made by
+    `choose`.
+
+    The property tests and the fuzzers build their answers from answer_schema itself,
+    so that they try what the engine may answer, and nothing else. `choose` has a
+    method for each choice, which gets the name of the field: `text` with its most
+    characters, `count` of items with their most, `one_of` the values, `number`
+    with its least, `boolean`, and `present` for a field that may be left out.
+    """
+    kind = schema.get("type")
+    if kind == "object":
+        return {
+            name: answer_of(item, choose, name)
+            for name, item in schema["properties"].items()
+            if name in schema["required"] or choose.present(name)
+        }
+    if kind == "array":
+        # An array without items, such as the areas of a project that has none.
+        if "items" not in schema:
+            return []
+        return [
+            answer_of(schema["items"], choose, key)
+            for _ in range(choose.count(key, schema["maxItems"]))
+        ]
+    if kind == "string":
+        if "enum" in schema:
+            return choose.one_of(key, schema["enum"])
+        return choose.text(key, schema["maxLength"])
+    if kind == "integer":
+        return choose.number(key, schema["minimum"])
+    return choose.boolean(key)
 
 
 def make_pull(
@@ -596,6 +644,55 @@ class FakeGitHub(assistant.GitHub):
         ]
 
 
+# The issues of the repository in which the tests and the fuzzers post whole
+# comments: open, triaged and older or newer than #12, the issue they comment on.
+ISSUES = range(1, 21)
+
+
+def posted_comments(config, mode, answer, sha=REF):
+    """What the assistant posts on #12 for the answer, and the issue numbers that it
+    may reference there: those of the duplicates and related issues that exist, as
+    the checks keep them. Nothing for an answer that the checks refuse as a whole."""
+    github = FakeGitHub(
+        config,
+        *(make_issue(number, labels=("bug",)) for number in ISSUES if number != 12),
+        make_issue(),
+    )
+    try:
+        assistant.apply_answer(github, mode, 12, json.dumps(answer), config, sha)
+    except assistant.AssistantError:
+        return [], set()
+    numbers = set()
+    if mode == "triage" and not answer["security_report"]:
+        # Only an older issue can be the original of a duplicate.
+        numbers = {
+            item["number"] for item in answer["duplicates"] if item["number"] < 12
+        }
+        numbers |= {
+            item["number"]
+            for item in answer["related"]
+            if item["kind"] == "issue" and item["number"] != 12
+        }
+    return github.posted(12), numbers & set(ISSUES)
+
+
+def stray_problems(body, numbers, config, author="reporter"):
+    """What the oracle finds in a comment of the assistant beyond its own words: its
+    marker, the thanks that mention the reporter, the HTML of its footer and the
+    link to the security policy, each once at most."""
+    marker = body.partition("\n")[0]
+    own = Counter(
+        [
+            f"HTML {marker!r}",
+            f"mention @{author}",
+            "HTML '<sub>'",
+            "HTML '</sub>'",
+            f"link to {config.policy}",
+        ]
+    )
+    return list((Counter(problems(body, numbers, config)) - own).elements())
+
+
 def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
     outputs = tmp_path / "output"
     summary = tmp_path / "summary"
@@ -658,4 +755,13 @@ ESCAPES = [
     ("!<<x>y>[pic](https://docs.example.com/page.png)", set()),
     ("x_www.evil.example y", set()),
     ("A _www.evil.example/@octocat y", set()),
+    # Found on 2026-10-13 by the oracle of tests/oracle.py, which models GitHub's
+    # tables and autolinks, and by fuzz/fuzz_render.py, which fuzzes whole comments.
+    ("f | g\n--|--\n`x|@octocat https://evil.example/x` | y", set()),
+    ("a\n:-:\n`https://evil.example/x|y`", set()),
+    ("see www. here", set()),
+    ("~~~~~~\n@octocat\n~~~", set()),
+    ("#0@GH-5", {5}),
+    ("[x](https://github.com/owner/project/blob/(a)/../../../../evil/repo)", set()),
+    ("[x](https://github.com/owner/project/blob/&#46;&#46;/&#46;&#46;/e/r)", set()),
 ]

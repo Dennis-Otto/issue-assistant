@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import html
 import json
 import os
 import re
@@ -186,18 +187,21 @@ INVISIBLE = re.compile(
 # that no other backtick touches. A fence counts only at the very start of a line:
 # indented, it can belong to a list item before it, which the next line without
 # indentation ends, and the code with it. The line break before the fence belongs
-# to the block, so that no cleaning of the text before can join the two. A span
-# over several lines can be cut by a fence or a quote on the next line, so it, like
-# anything else that doesn't fit these rules exactly, counts as text: the safe side.
+# to the block, so that no cleaning of the text before can join the two. The fence
+# is all of its characters: a shorter one doesn't close it, so GitHub's block would
+# run on, out of the text into the next one of the comment. A span over several
+# lines can be cut by a fence or a quote on the next line, so it, like anything else
+# that doesn't fit these rules exactly, counts as text: the safe side.
 CODE = re.compile(
-    r"(?:\A|\n)(?P<fence>(?P<char>[`~])(?P=char){2,})[^`\n]*\n.*?"
+    r"(?:\A|\n)(?P<fence>(?P<char>[`~])(?P=char){2,})(?!(?P=char))[^`\n]*\n.*?"
     r"^ {0,3}(?P=fence)(?P=char)*[ \t]*$"
     r"|(?<![`\\])(?P<run>`+)(?!`)[^\n]*?(?<!`)(?P=run)(?!`)",
     re.MULTILINE | re.DOTALL,
 )
-# Also a link without a target, [text](), which points to the page itself.
+# Also a link without a target, [text](), which points to the page itself. A target
+# with a ( is no link here: Markdown's target runs on past the ) that closes it.
 MARKDOWN_LINK = re.compile(
-    r"(?<!!)\[([^\]\n]*)\]\(\s*<?([^)\s>\0]*)>?(?:\s+\"[^\"]*\")?\s*\)"
+    r"(?<!!)\[([^\]\n]*)\]\(\s*<?([^()\s>\0]*)>?(?:\s+\"[^\"]*\")?\s*\)"
 )
 LINK_DEFINITION = re.compile(r"^ {0,3}\[[^\]\n]*\]:.*$", re.MULTILINE)
 IMAGE = re.compile(r"!\[([^\]\n]*)\]\([^)\n]*\)")
@@ -205,8 +209,8 @@ IMAGE = re.compile(r"!\[([^\]\n]*)\]\([^)\n]*\)")
 # underscore: only letters before them make another scheme, such as xhttps://.
 BARE_URL = re.compile(r"(?<![A-Za-z])https?://[^\s)<>\]`\0]+", re.IGNORECASE)
 # It links www. after an underscore too, as in x_www.…: only a letter, a digit, a
-# dot or a dash before it leaves it text.
-WWW_URL = re.compile(r"(?<![^\W_])(?<![.-])www\.[^\s<>`\0]+", re.IGNORECASE)
+# dot or a dash before it leaves it text. It links www. alone too, to the host www.
+WWW_URL = re.compile(r"(?<![^\W_])(?<![.-])www\.[^\s<>`\0]*", re.IGNORECASE)
 # GitHub links a bare address only after these characters or at the start.
 AUTOLINK_AFTER = frozenset(" \t\n*_~(")
 # A www. address stays a link only after the others: a later rule can put an
@@ -236,6 +240,11 @@ COMMIT_REFERENCE = re.compile(
 # Three tildes or more at the start of a line, which would start or end a fenced
 # block: text can't escape them with a backtick, as it does with the other fence.
 TILDE_FENCE = re.compile(r"^([ \t]*)(?=~~~)", re.MULTILINE)
+# A hyphen next to a pipe or a colon, perhaps with spaces between. Each line of
+# hyphens with a pipe or a colon has one, such as `--|--` or `:-:`, the delimiter row
+# below the header of a table, and GitHub splits every row of a table at each pipe,
+# also inside code, so that the rest of the code would become text.
+TABLE_HYPHEN = re.compile(r"(?<=[|:])([ \t]*)-|-(?=[ \t]*[|:])")
 # A line of a list item after its first, with the spaces and tabs that indent it.
 CONTINUATION = re.compile(r"\n([ \t]*)(?=[^ \t\n])")
 # The patterns that read the text of an issue look at each character a bounded
@@ -2333,20 +2342,27 @@ def allowed_url(url: str, config: Config) -> bool:
 
 
 def clean_prose(
-    text: str, numbers: set[int], config: Config, before: str = " ", after: str = " "
+    text: str,
+    numbers: set[int],
+    config: Config,
+    before: str = " ",
+    after: str = " ",
+    *,
+    lines: bool = True,
 ) -> str:
     """Text outside code without anything that GitHub turns into a mention, a
     reference, a foreign link, an image or HTML.
 
     `before` and `after` are the characters next to the text in the comment: a
-    space at its edges, or the code around it. First, the rules that remove
-    something repeat until nothing changes, because a removal can join the
-    characters around it into something new. Then the rules that keep or rewrite
-    something repeat, each putting what it wrote behind a placeholder, so that no
-    later rule changes it again: as they remove nothing, the characters next to a
-    placeholder stay the ones they were checked with. Last, the characters that
-    could start code, a link, an image or a fence, escape the code written here or
-    form an entity are escaped.
+    space at its edges, or the code around it, and `lines` is whether the text that
+    it is part of has more than one line. First, the rules that remove something
+    repeat until nothing changes, because a removal can join the characters around
+    it into something new. Then the rules that keep or rewrite something repeat,
+    each putting what it wrote behind a placeholder, so that no later rule changes
+    it again: as they remove nothing, the characters next to a placeholder stay the
+    ones they were checked with. Last, the characters that could start code, a
+    link, an image, a fence or a table, escape the code written here or form an
+    entity are escaped.
     """
     kept: list[str] = []
 
@@ -2357,13 +2373,18 @@ def clean_prose(
     def code(value: str) -> str:
         return keep(f"`{value}`")
 
+    def target(url: str) -> bool:
+        # Markdown reads the entities in the target of a link, such as &#46; for a
+        # dot, which could make a segment `..`.
+        return allowed_url(url, config) and allowed_url(html.unescape(url), config)
+
     def link(match: re.Match[str]) -> str:
         # The link's text stays in the text, so the later rules clean it too. The
         # removals left only allowed links; should another one ever form, its
         # brackets are escaped below like any others.
         return (
             keep("[") + match[1] + keep(f"]({match[2]})")
-            if allowed_url(match[2], config)
+            if target(match[2])
             else match[0]
         )
 
@@ -2394,9 +2415,16 @@ def clean_prose(
         text = LINK_DEFINITION.sub("", text)
         text = HEADING_LINE.sub("", text)
         text = IMAGE.sub(r"\1", text)
-        text = MARKDOWN_LINK.sub(
-            lambda m: m[0] if allowed_url(m[2], config) else m[1], text
-        )
+        text = MARKDOWN_LINK.sub(lambda m: m[0] if target(m[2]) else m[1], text)
+
+    def reference(match: re.Match[str]) -> str:
+        # Only a checked number stays a link, and not after an @: once the text
+        # before the @ becomes code, the @ starts GitHub's text, and @GH-7 would
+        # mention the user GH-7.
+        start = match.start()
+        checked = int(match[1]) in numbers and match.string[start - 1 : start] != "@"
+        return keep(match[0]) if checked else code(match[0])
+
     rewrites: list[tuple[re.Pattern[str], Callable[[re.Match[str]], str]]] = [
         (MARKDOWN_LINK, link),
         (BARE_URL, lambda m: address(m[0], m)),
@@ -2405,10 +2433,7 @@ def clean_prose(
         (COMMIT_REFERENCE, lambda m: code(m[0])),
         (MENTION, lambda m: code(m[0])),
         (CROSS_REFERENCE, lambda m: code(m[1])),
-        (
-            ISSUE_REFERENCE,
-            lambda m: keep(m[0]) if int(m[1]) in numbers else code(m[0]),
-        ),
+        (ISSUE_REFERENCE, reference),
     ]
     previous = None
     while text != previous:
@@ -2429,6 +2454,10 @@ def clean_prose(
     # At any indentation, because trimming the cleaned text can take the
     # indentation of its first line.
     text = TILDE_FENCE.sub(r"\1\\", text)
+    # No table without its delimiter row, which needs a line below the header: a
+    # text of one line, such as a line of the log, keeps its hyphens.
+    if lines:
+        text = TABLE_HYPHEN.sub(lambda m: f"{m[1] or ''}\\-", text)
     pieces = re.split(r"\0(\d+)\0", text)
     return joined(
         kept[int(piece)] if index % 2 else piece for index, piece in enumerate(pieces)
@@ -2509,6 +2538,7 @@ def sanitize(text: str, config: Config, numbers: Iterable[int] = ()) -> str:
             config,
             before=text[start - 1] if start else " ",
             after=text[end] if end < len(text) else " ",
+            lines="\n" in text,
         )
 
     parts, last = [], 0
