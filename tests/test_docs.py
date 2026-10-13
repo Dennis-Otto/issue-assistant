@@ -429,16 +429,14 @@ def load_toml(path: str) -> dict:
     return tomllib.loads((ROOT / path).read_text("utf-8"))
 
 
-def settings() -> dict:
-    """The settings of the repository that the settings bot applies: those of
-    repository.toml with this project's own on top, whose lists gain their new items
-    and whose values replace."""
-    base = load_toml(".github/repository.toml")["repository"]
-    extra = load_toml(".github/repository.project.toml").get("repository", {})
-    topics = base["topics"] + [
-        topic for topic in extra.get("topics", []) if topic not in base["topics"]
-    ]
-    return {**base, **extra, "topics": topics}
+@pytest.fixture
+def settings(monkeypatch: pytest.MonkeyPatch) -> dict:
+    """The settings of the repository as the settings bot applies them, read by the
+    bot's own code: those of repository.toml with this project's own on top."""
+    monkeypatch.syspath_prepend(str(ROOT / ".github"))
+    from blueprint.settings import Settings
+
+    return Settings.load(ROOT / ".github" / "repository.toml").repository
 
 
 def tagline(text: str) -> str:
@@ -473,24 +471,31 @@ def test_the_readme_says_what_why_and_how_before_the_animation():
     (commands,) = re.findall(r"^```sh\n(.*?)^```$", top, re.MULTILINE | re.DOTALL)
     # The commands install the latest release with its commit hash and its tag.
     assert '--branch "$tag"' in commands and '--version "$tag"' in commands
-    assert "issue_assistant.py install --ref" in commands
+    # They clone into a new folder, and install only once that clone has succeeded: a
+    # folder left from an earlier run would install its old templates under the new
+    # tag, and without a tag the clone fails.
+    assert 'dir="$(mktemp -d)"' in commands and "/tmp/" not in commands
+    assert re.search(
+        r'git clone [^\n]* "\$dir" &&\n\s+python3 "\$dir/issue_assistant\.py" install --ref',
+        commands,
+    )
     assert "(#set-up-a-repository)" in top
 
 
-def test_the_website_and_the_repository_describe_the_project_alike():
+def test_the_website_and_the_repository_describe_the_project_alike(settings):
     readme = (ROOT / "README.md").read_text("utf-8")
     home = (ROOT / "docs" / "index.md").read_text("utf-8")
     assert tagline(home) == tagline(readme)
     website = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))
-    description = settings()["description"]
+    description = settings["description"]
     assert website["site_description"] == description
     assert description.startswith(tagline(readme).rstrip("."))
     # GitHub takes a description of at most 350 characters.
     assert len(description) <= 350
 
 
-def test_the_repository_has_topics_that_github_takes():
-    topics = settings()["topics"]
+def test_the_repository_has_topics_that_github_takes(settings):
+    topics = settings["topics"]
     # GitHub takes at most 20 topics, each of lowercase letters, digits and hyphens.
     assert len(topics) <= 20
     for topic in topics:
@@ -501,4 +506,5 @@ def test_the_repository_has_topics_that_github_takes():
     extra = load_toml(".github/repository.project.toml")["repository"]["topics"]
     base = load_toml(".github/repository.toml")["repository"]["topics"]
     assert not set(extra) & set(base) and len(set(extra)) == len(extra)
+    assert set(topics) == set(base) | set(extra)
     assert {"triage", "claude-code", "github-action", "prompt-injection"} <= set(topics)

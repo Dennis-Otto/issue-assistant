@@ -15,12 +15,13 @@
 - **Answers worth reading.** The likely cause with links to the lines of code, what the reporter can try, the information still missing, duplicates and labels, in English or German.
 - **The whole life of an issue.** Reminders and closing for unanswered issues, duplicates that close after three days, and fixed issues that close with the release that ships the fix, all without AI.
 
-Three commands in the root of your repository install the workflows of the latest release:
+In the root of your repository, these commands install the workflows of the latest release, from a fresh copy each time:
 
 ```sh
 tag="$(gh release view --repo Dennis-Otto/issue-assistant --json tagName --jq .tagName)"
-git clone --quiet --depth 1 --branch "$tag" https://github.com/Dennis-Otto/issue-assistant /tmp/issue-assistant
-python3 /tmp/issue-assistant/issue_assistant.py install --ref "$(git -C /tmp/issue-assistant rev-parse HEAD)" --version "$tag"
+dir="$(mktemp -d)"
+git clone --quiet --depth 1 --branch "$tag" https://github.com/Dennis-Otto/issue-assistant "$dir" &&
+  python3 "$dir/issue_assistant.py" install --ref "$(git -C "$dir" rev-parse HEAD)" --version "$tag"
 ```
 
 Then describe the project, adjust the labels and add the engine's secret, as [Set up a repository](#set-up-a-repository) shows.
