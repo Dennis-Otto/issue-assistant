@@ -50,6 +50,8 @@ To run them before every push on its own, turn on the hook of the repository onc
 git config core.hooksPath .githooks
 ```
 
+Git runs the hook only when its file is executable. Windows has no such mode and adds the file as a plain one, which `scripts/check.sh` reports; `git update-index --chmod=+x .githooks/pre-push` and a commit make it executable.
+
 The dev container in `.devcontainer/` has all of this set up, for VS Code and for GitHub Codespaces: open the repository in it, and `bash scripts/check.sh` runs.
 
 Update `requirements-dev.txt` with `pip-compile --generate-hashes --allow-unsafe requirements-dev.in`.
@@ -88,9 +90,9 @@ flowchart TB
   hook --> tables["Reference: the inputs<br/>and outputs of the action"]
   hook --> described["a description of its own<br/>for every page"]
   pages --> described
-  classDef source fill:#d4a72c33,stroke:#bf8700
-  classDef code fill:#8250df33,stroke:#8250df
-  classDef page fill:#8c959f1f,stroke:#8c959f
+  classDef source fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef code fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef page fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
   class readme,script,action source
   class hook code
   class pages,comments,tables,described page
@@ -117,15 +119,15 @@ flowchart TB
   motion -- "no" --> phone{"screen up to<br/>600 px wide?"}
   phone -- "yes" --> mobile["hero-mobile,<br/>animated"]
   phone -- "no" --> hero["hero,<br/>animated"]
-  classDef question fill:#d4a72c33,stroke:#bf8700
-  classDef still fill:#8c959f1f,stroke:#8c959f
-  classDef animated fill:#8250df33,stroke:#8250df
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef still fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef animated fill:#8250df33,stroke:#8250df,stroke-width:2px
   class motion,narrow,phone question
   class upright,still still
   class mobile,hero animated
 ```
 
-Each of them ends in `-light` or `-dark`, after the theme of the reader. The README shows the pictures with their address on `main`, and `scripts/mkdocs_hooks.py` gives the website its own copies: one for each theme, so that the switch in the header chooses, each loaded only while it is shown and with its size, so that the page doesn't jump when it arrives. Diagrams are Mermaid in the Markdown, which GitHub and the website both draw; on a phone, the website lets them scroll sideways.
+Each of them ends in `-light` or `-dark`, after the theme of the reader. The README shows the pictures with their address on `main`, and `scripts/mkdocs_hooks.py` gives the website its own copies: one for each theme, so that the switch in the header chooses, each loaded only while it is shown and with its size, so that the page doesn't jump when it arrives. Diagrams are Mermaid in the Markdown, which GitHub and the website both draw; on a phone, the website lets them scroll sideways. Each one runs from top to bottom, as `flowchart TB` or a `sequenceDiagram`, so that its text keeps its size; tells screen readers what it shows with `accTitle` and `accDescr`; draws its boxes with a border of 2 pixels, as the diagrams of the blueprint do; and is written once: a page of the website shows a diagram of the README by including the part of the README around it, such as `workflows-diagram`. `tests/test_docs.py` checks all four.
 
 ## Releases
 

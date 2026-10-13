@@ -54,10 +54,10 @@ flowchart TB
     agent2 -- "JSON" --> apply("<b>apply</b><br/>no AI, no secret:<br/>checks, then writes")
     apply --> github2[("GitHub")]
   end
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
-  classDef ai fill:#8250df33,stroke:#8250df
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class issue1,issue2,leak untrusted
   class agent1,agent2 ai
   class prompt1,files,apply job
@@ -95,37 +95,7 @@ Two of the recommendations of the Cloud Security Alliance have nothing to apply 
 
 Red is what anyone can write; the numbers are those of the list below.
 
-```mermaid
-flowchart TB
-  text["issue, comments,<br/>other issues, discussions"]
-  merged(["merged pull request"])
-  subgraph run ["issue-assistant.yml"]
-    event["<b>event</b><br/>no AI"]
-    subgraph firewall ["firewall, read-only token"]
-      analyze["<b>analyze</b><br/>the AI with Read,<br/>Grep and Glob,<br/>the engine's secret"]
-    end
-    subgraph checked ["apply: no AI, no secret"]
-      checks("<b>checks</b><br/>schema, labels and<br/>issues that exist; no<br/>secret, mention, image,<br/>HTML or foreign link")
-      refused["nothing is posted"]
-    end
-  end
-  text -- "1 · as data, in files" --> analyze
-  text --> event
-  event -- "the task" --> analyze
-  analyze -- "2 · an answer in JSON" --> checks
-  checks -- "fails" --> refused
-  checks -- "3 · passes: only the<br/>issue of the event" --> github[("GitHub")]
-  merged -- "4 · only the issues it fixes" --> lifecycle["<b>issue-lifecycle.yml</b><br/>the default branch, no AI"]
-  lifecycle --> github
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
-  classDef ai fill:#8250df33,stroke:#8250df
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
-  class text,merged untrusted
-  class analyze ai
-  class event,lifecycle,checks,refused job
-  class github safe
-```
+--8<-- "README.md:trust-boundaries-diagram"
 
 1. **Issues and comments → the assistant.** Their text is untrusted. It reaches the AI as files that the prompt calls data, not instructions, each text in a code fence that it can't close and without invisible characters, as [the next section](#how-the-text-of-an-issue-reaches-the-ai) shows, and reaches a shell script only through environment variables.
 2. **The AI → the `apply` job.** The answer is untrusted. It must be JSON that fits the schema of its task, with labels that exist and numbers of issues that exist; anything that looks like a secret refuses the whole answer.
@@ -150,9 +120,9 @@ flowchart TB
   excerpts --> jsonl[("issues.jsonl,<br/>discussions.jsonl")]
   invisible -.-> notice["a notice in the log:<br/>how many"]
   excerpts -.-> notice
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class text,others untrusted
   class invisible,html,fence,heading,excerpts,notice job
   class issue,jsonl safe
@@ -173,9 +143,9 @@ flowchart TB
   notice --> objected{"in 3 days: a comment,<br/>or a thumbs down of the<br/>reporter or of someone<br/>who may push?"}
   objected -- "yes" --> open["stays open for<br/>the maintainer"]
   objected -- "no" --> closed["closed as a duplicate"]
-  classDef question fill:#d4a72c33,stroke:#bf8700
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class vouched,objected question
   class sure,notice,closed job
   class suggestion,open safe
@@ -199,9 +169,9 @@ flowchart TB
   checks -- "refused" --> refusal["an escaped<br/>::error::"]
   refusal --> runlog
   settings["labels.toml,<br/>config.toml"] -- "schema with \u0027,<br/>model as a name" --> cli[("command line<br/>of the engine")]
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class answer untrusted
   class checks,cleaned,oneline,refusal,settings job
   class posted,rationale,jobsummary,runlog,cli safe
@@ -226,10 +196,10 @@ flowchart TB
   code --> comment["<b>the comment</b>: list<br/>items indented as a<br/>whole, reasons on one line"]
   escapes --> comment
   comment --> github[("GitHub")]
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
-  classDef question fill:#d4a72c33,stroke:#bf8700
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class answer untrusted
   class split question
   class normal,code,removals,rewrites,escapes,comment job
@@ -261,10 +231,10 @@ flowchart TB
   random -- "yes" --> tracked{"part of a path<br/>that git tracks?"}
   tracked -- "yes" --> harmless
   tracked -- "no" --> refused
-  classDef question fill:#d4a72c33,stroke:#bf8700
-  classDef job fill:#8c959f1f,stroke:#8c959f
-  classDef untrusted fill:#cf222e26,stroke:#cf222e
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class known,mixed,random,tracked question
   class text,runs job
   class refused untrusted

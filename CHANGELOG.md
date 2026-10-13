@@ -8,6 +8,8 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 - Try the assistant on an issue that exists nowhere: name a JSON file with the issue and its comments, as GitHub's REST API gives them, in the environment variable `ISSUE_ASSISTANT_FIXTURE`, and `context` and `apply` read that issue instead of one on GitHub and write nothing, as in a dry run. The project's own Canary analyzes such an issue every week with the engine, on the firewall runner, so that an update of the engine's action, a host that the firewall blocks or an expired secret shows before a release instead of as issues without an answer.
 
+## [1.3.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.2.2...v1.3.0) (2026-10-13)
+
 ### Changed
 
 - The action is ready for the GitHub Marketplace, as *Read-only issue assistant*, because another action there is already called Issue Assistant, and with a purple badge. Workflows keep using `Dennis-Otto/issue-assistant` as before. The README opens with what the assistant does, why an issue can't make its AI write, and three commands that install the latest release; the action, the repository and the website describe it as AI issue triage, and the repository has the topics that people browse, such as `triage`, `claude-code` and `prompt-injection`.
