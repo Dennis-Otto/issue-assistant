@@ -149,7 +149,26 @@ TOKENS = st.one_of(
 
 @given(st.text(), TOKENS, st.text())
 def test_a_token_anywhere_in_the_answer_is_refused(before, token, after):
-    assert assistant.looks_secret(f"{before} {token} {after}")
+    text = f"{before} {token} {after}"
+    assert assistant.looks_secret(text)
+    # Even in the name of a file of the repository.
+    assert assistant.looks_secret(text, {token, f"docs/{token}.md"})
+
+
+# Paths of folders and files with any names, long ones too.
+PATHS = st.builds(
+    lambda folders, extension: "/".join(folders) + extension,
+    st.lists(st.from_regex(r"[\w+=-]{1,30}", fullmatch=True), min_size=1, max_size=5),
+    st.sampled_from(["", ".py", ".tar.gz", "/"]),
+)
+
+
+@given(PATHS, st.sampled_from(["{}", "See ./{}.", "{}#L3", "`{}`, line 3"]))
+def test_a_path_that_git_tracks_is_never_a_secret(path, sentence):
+    """Unless it holds a known kind of token, which counts wherever it is."""
+    hypothesis.assume(not assistant.SECRET.search(path))
+    files = {path.rstrip("/") + ("/index.md" if path.endswith("/") else ""), "x.py"}
+    assert not assistant.looks_secret(sentence.format(path), files)
 
 
 # The values of `[\w.+/-]+` in ASCII, which the bot writes. A class of ASCII
