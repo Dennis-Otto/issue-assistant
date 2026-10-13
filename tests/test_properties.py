@@ -71,6 +71,18 @@ def test_sanitized_text_mentions_nobody_and_links_only_allowed_sites(text, numbe
     assert problems(output, numbers) == [], output
 
 
+@hypothesis.settings(suppress_health_check=[hypothesis.HealthCheck.too_slow])
+@given(TEXT, st.integers(min_value=1, max_value=300))
+def test_a_line_of_the_engine_s_text_is_short_clean_and_one_line(text, limit):
+    """For the log, the job summary and the rationales on the timeline."""
+    line = assistant.plain(text, CONFIG, limit)
+    assert len(line) <= limit
+    assert not assistant.CONTROL.search(line) and line == line.strip()
+    # Alone, as a rationale, and within a line, as in the log and the job summary.
+    assert problems(line, set()) == [], line
+    assert problems(f"- Reason: {line}", set()) == [], line
+
+
 @given(TEXT)
 def test_any_answer_is_checked_or_refused(raw):
     for mode in assistant.MODES:
