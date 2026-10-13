@@ -21,8 +21,13 @@ them:
   space for it while it loads. On the first visit, the theme of the system applies
   as soon as the header is there, not only when the script of the theme has loaded,
   so that the browser doesn't load the light copies in the meantime.
-- A Mermaid diagram scrolls sideways on a small screen instead of shrinking its text
-  to a few pixels: docs/stylesheets/diagrams.css gives it its least width.
+- The pictures of a diagram, which scripts/diagrams.sh draws from its source in
+  docs/diagrams/, stay as they are: the hook of the blueprint,
+  .github/mkdocs_blueprint.py, runs after this one and draws the diagram live from
+  its source, in the colours of the theme, whatever path the page gives them.
+- A diagram scrolls sideways on a small screen instead of shrinking its text to a few
+  pixels: docs/stylesheets/diagrams.css gives it its least width. The hook wraps it
+  on the finished page, once the hook of the blueprint has drawn it.
 
 The pictures of the README are part of the included Markdown only after the snippets
 are resolved, so the hook works on the HTML of each page, before the plugin glightbox
@@ -86,6 +91,9 @@ THEMES = ("light", "dark")
 # Keeps a picture with variants out of the lightbox of the plugin glightbox, whose
 # link around the <img> would cut it off from its <source>s.
 NO_LIGHTBOX = "off-glb"
+# The <img> of the pictures of a diagram, as scripts/diagrams.sh --extract writes it:
+# docs/images/diagrams/NAME.svg, from the folder of the page.
+DRAWN = re.compile(r'\bsrc="(?:[^"]*/)?images/diagrams/[\w.-]+\.svg"')
 DIAGRAM = re.compile(r'<pre class="mermaid">.*?</pre>', re.S)
 # What the script of the Material theme does on the first visit, when no theme is
 # stored: it takes the first one of the switch whose media query holds. Without it, a
@@ -137,7 +145,7 @@ def tag(name: str, attributes: dict[str, str]) -> str:
 
 
 def localized(html: str, url: str, docs: Path) -> str:
-    """The HTML of the page at url, with the pictures and diagrams of the website.
+    """The HTML of the page at url, with the pictures of the website.
 
     docs is the folder of the pages, where the files of the pictures are.
     """
@@ -155,6 +163,9 @@ def localized(html: str, url: str, docs: Path) -> str:
         return {"width": str(width), "height": str(height)}
 
     def themed(match: re.Match[str]) -> str:
+        if DRAWN.search(match["image"]):
+            # A diagram, which the hook of the blueprint draws live.
+            return match[0]
         image = dict(ATTRIBUTE.findall(match["image"]))
         fallbacks = {"light": image["src"]}
         variants: dict[str, list[dict[str, str]]] = {theme: [] for theme in THEMES}
@@ -191,12 +202,15 @@ def localized(html: str, url: str, docs: Path) -> str:
             copies.append(f"<picture>{sources}{tag('img', attributes)}</picture>")
         return "".join(copies)
 
-    def scrolling(match: re.Match[str]) -> str:
-        # Focusable, as the theme makes its code blocks, so that keys scroll it too.
-        return f'<div class="diagram" tabindex="0">{match[0]}</div>'
+    return PICTURE.sub(themed, ADDRESS.sub(local, html))
 
-    html = PICTURE.sub(themed, ADDRESS.sub(local, html))
-    return DIAGRAM.sub(scrolling, html)
+
+def scrolling(output: str) -> str:
+    """The page with each diagram in a box that scrolls sideways on a small screen."""
+    # Focusable, as the theme makes its code blocks, so that keys scroll it too.
+    return DIAGRAM.sub(
+        lambda match: f'<div class="diagram" tabindex="0">{match[0]}</div>', output
+    )
 
 
 def early_theme(output: str) -> str:
@@ -890,7 +904,7 @@ def on_page_content(html: str, page: Any, config: Any, files: Any) -> str:
 
 
 def on_post_page(output: str, page: Any, config: Any) -> str:
-    output = early_theme(output)
+    output = early_theme(scrolling(output))
     if page is None:
         return output
     if page.is_homepage and page.meta.get("title"):
