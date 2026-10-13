@@ -4,6 +4,9 @@
 "area: analysis":
   - changed-files:
       - any-glob-to-any-file: ["prompts/**", "fuzz/**", "tests/oracle.py", "tests/test_properties.py"]
+# Everything that install writes into a repository comes from templates/;
+# tests/test_templates.py checks it. This repository's own copies of the workflows
+# in .github/ are the blueprint's and change with its updates.
 "area: setup":
   - changed-files:
       - any-glob-to-any-file: ["templates/**", "action.yml", "tests/test_setup.py", "tests/test_templates.py"]
