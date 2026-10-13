@@ -2,8 +2,9 @@
 
 The GitHub Action in action.yml runs this script in the repository it looks after.
 That repository keeps its labels in .github/labels.toml, a description of the
-project and its settings in .github/issue-assistant/, and copies of the three
-workflows with which this repository looks after its own issues; see README.md.
+project and its settings in .github/issue-assistant/, and copies of the four
+workflows and the firewall policy, which install writes from templates/.github/;
+see README.md.
 
 An AI engine from ENGINES writes the analysis. It only reads: the checkout and a
 context folder that `context` writes, with the prompt and the JSON schema of its
@@ -34,7 +35,8 @@ TOOL = Path(__file__).resolve().parent
 PROMPTS = TOOL / "prompts"
 # The files a repository gets, in the places they go: the workflows, the firewall
 # policy and the starter files. This repository's own copies of the workflows and
-# the policy are the blueprint's, of the release that it pins; nothing reads them.
+# the policy are the blueprint's, of the release that it pins; install and check
+# never read them.
 TEMPLATES = TOOL / "templates"
 # Files of the repository the assistant looks after, relative to its root. Messages
 # name them, so they are written with slashes on every system, Windows too;
