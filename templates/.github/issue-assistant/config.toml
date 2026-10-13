@@ -6,8 +6,9 @@
 name = "claude"
 # model = "claude-opus-5-5"
 # The most AI runs that people who don't maintain the repository start: analyses
-# of new issues and follow-ups in 24 hours, analyses of one reporter's new issues
-# in 24 hours, and comments of a reporter after a release closed their issue. Over
+# of new issues, follow-ups and replies after a release in 24 hours, analyses of
+# one reporter's new issues in 24 hours, and comments of a reporter after a release
+# closed their issue that the AI reads. Over
 # a limit, the issue gets its labels and waits for the maintainer; 0 lets only
 # maintainers start the AI, by hand.
 max_per_day = 20

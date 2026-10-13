@@ -220,7 +220,7 @@ def test_bots_and_maintainers_are_recognized():
 def test_a_follow_up_is_due_only_after_the_assistant_s_own_questions():
     asked = analysis(questions=1)
     answer = make_comment(2, "reporter", "Here it is", 0)
-    assert assistant.follow_up_due([asked, answer], "reporter")
+    assert assistant.follow_up_due([asked, answer], "reporter") is asked
     assert not assistant.follow_up_due([analysis(questions=0), answer], "reporter")
     assert not assistant.follow_up_due([answer], "reporter")
     maintainer = make_comment(3, "maintainer", "Thanks, I'll look", 0.5, "OWNER")
@@ -239,7 +239,7 @@ def test_follow_ups_are_limited():
         for index in range(2, 2 + assistant.MAX_FOLLOW_UPS)
     ]
     assert not assistant.follow_up_due([asked, *follow], "reporter")
-    assert assistant.follow_up_due([asked, *follow[:-1]], "reporter")
+    assert assistant.follow_up_due([asked, *follow[:-1]], "reporter") is follow[-2]
 
 
 # Events
@@ -612,16 +612,33 @@ def test_only_the_new_issues_of_reporters_before_this_one_count(config):
     assert opened(github, config, 31, "user31").mode == "none"
 
 
-@pytest.mark.parametrize(("posted", "mode"), [(9, "triage"), (10, "none")])
-def test_the_follow_ups_of_the_day_count_toward_the_daily_limit(config, posted, mode):
+def runs(*days_ago):
+    """The value of a marker that records AI runs as many days ago."""
+    return ".".join(
+        str(int(assistant.moment(at(days)).timestamp())) for days in days_ago
+    )
+
+
+def recorded(comment_id, kind, days_ago, *run_days, author="bot"):
+    """A comment of the assistant whose marker records the runs that answered it."""
+    marker = assistant.render_marker(kind, lang="en", questions=1, runs=runs(*run_days))
+    comment = make_comment(comment_id, author, f"{marker}\nAny log?", days_ago)
+    return {**comment, "updated_at": at(min(run_days))}
+
+
+@pytest.mark.parametrize(("more", "mode"), [(6, "triage"), (7, "none")])
+def test_the_answers_of_the_day_count_toward_the_daily_limit(config, more, mode):
     github = FakeGitHub(config, *new_issues(10))
     github.comment_store[1] = [
-        # Analyses count as their issues; neither a follow-up of another day nor
-        # someone's copy of the marker counts.
+        # Analyses count as their issues, and a posted follow-up counts by the
+        # record of its run, also a reply after a release; neither a run of
+        # another day nor someone's copy of the marker counts.
         analysis(100, days_ago=0.4),
-        {**follow_up(101, days_ago=1.5), "updated_at": at(0.1)},
-        follow_up(102, days_ago=0.4, author="user1"),
-        *(follow_up(110 + index, days_ago=0.3) for index in range(posted)),
+        recorded(101, "analysis", 0.4, 0.3, 0.2),
+        follow_up(102, days_ago=0.1),
+        recorded(103, "released", 3, 1.5, 0.1),
+        recorded(104, "analysis", 0.4, 0.3, author="user1"),
+        recorded(105, "follow-up", 0.3, *[0.2] * more),
     ]
     assert opened(github, config).mode == mode
 
@@ -661,8 +678,39 @@ def test_a_follow_up_needs_room_in_the_daily_limit(config, others, mode):
     assert plan.mode == mode
     # The reporter answered either way, so the issue no longer waits for them.
     assert "needs-info" not in github.labels_of(12)
+    asked = github.comment_store[12][0]["body"]
     if mode == "none":
         assert plan.notes == ["The reporter answered.", DAILY_LIMIT]
+        assert "runs=" not in asked
+    else:
+        # The questions that the follow-up answers record its run, and nothing else
+        # of the comment changes.
+        assert asked == (
+            f"{assistant.render_marker('analysis', lang='en', questions=1, runs=runs(0))}"
+            "\nFirst analysis"
+        )
+
+
+def test_a_follow_up_counts_while_it_still_runs(config):
+    # Two issues of an earlier day wait for their reporters' answers, and the
+    # issues of the day leave room for one more run.
+    github = FakeGitHub(
+        config,
+        make_issue(labels=("bug", "needs-info"), days_ago=2),
+        make_issue(13, author="other", labels=("bug", "needs-info"), days_ago=2),
+        *new_issues(19, first=20),
+    )
+    assert answer_the_assistant(github, config).mode == "follow-up"
+    # The second answer comes in before the first follow-up is posted.
+    answer = make_comment(7, "other", "Version 2.0.2", 0)
+    github.comment_store[13] = [analysis(6, questions=1, days_ago=1.5), answer]
+    plan = assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(13), "other", answer),
+        config,
+    )
+    assert plan.mode == "none" and plan.notes[-1] == DAILY_LIMIT
 
 
 def test_maintainers_are_never_limited(config):
@@ -696,6 +744,7 @@ def test_maintainers_are_never_limited(config):
     )
     assert plan.mode == "follow-up"
     assert not any("since=" in call[1] for call in github.calls)
+    assert not any(call[0] == "PATCH" for call in github.calls)
 
 
 def test_the_limits_follow_the_settings(config):
@@ -754,6 +803,20 @@ def test_the_ai_reads_two_comments_of_the_reporter_after_the_release(config, cap
     assert github.store[12]["state"] == "closed"
 
 
+def test_deleted_comments_after_the_release_get_no_more_replies(config):
+    github = closed_by_release(config)
+    for comment_id in (9, 10):
+        assert write_after_release(github, config, comment_id).mode == "release-reply"
+        # The reporter deletes the comment once the engine has read it.
+        github.comment_store[12].pop()
+    plan = write_after_release(github, config, 11)
+    assert plan.mode == "none" and "release_replies = 2" in plan.notes[0]
+    # The comment about the release records the runs; its text stays as it was.
+    released = github.comment_store[12][1]["body"]
+    tag = "tag=v1.10.0 runs="
+    assert f"<!-- issue-assistant:released {tag}{runs(0, 0)} -->\n🎉" in released
+
+
 def test_each_release_lets_the_ai_read_the_reporter_again(config):
     github = closed_by_release(config, days_ago=10)
     for comment_id, days_ago in ((3, 9), (4, 8)):
@@ -779,6 +842,8 @@ def test_a_reply_after_the_release_needs_room_in_the_daily_limit(config):
         github.store[issue["number"]] = issue
     plan = write_after_release(github, config, 9)
     assert plan.mode == "none" and plan.notes[-1] == DAILY_LIMIT
+    # A run that a limit stopped doesn't use up the replies after the release.
+    assert "runs=" not in github.comment_store[12][1]["body"]
 
 
 # The context for the engine

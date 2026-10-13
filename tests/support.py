@@ -378,6 +378,15 @@ class FakeGitHub(assistant.GitHub):
                 if data.get("state") == "open":
                     issue["state_reason"] = "reopened"
                 return issue
+            if match := re.fullmatch(r"issues/comments/(\d+)", route):
+                comment = next(
+                    item
+                    for comments in self.comment_store.values()
+                    for item in comments
+                    if item["id"] == int(match[1])
+                )
+                comment.update(data, updated_at=at())
+                return comment
             if match := re.fullmatch(r"code-scanning/alerts/(\d+)", route):
                 alert = next(
                     item
