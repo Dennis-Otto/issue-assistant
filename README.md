@@ -247,11 +247,13 @@ The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/d
         command: check
     ```
 
-    The check also runs on your computer, on Linux, macOS or Windows, in the root of your repository; it reads YAML with PyYAML or `yq`:
+    The check also runs on your computer, on Linux, macOS or Windows, in the root of your repository, with Python 3.12 or newer; it reads YAML with PyYAML or `yq`:
 
     ```sh
     python3 /path/to/issue-assistant/issue_assistant.py check
     ```
+
+    On Windows, Python's launcher `py` starts it, because `python3` there usually opens the Microsoft Store: `py /path/to/issue-assistant/issue_assistant.py check`.
 
 8. **Create the environment** `issue-assistant`, limited to the default branch, and add the engine's secret. For Claude, `claude setup-token` creates a token for a Claude subscription; store it as `CLAUDE_CODE_OAUTH_TOKEN`, or an API key as `ANTHROPIC_API_KEY`:
 
