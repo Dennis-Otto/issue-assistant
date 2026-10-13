@@ -4,6 +4,11 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+### Changed
+
+- The website loads only the pictures that it shows: the copy for the other theme is no longer downloaded, so the home page needs about half the data, 650 KB instead of 1.25 MB on a phone. The still pictures are lossless WebP instead of PNG, at less than a third of the size, and keep their place on the page while they load.
+- On a phone, the animation of the life of an issue stands upright, with text that is readable, on GitHub and on the website. Readers who asked their system for less motion see a still picture of the first analysis instead. Diagrams on the website scroll sideways on a phone instead of shrinking their text to a few pixels.
+
 ### Fixed
 
 - `check` and `install` name the files of a repository with slashes on Windows too, such as `.github/labels.toml` instead of `.github\labels.toml`.

@@ -75,7 +75,7 @@ code, pre, .mono {
 }
 .stage .window { box-shadow: 0 1px 3px rgba(31, 35, 40, 0.08); }
 .window {
-  width: 880px;
+  width: var(--width, 880px);
   background: var(--page);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -302,3 +302,36 @@ code, pre, .mono {
 
 .muted { color: var(--muted); font-weight: 400; }
 .done-icon { color: var(--done); }
+
+/* The animation on a phone: render.py takes it on a narrow page, where it stands
+   upright in one column, with larger text and without the sidebar, so that it stays
+   readable at the width of a phone. */
+@media (max-width: 600px) {
+  .shot.stage { display: block; padding: 14px 12px 16px; border-radius: 16px; }
+  .steps { gap: 5px; margin-bottom: 8px; }
+  .step { flex: none; gap: 0; padding: 6px; font-size: 14px; }
+  .step span { display: none; }
+  .step.now { flex: 1; gap: 7px; padding: 6px 10px; }
+  .step.now span { display: inline; }
+  .caption { height: 72px; margin: 0 0 10px 2px; font-size: 16px; line-height: 1.4; }
+  .window { width: auto; border-radius: 12px; }
+  .chrome { padding: 0 10px; gap: 6px; }
+  .address { margin-left: 6px; overflow: hidden; white-space: nowrap; }
+  .repo { display: none; }
+  .issue { padding: 14px 14px 12px; }
+  .title { font-size: 20px; }
+  .meta { margin: 8px 0 10px; font-size: 14px; }
+  .columns { grid-template-columns: minmax(0, 1fr); padding-top: 12px; }
+  .sidebar { display: none; }
+  .viewport { height: 470px; }
+  .timeline { padding: 2px 6px 10px 0; }
+  .timeline::before { left: 52px; }
+  .entry { gap: 10px; }
+  .avatar { width: 32px; height: 32px; font-size: 14px; }
+  .avatar.bot svg { width: 21px; height: 21px; }
+  .comment-head { padding: 7px 12px; }
+  .body { padding: 10px 12px 12px; }
+  .markdown { font-size: 15px; }
+  .markdown code, .markdown pre code { font-size: 13px; }
+  .event { margin: 0 0 14px 40px; font-size: 14px; }
+}
