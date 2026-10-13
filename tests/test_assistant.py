@@ -153,6 +153,23 @@ def test_the_area_of_the_form_becomes_a_label(config):
     assert assistant.form_labels(make_issue(body=None), config) == []
 
 
+def test_every_answer_of_a_multiple_choice_area_becomes_a_label(config):
+    """GitHub joins the options of a dropdown with `multiple: true` with ", "."""
+    body = "### Area\n\nLive card, X01 game, Other\n"
+    assert assistant.form_labels(make_issue(body=body), config) == [
+        "area: cards",
+        "area: games",
+    ]
+    # An option that holds ", " itself is still one answer.
+    labels = (
+        *config.labels,
+        assistant.Label("area: ui", "bfdadc", "UI", "area", ("Cards, menus",)),
+    )
+    with_comma = dataclasses.replace(config, labels=labels)
+    body = "### Area\n\nCards, menus\n"
+    assert assistant.form_labels(make_issue(body=body), with_comma) == ["area: ui"]
+
+
 @pytest.mark.parametrize(
     ("text", "language"),
     [
@@ -1859,6 +1876,42 @@ def test_references_outside_the_repository_are_dropped(config, reference):
     )
 
 
+def test_references_to_what_is_no_file_are_dropped(config, root):
+    """git tracks a submodule as a folder, and a link that leads nowhere."""
+    (root / "vendor" / "board").mkdir(parents=True)
+    tracked = {"vendor/board", "docs/gone.md"}
+    try:
+        (root / "docs" / "gone.md").symlink_to("missing.md")
+    except OSError:  # Windows lets only some accounts create links.
+        tracked.discard("docs/gone.md")
+    for path in sorted(tracked):
+        for reference in ({}, {"line": 1}, {"anchor": "set-up"}):
+            link = assistant.reference_link(
+                {"path": path, **reference, "reason": ""}, tracked, "abc", "en", config
+            )
+            assert link is None, (path, reference)
+
+
+def test_references_to_paths_with_blanks_and_brackets_are_encoded(config, root):
+    path = "docs/user guide (old)/set up.md"
+    (root / path).parent.mkdir(parents=True)
+    (root / path).write_text("# Set up\n\nPlug in the board.\n", encoding="utf-8")
+    address = "docs/user%20guide%20%28old%29/set%20up.md"
+    references = (
+        ({"line": 3}, f"[`{path}`, line 3]({config.blob}/abc/{address}#L3)"),
+        (
+            {"anchor": "set-up"},
+            f"[Set up]({config.blob}/HEAD/{address}#set-up) in `{path}`",
+        ),
+        ({}, f"[`{path}`]({config.blob}/HEAD/{address})"),
+    )
+    for reference, expected in references:
+        link = assistant.reference_link(
+            {"path": path, **reference, "reason": ""}, {path}, "abc", "en", config
+        )
+        assert link == expected
+
+
 def test_headings_get_github_s_anchors(tmp_path):
     file = tmp_path / "page.md"
     file.write_text(
@@ -3483,6 +3536,50 @@ def test_labels_are_created_and_updated_but_never_deleted(config, capsys):
         next(call for call in github.calls if call[0] == "PATCH")[1]
         == "labels/question"
     )
+
+
+def test_a_label_with_a_slash_in_its_name_is_one_part_of_the_path(config):
+    """GitHub reads an unencoded slash as the start of another part, and fails."""
+    kind = assistant.Label("kind/bug", "d73a4a", "Something isn't working", "type")
+    config = dataclasses.replace(config, labels=(*config.labels, kind))
+    github = FakeGitHub(config, make_issue(labels=("kind/bug", "needs-triage")))
+    github.remove_label(12, "kind/bug")
+    assert github.labels_of(12) == {"needs-triage"}
+    github.update_label(dataclasses.replace(kind, description="Broken"))
+    assert [call[1] for call in github.writes_made()] == [
+        "issues/12/labels/kind%2Fbug",
+        "labels/kind%2Fbug",
+    ]
+    assert github.label_store[-1]["description"] == "Broken"
+    github.add_labels(12, ["kind/bug"])
+    assert [issue["number"] for issue in github.open_issues("kind/bug")] == [12]
+    assert github.calls[-1][1] == "issues?state=open&labels=kind%2Fbug&per_page=100"
+
+
+def test_a_label_that_differs_only_in_case_is_renamed(config, capsys):
+    """GitHub ignores the case of label names, so creating one would fail."""
+    github = FakeGitHub(config)
+    bug = next(label for label in github.label_store if label["name"] == "bug")
+    bug["name"] = "Bug"
+    github.label_store.append(
+        {"name": "Custom", "color": "ffffff", "description": "", "node_id": "L_c"}
+    )
+    assert assistant.sync_labels(github, config) == ["renamed Bug to bug"]
+    assert github.writes_made() == [
+        (
+            "PATCH",
+            "labels/Bug",
+            {
+                "color": "d73a4a",
+                "description": "Something isn't working",
+                "new_name": "bug",
+            },
+        )
+    ]
+    assert bug["name"] == "bug"
+    out = capsys.readouterr().out
+    assert "Label Custom is not in .github/labels.toml" in out
+    assert "Label Bug" not in out
 
 
 # The gh calls

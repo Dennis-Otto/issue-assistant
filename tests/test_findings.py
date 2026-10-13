@@ -1,5 +1,7 @@
 """Findings of code scanning: accepted ones are dismissed, others fail the run."""
 
+import dataclasses
+
 import pytest
 
 import issue_assistant as assistant
@@ -101,7 +103,7 @@ def test_a_dry_run_dismisses_nothing(config, root):
             '[[accept]]\ntool = "Scorecard"\n',
             "every [[accept]] needs tool, rule, reason and comment (KeyError",
         ),
-        ("[[accept]\n", "every [[accept]] needs tool, rule, reason and comment"),
+        ("[[accept]\n", ".github/findings.toml is no valid TOML: "),
         (
             '[[accept]]\ntool = ""\nrule = "x"\nreason = "won\'t fix"\ncomment = "y"\n',
             ".github/findings.toml: name the tool and the rule",
@@ -115,12 +117,58 @@ def test_a_dry_run_dismisses_nothing(config, root):
             '[[accept]]\ntool = "A"\nrule = "B"\nreason = "won\'t fix"\ncomment = " "\n',
             ".github/findings.toml: A B: explain it in a comment of 1 to 200 characters",
         ),
+        # A typo of path would accept the findings of the rule in every file.
+        (
+            '[[accept]]\ntool = "A"\nrule = "B"\nreason = "won\'t fix"\ncomment = "y"\n'
+            'paths = "tests/"\n',
+            ".github/findings.toml: A B: unknown key paths; did you mean path?",
+        ),
+        (
+            '[[accepted]]\ntool = "A"\nrule = "B"\n',
+            ".github/findings.toml: unknown key accepted; did you mean accept?",
+        ),
+        (
+            'accept = "all"\n',
+            "every [[accept]] needs tool, rule, reason and comment (TypeError",
+        ),
     ],
 )
 def test_the_check_finds_broken_acceptances(config, root, text, problem):
     write_findings(root, text)
     problems = assistant.check_accepted_findings(config)
     assert len(problems) == 1 and problem in problems[0]
+
+
+def test_a_path_covers_its_file_or_folder_and_no_name_that_starts_alike():
+    accepted = assistant.Acceptance(
+        "CodeQL", "py/x", "used in tests", "Tests.", "tests"
+    )
+    for path, covered in (
+        ("tests", True),
+        ("tests/test_a.py", True),
+        ("testsuite/test_a.py", False),
+        ("tests.py", False),
+    ):
+        assert accepted.covers(make_alert(1, "CodeQL", "py/x", path)) is covered, path
+    folder = dataclasses.replace(accepted, path="tests/")
+    assert folder.covers(make_alert(1, "CodeQL", "py/x", "tests/test_a.py"))
+    assert not folder.covers(make_alert(1, "CodeQL", "py/x", "testsuite/test_a.py"))
+    everywhere = dataclasses.replace(accepted, path="")
+    assert everywhere.covers(make_alert(1, "CodeQL", "py/x", "src/app.py"))
+
+
+def test_a_typo_in_the_accepted_findings_dismisses_nothing(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    write_findings(root, ACCEPTED.replace('path = "tests/"', 'paths = "tests/"'))
+    github = FakeGitHub(config)
+    github.alert_store = [make_alert(5, "CodeQL", "py/unused-import", "src/app.py")]
+    code, _, _ = run_main(monkeypatch, tmp_path, root, github, "findings")
+    assert code == 1 and github.writes_made() == []
+    assert capsys.readouterr().out == (
+        "::error::.github/findings.toml: codeql py/unused-import: unknown key paths; "
+        "did you mean path?\n"
+    )
 
 
 def test_the_starter_and_accepted_findings_pass_the_check(config, root):

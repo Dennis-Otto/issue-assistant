@@ -480,8 +480,8 @@ flowchart TB
 
     It writes the four workflows, `.github/egress-firewall.yaml` and the `.gitignore` entry for the context folder, and, when they are missing, starters of the files below.
 
-2. **Describe the project** in `.github/issue-assistant/project.md`: what it does, where the code, documentation, troubleshooting guide and changelog are, which versions and logs matter in a bug report, and how to address German reporters. The AI reads it before every task.
-3. **Define the labels** in `.github/labels.toml`. The seven lifecycle labels are required; kinds, areas and topics are what the AI chooses from.
+2. **Describe the project** in `.github/issue-assistant/project.md`: what it does, where the code, documentation, troubleshooting guide and changelog are, which versions and logs matter in a bug report, and how to address German reporters. The AI reads it before every task, so `check` fails while the file still holds the starter's first line or says less than 80 characters.
+3. **Define the labels** in `.github/labels.toml`. The seven lifecycle labels are required; kinds, areas and topics are what the AI chooses from. GitHub ignores the case of label names, so the Labels workflow renames a label that the repository has in another case, such as `Bug` for `bug`, instead of creating a second one.
 4. **Adjust `.github/issue-assistant/config.toml`:** the engine, the hosts that links may lead to, the field of the issue forms that chooses an area, and the files that tell reporters which AI reads their issue.
 5. **Tell reporters** in `SUPPORT.md` (or the files you list) that the issue assistant uses Claude, an AI by Anthropic.
 6. **Accept findings** of code scanning that can't or shouldn't be fixed in `.github/findings.toml`, each with its reason.
@@ -580,6 +580,33 @@ files = ["SUPPORT.md"]
 close_with_release = true       # false: fixed issues don't wait for a release
 ```
 
+Each key has the type that it has here. A file that isn't TOML, or a value of another type, such as `max_per_day = "5"`, stops every command with an error that names the file and the key. A key that the assistant doesn't know, such as `close_with_releases` or a section `[release]`, would leave the default in place unnoticed: `check` fails on it and names the key that was probably meant, and every other command warns of it.
+
+```mermaid
+flowchart TB
+  accTitle: What the assistant does with a problem of its settings
+  accDescr: Every command reads labels.toml and config.toml. A file that isn't TOML stops every command, with the line of the mistake. A value of another type than its key's stops every other command with an error that names the key; check reads the rest with the defaults and names every problem at once. A key that the assistant doesn't know changes nothing, so check fails on it and names the key that was probably meant, while the other commands warn of it and keep the default.
+  read(["labels.toml and<br/>config.toml"]) --> toml{"TOML?"}
+  toml -- "no" --> broken["every command stops,<br/>naming the line"]
+  toml -- "yes" --> typed{"each value of<br/>its key's type?"}
+  typed -- "no" --> which{"check?"}
+  which -- "no" --> stops["the command stops,<br/>naming each value"]
+  which -- "yes" --> named["check names it<br/>with every other problem"]
+  typed -- "yes" --> known{"each key<br/>known?"}
+  known -- "no" --> typo["check fails with the key<br/>that was probably meant;<br/>other commands warn"]
+  known -- "yes" --> runs["the command runs"]
+  classDef source fill:#d4a72c33,stroke:#bf8700
+  classDef question fill:#d4a72c33,stroke:#bf8700
+  classDef stop fill:#cf222e26,stroke:#cf222e
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class read source
+  class toml,typed,which,known question
+  class broken,stops,named,typo stop
+  class runs safe
+```
+
+The `labels` of an issue form may be a list or one text of names separated by commas, as GitHub allows, and the area field may be a dropdown with `multiple: true`: each option that a reporter chooses adds its label.
+
 <!-- --8<-- [end:settings] -->
 <!-- --8<-- [start:findings] -->
 
@@ -593,10 +620,10 @@ tool = "Scorecard"        # the tool as code scanning names it
 rule = "CodeReviewID"     # the rule, such as py/unused-import
 reason = "won't fix"      # false positive, won't fix or used in tests
 comment = "One maintainer: nobody else can approve a pull request."
-# path = "tests/"         # optional: only alerts in files under this path
+# path = "tests/"         # optional: only alerts in this file or folder
 ```
 
-The Findings workflow dismisses every open alert that an entry covers, with the entry's reason and comment, and fails while any other alert is open. GitHub tells the maintainer about the failed run; its summary links the alerts by number. `check` makes sure that every entry has a tool, a rule, one of GitHub's reasons and a comment. Code scanning needs the workflow's `security-events: write`; Dependabot's and secret scanning's alerts are out of its reach and stay with Dependabot's own pull requests and notifications.
+The Findings workflow dismisses every open alert that an entry covers, with the entry's reason and comment, and fails while any other alert is open. GitHub tells the maintainer about the failed run; its summary links the alerts by number. `check` makes sure that every entry has a tool, a rule, one of GitHub's reasons and a comment, and no key that it doesn't know: a typo such as `paths` would accept the alerts of the rule in every file, so it stops the Findings workflow too. Code scanning needs the workflow's `security-events: write`; Dependabot's and secret scanning's alerts are out of its reach and stay with Dependabot's own pull requests and notifications.
 
 A daily run with one accepted and one open finding, in a demo project:
 
@@ -632,9 +659,9 @@ The action runs `issue_assistant.py` with one command:
 | `context` | analyze | writes the issue, the other issues, the discussions, the labels, the prompt and the schema into `.issue-assistant/` |
 | `apply` | apply | checks the AI's answer and posts it |
 | `sweep` | lifecycle | reminds, closes unanswered issues and duplicates, marks fixed issues and closes them with the release |
-| `sync-labels` | labels | creates and updates the labels |
+| `sync-labels` | labels | creates and updates the labels, and renames those that the repository has in another case |
 | `findings` | findings | dismisses the accepted findings of code scanning and fails while others are open; needs no other settings |
-| `check` | your CI | checks labels, issue forms, workflows, firewall, settings and the notice to reporters |
+| `check` | your CI | checks labels, issue forms, workflows, firewall, settings, the description of the project and the notice to reporters, and names every key it doesn't know |
 
 `install` runs from a checkout, as above. `install`, `check` and `engine` read only the checkout; the other commands call GitHub, for the repository that `GH_REPO` names as `owner/name`, or else the workflow's `GITHUB_REPOSITORY`. Every command but `install` and `check` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment:
 
@@ -734,6 +761,10 @@ The summary of each run says what the assistant did and why; the runs are under 
 | `analyze` waits for a runner | The runs of one issue wait for each other, first in, first out; or the runner `ubuntu-24.04-firewall` is not available to the repository | Wait for the run before it. A job that finds no runner fails after 24 hours: check the [preview's README](https://github.com/github-early-access/actions-native-egress-firewall), and set `ISSUE_ASSISTANT_AI` to `off` meanwhile |
 | `analyze` waits for a review | The environment `issue-assistant` requires reviewers | Remove the reviewers; the rule that only the default branch may use the environment is the protection it needs |
 | A step of `analyze` fails to connect, and the summary of the run lists a denied host | The egress firewall blocked a host that the engine's action needs, often after an update of the action | Update to the latest release and run `install` again. It keeps your firewall policy, and `check` then names each host of the template that the policy misses, to add there |
+| Every run fails with *is no valid TOML* or *must be a whole number*, *a string*, *a list of strings* or *true or false* | A settings file isn't TOML, or a value has the wrong type, such as a number in quotes | Fix the file and the key that the error names; run `check` to see every problem at once |
+| Runs warn of an *unknown key* or a key that *belongs in the section* of another | A key has a typo or stands in the wrong section, so the assistant keeps its default | Rename or move the key as the warning suggests; `check` fails on it in your CI |
+| `check` says *replace the starter's first line* of `project.md` | The file still describes no project, and the AI reads it before every task | Write what the project does and for whom, and where its code and documentation are |
+| `check` says that labels *differ only in case* | GitHub takes `bug` and `Bug` for one label | Keep one of them in `.github/labels.toml` |
 | `check` says that a workflow *differs from the template of the issue assistant* | The workflow was changed by hand, or comes from another release than the action that it pins | Run `install` again with the release that the workflows pin |
 | An issue closed when its fix was merged, not with the release | GitHub closes the issues that a merged pull request names | Under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**; a repository without releases sets `close_with_release = false` |
 | An issue with `fixed-in-next-release` stays open after a release | The release is a draft or a pre-release, it doesn't contain every pull request that fixes the issue, or a maintainer set the label by hand after it, which waits for the next one | Publish a final release that contains the fixes; the sweep of the next morning closes the issue, or start *Issue lifecycle* by hand |

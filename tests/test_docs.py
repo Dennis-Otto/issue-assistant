@@ -1197,11 +1197,14 @@ def test_the_reference_of_config_toml_has_every_key_with_its_default(root: Path)
     loaded = assistant.load_config(root, "owner/name")
     for key, (attribute, value) in SETTINGS.items():
         assert plain(getattr(loaded, attribute)) == value, key
-    # And the assistant reads no key that the reference leaves out.
-    source = inspect.getsource(assistant.load_config)
-    read = set(re.findall(r'\.get\(\s*"(\w+)"', source))
-    assert read == set(sections) | {
-        name for values in sections.values() for name in values
+    # And the assistant knows no key that the reference leaves out.
+    assert {
+        f"[{section}] {name}": (key.attribute, key.kind)
+        for section, keys in assistant.CONFIG_KEYS.items()
+        for name, key in keys.items()
+    } == {
+        key: (attribute, list if isinstance(value, list) else type(value))
+        for key, (attribute, value) in SETTINGS.items()
     }
 
 
