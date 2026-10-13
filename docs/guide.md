@@ -1,4 +1,5 @@
 ---
+title: Guide
 description: The guide to the issue assistant, a page for each topic - how it works, its configuration, the reference of its commands and action, and every comment it posts.
 ---
 
