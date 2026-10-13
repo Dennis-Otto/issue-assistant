@@ -26,17 +26,19 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 
 ```mermaid
 flowchart LR
+  accTitle: The four workflows of a repository and what starts them
+  accDescr: A change of labels.toml starts sync-labels in labels.yml. A scan of code scanning on main and every morning start findings in findings.yml. Every morning, a merged pull request, a published release and the end of a release run that no schedule started start sweep in issue-lifecycle.yml. A new issue, an edit or a comment starts issue-assistant.yml, where event chooses the next task, analyze lets the AI read the checkout and answer with JSON, and apply checks the answer and is the only job that writes.
   changed(["change of<br/>labels.toml"]) --> sync
   subgraph labelling ["labels.yml"]
     sync["<b>sync-labels</b><br/>creates and updates<br/>the labels"]
   end
-  scanned(["code scanning"]) --> findings
+  scanned(["a scan of code<br/>scanning on main"]) --> findings
   subgraph scanning ["findings.yml"]
     findings["<b>findings</b><br/>dismisses accepted findings,<br/>fails on the others"]
   end
   daily(["every morning"]) --> findings
   daily --> sweep
-  shipped(["merged pull request,<br/>published release"]) --> sweep
+  shipped(["merged pull request,<br/>published release,<br/>end of a release run"]) --> sweep
   subgraph lifecycle ["issue-lifecycle.yml"]
     sweep["<b>sweep</b><br/>reminders, closing,<br/>duplicates, fixed issues"]
   end
@@ -57,9 +59,9 @@ flowchart LR
 | Workflow | Jobs |
 | --- | --- |
 | `issue-assistant.yml` | `event` decides the next task; `analyze` writes the context and runs the engine with a read-only token, on GitHub's egress-firewall runner; `apply` checks the answer and writes it |
-| `issue-lifecycle.yml` | `sweep`, every morning, after merged pull requests, published releases and the end of the release workflow |
+| `issue-lifecycle.yml` | `sweep`, every morning, after merged pull requests, published releases and the end of a run of the release workflow that no schedule started |
 | `labels.yml` | `sync-labels`, when `labels.toml` changes on the default branch |
-| `findings.yml` | `findings`, every morning, after code scanning and when `findings.toml` changes |
+| `findings.yml` | `findings`, every morning, after each scan of code scanning on the default branch and when `findings.toml` changes |
 
 ## One run for a new issue
 
@@ -86,6 +88,54 @@ sequenceDiagram
 ```
 
 `install` copies the workflows of `templates/` with the commit hash of the release, and `check` fails when a repository's copy differs in anything but the commit hashes of its actions.
+
+## Waiting, runners and the network
+
+**The events of one issue wait in line.** The runs of `issue-assistant.yml` for one issue share the concurrency group `issue-assistant-<number>` with `queue: max`: up to 100 runs wait for their turn, first in, first out. An analysis takes about two and a half minutes, and without the queue a group keeps a single waiting run, which the next event cancels. A reporter who answered twice during an analysis then got no follow-up to the first answer, and a "still broken" after a release could stay without effect.
+
+```mermaid
+sequenceDiagram
+  accTitle: Comments while an analysis runs
+  accDescr: A new issue starts the first run, which analyzes it. Two comments arrive during the analysis; their runs wait in the group of the issue, first in, first out. When the analysis is posted, the run of the first comment follows, then the run of the second one. Without the queue, the second run would have cancelled the first waiting one.
+  participant G as GitHub
+  participant Q as group issue-assistant-12
+  G->>Q: #35;12 opened: run 1 analyzes
+  G->>Q: comment 1: run 2 waits
+  G->>Q: comment 2: run 3 waits behind run 2
+  Note over Q: without the queue, run 3<br/>would cancel run 2
+  Q->>G: run 1 posts the analysis
+  Q->>G: run 2, then run 3
+```
+
+**A run with nothing to do takes no runner and no place in a line.** The sweep and the findings work on the whole repository, so one waiting run is enough, and their jobs, not their runs, wait in the groups `issue-lifecycle` and `findings`. A run waits for the group of its workflow before its jobs check their conditions, so a run that would only skip its job, such as after the scan of a pull request, took the place of a waiting one that had work to do; a skipped job never enters the group of a job. The release workflow of the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint) runs every hour as a safety net and mostly releases nothing: the lifecycle skips the ends of these scheduled runs, and the morning sweep catches a release that one of them made.
+
+**The jobs without the AI reach only GitHub.** Every job runs on `ubuntu-24.04`, so a new image behind `ubuntu-latest` never reaches the repositories untested. The jobs that write start with Harden-Runner in block mode; the AI runs behind GitHub's egress firewall instead. [Decision 0008](decisions/0008-the-jobs-that-write-reach-only-github.md) explains why:
+
+```mermaid
+flowchart TB
+  accTitle: Where the jobs run and which hosts they reach
+  accDescr: The jobs event, apply, sweep, sync-labels and findings run on ubuntu-24.04 behind Harden-Runner in block mode, without sudo and containers, and reach api.github.com and github.com. The job analyze runs on ubuntu-24.04-firewall and reaches the hosts of .github/egress-firewall.yaml. Every other host is blocked for both.
+  subgraph blocked ["ubuntu-24.04, Harden-Runner: block, no sudo, no containers"]
+    writers["<b>event</b>, <b>apply</b>, <b>sweep</b>,<br/><b>sync-labels</b>, <b>findings</b><br/>no AI, a write token"]
+  end
+  subgraph firewall ["ubuntu-24.04-firewall, GitHub's egress firewall"]
+    analyze["<b>analyze</b><br/>the AI, a read-only token"]
+  end
+  writers --> github[("api.github.com<br/>github.com")]
+  analyze --> hosts[("the hosts of<br/>egress-firewall.yaml")]
+  writers --x other(["every other host"])
+  analyze --x other
+  classDef ai fill:#8250df33,stroke:#8250df
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef untrusted fill:#cf222e26,stroke:#cf222e
+  class analyze ai
+  class writers job
+  class github,hosts safe
+  class other untrusted
+```
+
+The checkout reaches `github.com` and the GitHub CLI `api.github.com`; Harden-Runner allows the hosts of the runner itself, such as those of the logs and the summary. The action turns off the telemetry of the GitHub CLI, which would only knock at a blocked host. The job `egress` of the Action test runs the action behind the same block, so a host that it starts to need fails there, before a release blocks it in every repository. In a private repository the block needs a subscription or trial of StepSecurity; without one, Harden-Runner lets the job run unblocked, as the [security design](security.md) says among its residual risks.
 
 ## How a change of a template reaches the repositories
 
@@ -123,7 +173,7 @@ flowchart TB
 
 1. **A pull request here** changes `templates/`, never the copies in `.github/`. `tests/test_templates.py` pins the rules of the templates. The Action test lints them with actionlint and zizmor, installs them into the sample repository and into a copy of this repository, and checks both set-ups through the action. The required check `issue-assistant` runs `check` of the release that the Lint workflow pins, on this repository's own copies, which the pull request leaves as they are.
 2. **The release** of the change is a new minor version, and its notes say that repositories run `install` again.
-3. **The blueprint takes the release over** in a pull request of its own: it runs `install` of the release in its root, takes over the firewall policy of `templates/` and moves every pin of the action, that of the check in its Lint workflow too. A pull request that changed only the blueprint's copies would fail the check `issue-assistant` there in the same way.
+3. **The blueprint takes the release over** in a pull request of its own: it runs `install` of the release in its root, takes over the firewall policy of `templates/` and moves every pin of the action, that of the check in its Lint workflow too. It also adapts its own checks to the templates when they need it, as when actionlint had to ignore the queue of a concurrency group, which it doesn't know yet. A pull request that changed only the blueprint's copies would fail the check `issue-assistant` there in the same way.
 4. **The next release of the blueprint** reaches every repository made from it, this one too, as an update pull request of the blueprint bot. Repositories that use the action without the blueprint receive the release as a Dependabot pull request and run `install` again.
 
 ## Reading the text of issues
