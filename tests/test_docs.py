@@ -190,7 +190,22 @@ def test_the_readme_and_the_home_page_show_every_variant_of_the_hero():
         assert sources(document.read_text("utf-8"))[0] == HERO, document.name
 
 
-# The hook of the website.
+# The hooks of the website.
+
+
+def test_the_website_runs_the_hooks_of_the_blueprint_too():
+    # The hooks of mkdocs.yml replace those of .github/mkdocs-blueprint.yml, whose
+    # hook tries a failed download again: without it, one slow answer of the server
+    # of a font fails the strict build of a pull request.
+    blueprint = (ROOT / ".github" / "mkdocs-blueprint.yml").read_text("utf-8")
+    # Read as text: the file has tags of Python that a safe loader refuses.
+    block = re.search(r"^hooks:\n((?:  - .+\n)+)", blueprint, re.MULTILINE)
+    assert block
+    inherited = re.findall(r"^  - (.+)$", block[1], re.MULTILINE)
+    assert inherited == [".github/mkdocs_blueprint.py"]
+    own = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))["hooks"]
+    assert own == [*inherited, "scripts/mkdocs_hooks.py"]
+    assert all((ROOT / hook).is_file() for hook in own)
 
 
 def test_the_website_shows_its_own_copies_of_the_pictures(docs: Path):
@@ -492,6 +507,28 @@ def test_the_website_and_the_repository_describe_the_project_alike(settings):
     assert description.startswith(tagline(readme).rstrip("."))
     # GitHub takes a description of at most 350 characters.
     assert len(description) <= 350
+
+
+def test_the_issue_chooser_leads_to_the_documentation_and_the_discussions(settings):
+    chooser = yaml.safe_load(
+        (ROOT / ".github" / "ISSUE_TEMPLATE" / "config.yml").read_text("utf-8")
+    )
+    # Without blank issues, a question that is neither a bug nor a feature request
+    # needs a way out of the chooser: the discussions, as SUPPORT.md says.
+    assert chooser["blank_issues_enabled"] is False
+    links = {link["name"]: link["url"] for link in chooser["contact_links"]}
+    website = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))
+    assert links["Documentation"] == website["site_url"] == settings["homepage"]
+    discussions = f"{website['repo_url']}/discussions"
+    assert settings["has_discussions"] and links["Question or idea"] == discussions
+    assert f"({discussions})" in (ROOT / "SUPPORT.md").read_text("utf-8")
+    # The links of the blueprint's chooser come first, with its names, as in every
+    # repository made from the blueprint; those of this project follow.
+    assert list(links)[:3] == [
+        "Documentation",
+        "Security vulnerability",
+        "Question or idea",
+    ]
 
 
 def test_the_repository_has_topics_that_github_takes(settings):
