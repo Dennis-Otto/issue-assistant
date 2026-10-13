@@ -24,6 +24,7 @@ import re
 import subprocess
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -118,13 +119,20 @@ class Request:
     rest: dict[str, Any] = field(default_factory=dict)
 
 
-def pull(number: int, *, merged: bool = True, base: str = "main") -> dict[str, Any]:
+def pull(
+    number: int,
+    *,
+    merged: bool = True,
+    base: str = "main",
+    repository: str = REPOSITORY,
+) -> dict[str, Any]:
     return {
         "number": number,
         "merged": merged,
         "mergedAt": "2026-10-06T12:00:00Z" if merged else None,
         "baseRefName": base,
         "mergeCommit": {"oid": REF} if merged else None,
+        "repository": {"nameWithOwner": repository},
     }
 
 
@@ -142,22 +150,31 @@ CLOSED = {"closeIssue": {"issue": {"number": 12}}}
 
 REQUESTS = {
     "merged pull requests": Request(
-        lambda github: github.merged_pulls(),
+        lambda github: github.merged_pulls(datetime(2026, 9, 23, 12, tzinfo=UTC)),
         {
             "repository": {
                 "defaultBranchRef": {"name": "main"},
                 "pullRequests": {
-                    "nodes": [pull(31) | {"closingIssuesReferences": FIXES}]
+                    "pageInfo": {"hasNextPage": False, "endCursor": "Y3Vyc29yOjE="},
+                    "nodes": [
+                        pull(31)
+                        | {
+                            "updatedAt": "2026-10-06T13:00:00Z",
+                            "closingIssuesReferences": FIXES,
+                        }
+                    ],
                 },
             }
         },
-        # Without `merged`, which GitHub holds but the document doesn't ask for.
+        # Without `merged` and `repository`, which GitHub holds but the document
+        # doesn't ask for.
         (
             "main",
             [
                 {
                     "number": 31,
                     "mergedAt": "2026-10-06T12:00:00Z",
+                    "updatedAt": "2026-10-06T13:00:00Z",
                     "baseRefName": "main",
                     "mergeCommit": {"oid": REF},
                     "closingIssuesReferences": FIXES,
@@ -176,6 +193,7 @@ REQUESTS = {
                             pull(31),
                             pull(32, merged=False),
                             pull(33, base="release"),
+                            pull(34, repository="someone/else"),
                         ]
                     }
                 },
