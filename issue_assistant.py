@@ -17,6 +17,7 @@ without one.
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -123,6 +124,11 @@ LIFECYCLE = (
     FIXED,
 )
 GROUPS = ("type", "area", "topic", "lifecycle", "decision", "release", "dependabot")
+# The longest label name that GitHub takes.
+MAX_LABEL_NAME = 50
+# project.md tells the AI what the project is, before every task: not the starter's
+# placeholder, and at least this many characters.
+MIN_PROJECT = 80
 
 MODES = ("triage", "follow-up", "maintainer-reply", "release-reply")
 # The tasks that reporters start, which the limits of the AI runs apply to; a
@@ -310,6 +316,14 @@ class AssistantError(Exception):
     """The assistant refuses to act, for example on an answer that fails the checks."""
 
 
+class SettingsError(AssistantError):
+    """Settings that the assistant can't use, with each of their problems."""
+
+    def __init__(self, problems: list[str]) -> None:
+        super().__init__("\n".join(problems))
+        self.problems = problems
+
+
 # gh writes `gh: <message> (HTTP <status>)` for a failed REST call, and `gh: HTTP
 # <status>` when GitHub answered without JSON, such as in an incident.
 HTTP_STATUS = re.compile(r"\bHTTP (\d{3})\b")
@@ -487,15 +501,19 @@ class Acceptance:
     rule: str
     reason: str
     comment: str
-    # Only alerts in files under this path; empty for every file.
+    # Only alerts in this file or in the files of this folder; empty for every file.
     path: str = ""
 
     def covers(self, alert: dict[str, Any]) -> bool:
         location = (alert.get("most_recent_instance") or {}).get("location") or {}
+        path = str(location.get("path") or "")
+        # A folder covers its files, not every name that starts alike: tests covers
+        # tests/test_a.py, but not testsuite/test_a.py.
+        folder = self.path.rstrip("/")
         return (
             (alert.get("tool") or {}).get("name", "").casefold() == self.tool.casefold()
             and (alert.get("rule") or {}).get("id") == self.rule
-            and str(location.get("path") or "").startswith(self.path)
+            and (not folder or path == folder or path.startswith(f"{folder}/"))
         )
 
 
@@ -519,6 +537,9 @@ class Config:
     max_per_day: int = MAX_PER_DAY
     max_per_author_per_day: int = MAX_PER_AUTHOR_PER_DAY
     release_replies: int = RELEASE_REPLIES
+    # What `check` reports of labels.toml and config.toml beyond its own checks: the
+    # values that the assistant can't use and the keys that it doesn't know.
+    problems: tuple[str, ...] = ()
 
     @property
     def blob(self) -> str:
@@ -537,54 +558,235 @@ class Config:
         }
 
 
-def load_labels(path: Path) -> tuple[Label, ...]:
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
-    return tuple(
-        Label(
-            name=item["name"],
-            color=item["color"].lower(),
-            description=item["description"],
-            group=item["group"],
-            form_options=tuple(item.get("form_options", ())),
-            ask=item.get("ask", True),
+@dataclass(frozen=True)
+class Key:
+    """A key of config.toml: the attribute of Config that it sets, and its type."""
+
+    attribute: str
+    # str, bool, int for a whole number, or list for a list of strings.
+    kind: type
+    # The value of the attribute, from the value in the file.
+    convert: Callable[[Any], Any] = lambda value: value
+
+
+# Every key of config.toml, by its section. A key that isn't here is a typo, which
+# would keep the default unnoticed.
+CONFIG_KEYS: dict[str, dict[str, Key]] = {
+    "engine": {
+        "name": Key("engine", str),
+        "model": Key("model", str),
+        "max_per_day": Key("max_per_day", int),
+        "max_per_author_per_day": Key("max_per_author_per_day", int),
+        "release_replies": Key("release_replies", int),
+    },
+    "links": {"hosts": Key("hosts", list, frozenset)},
+    "forms": {
+        "area_field": Key("area_field", str),
+        "unmapped_options": Key("unmapped_options", list, tuple),
+    },
+    "transparency": {"files": Key("notices", list, tuple)},
+    "releases": {"close_with_release": Key("releases", bool)},
+}
+# The keys of a [[label]] of labels.toml with their types; the first four are needed.
+LABEL_KEYS: dict[str, type] = {
+    "name": str,
+    "color": str,
+    "description": str,
+    "group": str,
+    "form_options": list,
+    "ask": bool,
+}
+NEEDED_LABEL_KEYS = ("name", "color", "description", "group")
+# The keys of an [[accept]] of findings.toml; all but path are needed.
+ACCEPT_KEYS = ("tool", "rule", "reason", "comment", "path")
+KINDS = {
+    str: "a string",
+    bool: "true or false",
+    int: "a whole number",
+    list: "a list of strings",
+}
+
+
+def fits(value: object, kind: type) -> bool:
+    """Whether a value of a settings file has the type of its key."""
+    if kind is list:
+        return isinstance(value, list) and all(isinstance(item, str) for item in value)
+    # Python's True is an int, but TOML's true is no whole number.
+    return isinstance(value, kind) and (kind is bool or not isinstance(value, bool))
+
+
+def did_you_mean(
+    problem: str, name: str, known: Iterable[str], form: str = "{}"
+) -> str:
+    """A problem with a name that the assistant doesn't know, and the known name that
+    it probably means, or else every known name, each written in `form`."""
+    names = list(known)
+    close = difflib.get_close_matches(name, names, n=1)
+    if close:
+        return f"{problem}; did you mean {form.format(close[0])}?"
+    return f"{problem}; known: {', '.join(form.format(item) for item in names)}"
+
+
+@dataclass
+class Problems:
+    """What reading the settings found."""
+
+    # Values that the assistant can't use, which stop every command.
+    wrong: list[str] = field(default_factory=list)
+    # Keys that it doesn't know, which change nothing.
+    unknown: list[str] = field(default_factory=list)
+
+
+def read_toml(path: Path, where: PurePosixPath) -> dict[str, Any]:
+    """A settings file; one that isn't TOML stops every command."""
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+        raise SettingsError([f"{where} is no valid TOML: {error}"]) from None
+
+
+def load_labels(path: Path, problems: Problems) -> tuple[Label, ...]:
+    """The labels of labels.toml; a label that can't be used is left out."""
+    data = read_toml(path, LABELS_FILE)
+    for name in data:
+        if name in LABEL_KEYS:
+            problems.unknown.append(f"{LABELS_FILE}: {name} belongs in a [[label]]")
+        elif name != "label":
+            problems.unknown.append(
+                did_you_mean(f"{LABELS_FILE}: unknown key {name}", name, ["label"])
+            )
+    items = data.get("label", [])
+    if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
+        problems.wrong.append(
+            f"{LABELS_FILE}: each label must be a table, [[label]], with its keys "
+            "below it"
         )
-        for item in data["label"]
-    )
+        return ()
+    labels = []
+    for number, item in enumerate(items, start=1):
+        name = item.get("name")
+        where = (
+            f"{LABELS_FILE}: the label {name}"
+            if isinstance(name, str) and name
+            else f"{LABELS_FILE}: label {number}"
+        )
+        for key in item:
+            if key not in LABEL_KEYS:
+                problems.unknown.append(
+                    did_you_mean(f"{where}: unknown key {key}", key, LABEL_KEYS)
+                )
+        missing = [key for key in NEEDED_LABEL_KEYS if key not in item]
+        wrong = [
+            key
+            for key, kind in LABEL_KEYS.items()
+            if key in item and not fits(item[key], kind)
+        ]
+        if missing:
+            problems.wrong.append(f"{where} needs {', '.join(missing)}")
+        for key in wrong:
+            problems.wrong.append(f"{where}: {key} must be {KINDS[LABEL_KEYS[key]]}")
+        if not missing and not wrong:
+            labels.append(
+                Label(
+                    name=item["name"],
+                    color=item["color"].lower(),
+                    description=item["description"],
+                    group=item["group"],
+                    form_options=tuple(item.get("form_options", ())),
+                    ask=item.get("ask", True),
+                )
+            )
+    return tuple(labels)
 
 
-def load_config(root: Path, repository: str) -> Config:
-    """The settings of the repository in `root`; config.toml is optional."""
+def read_settings(path: Path, problems: Problems) -> dict[str, Any]:
+    """The attributes of Config that config.toml sets; none without the file."""
+    if not path.is_file():
+        return {}
+    where = SETTINGS / "config.toml"
+    home = {name: section for section, keys in CONFIG_KEYS.items() for name in keys}
+    values: dict[str, Any] = {}
+    for section, table in read_toml(path, where).items():
+        keys = CONFIG_KEYS.get(section)
+        if keys is None and section in home:
+            problems.unknown.append(
+                f"{where}: {section} belongs in the section [{home[section]}]"
+            )
+        elif keys is None:
+            problems.unknown.append(
+                did_you_mean(
+                    f"{where}: unknown section [{section}]",
+                    section,
+                    CONFIG_KEYS,
+                    "[{}]",
+                )
+            )
+        elif not isinstance(table, dict):
+            problems.wrong.append(
+                f"{where}: {section} must be a section, [{section}], with its keys "
+                "below it"
+            )
+        else:
+            for name, value in table.items():
+                key = keys.get(name)
+                if key is None and name in home:
+                    problems.unknown.append(
+                        f"{where}: {name} belongs in the section [{home[name]}], "
+                        f"not in [{section}]"
+                    )
+                elif key is None:
+                    problems.unknown.append(
+                        did_you_mean(
+                            f"{where}: unknown key {name} in [{section}]", name, keys
+                        )
+                    )
+                elif not fits(value, key.kind):
+                    problems.wrong.append(
+                        f"{where}: [{section}] {name} must be {KINDS[key.kind]}"
+                    )
+                else:
+                    values[key.attribute] = key.convert(value)
+    return values
+
+
+def load_config(root: Path, repository: str, *, lenient: bool = False) -> Config:
+    """The settings of the repository in `root`; config.toml is optional.
+
+    A file that isn't TOML stops every command. So does a value that the assistant
+    can't use, such as a word where a number belongs, with one error that names each
+    such value; only `check` reads the rest, `lenient`, and reports them with its
+    other problems. A key that the assistant doesn't know changes nothing, so that a
+    typo would keep a default unnoticed: `check` fails on it, and the other commands
+    warn of it.
+    """
     project_file = root / SETTINGS / "project.md"
     if not project_file.is_file() or not (root / LABELS_FILE).is_file():
         raise AssistantError(
             f"{LABELS_FILE} and {SETTINGS / 'project.md'} are needed; "
             "see https://github.com/Dennis-Otto/issue-assistant#set-up-a-repository."
         )
-    settings_file = root / SETTINGS / "config.toml"
-    settings = (
-        tomllib.loads(settings_file.read_text(encoding="utf-8"))
-        if settings_file.is_file()
-        else {}
-    )
-    engine = settings.get("engine", {})
-    forms = settings.get("forms", {})
+    try:
+        project = project_file.read_text(encoding="utf-8").strip()
+    except UnicodeDecodeError as error:
+        raise SettingsError(
+            [f"{SETTINGS / 'project.md'} is no UTF-8 text: {error}"]
+        ) from None
+    problems = Problems()
+    labels = load_labels(root / LABELS_FILE, problems)
+    values = read_settings(root / SETTINGS / "config.toml", problems)
+    if lenient:
+        values["problems"] = (*problems.wrong, *problems.unknown)
+    elif problems.wrong:
+        raise SettingsError(problems.wrong)
+    else:
+        for problem in problems.unknown:
+            command("warning", problem)
     return Config(
         root=root,
         repository=repository,
-        labels=load_labels(root / LABELS_FILE),
-        project=project_file.read_text(encoding="utf-8").strip(),
-        engine=engine.get("name", DEFAULT_ENGINE),
-        model=engine.get("model", ""),
-        hosts=frozenset(settings.get("links", {}).get("hosts", ())),
-        area_field=forms.get("area_field", "Area"),
-        unmapped_options=tuple(forms.get("unmapped_options", ("Other",))),
-        notices=tuple(settings.get("transparency", {}).get("files", ("SUPPORT.md",))),
-        releases=settings.get("releases", {}).get("close_with_release", True),
-        max_per_day=engine.get("max_per_day", MAX_PER_DAY),
-        max_per_author_per_day=engine.get(
-            "max_per_author_per_day", MAX_PER_AUTHOR_PER_DAY
-        ),
-        release_replies=engine.get("release_replies", RELEASE_REPLIES),
+        labels=labels,
+        project=project,
+        **values,
     )
 
 
@@ -606,14 +808,16 @@ def load_findings(root: Path) -> tuple[Acceptance, ...]:
     """The accepted findings of .github/findings.toml; none without the file.
 
     Only the findings command and the check read it, so a broken file never stops
-    the work on issues.
+    the work on issues. A key that it doesn't know stops them, since a typo such as
+    `paths` would accept the findings of a rule in every file.
     """
     path = root / FINDINGS_FILE
     if not path.is_file():
         return ()
+    data = read_toml(path, FINDINGS_FILE)
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-        return tuple(
+        items = data.get("accept", [])
+        accepted = tuple(
             Acceptance(
                 tool=str(item["tool"]),
                 rule=str(item["rule"]),
@@ -621,13 +825,30 @@ def load_findings(root: Path) -> tuple[Acceptance, ...]:
                 comment=str(item["comment"]),
                 path=str(item.get("path", "")),
             )
-            for item in data.get("accept", [])
+            for item in items
         )
-    except (tomllib.TOMLDecodeError, KeyError, TypeError) as error:
-        raise AssistantError(
-            f"{FINDINGS_FILE}: every [[accept]] needs tool, rule, reason and comment "
-            f"({type(error).__name__}: {error})"
+    except (KeyError, TypeError) as error:
+        raise SettingsError(
+            [
+                f"{FINDINGS_FILE}: every [[accept]] needs tool, rule, reason and "
+                f"comment ({type(error).__name__}: {error})"
+            ]
         ) from error
+    problems = [
+        did_you_mean(f"{FINDINGS_FILE}: unknown key {name}", name, ["accept"])
+        for name in data
+        if name != "accept"
+    ]
+    for item, acceptance in zip(items, accepted, strict=True):
+        where = f"{FINDINGS_FILE}: {acceptance.tool} {acceptance.rule}"
+        problems += [
+            did_you_mean(f"{where}: unknown key {key}", key, ACCEPT_KEYS)
+            for key in item
+            if key not in ACCEPT_KEYS
+        ]
+    if problems:
+        raise SettingsError(problems)
+    return accepted
 
 
 def label_names(issue: dict[str, Any]) -> set[str]:
@@ -759,7 +980,7 @@ class GitHub:
 
     def open_issues(self, label: str) -> list[dict[str, Any]]:
         items = self.rest(
-            f"issues?state=open&labels={quote(label)}&per_page=100", pages=True
+            f"issues?state=open&labels={quote(label, safe='')}&per_page=100", pages=True
         )
         return [item for item in items if "pull_request" not in item]
 
@@ -1026,7 +1247,10 @@ class GitHub:
     def remove_label(self, number: int, name: str) -> None:
         def remove() -> None:
             try:
-                self.rest(f"issues/{number}/labels/{quote(name)}", method="DELETE")
+                # A label name is one part of the path, also with a slash.
+                self.rest(
+                    f"issues/{number}/labels/{quote(name, safe='')}", method="DELETE"
+                )
             except GitHubError as error:
                 # Not on the issue; a missing issue is an error.
                 if not (error.missing() and "Label does not exist" in str(error)):
@@ -1178,13 +1402,17 @@ class GitHub:
             ),
         )
 
-    def update_label(self, label: Label) -> None:
+    def update_label(self, label: Label, current: str | None = None) -> None:
+        """Set the color and the description of a label, and its name where GitHub
+        has it as `current`, in another case."""
+        name = current or label.name
+        data = {"color": label.color, "description": label.description}
+        if name != label.name:
+            data["new_name"] = label.name
         self._write(
-            f"update label {label.name}",
+            f"update label {name}",
             lambda: self.rest(
-                f"labels/{quote(label.name)}",
-                method="PATCH",
-                data={"color": label.color, "description": label.description},
+                f"labels/{quote(name, safe='')}", method="PATCH", data=data
             ),
         )
 
@@ -1265,10 +1493,15 @@ def form_fields(body: str) -> dict[str, str]:
 
 
 def form_labels(issue: dict[str, Any], config: Config) -> list[str]:
+    """The labels that the answer of the area field chooses.
+
+    GitHub joins the options of a dropdown with `multiple: true` with ", "; an
+    option that holds ", " itself stays one answer.
+    """
     area = form_fields(text_of(issue)).get(config.area_field, "")
-    return [
-        label.name for label in config.labels if area and area in label.form_options
-    ]
+    options = {option for label in config.labels for option in label.form_options}
+    answers = {area} if area in options else set(area.split(", "))
+    return [label.name for label in config.labels if answers & set(label.form_options)]
 
 
 def detect_language(text: str) -> str:
@@ -2375,24 +2608,29 @@ def reference_link(
     """A checked link to a file of the repository, or None for a path that doesn't fit.
 
     Code lines link to the analyzed commit, so they stay right when the file changes;
-    files and headings link to the default branch.
+    files and headings link to the default branch. git also tracks a submodule, as a
+    folder, and a link that may lead nowhere; neither is a file to link to.
     """
     path = reference["path"].strip().removeprefix("./")
-    if path not in tracked or ".." in path.split("/"):
-        return None
     file = config.root / path
+    if path not in tracked or ".." in path.split("/") or not file.is_file():
+        return None
+    # A blank or a bracket in the path would end the address of the link.
+    address = quote(path)
     line = reference.get("line")
     anchor = (reference.get("anchor") or "").strip().lstrip("#").lower()
     if line:
         if line > len(file.read_text(encoding="utf-8", errors="replace").splitlines()):
             return None
         word = "Zeile" if language == "de" else "line"
-        return f"[`{path}`, {word} {line}]({config.blob}/{sha}/{path}#L{line})"
+        return f"[`{path}`, {word} {line}]({config.blob}/{sha}/{address}#L{line})"
     if anchor and path.endswith(".md"):
         titles = headings(file)
         if anchor in titles:
-            return f"[{titles[anchor]}]({config.blob}/HEAD/{path}#{anchor}) in `{path}`"
-    return f"[`{path}`]({config.blob}/HEAD/{path})"
+            return (
+                f"[{titles[anchor]}]({config.blob}/HEAD/{address}#{anchor}) in `{path}`"
+            )
+    return f"[`{path}`]({config.blob}/HEAD/{address})"
 
 
 # Comments of the assistant
@@ -3482,20 +3720,30 @@ def sweep_duplicate(github: GitHub, issue: dict[str, Any], now: datetime) -> lis
 
 
 def sync_labels(github: GitHub, config: Config) -> list[str]:
-    existing = {label["name"]: label for label in github.labels()}
+    """Create and update the labels of labels.toml; never delete one.
+
+    GitHub ignores the case of label names, so a label that it has in another case,
+    such as Bug for bug, is renamed; creating it would fail.
+    """
+    existing = {label["name"].casefold(): label for label in github.labels()}
     done = []
     for label in config.labels:
-        current = existing.get(label.name)
+        current = existing.get(label.name.casefold())
         if current is None:
             github.create_label(label)
             done.append(f"created {label.name}")
+        elif current["name"] != label.name:
+            github.update_label(label, current["name"])
+            done.append(f"renamed {current['name']} to {label.name}")
         elif (current.get("color") or "").lower() != label.color or (
             current.get("description") or ""
         ) != label.description:
             github.update_label(label)
             done.append(f"updated {label.name}")
-    configured = {label.name for label in config.labels}
-    for name in sorted(set(existing) - configured):
+    configured = {label.name.casefold() for label in config.labels}
+    for name in sorted(
+        label["name"] for key, label in existing.items() if key not in configured
+    ):
         command("notice", f"Label {name} is not in {LABELS_FILE}; it stays.")
     return done
 
@@ -3541,8 +3789,11 @@ def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
 # Checking a repository's set-up
 
 
-def load_yaml(path: Path) -> Any:
-    """A YAML file as data, with PyYAML or with yq, which GitHub's runners have."""
+def load_yaml(path: Path, where: str = "") -> Any:
+    """A YAML file as data, with PyYAML or with yq, which GitHub's runners have.
+
+    A file that isn't YAML is a SettingsError that names it as `where`.
+    """
     try:
         import yaml
     except ImportError:
@@ -3558,8 +3809,16 @@ def load_yaml(path: Path) -> Any:
                 "Reading the workflows needs PyYAML or yq; install one of them, "
                 "for example with: pip install pyyaml"
             ) from None
-        return json.loads(result.stdout)
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+        except subprocess.CalledProcessError as error:
+            reason = error.stderr.strip()
+        else:
+            return json.loads(result.stdout)
+    else:
+        try:
+            return yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (yaml.YAMLError, UnicodeDecodeError) as error:
+            reason = str(error)
+    raise SettingsError([f"{where or path} is no valid YAML: {reason}"])
 
 
 def normalized(node: Any, problems: list[str], where: str) -> Any:
@@ -3588,10 +3847,24 @@ def normalized(node: Any, problems: list[str], where: str) -> Any:
 
 def check_labels(config: Config) -> list[str]:
     problems = []
-    names = [label.name for label in config.labels]
-    for name in sorted({name for name in names if names.count(name) > 1}):
-        problems.append(f"{LABELS_FILE}: the label {name} is defined twice")
+    # GitHub ignores the case of label names: bug and Bug are one label for it.
+    spellings: dict[str, list[str]] = {}
     for label in config.labels:
+        spellings.setdefault(label.name.casefold(), []).append(label.name)
+    for names in sorted(spellings.values()):
+        if len(set(names)) > 1:
+            problems.append(
+                f"{LABELS_FILE}: the labels {', '.join(dict.fromkeys(names))} differ "
+                "only in case, which GitHub ignores"
+            )
+        elif len(names) > 1:
+            problems.append(f"{LABELS_FILE}: the label {names[0]} is defined twice")
+    for label in config.labels:
+        if not 0 < len(label.name) <= MAX_LABEL_NAME:
+            problems.append(
+                f"{LABELS_FILE}: the name '{label.name}' has {len(label.name)} "
+                f"characters; GitHub takes 1 to {MAX_LABEL_NAME}"
+            )
         if not re.fullmatch(r"[0-9a-f]{6}", label.color):
             problems.append(f"{LABELS_FILE}: {label.name} needs a color like 'd73a4a'")
         if not 0 < len(label.description) <= 100:
@@ -3624,9 +3897,20 @@ def check_forms(config: Config) -> list[str]:
     for path in sorted((config.root / ".github/ISSUE_TEMPLATE").glob("*.y*ml")):
         if path.stem == "config":
             continue
-        form = load_yaml(path)
         where = path.relative_to(config.root).as_posix()
-        for name in form.get("labels") or []:
+        try:
+            form = load_yaml(path, where)
+        except SettingsError as error:
+            problems += error.problems
+            continue
+        if not isinstance(form, dict):
+            problems.append(f"{where} is no issue form")
+            continue
+        names = form.get("labels") or []
+        # GitHub takes a list of names or one text of them separated by commas.
+        if isinstance(names, str):
+            names = [name.strip() for name in names.split(",") if name.strip()]
+        for name in names:
             if name not in defined:
                 problems.append(f"{where}: the label {name} is not in {LABELS_FILE}")
         for item in form.get("body") or []:
@@ -3663,7 +3947,7 @@ def check_workflows(config: Config) -> list[str]:
             problems.append(f"{where} is missing; run the install command")
             continue
         expected = normalized(load_yaml(template), [], template.name)
-        actual = normalized(load_yaml(path), problems, where)
+        actual = normalized(load_yaml(path, where), problems, where)
         if actual != expected:
             problems.append(
                 f"{where} differs from the template of the issue assistant; "
@@ -3673,7 +3957,7 @@ def check_workflows(config: Config) -> list[str]:
     if not firewall.is_file():
         problems.append(f"{FIREWALL} is missing; run the install command")
     else:
-        policy = load_yaml(firewall)
+        policy = load_yaml(firewall, str(FIREWALL))
         needed = set(load_yaml(TEMPLATES / FIREWALL)["allow"])
         hosts = set(policy.get("allow") or [])
         if policy.get("mode") != "enforce":
@@ -3687,9 +3971,10 @@ def check_workflows(config: Config) -> list[str]:
                 problems.append(f"{FIREWALL}: name the host {host} in full")
     actionlint = config.root / ACTIONLINT
     if actionlint.is_file():
-        labels = ((load_yaml(actionlint) or {}).get("self-hosted-runner") or {}).get(
-            "labels"
-        ) or []
+        labels = (
+            (load_yaml(actionlint, str(ACTIONLINT)) or {}).get("self-hosted-runner")
+            or {}
+        ).get("labels") or []
         if FIREWALL_RUNNER not in labels:
             problems.append(f"{ACTIONLINT}: list the runner {FIREWALL_RUNNER}")
     ignore = config.root / ".gitignore"
@@ -3710,10 +3995,6 @@ def check_config(config: Config) -> list[str]:
             problems.append(f"{SETTINGS / 'config.toml'}: {host} is no host name")
     if config.model and not is_model_name(config.model):
         problems.append(model_problem(config.model))
-    if not isinstance(config.releases, bool):
-        problems.append(
-            f"{SETTINGS / 'config.toml'}: close_with_release must be true or false"
-        )
     for key in LIMITS:
         try:
             limit(config, key)
@@ -3739,8 +4020,8 @@ def check_config(config: Config) -> list[str]:
 def check_accepted_findings(config: Config) -> list[str]:
     try:
         accepted = load_findings(config.root)
-    except AssistantError as error:
-        return [str(error)]
+    except SettingsError as error:
+        return error.problems
     problems = []
     for item in accepted:
         where = f"{FINDINGS_FILE}: {item.tool} {item.rule}"
@@ -3755,10 +4036,32 @@ def check_accepted_findings(config: Config) -> list[str]:
     return problems
 
 
+def check_project(config: Config) -> list[str]:
+    """project.md must tell the AI what the project is, which it reads first."""
+    where = SETTINGS / "project.md"
+    starter = (TEMPLATES / where).read_text(encoding="utf-8").splitlines()[0]
+    if starter in config.project or "ONE SENTENCE" in config.project:
+        return [
+            f"{where}: replace the starter's first line with what the project does "
+            "and for whom; the AI reads this file before every task"
+        ]
+    if len(config.project) < MIN_PROJECT:
+        return [
+            f"{where}: describe the project in at least {MIN_PROJECT} characters: "
+            "what it does, for whom, and where its code and documentation are"
+        ]
+    return []
+
+
 def check(config: Config) -> list[str]:
-    """Everything that keeps the repository's set-up safe and consistent."""
+    """Everything that keeps the repository's set-up safe and consistent.
+
+    The problems of reading the settings come first; `load_config` found them.
+    """
     return (
-        check_labels(config)
+        list(config.problems)
+        + check_project(config)
+        + check_labels(config)
         + check_forms(config)
         + check_workflows(config)
         + check_config(config)
@@ -3945,7 +4248,7 @@ def main(argv: list[str] | None = None) -> int:
             needed=arguments.command not in {"check", "engine"}
         )
         if arguments.command == "check":
-            problems = check(load_config(root, repository))
+            problems = check(load_config(root, repository, lenient=True))
             for problem in problems:
                 command("error", problem)
             summary("Issue assistant set-up", problems or ["Everything fits."], False)
@@ -4018,6 +4321,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             title = "Labels"
             done = sync_labels(github, config)
+    except SettingsError as error:
+        for problem in error.problems:
+            command("error", problem)
+        return 1
     except AssistantError as error:
         command("error", str(error))
         return 1

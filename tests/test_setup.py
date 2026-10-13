@@ -76,6 +76,191 @@ def test_settings_without_labels_or_project_are_refused(root):
         assistant.load_config(root, REPOSITORY)
 
 
+CONFIG = ".github/issue-assistant/config.toml"
+LABELS = ".github/labels.toml"
+LABEL = (
+    '[[label]]\nname = "bug"\ncolor = "d73a4a"\ndescription = "A bug"\ngroup = "type"\n'
+)
+
+
+@pytest.mark.parametrize(
+    ("file", "text", "problems"),
+    [
+        (
+            CONFIG,
+            'engine = "claude"\n',
+            [f"{CONFIG}: engine must be a section, [engine], with its keys below it"],
+        ),
+        (
+            CONFIG,
+            '[engine]\nname = 5\nmodel = ["x"]\nmax_per_day = "5"\n'
+            "max_per_author_per_day = true\nrelease_replies = 1.5\n",
+            [
+                f"{CONFIG}: [engine] name must be a string",
+                f"{CONFIG}: [engine] model must be a string",
+                f"{CONFIG}: [engine] max_per_day must be a whole number",
+                f"{CONFIG}: [engine] max_per_author_per_day must be a whole number",
+                f"{CONFIG}: [engine] release_replies must be a whole number",
+            ],
+        ),
+        (
+            CONFIG,
+            '[links]\nhosts = "docs.example.com"\n\n[forms]\narea_field = 3\n'
+            'unmapped_options = ["Other", 1]\n\n[transparency]\nfiles = "SUPPORT.md"\n'
+            '\n[releases]\nclose_with_release = "no"\n',
+            [
+                f"{CONFIG}: [links] hosts must be a list of strings",
+                f"{CONFIG}: [forms] area_field must be a string",
+                f"{CONFIG}: [forms] unmapped_options must be a list of strings",
+                f"{CONFIG}: [transparency] files must be a list of strings",
+                f"{CONFIG}: [releases] close_with_release must be true or false",
+            ],
+        ),
+        (
+            LABELS,
+            'label = "bug"\n',
+            [
+                f"{LABELS}: each label must be a table, [[label]], with its keys below it"
+            ],
+        ),
+        (
+            LABELS,
+            '[[label]]\nname = "kind/bug"\n\n[[label]]\nname = 5\ncolor = "d73a4a"\n'
+            'description = "A bug"\ngroup = "type"\n\n'
+            + LABEL
+            + 'form_options = "Cards"\nask = "no"\n',
+            [
+                f"{LABELS}: the label kind/bug needs color, description, group",
+                f"{LABELS}: label 2: name must be a string",
+                f"{LABELS}: the label bug: form_options must be a list of strings",
+                f"{LABELS}: the label bug: ask must be true or false",
+            ],
+        ),
+    ],
+)
+def test_settings_that_can_t_be_used_stop_with_errors_that_name_them(
+    monkeypatch, tmp_path, root, capsys, file, text, problems
+):
+    (root / file).write_text(text, encoding="utf-8")
+    with pytest.raises(assistant.SettingsError) as refused:
+        assistant.load_config(root, REPOSITORY)
+    assert refused.value.problems == problems
+    assert str(refused.value) == "\n".join(problems)
+    errors = "".join(f"::error::{problem}\n" for problem in problems)
+    code, outputs, _ = run_main(
+        monkeypatch, tmp_path, root, None, "engine", READY_ENGINES="claude"
+    )
+    assert (code, outputs, capsys.readouterr().out) == (1, "", errors)
+    # check reads the rest with the defaults, so it names every other problem too.
+    code, _, _ = run_main(monkeypatch, tmp_path, root, None, "check")
+    assert code == 1 and capsys.readouterr().out.startswith(errors)
+
+
+@pytest.mark.parametrize(
+    ("file", "content", "reason"),
+    [
+        (CONFIG, b'[engine\nname = "claude"\n', "(at line 1, column "),
+        (LABELS, b"[[label]\n", "(at line 1, column "),
+        # Saved in Latin-1, as some editors on Windows do.
+        (CONFIG, b'[forms]\narea_field = "Bereich f\xfcr"\n', "can't decode byte 0xfc"),
+    ],
+)
+def test_a_file_that_is_no_toml_stops_every_command(
+    monkeypatch, tmp_path, root, capsys, file, content, reason
+):
+    (root / file).write_bytes(content)
+    for command in ("check", "engine"):
+        code, _, _ = run_main(monkeypatch, tmp_path, root, None, command)
+        out = capsys.readouterr().out
+        assert code == 1
+        assert out.startswith(f"::error::{file} is no valid TOML: ")
+        assert reason in out and "Traceback" not in out
+
+
+def test_a_project_md_that_is_no_utf_8_stops_every_command(
+    monkeypatch, tmp_path, root, capsys
+):
+    # Saved in Latin-1, with the umlauts of how to address German reporters.
+    (root / ".github/issue-assistant/project.md").write_bytes(
+        "Ein Projekt für Leser, die Deutsch schreiben.\n".encode("latin-1")
+    )
+    for command in ("check", "engine"):
+        code, _, _ = run_main(monkeypatch, tmp_path, root, None, command)
+        out = capsys.readouterr().out
+        assert code == 1
+        assert out.startswith(
+            "::error::.github/issue-assistant/project.md is no UTF-8 text: "
+        )
+        assert "can't decode byte 0xfc" in out and "Traceback" not in out
+
+
+def test_unknown_keys_are_named_with_the_key_they_probably_mean(
+    monkeypatch, tmp_path, root, capsys
+):
+    (root / CONFIG).write_text(
+        'max_per_day = 5\n\n[engine]\nname = "claude"\nmax_per_dya = 5\n'
+        'hosts = ["docs.example.com"]\n\n[release]\nclose_with_release = false\n\n'
+        "[links]\nhots = []\n\n[colours]\ndark = true\n",
+        encoding="utf-8",
+    )
+    labels = root / LABELS
+    labels.write_text(
+        'color = "ffffff"\n\n'
+        + labels.read_text("utf-8")
+        + '\n[[label]]\nname = "area: sync"\ncolor = "bfdadc"\ndescription = "Sync"\n'
+        'group = "area"\nform_option = ["Sync"]\n\n[[labels]]\nname = "other"\n',
+        encoding="utf-8",
+    )
+    problems = [
+        f"{LABELS}: color belongs in a [[label]]",
+        f"{LABELS}: unknown key labels; did you mean label?",
+        f"{LABELS}: the label area: sync: unknown key form_option; "
+        "did you mean form_options?",
+        f"{CONFIG}: max_per_day belongs in the section [engine]",
+        f"{CONFIG}: unknown key max_per_dya in [engine]; did you mean max_per_day?",
+        f"{CONFIG}: hosts belongs in the section [links], not in [engine]",
+        f"{CONFIG}: unknown section [release]; did you mean [releases]?",
+        f"{CONFIG}: unknown key hots in [links]; did you mean hosts?",
+        f"{CONFIG}: unknown section [colours]; known: [engine], [links], [forms], "
+        "[transparency], [releases]",
+    ]
+    # The other commands keep the defaults and warn.
+    config = assistant.load_config(root, REPOSITORY)
+    assert capsys.readouterr().out == "".join(
+        f"::warning::{problem}\n" for problem in problems
+    )
+    assert (config.max_per_day, config.hosts, config.releases) == (
+        20,
+        frozenset(),
+        True,
+    )
+    assert next(label for label in config.labels if label.name == "area: sync")
+    assert config.problems == ()
+    # check fails on them.
+    checked = assistant.load_config(root, REPOSITORY, lenient=True)
+    assert capsys.readouterr().out == ""
+    assert assistant.check(checked)[: len(problems)] == problems
+    code, _, _ = run_main(monkeypatch, tmp_path, root, None, "check")
+    assert code == 1
+    assert capsys.readouterr().out.startswith(
+        "".join(f"::error::{problem}\n" for problem in problems)
+    )
+
+
+def test_every_key_of_the_settings_is_known():
+    assert set(assistant.LABEL_KEYS) == {
+        field.name for field in dataclasses.fields(assistant.Label)
+    }
+    assert (
+        tuple(field.name for field in dataclasses.fields(assistant.Acceptance))
+        == assistant.ACCEPT_KEYS
+    )
+    attributes = {field.name for field in dataclasses.fields(assistant.Config)}
+    for keys in assistant.CONFIG_KEYS.values():
+        for key in keys.values():
+            assert key.attribute in attributes
+
+
 # install
 
 
@@ -157,7 +342,22 @@ def test_the_starter_files_make_a_valid_set_up(tmp_path):
     (tmp_path / "SUPPORT.md").write_text(
         "Claude, an AI by Anthropic.", encoding="utf-8"
     )
-    config = assistant.load_config(tmp_path, REPOSITORY)
+    project = tmp_path / assistant.SETTINGS / "project.md"
+    config = assistant.load_config(tmp_path, REPOSITORY, lenient=True)
+    # The one thing to write by hand: what the project is.
+    assert assistant.check(config) == [
+        ".github/issue-assistant/project.md: replace the starter's first line with "
+        "what the project does and for whom; the AI reads this file before every task"
+    ]
+    project.write_text(
+        project.read_text("utf-8").replace(
+            "PROJECT is ONE SENTENCE ON WHAT IT DOES AND FOR WHOM.",
+            "Dartboard Cards shows the games of a dartboard on Home Assistant "
+            "dashboards, for players who train at home.",
+        ),
+        encoding="utf-8",
+    )
+    config = assistant.load_config(tmp_path, REPOSITORY, lenient=True)
     assert assistant.check(config) == []
 
 
@@ -217,6 +417,105 @@ def test_form_problems_are_found(config, root):
         ".github/labels.toml: no label has the form option 'Online'",
         ".github/labels.toml: area: games names the option 'X01 game', which no form has",
     ]
+
+
+def test_label_names_that_github_takes_for_one_or_refuses_are_found(config):
+    """GitHub ignores the case of label names and takes 50 characters at most."""
+    labels = (
+        *config.labels,
+        assistant.Label("Bug", "d73a4a", "A bug", "type"),
+        assistant.Label("BUG", "d73a4a", "A bug", "type"),
+        assistant.Label("x" * 51, "ffffff", "Long", "topic"),
+        assistant.Label("", "ffffff", "Empty", "topic"),
+    )
+    assert assistant.check_labels(dataclasses.replace(config, labels=labels)) == [
+        f"{LABELS}: the labels bug, Bug, BUG differ only in case, which GitHub ignores",
+        f"{LABELS}: the name '{'x' * 51}' has 51 characters; GitHub takes 1 to 50",
+        f"{LABELS}: the name '' has 0 characters; GitHub takes 1 to 50",
+    ]
+    assert len(max((label.name for label in config.labels), key=len)) <= 50
+
+
+def test_the_labels_of_a_form_may_be_one_text_separated_by_commas(config, root):
+    """GitHub's syntax for issue forms takes a list or such a text."""
+    form = root / ".github/ISSUE_TEMPLATE/bug_report.yml"
+    listed = "labels:\n  - bug\n  - needs-triage\n"
+    text = form.read_text("utf-8")
+    assert listed in text
+    form.write_text(text.replace(listed, "labels: bug, needs-triage\n"), "utf-8")
+    assert assistant.check_forms(config) == []
+    form.write_text(text.replace(listed, "labels: bug,urgent , \n"), "utf-8")
+    (root / ".github/ISSUE_TEMPLATE/empty.yml").write_text("", "utf-8")
+    assert assistant.check_forms(config) == [
+        ".github/ISSUE_TEMPLATE/bug_report.yml: the label urgent is not in "
+        ".github/labels.toml",
+        ".github/ISSUE_TEMPLATE/empty.yml is no issue form",
+    ]
+
+
+def test_a_form_that_is_no_yaml_is_named_with_the_other_problems(config, root):
+    form = root / ".github/ISSUE_TEMPLATE/bug_report.yml"
+    form.write_text("name: Bug\nlabels: [bug\n", "utf-8")
+    (root / ".github/ISSUE_TEMPLATE/latin.yml").write_bytes(b"name: F\xfcr\n")
+    problems = assistant.check_forms(config)
+    assert problems[0].startswith(
+        ".github/ISSUE_TEMPLATE/bug_report.yml is no valid YAML: "
+    )
+    assert problems[1].startswith(".github/ISSUE_TEMPLATE/latin.yml is no valid YAML: ")
+    assert "can't decode byte 0xfc" in problems[1]
+
+
+def test_a_workflow_that_is_no_yaml_stops_the_check_with_one_error(
+    monkeypatch, tmp_path, root, capsys
+):
+    (root / ".github/workflows/issue-assistant.yml").write_text("on: [push\n", "utf-8")
+    code, _, _ = run_main(monkeypatch, tmp_path, root, None, "check")
+    out = capsys.readouterr().out
+    assert code == 1 and "Traceback" not in out
+    assert "::error::.github/workflows/issue-assistant.yml is no valid YAML: " in out
+
+
+def test_a_multiple_choice_area_fits(config, root):
+    form = root / ".github/ISSUE_TEMPLATE/bug_report.yml"
+    text = form.read_text("utf-8").replace(
+        "      label: Area\n", "      label: Area\n      multiple: true\n"
+    )
+    form.write_text(text, encoding="utf-8")
+    assert assistant.check_forms(config) == []
+
+
+STARTER = (assistant.TEMPLATES / assistant.SETTINGS / "project.md").read_text("utf-8")
+
+
+@pytest.mark.parametrize(
+    ("text", "problem"),
+    [
+        (
+            STARTER,
+            "replace the starter's first line with what the project does and for "
+            "whom; the AI reads this file before every task",
+        ),
+        (
+            STARTER.replace("PROJECT", "Dartboard Cards"),
+            "replace the starter's first line with what the project does and for "
+            "whom; the AI reads this file before every task",
+        ),
+        (
+            "Dart cards.\n",
+            "describe the project in at least 80 characters: what it does, for "
+            "whom, and where its code and documentation are",
+        ),
+    ],
+)
+def test_a_project_description_that_says_too_little_fails_the_check(
+    root, text, problem
+):
+    (root / assistant.SETTINGS / "project.md").write_text(text, encoding="utf-8")
+    config = assistant.load_config(root, REPOSITORY)
+    assert assistant.check_project(config) == [
+        f".github/issue-assistant/project.md: {problem}"
+    ]
+    assert f".github/issue-assistant/project.md: {problem}" in assistant.check(config)
 
 
 def test_a_changed_workflow_is_found(config, root):
@@ -300,7 +599,6 @@ def test_config_problems_are_found(config, root):
         config,
         engine="unknown",
         hosts=frozenset({"https://evil.example/path"}),
-        releases="yes",
         max_per_day=-1,
         max_per_author_per_day=True,
         release_replies="2",
@@ -308,7 +606,6 @@ def test_config_problems_are_found(config, root):
     assert assistant.check_config(broken) == [
         ".github/issue-assistant/config.toml: unknown engine unknown; known engines: claude",
         ".github/issue-assistant/config.toml: https://evil.example/path is no host name",
-        ".github/issue-assistant/config.toml: close_with_release must be true or false",
         ".github/issue-assistant/config.toml: max_per_day must be a whole number, "
         "0 or more",
         ".github/issue-assistant/config.toml: max_per_author_per_day must be a whole "
@@ -543,6 +840,21 @@ def test_yaml_is_read_with_yq_without_pyyaml(monkeypatch, tmp_path):
     monkeypatch.setattr(assistant.subprocess, "run", run)
     assert assistant.load_yaml(workflow) == {"on": "push"}
     assert calls == [["yq", "-o=json", ".", str(workflow)]]
+
+
+def test_yaml_that_yq_cant_read_is_named(monkeypatch, tmp_path):
+    def run(command, **kwargs):
+        raise assistant.subprocess.CalledProcessError(
+            1, command, "", "Error: bad file: yaml: line 2\n"
+        )
+
+    monkeypatch.setitem(assistant.sys.modules, "yaml", None)
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    with pytest.raises(assistant.SettingsError) as raised:
+        assistant.load_yaml(tmp_path / "form.yml", "form.yml")
+    assert raised.value.problems == [
+        "form.yml is no valid YAML: Error: bad file: yaml: line 2"
+    ]
 
 
 def test_yaml_without_pyyaml_or_yq_says_what_to_install(monkeypatch, tmp_path):
