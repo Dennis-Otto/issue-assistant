@@ -1033,6 +1033,9 @@ def test_the_reference_of_the_labels_and_the_findings_has_every_key():
 SETTINGS = {
     "[engine] name": ("engine", "other"),
     "[engine] model": ("model", "sonnet"),
+    "[engine] max_per_day": ("max_per_day", 5),
+    "[engine] max_per_author_per_day": ("max_per_author_per_day", 1),
+    "[engine] release_replies": ("release_replies", 0),
     "[links] hosts": ("hosts", ["docs.example.com"]),
     "[forms] area_field": ("area_field", "Component"),
     "[forms] unmapped_options": ("unmapped_options", ["None"]),
@@ -1065,6 +1068,8 @@ def test_the_reference_of_config_toml_has_every_key_with_its_default(root: Path)
     def toml(value: object) -> str:
         if isinstance(value, bool):
             return str(value).lower()
+        if isinstance(value, int):
+            return str(value)
         if isinstance(value, list):
             return "[" + ", ".join(f'"{item}"' for item in value) + "]"
         return f'"{value}"'
@@ -1082,7 +1087,7 @@ def test_the_reference_of_config_toml_has_every_key_with_its_default(root: Path)
         assert plain(getattr(loaded, attribute)) == value, key
     # And the assistant reads no key that the reference leaves out.
     source = inspect.getsource(assistant.load_config)
-    read = set(re.findall(r'\.get\("(\w+)"', source))
+    read = set(re.findall(r'\.get\(\s*"(\w+)"', source))
     assert read == set(sections) | {
         name for values in sections.values() for name in values
     }

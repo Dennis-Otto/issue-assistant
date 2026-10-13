@@ -37,6 +37,9 @@ The group `lifecycle` needs the seven labels that the assistant sets: `needs-tri
 | --- | --- | --- | --- | --- |
 | `[engine] name` | string | `"claude"` | The AI engine that writes the analysis | An engine of the assistant: `claude` |
 | `[engine] model` | string | `""` | The model; empty for the engine's default, `claude-opus-5-5` for Claude | A model name: a letter or a digit, then letters, digits and `._:@/[]-` |
+| `[engine] max_per_day` | integer | `20` | The most [AI runs](how-it-works.md#limits-of-the-ai-runs) that people who don't maintain the repository start in 24 hours: analyses of new issues, follow-ups and replies after a release; `0` lets only maintainers start the AI, by hand | A whole number, 0 or more |
+| `[engine] max_per_author_per_day` | integer | `3` | The most analyses of one reporter's new issues in 24 hours | A whole number, 0 or more |
+| `[engine] release_replies` | integer | `2` | How many comments of the reporter the AI reads after each release that closed their issue | A whole number, 0 or more |
 | `[links] hosts` | list of strings | `[]` | The hosts that links in the comments may lead to, besides the repository itself | Each is a host name, such as `docs.example.com` |
 | `[forms] area_field` | string | `"Area"` | The dropdown of the issue forms whose answer chooses an area label | Each of its options belongs to one label, or to `unmapped_options` |
 | `[forms] unmapped_options` | list of strings | `["Other"]` | Answers of that dropdown that choose no label | Nothing |
