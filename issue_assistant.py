@@ -181,15 +181,21 @@ SECRET = re.compile(
     r"|AKIA[0-9A-Z]{16}"
     r"|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
-    # Webhooks, whose address alone lets anyone post as their owner.
-    r"|hooks\.slack\.com/(?:services|triggers|workflows)/[A-Za-z0-9]+/"
-    r"|\.webhook\.office\.com/webhookb2/[\w@-]+/IncomingWebhook/"
+    # Webhooks, whose address alone lets anyone post as their owner: up to the secret
+    # at its end, which placeholders such as services/YOUR/WEBHOOK/URL lack.
+    r"|hooks\.slack\.com/(?:services|triggers|workflows)/(?:[A-Za-z0-9]+/)+"
+    r"[A-Za-z0-9]{20,}"
+    r"|\.webhook\.office\.com/webhookb2/[\w@-]+/IncomingWebhook/[0-9a-f]{20,}/"
+    r"[0-9a-f-]{20,}"
 )
 LONG_TOKEN = re.compile(r"(?<![\w+/=-])[\w+/=-]{40,}(?![\w+/=-])")
 # A link to a repository on GitHub, whose owner and name people choose, up to the
-# path of a file or folder in it after the commit or branch.
+# path of a file or folder in it after the commit or branch. A name or a branch of 32
+# or more characters is checked like any other text, so that no key hides as one; a
+# commit is lower-case hex, which never mixes case.
 GITHUB_REPOSITORY = re.compile(
-    r"https://github\.com/[A-Za-z0-9-]+/[\w.-]+(?:/(?:blob|tree)/[\w.-]+)?"
+    r"https://github\.com/[A-Za-z0-9-]{1,39}/[\w.-]{1,31}(?![\w.-])"
+    r"(?:/(?:blob|tree)/(?:[0-9a-f]{40}|[\w.-]{1,31})(?![\w.-]))?"
 )
 LETTER_PAIR = re.compile(r"(?=[A-Za-z]{2})")
 CASE_CHANGE = re.compile(r"(?=[a-z][A-Z]|[A-Z][a-z])")

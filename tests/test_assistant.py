@@ -801,9 +801,15 @@ def test_an_answer_that_is_no_json_is_refused(config):
         + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p",
         "https://github.com/owner/project/blob/main/"
         + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p",
+        # A key in the place of the repository or the branch of such a link.
+        "https://github.com/owner/" + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p",
+        "https://github.com/owner/project/blob/"
+        + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p/README.md",
         # Webhooks of Slack and Microsoft Teams, which post as their owner.
         "https://hooks.slack"
         + ".com/services/TY1Z2IXGC/BI5NQ1T06YW/ILALo5vR67b2rMQSkS3u9I5K",
+        "https://hooks.slack"
+        + ".com/triggers/T0AB12CDE/7591234567890/4f1c2a9b8e7d6c5b4a39281706f5e4d3",
         "https://contoso.webhook.office"
         + ".com/webhookb2/368932ff-2b2d-409d-d311-ca871902316d"
         + "@9841aab4-ccec-38d7-9d89-a0da0c41aebb/IncomingWebhook/"
@@ -843,6 +849,10 @@ def test_an_answer_with_something_like_a_secret_is_never_posted(config, secret):
         # Words that end in "sk" before a dash, unlike the keys that start with sk-.
         "flask-sqlalchemy-integration-tests",
         "the task-continuation-guidance-by-default capture",
+        # Placeholders for the address of a webhook, without its secret.
+        "Set SLACK_WEBHOOK_URL to https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+        "https://hooks.slack.com/services/T000/B000/XXXX",
+        "https://outlook.webhook.office.com/webhookb2/xxx/IncomingWebhook/yyy",
     ],
 )
 def test_ordinary_long_words_links_and_paths_are_no_secrets(config, harmless):
@@ -859,6 +869,7 @@ def test_ordinary_long_words_links_and_paths_are_no_secrets(config, harmless):
 FIXTURES = "tests/components/tuya/fixtures"
 RANDOM_NAME = f"{FIXTURES}/cl_rD7uqAAgQOpSA2RxV9eKw3Lm.json"
 RANDOM_FOLDER = f"{FIXTURES}/eb_Kq2mP9vL4tR7wY1bN6cJ"
+COMMIT = "677b136666dc555b19b50d237c5234f66d2847e8"
 
 
 @pytest.mark.parametrize(
@@ -867,6 +878,7 @@ RANDOM_FOLDER = f"{FIXTURES}/eb_Kq2mP9vL4tR7wY1bN6cJ"
         (RANDOM_NAME, False),
         (f"See ./{RANDOM_NAME}, line 3.", False),
         (f"https://github.com/owner/project/blob/abc1234/{RANDOM_NAME}#L3", False),
+        (f"https://github.com/owner/project/blob/{COMMIT}/{RANDOM_NAME}#L3", False),
         ("tuya/fixtures/cl_rD7uqAAgQOpSA2RxV9eKw3Lm", False),
         (f"{RANDOM_FOLDER}/", False),
         # Only a whole part of a path, between slashes and dots, is the file's.

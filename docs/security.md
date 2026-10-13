@@ -110,7 +110,7 @@ One text that looks like a token or a key refuses the whole answer: nothing is p
 ```mermaid
 flowchart TB
   accTitle: How the apply job decides whether a text of the answer holds a secret
-  accDescr: A known kind of token refuses the answer wherever it is. Any other text is looked at in runs of 40 or more letters, digits and the characters plus, slash, equals sign, underscore and dash, after the owner, the repository and the commit or branch of every link to GitHub are left out. A run without lower case, upper case and digits is harmless. A run with the plus or equals sign of Base64, or whose letters read like noise, is a key, unless it is part of the path of a file that git tracks. Any other run is harmless.
+  accDescr: A known kind of token refuses the answer wherever it is. Any other text is looked at in runs of 40 or more letters, digits and the characters plus, slash, equals sign, underscore and dash, after the owner, the repository and the commit or branch of every link to GitHub are left out, unless the name of the repository or the branch has 32 or more characters. A run without lower case, upper case and digits is harmless. A run with the plus or equals sign of Base64, or whose letters read like noise, is a key, unless it is part of the path of a file that git tracks. Any other run is harmless.
   text["a text of<br/>the answer"] --> known{"a known kind<br/>of token?"}
   known -- "yes" --> refused["the answer<br/>is refused"]
   known -- "no" --> runs["runs of 40 or more<br/>letters, digits and +/=_-,<br/>without the repository<br/>of links to GitHub"]
@@ -131,9 +131,9 @@ flowchart TB
   class harmless safe
 ```
 
-- **Known kinds of tokens** count wherever they are: tokens of GitHub, Anthropic, OpenAI and Slack, access keys of AWS, JSON Web Tokens, private keys, and the addresses of Slack and Microsoft Teams webhooks, which let anyone post as their owner.
+- **Known kinds of tokens** count wherever they are: tokens of GitHub, Anthropic, OpenAI and Slack, access keys of AWS, JSON Web Tokens, private keys, and the addresses of Slack and Microsoft Teams webhooks, which let anyone post as their owner. A placeholder without the secret at the end of such an address, such as `https://hooks.slack.com/services/YOUR/WEBHOOK/URL`, is none.
 - **Letters that read like noise** change between lower and upper case at least once in five pairs of neighbors, in runs of lower case of 3.5 letters or fewer on average. A random key, such as the 40 characters of a secret key of AWS, changes at about every second pair, in runs of two letters. Words change only where a new word starts, and run on in lower case: `src/main/java/com/example/OAuth2ClientConfiguration.java` and `custom_components/autodarts/AutodartsBoardManager2Coordinator.py` are names, not keys.
-- **Links to GitHub** name owners and repositories that people chose, such as `Dennis-Otto`, and commits; the rest of the link, such as `issues/12` or the path of a file, is checked like any other text.
+- **Links to GitHub** name owners and repositories that people chose, such as `Dennis-Otto`, and commits; the rest of the link, such as `issues/12` or the path of a file, is checked like any other text. So is a repository or a branch with a name of 32 or more characters, so that no key passes for one.
 - **The files of the repository** are public, whatever their names look like, such as the test devices of a project named after random identifiers. Git lists them only for an answer that would be refused without them.
 
 Of 134,000 paths in five large projects, Spring Security, Home Assistant, VS Code, Nextcloud and Elasticsearch, the check takes one for a key, a test device named after a random identifier, which passes in its own repository; before, it took 6,700. Of 4,000 links to issues, releases, pull requests and lines on GitHub it takes none, where it took 1,100. Of 20,000 random secret keys of AWS, it lets 36 pass instead of 23: those that lack a digit, lower case or upper case, as before, and a few whose letters happen to read like words.
