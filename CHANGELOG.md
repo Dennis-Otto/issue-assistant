@@ -4,6 +4,8 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.3.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.2.2...v1.3.0) (2026-10-13)
+
 ### Changed
 
 - The action is ready for the GitHub Marketplace, as *Read-only issue assistant*, because another action there is already called Issue Assistant, and with a purple badge. Workflows keep using `Dennis-Otto/issue-assistant` as before. The README opens with what the assistant does, why an issue can't make its AI write, and three commands that install the latest release; the action, the repository and the website describe it as AI issue triage, and the repository has the topics that people browse, such as `triage`, `claude-code` and `prompt-injection`.
@@ -39,34 +41,6 @@ All notable changes of the issue assistant. The complete notes of every version,
 - A rate limit or a failure of GitHub no longer changes what the assistant posts. Before, it read such an error as "doesn't exist": an analysis left out the duplicates and related issues that it couldn't look up, the AI read that the project had no release yet, and the discussions were missing from what it read. Now only "not found" means missing, and any other error stops the run with one clear error instead of a Python traceback; its summary lists what the run wrote before and the write that failed. A read that GitHub fails for a moment runs again after 2, 4 and 8 seconds, and a call that a secondary rate limit refused after a minute.
 - Running a failed job of the issue assistant again completes it. An analysis or a follow-up now adds its labels before its comment, and `needs-info` right after it, so that an issue never waits for an answer to a question that wasn't posted; before, a failure after the comment lost `needs-info`, `possible-duplicate` and the area labels for good, because a run again found the comment and did nothing, so the reporter was never reminded and a duplicate that the comment announced never closed. A run again now adds the labels that such a comment is missing, without a second comment, and leaves the labels that someone changed since then as they are.
 - One issue that GitHub fails no longer stops the daily sweep for every issue after it. Each issue and each step runs on its own: a failure is a warning, the others are done, and the run fails at the end so that GitHub tells you. The next sweep completes it without posting a reminder, a closing or a release comment twice, and an issue fixed by a merged pull request always gets its `fixed-in-next-release` label and stops waiting for an answer, even when its notice fails.
-
-## [1.3.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.2.2...v1.3.0) (2026-10-13)
-
-
-### Features
-
-* get the action ready for the GitHub Marketplace with a unique name, branding and topics ([#55](https://github.com/Dennis-Otto/issue-assistant/issues/55)) ([9e8faaa](https://github.com/Dennis-Otto/issue-assistant/commit/9e8faaa816afafa716adf5bc0fe2384348d6b475))
-* **security:** limit the AI runs per day, per author and per closed issue ([#78](https://github.com/Dennis-Otto/issue-assistant/issues/78)) ([8761e2c](https://github.com/Dennis-Otto/issue-assistant/commit/8761e2c8210025648c325261067303b2cccaec0d))
-
-
-### Bug fixes
-
-* **lifecycle:** close fixed issues with the release that shipped the fix ([#80](https://github.com/Dennis-Otto/issue-assistant/issues/80)) ([4816074](https://github.com/Dennis-Otto/issue-assistant/commit/4816074bf1879fbab5287f2a5075c725d5e9400a))
-* print portable paths and let the test suite pass and run fast on Windows ([#47](https://github.com/Dennis-Otto/issue-assistant/issues/47)) ([4c46f02](https://github.com/Dennis-Otto/issue-assistant/commit/4c46f02985b5a02c07337e6113220e442e12ab16))
-* queue issue events, skip sweeps after scheduled Release runs, and harden the template workflows ([#59](https://github.com/Dennis-Otto/issue-assistant/issues/59)) ([ac99924](https://github.com/Dennis-Otto/issue-assistant/commit/ac99924541d53446bbb6fdc6c6a119c27754fba7))
-* read the workflow templates from templates/, so a template change no longer fails the required check ([#53](https://github.com/Dennis-Otto/issue-assistant/issues/53)) ([6d60ec5](https://github.com/Dennis-Otto/issue-assistant/commit/6d60ec57440d8eef7388785b2e3736da935bddfd))
-* **security:** close the cleaner's code-block, join, link and fuzz-crash bypasses ([#65](https://github.com/Dennis-Otto/issue-assistant/issues/65)) ([7ad1c34](https://github.com/Dennis-Otto/issue-assistant/commit/7ad1c34dd5e29ce2f167aafbf0a3650eb1bf2aad))
-* **security:** escape the engine's text in workflow commands, logs, rationales and claude_args ([#62](https://github.com/Dennis-Otto/issue-assistant/issues/62)) ([e6067c7](https://github.com/Dennis-Otto/issue-assistant/commit/e6067c7aa6277e4301f76840d366d5800dcded75))
-* **security:** keep issue text from forging the context, hiding instructions or closing others' issues ([#73](https://github.com/Dennis-Otto/issue-assistant/issues/73)) ([1b33d68](https://github.com/Dennis-Otto/issue-assistant/commit/1b33d68bad82aa556506ec42095dec2110b9d472))
-* **security:** parse issue text in linear time ([#54](https://github.com/Dennis-Otto/issue-assistant/issues/54)) ([eb3cb2e](https://github.com/Dennis-Otto/issue-assistant/commit/eb3cb2e86789f31d77618bbf3056b0a7e336d288))
-* **setup:** accept every valid configuration and name every typo ([#85](https://github.com/Dennis-Otto/issue-assistant/issues/85)) ([b8e3abd](https://github.com/Dennis-Otto/issue-assistant/commit/b8e3abd6b8e7e9ecd10fa1cd51235f5d00a092bf))
-* stop refusing answers that link to GitHub or name long code paths ([#67](https://github.com/Dennis-Otto/issue-assistant/issues/67)) ([733d0e3](https://github.com/Dennis-Otto/issue-assistant/commit/733d0e3d6af5bcd3ead67db6c8984812019d3721))
-* tell GitHub errors from missing things, retry transient ones and keep the labels on a re-run ([#71](https://github.com/Dennis-Otto/issue-assistant/issues/71)) ([7c89630](https://github.com/Dennis-Otto/issue-assistant/commit/7c89630f61bd5f42f421039c229dac9124950b3b))
-
-
-### Performance
-
-* **docs:** lazy lossless-WebP pictures, and a hero that phones and reduced motion can read ([#48](https://github.com/Dennis-Otto/issue-assistant/issues/48)) ([dbd295c](https://github.com/Dennis-Otto/issue-assistant/commit/dbd295cd9e3674f25ece08ecd924b0cbeb221d2b))
 
 ## 1.2.2
 
