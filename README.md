@@ -595,10 +595,10 @@ flowchart TB
   typed -- "yes" --> known{"each key<br/>known?"}
   known -- "no" --> typo["check fails with the key<br/>that was probably meant;<br/>other commands warn"]
   known -- "yes" --> runs["the command runs"]
-  classDef source fill:#d4a72c33,stroke:#bf8700
-  classDef question fill:#d4a72c33,stroke:#bf8700
-  classDef stop fill:#cf222e26,stroke:#cf222e
-  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  classDef source fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class read source
   class toml,typed,which,known question
   class broken,stops,named,typo stop
