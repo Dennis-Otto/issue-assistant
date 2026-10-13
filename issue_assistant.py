@@ -3498,21 +3498,22 @@ def mark_issue_fixed(
         or posted_since(comments, "released", moment(pull["mergedAt"]))
     ):
         return []
+    # The labels before anything else: the label closes the issue with the
+    # release, and every later sweep skips an issue that has it or the notice. So
+    # the issue stops waiting for its reporter first, or the sweep would remind the
+    # reporter of a fixed issue and close it unanswered. The notice is the only
+    # thing a run can lose, when GitHub fails it or the releases read before it;
+    # the release closes the issue anyway.
+    for name in (NEEDS_INFO, STALE):
+        if name in current:
+            github.remove_label(number, name)
+    github.add_labels(number, [FIXED])
     # A sweep that sees the merge late, as the run of the merge failed, may find a
     # release that ships the fix already: then the issue closes with it at once,
     # without a notice that promises the next release.
     shipped = pull["mergeCommit"] and first_release(
         github, releases(), [pull["mergeCommit"]["oid"]], moment(pull["mergedAt"])
     )
-    # The labels before the notice: the label closes the issue with the release,
-    # and every later sweep skips an issue that has it or the notice. So the
-    # issue stops waiting for its reporter first, or the sweep would remind the
-    # reporter of a fixed issue and close it unanswered. A notice that GitHub
-    # fails is the only thing a run can lose; the release closes the issue anyway.
-    for name in (NEEDS_INFO, STALE):
-        if name in current:
-            github.remove_label(number, name)
-    github.add_labels(number, [FIXED])
     marked = {
         **issue,
         "labels": [

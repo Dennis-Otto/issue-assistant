@@ -4,6 +4,10 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+### Fixed
+
+- A fixed issue that waited for an answer gets `fixed-in-next-release` again also when GitHub fails to list the releases while the morning sweep sees the merge. Since 1.3.0 the sweep asked first whether a release already ships the fix, so such a failure kept `needs-info` or `stale` on the issue, and the same sweep could remind its reporter or close it as unanswered. Now the labels come first, and the release closes the issue as before.
+
 ## [1.3.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.2.2...v1.3.0) (2026-10-13)
 
 ### Changed

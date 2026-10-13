@@ -3007,6 +3007,33 @@ def test_the_labels_of_a_fix_come_before_its_notice(config):
     assert github.store[12]["state"] == "open"
 
 
+@pytest.mark.parametrize("read", [r"^GET releases\?per_page=100", r"^GET compare/"])
+def test_the_labels_of_a_fix_come_before_its_releases_are_read(config, read):
+    # The run of the merge failed, and the sweep asks whether a release ships the fix.
+    github = merged(config, make_pull(days_ago=3), days_ago=10)
+    github.release_store = release_history(10, 2)
+    github.contained = {(f"{40:040x}", "v1.10.0")}
+    github.fail(read, server_error())
+    with pytest.raises(assistant.SweepIncomplete) as caught:
+        assistant.sweep(github, NOW)
+    assert caught.value.done == [
+        "remove needs-info from #12",
+        "remove stale from #12",
+        "add fixed-in-next-release to #12",
+    ]
+    # The fixed issue no longer waits for its reporter, while GitHub still fails.
+    assert github.labels_of(12) == {"bug", "fixed-in-next-release"}
+    with pytest.raises(assistant.SweepIncomplete):
+        assistant.sweep(github, NOW + timedelta(days=40))
+    assert not github.posted(12)
+    assert github.store[12]["state"] == "open"
+    # Only the notice is lost: the release closes the issue once GitHub reads again.
+    github.failures.clear()
+    assert assistant.sweep(github, NOW + timedelta(days=40)) == [
+        "#12: closed, released in v1.10.0."
+    ]
+
+
 def test_a_release_closes_every_issue_but_the_one_that_github_fails(config):
     github = released(config, pulls=[make_pull(fixes=(12, 13), days_ago=3)])
     github.store[13] = make_issue(
