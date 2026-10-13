@@ -245,8 +245,12 @@ def shortened(text: str, limit: int = DESCRIPTION) -> str:
         return kept
     words = text[: limit - 1].split()[:-1]
     # Not after a word that leads to the next one, such as "and".
-    while words[-1].lower() in DANGLING:
+    while words and words[-1].lower() in DANGLING:
         words.pop()
+    if not words:
+        # A first word longer than the limit, such as an address, or only such words
+        # as "and": the characters up to the limit.
+        return text[: limit - 1].rstrip() + "…"
     return " ".join(words).rstrip(",;:") + "…"
 
 
