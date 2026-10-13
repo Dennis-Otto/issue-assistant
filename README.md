@@ -303,10 +303,10 @@ flowchart TB
   day -- "yes" --> new{"a new issue:<br/>room in<br/><b>max_per_author_per_day</b>?"}
   new -- "yes, or no new issue" --> runs
   new -- "no" --> waits
-  classDef trigger fill:#d4a72c33,stroke:#bf8700
-  classDef question fill:#d4a72c33,stroke:#bf8700
-  classDef ai fill:#8250df33,stroke:#8250df
-  classDef person fill:#0969da26,stroke:#0969da
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
   class asks trigger
   class who,release,day,new question
   class runs ai
