@@ -17,8 +17,8 @@ What the issue assistant protects, what it trusts and which risks remain. [SECUR
 What the checks make of an answer that an issue steered, in a demo project:
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/cleaning-dark.png">
-  <img src="images/cleaning-light.png" alt="What the apply job makes of an answer that an issue steered: a mention becomes code, a link to another site keeps only its text, an image keeps only its description, HTML is removed, unknown issue numbers become code, links into the repository and to existing issues stay links, and an answer with something like a token is refused as a whole">
+  <source media="(prefers-color-scheme: dark)" srcset="images/cleaning-dark.webp">
+  <img src="images/cleaning-light.webp" alt="What the apply job makes of an answer that an issue steered: a mention becomes code, a link to another site keeps only its text, an image keeps only its description, HTML is removed, unknown issue numbers become code, links into the repository and to existing issues stay links, and an answer with something like a token is refused as a whole">
 </picture>
 
 ## What is protected

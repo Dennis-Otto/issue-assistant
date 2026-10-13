@@ -4,7 +4,10 @@ Every picture shows a demo project, demo-org/plant-monitor, with made-up people,
 issues, pull requests and alerts. The texts of the assistant in them come from
 issue_assistant.py itself: its commands run against the fake GitHub of the tests,
 so that the pictures show what the assistant posts. Each picture comes light and
-dark, for the theme of the reader.
+dark, for the theme of the reader, as WebP: the still ones lossless, as sharp as a
+PNG at less than a third of its size. The animation of the life of an issue also
+comes upright for phones, and each of the two as a still picture for readers who
+asked for less motion.
 
 scripts/render-images.sh runs this in the browser image of the social preview; run
 it after a change of the texts of the assistant or of the pictures.
@@ -29,7 +32,7 @@ from typing import Any
 
 from markdown_it import MarkdownIt
 from PIL import Image
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Browser, Page, sync_playwright
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -468,7 +471,7 @@ def event(badge: str, text: str, css: str = "") -> str:
 
 def window(address: str, inner: str, width: int = 880) -> str:
     return (
-        f'<div class="window" style="width: {width}px"><div class="chrome"><i></i>'
+        f'<div class="window" style="--width: {width}px"><div class="chrome"><i></i>'
         f'<i></i><i></i><div class="address">github.com/<b>{address}</b></div>'
         f'<span class="demo">demo</span></div>{inner}</div>'
     )
@@ -531,9 +534,14 @@ SEQUENCE = (
 )
 # New entries fade in over these frames, each with its opacity and how long it stays.
 FADE = ((0.3, 110), (0.65, 110))
-# The animation has half again the pixels of its size on the page, the still
-# pictures twice as many.
-SCALES = {"animation": 1.5, "still": 2}
+# The still pictures have twice the pixels of their size on the page.
+SCALE = 2
+# Each layout of the animation: its name, the width of the page that it is taken on,
+# and its scale, half again the pixels of its size on the page. On the narrow page,
+# style.css stands it upright for phones.
+HEROES = (("hero", 1000, 1.5), ("hero-mobile", 430, 1.5))
+# The frame of the animation that its still picture shows: the first analysis.
+POSTER = (3, "new")
 
 HERO_SCRIPT = """
 const timeline = document.getElementById('timeline');
@@ -649,7 +657,7 @@ def hero(found: dict[str, Any], config: assistant.Config) -> str:
         f"{PULL_TITLE} #{PULL}</span></div></div>"
     )
     steps = "".join(
-        f'<div class="step"><i>{index}</i>{name}</div>'
+        f'<div class="step"><i>{index}</i><span>{name}</span></div>'
         for index, (name, _) in enumerate(STEPS, 1)
     )
     page = (
@@ -846,7 +854,7 @@ def cleaning(config: assistant.Config) -> str:
         "refused, and nothing is posted.</div></div></div>"
     )
     return document(
-        f'<div class="shot"><div class="window" style="width: 860px">{page}</div></div>'
+        f'<div class="shot"><div class="window" style="--width: 860px">{page}</div></div>'
     )
 
 
@@ -863,38 +871,47 @@ def load(page: Page, source: str) -> None:
     page.evaluate("document.fonts.ready.then(() => true)")
 
 
+def save(picture: Image.Image, name: str, theme: str) -> None:
+    """A still picture, as lossless WebP with the strongest compression."""
+    path = OUTPUT / f"{name}-{theme}.webp"
+    picture.save(path, lossless=True, quality=100, method=6)
+    print(f"rendered {path.relative_to(ROOT)} ({path.stat().st_size // 1024} KiB)")
+
+
 def still(page: Page, source: str, name: str, theme: str) -> None:
     load(page, source)
-    target = OUTPUT / f"{name}-{theme}.png"
-    capture(page).save(target, optimize=True)
-    print(f"rendered {target.relative_to(ROOT)} ({target.stat().st_size // 1024} KiB)")
+    save(capture(page), name, theme)
+
+
+def offset(page: Page, step: int, mode: str) -> float:
+    """How far the timeline of the animation scrolls for a step."""
+    pixels: float = page.evaluate("([step, mode]) => target(step, mode)", [step, mode])
+    return pixels
+
+
+def show(page: Page, step: int, progress: float, pixels: float) -> None:
+    page.evaluate(
+        "([step, progress, offset]) => show(step, progress, offset)",
+        [step, progress, pixels],
+    )
 
 
 def frames(page: Page) -> Iterator[tuple[Image.Image, int]]:
     """The frames of the animation and how long each one stays."""
-    offsets = [
-        page.evaluate("([step, mode]) => target(step, mode)", [step, mode])
-        for step, mode, _ in SEQUENCE
-    ]
-
-    def show(step: int, progress: float, offset: float) -> None:
-        page.evaluate(
-            "([step, progress, offset]) => show(step, progress, offset)",
-            [step, progress, offset],
-        )
-
-    for index, ((step, _, hold), offset) in enumerate(
+    offsets = [offset(page, step, mode) for step, mode, _ in SEQUENCE]
+    for index, ((step, _, hold), pixels) in enumerate(
         zip(SEQUENCE, offsets, strict=True)
     ):
         if index and step != SEQUENCE[index - 1][0]:
             for opacity, pause in FADE:
-                show(step, opacity, offset)
+                show(page, step, opacity, pixels)
                 yield capture(page), pause
-        show(step, 1, offset)
+        show(page, step, 1, pixels)
         yield capture(page), hold
 
 
 def animation(page: Page, source: str, name: str, theme: str) -> None:
+    """The animation, and its still picture for readers who asked for less motion."""
     load(page, source)
     taken, durations = zip(*frames(page), strict=True)
     # Every frame gets the size of the largest one, on a transparent background.
@@ -904,9 +921,9 @@ def animation(page: Page, source: str, name: str, theme: str) -> None:
         padded = Image.new("RGBA", size)
         padded.paste(frame, (0, 0))
         pictures.append(padded)
-    target = OUTPUT / f"{name}-{theme}.webp"
+    path = OUTPUT / f"{name}-{theme}.webp"
     pictures[0].save(
-        target,
+        path,
         save_all=True,
         append_images=pictures[1:],
         duration=list(durations),
@@ -916,8 +933,21 @@ def animation(page: Page, source: str, name: str, theme: str) -> None:
         minimize_size=True,
     )
     print(
-        f"rendered {target.relative_to(ROOT)} "
-        f"({target.stat().st_size // 1024} KiB, {len(pictures)} frames)"
+        f"rendered {path.relative_to(ROOT)} "
+        f"({path.stat().st_size // 1024} KiB, {len(pictures)} frames)"
+    )
+    step, mode = POSTER
+    show(page, step, 1, offset(page, step, mode))
+    frame = Image.new("RGBA", size)
+    frame.paste(capture(page), (0, 0))
+    save(frame, f"{name}-still", theme)
+
+
+def new_page(browser: Browser, width: int, scale: float, theme: str) -> Page:
+    return browser.new_page(
+        viewport={"width": width, "height": 1400},
+        device_scale_factor=scale,
+        color_scheme=theme,  # type: ignore[arg-type]
     )
 
 
@@ -936,17 +966,13 @@ def main() -> None:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(executable_path=glob(BROWSER)[0])
         for theme in THEMES:
-            for kind, scale in SCALES.items():
-                page = browser.new_page(
-                    viewport={"width": 1000, "height": 1400},
-                    device_scale_factor=scale,
-                    color_scheme=theme,  # type: ignore[arg-type]
-                )
-                if kind == "animation":
-                    animation(page, source, "hero", theme)
-                else:
-                    for name, picture in pictures.items():
-                        still(page, picture, name, theme)
+            page = new_page(browser, 1000, SCALE, theme)
+            for name, picture in pictures.items():
+                still(page, picture, name, theme)
+            page.close()
+            for name, width, scale in HEROES:
+                page = new_page(browser, width, scale, theme)
+                animation(page, source, name, theme)
                 page.close()
         browser.close()
 
