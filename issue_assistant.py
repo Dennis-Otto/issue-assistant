@@ -120,6 +120,21 @@ MARKER = re.compile(r"<!-- issue-assistant:([a-z-]+)((?: [a-z]+=[\w.+/-]+)*) -->
 # takes some of them for spaces, which Markdown doesn't, so they could make the two
 # see different lines.
 STRAY_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+# Characters that GitHub shows as nothing, but that the engine reads, so that a text
+# could hold instructions that no maintainer sees: the format characters of Unicode
+# (category Cf), such as zero-width spaces and joiners, the controls of the direction
+# of writing and the tags U+E0001 to U+E007F, which spell ASCII invisibly; and the
+# code points that Unicode calls default ignorable, which a program shows as nothing
+# when it doesn't know them, such as the variation selectors, which can carry a byte
+# each behind any character, and the fillers of Hangul. A test checks the list
+# against the Unicode of the Python that runs it.
+INVISIBLE = re.compile(
+    "[\u00ad\u034f\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u115f\u1160"
+    "\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164"
+    "\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb\U000110bd\U000110cd"
+    "\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a"
+    "\U000e0000-\U000e0fff]"
+)
 # Code that Markdown shows as it is, by the rules of CommonMark: a fenced block from
 # a fence line to a closing fence line of the same character and at least the same
 # length, and a code span within one line between backtick runs of the same length
@@ -554,6 +569,16 @@ class GitHub:
             f"issues/comments/{comment_id}/reactions?per_page=100", pages=True
         )
         return reactions
+
+    def may_push(self, user: str) -> bool:
+        """Whether the user may push to the repository, as a maintainer does.
+
+        GitHub's permission is admin or write for the roles admin, maintain and
+        write, also through a team or a custom role, and read or none for the rest.
+        """
+        found = self.rest(f"collaborators/{quote(user, safe='')}/permission")
+        permission: str = found.get("permission") or "none"
+        return permission in {"admin", "write"}
 
     def open_issues(self, label: str) -> list[dict[str, Any]]:
         items = self.rest(
@@ -1176,6 +1201,29 @@ def reopen_if_answered(
 # Context for the engine
 
 
+@dataclass
+class Visible:
+    """Takes the characters that GitHub shows as nothing out of texts, and counts
+    them."""
+
+    removed: int = 0
+
+    def __call__(self, text: str) -> str:
+        text, count = INVISIBLE.subn("", text)
+        self.removed += count
+        return text
+
+    def everywhere(self, value: Any) -> Any:
+        """A value of JSON with each of its texts, at any depth, taken through."""
+        if isinstance(value, str):
+            return self(value)
+        if isinstance(value, dict):
+            return {key: self.everywhere(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self.everywhere(item) for item in value]
+        return value
+
+
 def excerpt(text: str, limit: int) -> str:
     """The text of an issue in short: form answers as lines, without empty answers.
 
@@ -1206,10 +1254,23 @@ def describe_author(item: dict[str, Any], reporter: str) -> str:
     return f"@{name}" + (f" ({', '.join(roles)})" if roles else "")
 
 
-def render_issue(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str:
+def render_issue(
+    issue: dict[str, Any],
+    comments: list[dict[str, Any]],
+    visible: Visible | None = None,
+) -> str:
+    """issue.md: the issue and its comments, each text in a code fence of its own.
+
+    Who wrote a text, in which role and when stands only in the headings and lines
+    that the script writes outside the fences, and nothing in a text can close its
+    fence, so no text can pass for another comment, for the maintainer or for the
+    assistant. Each text loses its invisible characters first, which could otherwise
+    hide instructions or split a run of backticks that closes the fence.
+    """
+    visible = visible or Visible()
     reporter = login(issue.get("user"))
     lines = [
-        f"# Issue #{issue['number']}: {issue['title']}",
+        f"# Issue #{issue['number']}: {one_line(visible(issue['title']))}",
         "",
         f"- Reporter: {describe_author(issue, reporter)}",
         f"- State: {issue['state']}",
@@ -1218,7 +1279,7 @@ def render_issue(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str:
         "",
         "## Text of the issue",
         "",
-        rendered_text(text_of(issue)) or "(empty)",
+        rendered_text(visible(text_of(issue))),
     ]
     for index, comment in enumerate(comments, start=1):
         lines += [
@@ -1226,17 +1287,22 @@ def render_issue(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str:
             f"## Comment {index} by {describe_author(comment, reporter)}, "
             f"{comment['created_at'][:10]}",
             "",
-            rendered_text(text_of(comment)),
+            rendered_text(visible(text_of(comment))),
         ]
     return "\n".join(lines) + "\n"
 
 
 def rendered_text(text: str) -> str:
-    """A text for issue.md: without HTML, and cut off after MAX_RENDERED_TEXT."""
+    """A text for issue.md: without HTML, cut off after MAX_RENDERED_TEXT, and in a
+    code fence that nothing in it can close."""
     text = strip_html(text).strip()
-    if len(text) <= MAX_RENDERED_TEXT:
-        return text
-    return text[:MAX_RENDERED_TEXT].rstrip() + "\n\n(shortened)"
+    if not text:
+        return "(empty)"
+    note = ""
+    if len(text) > MAX_RENDERED_TEXT:
+        text, note = text[:MAX_RENDERED_TEXT].rstrip(), "\n\n(shortened)"
+    marks = fence(text)
+    return f"{marks}\n{text}\n{marks}{note}"
 
 
 def render_labels(config: Config) -> str:
@@ -1263,19 +1329,24 @@ def write_context(
     issue = github.issue(number)
     comments = github.comments(number)
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "issue.md").write_text(render_issue(issue, comments), encoding="utf-8")
+    # The invisible characters of the issue, and of the texts that every analysis
+    # reads, in which anyone could plant instructions for later issues.
+    own, elsewhere = Visible(), Visible()
+    (folder / "issue.md").write_text(
+        render_issue(issue, comments, own), encoding="utf-8"
+    )
     (folder / "labels.md").write_text(render_labels(config), encoding="utf-8")
     others = [
         {
             "number": item["number"],
-            "title": item["title"],
+            "title": elsewhere(item["title"]),
             "state": item["state"],
             "state_reason": item.get("state_reason"),
             "labels": sorted(label_names(item)),
             "opened": item["created_at"][:10],
             "closed": (item.get("closed_at") or "")[:10] or None,
             "comments": item.get("comments", 0),
-            "excerpt": excerpt(item.get("body") or "", 1500),
+            "excerpt": excerpt(elsewhere(item.get("body") or ""), 1500),
         }
         for item in github.all_issues()
         if item["number"] != number
@@ -1287,12 +1358,14 @@ def write_context(
     discussions = [
         {
             "number": item["number"],
-            "title": item["title"],
+            "title": elsewhere(item["title"]),
             "category": (item.get("category") or {}).get("name"),
             "answered": item.get("isAnswered"),
             "closed": item.get("closed"),
-            "excerpt": excerpt(item.get("body") or "", 1000),
-            "answer": excerpt((item.get("answer") or {}).get("body") or "", 1000)
+            "excerpt": excerpt(elsewhere(item.get("body") or ""), 1000),
+            "answer": excerpt(
+                elsewhere((item.get("answer") or {}).get("body") or ""), 1000
+            )
             or None,
         }
         for item in github.discussions()
@@ -1301,6 +1374,14 @@ def write_context(
         "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in discussions),
         encoding="utf-8",
     )
+    if own.removed or elsewhere.removed:
+        command(
+            "notice",
+            f"Removed {own.removed + elsewhere.removed} invisible characters, such "
+            "as zero-width spaces and Unicode tags, from the texts for the engine: "
+            f"{own.removed} from issue #{number}, {elsewhere.removed} from other "
+            "issues and discussions.",
+        )
     values = {
         "repository": config.repository,
         "issue": str(number),
@@ -1579,6 +1660,15 @@ def parse_answer(mode: str, raw: str, config: Config) -> dict[str, Any]:
         answer = json.loads(text)
     except ValueError as error:
         raise AssistantError(f"The engine's answer is no JSON: {error}") from error
+    # Before the checks, so that no invisible character splits a token that the
+    # check would find, and nothing that GitHub doesn't show reaches it.
+    visible = Visible()
+    answer = visible.everywhere(answer)
+    if visible.removed:
+        command(
+            "notice",
+            f"Removed {visible.removed} invisible characters from the engine's answer.",
+        )
     problems = validate(answer_schema(mode, config), answer)
     if problems:
         raise AssistantError(
@@ -1792,8 +1882,9 @@ def sanitize(text: str, config: Config, numbers: Iterable[int] = ()) -> str:
     checked = set(numbers)
     # Before the code is found, so that what is code stays code: strip() takes some
     # control characters for spaces, which Markdown doesn't, and would turn a line
-    # that starts with one into a fence after the code was found.
-    text = STRAY_CONTROL.sub("", text).strip()
+    # that starts with one into a fence after the code was found. Invisible
+    # characters go too, so that no comment holds a text that nobody sees.
+    text = STRAY_CONTROL.sub("", INVISIBLE.sub("", text)).strip()
 
     def prose(start: int, end: int) -> str:
         """The text between two pieces of code, cleaned for its place among them."""
@@ -2286,6 +2377,16 @@ def other_issue(github: GitHub, number: int, current: int) -> dict[str, Any] | N
     return None if "pull_request" in issue else issue
 
 
+def vouched_for(original: dict[str, Any]) -> bool:
+    """Whether a maintainer opened the issue or triaged it, so that another issue may
+    close as its duplicate.
+
+    Every analysis reads the text of every issue, so anyone could open one that tells
+    the engine to call later issues its duplicates, and close them.
+    """
+    return is_maintainer(original) or NEEDS_TRIAGE not in label_names(original)
+
+
 def check_findings(
     github: GitHub,
     issue: dict[str, Any],
@@ -2295,8 +2396,9 @@ def check_findings(
 ) -> Findings:
     """Keep the duplicates and related issues that exist, and the files that fit.
 
-    A sure duplicate of an open, older issue gets the notice and closes later; the
-    first other candidate becomes a suggestion in GitHub's panel for the maintainer.
+    A sure duplicate of an open, older issue that a maintainer opened or triaged gets
+    the notice and closes later; the first other candidate becomes a suggestion in
+    GitHub's panel for the maintainer.
     """
     number = issue["number"]
     language = answer["language"]
@@ -2314,6 +2416,7 @@ def check_findings(
         if (
             candidate["confidence"] == "high"
             and original["state"] == "open"
+            and vouched_for(original)
             and not findings.duplicate
         ):
             findings.duplicate = original
@@ -2724,19 +2827,28 @@ def sweep_duplicate(github: GitHub, issue: dict[str, Any], now: datetime) -> lis
     notice = notices[-1]
     if now - created(notice) < DUPLICATE_GRACE:
         return []
-    objections = [
-        comment
+    # A comment of anyone objects, and a thumbs down of the reporter or of anyone
+    # who may push to the repository: in the repository of an organization, the
+    # owner is the organization, which never reacts.
+    objected = any(
+        created(comment) > created(notice) and not is_bot(comment.get("user"))
         for comment in comments
-        if created(comment) > created(notice) and not is_bot(comment.get("user"))
-    ]
-    objections += [
-        reaction
+    ) or any(
+        reaction["content"] == "-1"
+        and (
+            login(reaction.get("user")) == author
+            or github.may_push(login(reaction.get("user")))
+        )
         for reaction in github.reactions(notice["id"])
-        if reaction["content"] == "-1"
-        and login(reaction.get("user")) in {author, github.owner}
-    ]
+    )
     original = other_issue(github, int(marker(notice)[1]["duplicate"]), number)  # type: ignore[index]
-    if objections or not original or original["state"] != "open":
+    # A notice from before an original had to be vouched for closes nothing.
+    if (
+        objected
+        or not original
+        or original["state"] != "open"
+        or not vouched_for(original)
+    ):
         github.remove_label(number, POSSIBLE_DUPLICATE)
         return [
             f"#{number}: stays open, the duplicate notice was objected to or is outdated."

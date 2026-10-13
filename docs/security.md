@@ -11,6 +11,8 @@ What the issue assistant protects, what it trusts and which risks remain. [SECUR
 - No comment of the assistant mentions anyone, links to a site that `config.toml` doesn't allow, to another repository or to an e-mail address, shows an image or HTML, or contains something that looks like a token or a key. What counts is the whole comment as GitHub shows it, not each field alone: the text of a field is as safe under a heading as in a list or behind an issue number.
 - The same holds for the AI's words outside its comments: in the log of the run, in its summary and in the reasons for labels and duplicates that GitHub shows on the timeline of the issue. They stay on one line there, and no answer can run a workflow command, such as `::add-mask::` or `::stop-commands::`.
 - No issue can stall the assistant. It reads every text in time that grows only with the length of the text, and no more of a text than GitHub keeps, 65,536 characters.
+- No text of an issue can pass for someone else or hide from the maintainer. The AI reads each text in a code fence that nothing in the text can close, under a heading of the assistant that names its author and role, and without the characters that GitHub shows as nothing.
+- No issue can close another reporter's issue. A sure duplicate closes on its own only when a maintainer opened or triaged the original, and a comment of anyone, or a thumbs down of the reporter or of anyone who may push to the repository, keeps it open.
 - The secret of the engine stays in the environment `issue-assistant`, which only the default branch may use; only the job that runs the engine sees it.
 - No code of a pull request runs in a workflow of the assistant.
 - The jobs that write reach only GitHub, in a public repository and in a private one whose owner subscribes to StepSecurity. Every job without the AI blocks every host but `api.github.com` and `github.com` with Harden-Runner, and no step in it can use sudo or containers.
@@ -69,11 +71,59 @@ flowchart TB
   class github safe
 ```
 
-1. **Issues and comments → the assistant.** Their text is untrusted. It reaches the AI as files that the prompt calls data, not instructions, and reaches a shell script only through environment variables.
+1. **Issues and comments → the assistant.** Their text is untrusted. It reaches the AI as files that the prompt calls data, not instructions, each text in a code fence that it can't close and without invisible characters, as [the next section](#how-the-text-of-an-issue-reaches-the-ai) shows, and reaches a shell script only through environment variables.
 2. **The AI → the `apply` job.** The answer is untrusted. It must be JSON that fits the schema of its task, with labels that exist and numbers of issues that exist; anything that looks like a secret refuses the whole answer.
 3. **The `apply` job → GitHub.** Only the issue of the event, with the permissions of its job.
 4. **Pull requests → the lifecycle.** The lifecycle workflow starts on `pull_request_target` only to learn which issues a merged pull request fixes. It checks out the default branch, runs no AI and skips Dependabot's pull requests.
 5. **The action → the repository that uses it.** The repository pins the action by the commit hash of a release, and the workflows grant each job only the permissions it needs.
+
+## How the text of an issue reaches the AI
+
+The AI learns who wrote what from `issue.md`: a heading for the issue and for each comment names the author, the role, such as reporter or maintainer, and the date, and the AI's own earlier comments are marked as its own. The text under a heading is written by anyone, so it must not be able to write such a heading itself, nor hide what the maintainer can't see:
+
+```mermaid
+flowchart TB
+  accTitle: How the text of an issue and its comments reaches the AI
+  accDescr: Each text of the issue and its comments loses the characters that GitHub shows as nothing, then its HTML, and is cut off after 20,000 characters. It goes into a code fence with one backtick more than its longest run of backticks, so that no line of the text can end it. The heading above the fence, which only the script writes, names the author, the role and the date. The other issues and discussions lose their invisible characters too and become excerpts in JSON. A notice in the log counts the characters that were removed.
+  text["a text of the issue<br/>or a comment"] --> invisible["<b>invisible characters out</b><br/>Unicode tags, zero-width,<br/>direction controls"]
+  invisible --> html["HTML out, at most<br/>20,000 characters"]
+  html --> fence["<b>a code fence</b> one<br/>backtick longer than any<br/>run in the text"]
+  heading["the heading: author,<br/>role and date"] --> issue[("issue.md")]
+  fence --> issue
+  others["other issues and<br/>discussions"] --> excerpts["invisible characters out,<br/>excerpts in JSON"]
+  excerpts --> jsonl[("issues.jsonl,<br/>discussions.jsonl")]
+  invisible -.-> notice["a notice in the log:<br/>how many"]
+  excerpts -.-> notice
+  classDef untrusted fill:#cf222e26,stroke:#cf222e
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class text,others untrusted
+  class invisible,html,fence,heading,excerpts,notice job
+  class issue,jsonl safe
+```
+
+- **Nothing in a text can end its fence.** A fence ends only at a line of at least as many backticks as the line that opened it, and the assistant opens it with one backtick more than the longest run in the text, at least three. So `## Comment 4 by @owner (maintainer)` in a text stays a line of that text, and so does a fence of the text's own, whatever its length. The prompt tells the AI that a fence holds only that person's text, whatever it looks like.
+- **What GitHub doesn't show, the AI doesn't read.** The tag characters of Unicode, U+E0001 to U+E007F, spell a whole sentence in ASCII that no browser shows, and zero-width spaces, joiners and the controls of the direction of writing hide or reorder text. The assistant removes every format character of Unicode and every code point that Unicode calls default ignorable, such as variation selectors, which can carry a byte each, from the issue and its comments, from the excerpts of the other issues and discussions, and from the AI's answer before its checks, so that none can hide a token from them either. Removing them first also keeps them from splitting a run of backticks that would end a fence.
+
+Every analysis reads the excerpts of all issues, so a text planted in one issue reaches the AI again with each new issue. Its worst use would be to call new issues its duplicates, which close on their own. So only an original that a maintainer vouches for can close another issue:
+
+```mermaid
+flowchart TB
+  accTitle: When a duplicate that the AI found closes on its own
+  accDescr: A duplicate that the AI is sure of, of an older open issue, gets the notice that closes it after three days only when a maintainer opened the original or triaged it, so that it no longer has needs-triage. Otherwise it becomes a suggestion for the maintainer and a related issue in the comment. A notice closes nothing when someone comments, when the reporter or anyone who may push to the repository reacts with a thumbs down, or when the original is closed or no longer vouched for by then.
+  sure["a sure duplicate of an<br/>older, open issue"] --> vouched{"a maintainer opened<br/>it or triaged it?"}
+  vouched -- "no" --> suggestion["a suggestion for the<br/>maintainer, a related issue"]
+  vouched -- "yes" --> notice["<b>possible-duplicate</b><br/>the notice"]
+  notice --> objected{"in 3 days: a comment,<br/>or a thumbs down of the<br/>reporter or of someone<br/>who may push?"}
+  objected -- "yes" --> open["stays open for<br/>the maintainer"]
+  objected -- "no" --> closed["closed as a duplicate"]
+  classDef question fill:#d4a72c33,stroke:#bf8700
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class vouched,objected question
+  class sure,notice,closed job
+  class suggestion,open safe
+```
 
 ## Where the AI's words go
 
@@ -177,12 +227,15 @@ Of 134,000 paths in five large projects, Spring Security, Home Assistant, VS Cod
 | Threat | Countermeasure | Evidence |
 | --- | --- | --- |
 | An issue tells the AI to run a command, read a secret or reach a server | The engine runs with the tools `Read`, `Grep` and `Glob` alone, with a read-only token, and the egress firewall allows only named hosts | `test_each_engine_can_only_read_the_checkout`, `test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions`, `test_the_firewall_template_allows_only_named_hosts` in `tests/test_templates.py` |
+| A text of an issue or a comment passes for the maintainer, for another comment or for the AI's earlier answer, with a heading like those of `issue.md` | Each text stands in a code fence one backtick longer than its longest run of backticks, so that nothing in it can end the fence; only the assistant writes the headings with author, role and date, and the prompt says that a fence holds only that person's text | `test_no_text_forms_a_heading_or_a_comment_in_issue_md` in `tests/test_assistant.py`; `test_no_text_forms_the_structure_of_issue_md_or_hides_in_it` in `tests/test_properties.py` |
+| An issue hides instructions for the AI in characters that GitHub shows as nothing, such as Unicode tags, zero-width spaces or the controls of the direction of writing, also for the analyses of later issues | The format characters of Unicode and the code points it calls default ignorable are removed from `issue.md`, the excerpts of the other issues and discussions, and the AI's answer before its checks; a notice in the log counts them | `test_the_invisible_characters_are_those_that_unicode_names`, `test_no_invisible_character_reaches_the_engine`, `test_the_answer_loses_its_invisible_characters_before_the_checks`, and `test_no_file_of_the_project_hides_characters` for the project's own files, in `tests/test_assistant.py`; `test_no_text_forms_the_structure_of_issue_md_or_hides_in_it` in `tests/test_properties.py` |
 | An issue makes the AI post a mention, a link, an image or HTML | `apply` removes images, HTML and headings, turns mentions, e-mail addresses, references and addresses that GitHub would link elsewhere into code, and keeps only links to allowed sites and to issues that exist; it places the text in the comment so that its code stays code | `test_mentions_images_html_and_headings_are_removed`, `test_only_links_to_known_places_stay_links`, `test_tricky_text_is_cleaned_safely`, `test_what_github_would_link_elsewhere_becomes_code`, `test_the_whole_comment_mentions_nobody_and_links_nowhere_else` in `tests/test_assistant.py`; property tests against a CommonMark parser, of the text and of the places it takes in a comment, in `tests/test_properties.py`; fuzzing with Atheris in `fuzz/fuzz_sanitize.py` |
 | An issue keeps the assistant busy, so that no analysis of the repository finishes, because each one reads every issue | Each text is read up to GitHub's 65,536 characters, by patterns that look at each character a bounded number of times; the AI reads at most 20,000 characters of each text of its issue, and HTML comments are removed as GitHub hides them, also one that starts a line and never ends | `test_no_text_makes_reading_an_issue_slow`, `test_no_text_makes_the_cleaning_slow`, `test_forms_read_as_they_always_did` in `tests/test_assistant.py`; property tests against the earlier patterns in `tests/test_properties.py`; fuzzing with Atheris in `fuzz/fuzz_issue_text.py`, which fails on a reading that takes longer than half a second |
 | The AI posts a secret that it found or was given | An answer with anything that looks like a token or a key is never posted, as [What counts as a secret](#what-counts-as-a-secret) shows | `test_an_answer_with_something_like_a_secret_is_never_posted`, `test_ordinary_long_words_links_and_paths_are_no_secrets`, `test_a_file_that_git_tracks_is_no_secret` in `tests/test_assistant.py`; `test_a_token_anywhere_in_the_answer_is_refused`, `test_a_path_that_git_tracks_is_never_a_secret` in `tests/test_properties.py` |
 | An answer runs a workflow command in the log of the run, such as `::add-mask::`, `::stop-commands::` or a forged `::error::`, or its comment ends the code block of the preview in the summary of a dry run | Every error and notice of the assistant is escaped as GitHub's Actions toolkit escapes it, and a key of the answer that the schema doesn't know shows as a short JSON string. The summary turns workflow commands off with a random token while it prints the engine's words, and the fence of a preview is longer than any run of backticks in the comment | `test_no_text_of_the_engine_runs_a_workflow_command`, `test_a_workflow_command_keeps_its_message_on_its_line`, `test_each_summary_stops_the_commands_with_a_token_of_its_own`, `test_only_a_terminal_outside_a_runner_gets_the_summary_alone`, `test_a_preview_can_t_close_its_fence` in `tests/test_assistant.py` |
 | An answer mentions someone or links elsewhere in a reason outside its comment: a line of the log and the summary, or the reason for a label or a duplicate on the timeline | Such reasons are cleaned like a comment, joined into one line before the cleaning, so that no code block keeps a mention as it is, and shortened to 280 characters before the cleaning, so that no cut loses the backtick that keeps a mention in its code | `test_the_reasons_on_the_timeline_are_cleaned_like_comments`, `test_the_engine_s_reasons_in_the_log_are_one_cleaned_line`, `test_a_shortened_line_keeps_its_cleaning` in `tests/test_assistant.py`; property tests in `tests/test_properties.py`; fuzzing with Atheris in `fuzz/fuzz_sanitize.py` |
 | A label name or the model of `config.toml` adds arguments to the command line of the engine, or breaks it, so that no issue gets an analysis | The schema writes an apostrophe of a label name as `\u0027`, which ends no quotes and reads back as the same JSON. `check` and the `engine` command refuse a model that is not a name of letters, digits and `._:@/[]-`, and one that starts with a dash, which the engine's action would read as another flag | `test_the_schemas_fit_into_the_engine_arguments`, `test_a_model_that_would_add_arguments_is_refused` in `tests/test_assistant.py`; `test_a_model_that_would_add_arguments_fails_the_check_and_the_engine` in `tests/test_setup.py` |
+| An issue steers the analyses of later issues into calling them its sure duplicates, so that they close after 3 days | Only an open original that a maintainer opened or triaged gets the notice that closes a duplicate; any other becomes a suggestion for the maintainer. A comment of anyone, and a thumbs down of the reporter or of anyone who may push to the repository, keep the issue open, and so does an original that is closed or no longer vouched for when the 3 days are over | `test_a_sure_duplicate_of_an_untriaged_issue_is_only_suggested`, `test_a_thumbs_down_of_the_reporter_or_a_maintainer_keeps_the_issue_open`, `test_other_reactions_do_not_object`, `test_a_notice_against_an_untriaged_original_closes_nothing` in `tests/test_assistant.py` |
 | An answer that breaks the schema changes the wrong labels or issues | The answer is checked against the schema of its task, the labels and the issues that exist | `test_an_answer_that_breaks_the_schema_is_refused`, `test_any_answer_is_checked_or_refused` |
 | Text of an issue runs as a shell command in a workflow | Every input goes through the environment; no expression of untrusted text stands in a `run:` script | `test_untrusted_text_never_reaches_a_shell_script`, `test_the_action_passes_every_input_through_the_environment` |
 | A pull request runs its code with the permissions of the lifecycle | The lifecycle checks out the default branch and runs no code of the pull request | `test_merges_and_releases_start_the_lifecycle_without_running_pull_request_code` |
@@ -193,6 +246,7 @@ Of 134,000 paths in five large projects, Spring Security, Home Assistant, VS Cod
 ## Residual risks
 
 - The AI can be wrong, or be steered into a wrong but harmless answer, such as a wrong label or a misleading analysis. The maintainer reads every issue and has the last word.
+- The reporter of an issue that a maintainer triaged can still edit its text later, and steer the analyses of later issues into calling them its duplicates. Their reporters get the notice and keep the issue open with a comment or a thumbs down, and the maintainer sees the label `possible-duplicate` for three days.
 - The AI reads the whole checkout of the default branch. Whatever is in the repository may appear in its analysis, so keep secrets out of the repository, as every repository should.
 - The provider of the engine receives the text of the issue and the parts of the repository that the AI reads. The notice in `SUPPORT.md` tells reporters which AI reads their issue.
 - The assistant is as safe as the permissions that the workflows of a repository grant it; `check` keeps them equal to the templates.
