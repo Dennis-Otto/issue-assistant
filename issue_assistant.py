@@ -90,6 +90,15 @@ MAX_FOLLOW_UPS = 2
 MERGE_LOOKBACK = timedelta(days=14)
 # How long a comment of the reporter can reopen an issue that a release closed.
 REOPEN_AFTER_RELEASE = timedelta(days=30)
+# The limits of the AI runs that people who don't maintain the repository start,
+# unless [engine] in config.toml sets others: analyses and follow-ups in 24 hours,
+# analyses of one reporter's new issues in 24 hours, and the reporter's comments
+# after a release that the AI reads.
+DAY = timedelta(days=1)
+MAX_PER_DAY = 20
+MAX_PER_AUTHOR_PER_DAY = 3
+RELEASE_REPLIES = 2
+LIMITS = ("max_per_day", "max_per_author_per_day", "release_replies")
 # GitHub keeps at most this many characters of the text of an issue or a comment;
 # the assistant reads no more of any text.
 MAX_TEXT = 65_536
@@ -116,6 +125,9 @@ LIFECYCLE = (
 GROUPS = ("type", "area", "topic", "lifecycle", "decision", "release", "dependabot")
 
 MODES = ("triage", "follow-up", "maintainer-reply", "release-reply")
+# The tasks that reporters start, which the limits of the AI runs apply to; a
+# maintainer starts the others.
+LIMITED = {"triage", "follow-up", "release-reply"}
 
 MARKER = re.compile(r"<!-- issue-assistant:([a-z-]+)((?: [a-z]+=[\w.+/-]+)*) -->")
 # Control characters other than tab and line break, which no comment needs: Python
@@ -503,6 +515,10 @@ class Config:
     notices: tuple[str, ...] = ("SUPPORT.md",)
     # Whether a fixed issue stays open until a release ships the fix.
     releases: bool = True
+    # The limits of the AI runs; see LIMITS.
+    max_per_day: int = MAX_PER_DAY
+    max_per_author_per_day: int = MAX_PER_AUTHOR_PER_DAY
+    release_replies: int = RELEASE_REPLIES
 
     @property
     def blob(self) -> str:
@@ -564,7 +580,26 @@ def load_config(root: Path, repository: str) -> Config:
         unmapped_options=tuple(forms.get("unmapped_options", ("Other",))),
         notices=tuple(settings.get("transparency", {}).get("files", ("SUPPORT.md",))),
         releases=settings.get("releases", {}).get("close_with_release", True),
+        max_per_day=engine.get("max_per_day", MAX_PER_DAY),
+        max_per_author_per_day=engine.get(
+            "max_per_author_per_day", MAX_PER_AUTHOR_PER_DAY
+        ),
+        release_replies=engine.get("release_replies", RELEASE_REPLIES),
     )
+
+
+def limit(config: Config, key: str) -> int:
+    """A limit of the AI runs, one of LIMITS.
+
+    A value that is no whole number of 0 or more stops the run instead of lifting
+    the limit; `check` names it before.
+    """
+    value = getattr(config, key)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise AssistantError(
+            f"{SETTINGS / 'config.toml'}: {key} must be a whole number, 0 or more"
+        )
+    return value
 
 
 def load_findings(root: Path) -> tuple[Acceptance, ...]:
@@ -731,6 +766,21 @@ class GitHub:
     def all_issues(self) -> list[dict[str, Any]]:
         items = self.rest("issues?state=all&per_page=100", pages=True)
         return [item for item in items if "pull_request" not in item]
+
+    def issues_since(self, since: datetime) -> list[dict[str, Any]]:
+        """The issues opened or changed at or after the moment."""
+        items = self.rest(
+            f"issues?state=all&since={stamp(since)}&per_page=100", pages=True
+        )
+        return [item for item in items if "pull_request" not in item]
+
+    def comments_since(self, since: datetime) -> list[dict[str, Any]]:
+        """The comments on issues and pull requests written or changed at or after
+        the moment."""
+        comments: list[dict[str, Any]] = self.rest(
+            f"issues/comments?since={stamp(since)}&per_page=100", pages=True
+        )
+        return comments
 
     def labels(self) -> list[dict[str, Any]]:
         if self._labels is None:
@@ -1121,6 +1171,11 @@ def created(item: dict[str, Any]) -> datetime:
     return moment(item["created_at"])
 
 
+def stamp(when: datetime) -> str:
+    """The moment as GitHub writes it, in UTC to the second."""
+    return when.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def marker(comment: dict[str, Any]) -> tuple[str, dict[str, str]] | None:
     """The kind and attributes of an assistant comment; None for every other comment."""
     if login(comment.get("user")) != BOT:
@@ -1259,19 +1314,25 @@ def handle_event(
             github.add_labels(number, [NEEDS_TRIAGE])
         if is_maintainer(issue):
             return Plan(number, notes=["Opened by a maintainer: no analysis."])
-        return Plan(number, "triage")
+        return within_limits(
+            github, Plan(number, "triage"), issue, created(issue), config
+        )
     if name == "issues" and action == "edited":
         if (
             issue["state"] == "open"
             and login(payload.get("sender")) == author
             and current & {NEEDS_INFO, STALE}
         ):
-            return answered(github, issue)
+            plan = answered(github, issue)
+            return within_limits(
+                github, plan, issue, moment(issue["updated_at"]), config
+            )
         return Plan(number, notes=["Edit without a pending question."])
     if name == "issue_comment" and action == "created":
         comment = payload["comment"]
         if issue["state"] != "open":
-            return reopen_if_answered(github, issue, comment)
+            plan = reopen_if_answered(github, issue, comment, config)
+            return within_limits(github, plan, comment, created(comment), config)
         plan = Plan(number)
         if POSSIBLE_DUPLICATE in current:
             # Every human comment after the notice stops the automatic closing.
@@ -1279,7 +1340,8 @@ def handle_event(
             plan.notes.append("A comment stopped the duplicate closing.")
         if login(comment.get("user")) == author:
             if current & {NEEDS_INFO, STALE}:
-                return answered(github, issue, plan)
+                plan = answered(github, issue, plan)
+                return within_limits(github, plan, comment, created(comment), config)
             return plan
         if is_maintainer(comment):
             if STALE in current:
@@ -1310,13 +1372,72 @@ def answered(github: GitHub, issue: dict[str, Any], plan: Plan | None = None) ->
     return plan
 
 
+def within_limits(
+    github: GitHub,
+    plan: Plan,
+    trigger: dict[str, Any],
+    at: datetime,
+    config: Config,
+) -> Plan:
+    """The plan, or none when its run of the AI would pass a limit of the day.
+
+    `trigger` is the new issue, the edit or the comment that asks for the run, and
+    `at` its time; the day is the 24 hours before. Maintainers are never limited,
+    and runs by hand never get here. Every new issue of the day that someone who
+    doesn't maintain the repository opened counts, also one that a limit kept from
+    the AI, so that a flood of issues at once, or issues that keep the AI from
+    answering, start no more runs than the limit; and so does every follow-up that
+    the assistant posted. A new issue counts only the issues opened before it, and
+    only an analysis has a limit for each reporter. Decision 0009 says why.
+    """
+    if plan.mode not in LIMITED or is_maintainer(trigger):
+        return plan
+    per_day = limit(config, "max_per_day")
+    per_author = limit(config, "max_per_author_per_day")
+    since = at - DAY
+    triage = plan.mode == "triage"
+    reporters = [
+        login(item.get("user"))
+        for item in github.issues_since(since)
+        if since <= created(item) <= at
+        and not is_bot(item.get("user"))
+        and not is_maintainer(item)
+        and (not triage or item["number"] < plan.issue)
+    ]
+    follow_ups = sum(
+        kind_of(comment) == "follow-up" and since <= created(comment) <= at
+        for comment in github.comments_since(since)
+    )
+    if len(reporters) + follow_ups >= per_day:
+        return stopped(
+            plan,
+            f"Daily limit of AI runs reached (max_per_day = {per_day}); "
+            "the maintainer takes over.",
+        )
+    if triage and reporters.count(login(trigger.get("user"))) >= per_author:
+        return stopped(
+            plan,
+            "Daily limit of analyses for this reporter reached "
+            f"(max_per_author_per_day = {per_author}); the maintainer takes over.",
+        )
+    return plan
+
+
+def stopped(plan: Plan, note: str) -> Plan:
+    """No task for the engine after all; the note says why, in the summary and as a
+    notice of the run."""
+    command("notice", note)
+    return Plan(plan.issue, notes=[*plan.notes, note])
+
+
 def reopen_if_answered(
-    github: GitHub, issue: dict[str, Any], comment: dict[str, Any]
+    github: GitHub, issue: dict[str, Any], comment: dict[str, Any], config: Config
 ) -> Plan:
     """Reopen an issue the assistant closed once its reporter answers.
 
     An issue closed unanswered reopens at once; for one that a release closed, the
-    engine decides whether the comment says that the problem persists.
+    engine decides whether the comment says that the problem persists, for the
+    first comments of the reporter after the release, up to release_replies.
     """
     number = issue["number"]
     author = login(issue.get("user"))
@@ -1332,8 +1453,20 @@ def reopen_if_answered(
         if kind_of(item) in {"closed-unanswered", "closed-duplicate", "released"}
     ]
     if closings and kind_of(closings[-1]) == "released":
-        if created(comment) - created(closings[-1]) > REOPEN_AFTER_RELEASE:
+        released = closings[-1]
+        if created(comment) - created(released) > REOPEN_AFTER_RELEASE:
             return Plan(number, notes=["The release closed this issue long ago."])
+        replies = limit(config, "release_replies")
+        earlier = sum(
+            login(item.get("user")) == author and item["id"] < comment["id"]
+            for item in comments[comments.index(released) + 1 :]
+        )
+        if earlier >= replies:
+            return stopped(
+                Plan(number),
+                "Limit of comments read after the release reached "
+                f"(release_replies = {replies}); the maintainer takes over.",
+            )
         return Plan(number, "release-reply", ["The reporter wrote after the release."])
     if STALE not in label_names(issue) or not any(
         kind_of(item) == "closed-unanswered" for item in closings
@@ -3433,6 +3566,11 @@ def check_config(config: Config) -> list[str]:
         problems.append(
             f"{SETTINGS / 'config.toml'}: close_with_release must be true or false"
         )
+    for key in LIMITS:
+        try:
+            limit(config, key)
+        except AssistantError as error:
+            problems.append(str(error))
     if config.engine in ENGINES:
         engine = ENGINES[config.engine]
         for name in config.notices:

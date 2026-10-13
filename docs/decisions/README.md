@@ -14,3 +14,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0006](0006-the-templates-exactly.md) | Every repository uses the workflows exactly as the templates have them | accepted, amended by [0007](0007-templates-live-in-templates.md) |
 | [0007](0007-templates-live-in-templates.md) | The templates live in `templates/`; this repository's own workflows come from the blueprint | accepted |
 | [0008](0008-the-jobs-that-write-reach-only-github.md) | The jobs that write reach only GitHub: Harden-Runner blocks every other host | accepted |
+| [0009](0009-limit-the-ai-runs.md) | Limit the AI runs that strangers start, counting issues rather than answers | accepted |

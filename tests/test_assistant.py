@@ -26,6 +26,7 @@ from support import (
     analysis,
     at,
     earlier_form_fields,
+    follow_up,
     make_answer,
     make_comment,
     make_follow_up,
@@ -548,6 +549,236 @@ def test_unknown_events_are_noted(config):
         github, "issues", event("labeled", make_issue()), config
     )
     assert plan.mode == "none" and "not handled" in plan.notes[0]
+
+
+# Limits of the AI runs
+
+DAILY_LIMIT = (
+    "Daily limit of AI runs reached (max_per_day = 20); the maintainer takes over."
+)
+REPORTER_LIMIT = (
+    "Daily limit of analyses for this reporter reached "
+    "(max_per_author_per_day = 3); the maintainer takes over."
+)
+
+
+def new_issues(count, first=1, days_ago=0.5):
+    """Issues that as many reporters opened in the last 24 hours."""
+    return [
+        make_issue(number, author=f"user{number}", days_ago=days_ago)
+        for number in range(first, first + count)
+    ]
+
+
+def opened(github, config, number=30, author="reporter"):
+    """The event of a new issue of the reporter, opened now."""
+    issue = make_issue(number, author=author, labels=("bug",), days_ago=0)
+    github.store[number] = issue
+    return assistant.handle_event(github, "issues", event("opened", issue), config)
+
+
+def test_new_issues_within_the_daily_limit_get_an_analysis(config, capsys):
+    github = FakeGitHub(config, *new_issues(19))
+    plan = opened(github, config)
+    assert (plan.issue, plan.mode) == (30, "triage")
+    assert "::notice::" not in capsys.readouterr().out
+
+
+def test_a_new_issue_beyond_the_daily_limit_waits_for_the_maintainer(config, capsys):
+    github = FakeGitHub(config, *new_issues(20))
+    plan = opened(github, config)
+    assert (plan.issue, plan.mode) == (30, "none")
+    assert plan.notes == [DAILY_LIMIT]
+    # The maintainer finds it among the issues to triage, and the run says why.
+    assert github.labels_of(30) == {"bug", "area: cards", "needs-triage"}
+    assert f"::notice::{DAILY_LIMIT}" in capsys.readouterr().out
+
+
+def test_only_the_new_issues_of_reporters_before_this_one_count(config):
+    github = FakeGitHub(
+        config,
+        *new_issues(19, first=2),
+        # Opened more than 24 hours ago, and changed since.
+        make_issue(1, author="user1", days_ago=1.5, updated_at=at(0.1)),
+        make_issue(21, author="maintainer", association="MEMBER", days_ago=0.5),
+        make_issue(22, author="renovate[bot]", days_ago=0.5),
+        make_issue(23, author="user23", days_ago=0.5, pull_request={"url": "x"}),
+        # Opened in the same second, after this one.
+        make_issue(31, author="user31", days_ago=0),
+    )
+    assert opened(github, config).mode == "triage"
+    # A flood of issues at once: each counts those opened before it, also while
+    # their analyses still run, so the next one is the 21st of the day.
+    assert opened(github, config, 31, "user31").mode == "none"
+
+
+@pytest.mark.parametrize(("posted", "mode"), [(9, "triage"), (10, "none")])
+def test_the_follow_ups_of_the_day_count_toward_the_daily_limit(config, posted, mode):
+    github = FakeGitHub(config, *new_issues(10))
+    github.comment_store[1] = [
+        # Analyses count as their issues; neither a follow-up of another day nor
+        # someone's copy of the marker counts.
+        analysis(100, days_ago=0.4),
+        {**follow_up(101, days_ago=1.5), "updated_at": at(0.1)},
+        follow_up(102, days_ago=0.4, author="user1"),
+        *(follow_up(110 + index, days_ago=0.3) for index in range(posted)),
+    ]
+    assert opened(github, config).mode == mode
+
+
+def test_one_reporter_gets_three_analyses_a_day(config, capsys):
+    github = FakeGitHub(
+        config,
+        make_issue(1, days_ago=2),
+        *(make_issue(number, days_ago=0.5) for number in (5, 6, 7)),
+    )
+    plan = opened(github, config)
+    assert plan.mode == "none" and plan.notes == [REPORTER_LIMIT]
+    assert f"::notice::{REPORTER_LIMIT}" in capsys.readouterr().out
+    assert opened(github, config, 31, "newcomer").mode == "triage"
+
+
+def answer_the_assistant(github, config, comment_id=5):
+    answer = make_comment(comment_id, "reporter", "Version 2.0.2", 0)
+    github.comment_store[12] = [analysis(questions=1, days_ago=0.8), answer]
+    return assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(12), comment=answer),
+        config,
+    )
+
+
+@pytest.mark.parametrize(("others", "mode"), [(15, "follow-up"), (16, "none")])
+def test_a_follow_up_needs_room_in_the_daily_limit(config, others, mode):
+    # The issue, opened today, and three more of its reporter count too, but the
+    # limit for one reporter is for analyses alone: with 15 issues of others, the
+    # follow-up is the 20th run of the day.
+    issue = make_issue(labels=("bug", "needs-info"), days_ago=0.9)
+    mine = [make_issue(number, days_ago=0.5) for number in (40, 41, 42)]
+    github = FakeGitHub(config, issue, *mine, *new_issues(others, first=20))
+    plan = answer_the_assistant(github, config)
+    assert plan.mode == mode
+    # The reporter answered either way, so the issue no longer waits for them.
+    assert "needs-info" not in github.labels_of(12)
+    if mode == "none":
+        assert plan.notes == ["The reporter answered.", DAILY_LIMIT]
+
+
+def test_maintainers_are_never_limited(config):
+    github = FakeGitHub(
+        config,
+        make_issue(labels=("bug",)),
+        make_issue(13, author="maintainer", association="MEMBER", labels=("bug",)),
+        *new_issues(25, first=20),
+    )
+    question = make_comment(5, "maintainer", "Can you send the log?", 0, "OWNER")
+    plan = assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(12), "maintainer", question),
+        config,
+    )
+    assert plan.mode == "maintainer-reply"
+    plan = assistant.handle_event(
+        github, "workflow_dispatch", {"inputs": {"issue": "12"}}, config
+    )
+    assert plan.mode == "triage"
+    # A maintainer who answers the questions of an analysis that they started.
+    github.store[13]["labels"].append({"name": "needs-info"})
+    answer = make_comment(6, "maintainer", "Here is the log", 0, "MEMBER")
+    github.comment_store[13] = [analysis(questions=1), answer]
+    plan = assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(13), "maintainer", answer),
+        config,
+    )
+    assert plan.mode == "follow-up"
+    assert not any("since=" in call[1] for call in github.calls)
+
+
+def test_the_limits_follow_the_settings(config):
+    github = FakeGitHub(config, make_issue(5, days_ago=0.5))
+    # A limit of 0 lets only maintainers start the AI, by hand.
+    assert opened(github, dataclasses.replace(config, max_per_day=0)).mode == "none"
+    one = dataclasses.replace(config, max_per_author_per_day=1)
+    plan = opened(github, one)
+    assert plan.notes == [
+        "Daily limit of analyses for this reporter reached "
+        "(max_per_author_per_day = 1); the maintainer takes over."
+    ]
+    two = dataclasses.replace(config, max_per_day=2, max_per_author_per_day=2)
+    assert opened(github, two).mode == "triage"
+
+
+@pytest.mark.parametrize("key", assistant.LIMITS)
+@pytest.mark.parametrize("value", [-1, True, "20", 2.5])
+def test_a_limit_that_is_no_whole_number_stops_the_run(config, key, value):
+    github = closed_by_release(config)
+    broken = dataclasses.replace(config, **{key: value})
+    with pytest.raises(assistant.AssistantError, match=f"{key} must be a whole number"):
+        if key == "release_replies":
+            comment_after_release(github, broken)
+        else:
+            opened(github, broken)
+
+
+def write_after_release(github, config, comment_id, days_ago=0):
+    comment = make_comment(comment_id, "reporter", "Still broken", days_ago)
+    github.comment_store[12].append(comment)
+    return assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(12), comment=comment),
+        config,
+    )
+
+
+def test_the_ai_reads_two_comments_of_the_reporter_after_the_release(config, capsys):
+    github = closed_by_release(config, days_ago=3)
+    # Neither a comment before the release nor one of the maintainer counts.
+    github.comment_store[12][1:1] = [make_comment(3, "reporter", "Any news?", 5)]
+    github.comment_store[12].append(
+        make_comment(4, "maintainer", "Thanks, look again", 2.5, "OWNER")
+    )
+    assert write_after_release(github, config, 9, 2).mode == "release-reply"
+    assert write_after_release(github, config, 10, 1).mode == "release-reply"
+    plan = write_after_release(github, config, 11)
+    note = (
+        "Limit of comments read after the release reached (release_replies = 2); "
+        "the maintainer takes over."
+    )
+    assert plan.mode == "none" and plan.notes == [note]
+    assert f"::notice::{note}" in capsys.readouterr().out
+    assert github.store[12]["state"] == "closed"
+
+
+def test_each_release_lets_the_ai_read_the_reporter_again(config):
+    github = closed_by_release(config, days_ago=10)
+    for comment_id, days_ago in ((3, 9), (4, 8)):
+        github.comment_store[12].append(
+            make_comment(comment_id, "reporter", "Still broken", days_ago)
+        )
+    github.comment_store[12].append(
+        make_comment(
+            5,
+            "bot",
+            assistant.render_released("reporter", make_release("v1.11.0"), [41], "en"),
+            2,
+        )
+    )
+    assert write_after_release(github, config, 9).mode == "release-reply"
+    none = dataclasses.replace(config, release_replies=0)
+    assert write_after_release(github, none, 10).mode == "none"
+
+
+def test_a_reply_after_the_release_needs_room_in_the_daily_limit(config):
+    github = closed_by_release(config)
+    for issue in new_issues(20, first=20):
+        github.store[issue["number"]] = issue
+    plan = write_after_release(github, config, 9)
+    assert plan.mode == "none" and plan.notes[-1] == DAILY_LIMIT
 
 
 # The context for the engine
