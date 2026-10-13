@@ -1,0 +1,225 @@
+name: Canary
+
+# The path of an issue through the AI, end to end, as the template
+# templates/.github/workflows/issue-assistant.yml runs it in every repository that
+# uses the action: the engine on GitHub's egress-firewall runner with the secret of
+# the environment issue-assistant, its structured answer, and apply, which checks
+# that answer. The tests and the Action test reach neither the engine, the outputs
+# of its action, the hosts of the firewall nor the secret, and this repository gets
+# few issues, so a broken path would show first as issues without an answer in
+# every repository that uses the action.
+#
+# The issue is tests/fixtures/canary-issue.json, which exists nowhere on GitHub:
+# ISSUE_ASSISTANT_FIXTURE gives it to context and apply in place of a real one, and
+# makes apply a dry run, whose summary shows the comment it would post. Nothing is
+# written to an issue: the tokens of analyze and apply only read.
+#
+# Every Monday, after every change on main of what the path runs, and by hand. Only
+# main may use the secret of the environment, so no pull request runs the canary;
+# an update of the engine's action waits for the maintainer, who watches its run
+# after the merge (.github/renovate.json5). docs/architecture.md describes it.
+
+on:
+  schedule:
+    - cron: "23 7 * * 1"
+  push:
+    branches: [main]
+    paths:
+      - action.yml
+      - issue_assistant.py
+      - prompts/**
+      - templates/.github/workflows/issue-assistant.yml
+      - templates/.github/egress-firewall.yaml
+      # The settings that this repository's analyses use, and the firewall policy
+      # that the runner enforces here.
+      - .github/egress-firewall.yaml
+      - .github/issue-assistant/**
+      - .github/labels.toml
+      - .github/workflows/canary.yml
+      - tests/fixtures/canary-issue.json
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  # The engine's action runs for a schedule or a run by hand, not for a push. So a
+  # push starts the canary as a run by hand, which the job's token may start, and
+  # waits for its result. GitHub mails a failed run to the person who started it:
+  # a run that the job's token started has none, but the push run fails with it,
+  # and its mail reaches the person who merged.
+  start:
+    name: Start the canary for the new main and wait for its result
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    # Long enough for an analysis that waits for an earlier one, then its own
+    # analysis and apply.
+    timeout-minutes: 60
+    permissions:
+      actions: write
+    steps:
+      - name: Block every host but GitHub's
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+      - name: Start the canary and wait for its result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_TELEMETRY: "false"
+        run: |
+          # GitHub answers with the number of the run that it started.
+          run=$(gh api --method POST "repos/$GH_REPO/actions/workflows/canary.yml/dispatches"             -f ref="$GITHUB_REF_NAME" -F return_run_details=true --jq .workflow_run_id)
+          if [[ -z "$run" ]]; then
+            echo "::warning::GitHub started the canary without naming its run; its result is under Actions."
+            exit 0
+          fi
+          url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run"
+          echo "The canary runs at $url"
+          gh run watch "$run" --interval 60 > /dev/null
+          conclusion=$(gh run view "$run" --json conclusion --jq .conclusion)
+          case "$conclusion" in
+            success) echo "The canary passed." ;;
+            # The analysis of a later push's canary took the place of its waiting one.
+            cancelled) echo "::notice::The canary was cancelled; a later one checks main: $url" ;;
+            *)
+              echo "::error::The canary ended as $conclusion: $url"
+              exit 1
+              ;;
+          esac
+
+  # The job analyze of the template; a test keeps its runner, environment,
+  # permissions, outputs and engine steps equal to the template's. The steps of the
+  # issue assistant run the action of this commit, as ./: actionlint doesn't know
+  # the self-repository syntax $/ yet, which zizmor asks for.
+  analyze:
+    name: Analyze the canary's issue with the AI engine
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04-firewall
+    timeout-minutes: 20
+    # One analysis at a time; the job, not the run, waits, so that a push never
+    # waits for an analysis to start the next one.
+    concurrency:
+      group: canary
+      cancel-in-progress: false
+    environment:
+      name: issue-assistant
+      deployment: false
+    permissions:
+      contents: read
+      issues: read
+      discussions: read
+    outputs:
+      engine: ${{ steps.engine.outputs.engine }}
+      answer: ${{ steps.claude.outputs.structured_output }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Choose the engine and check its secret
+        id: engine
+        uses: ./ # zizmor: ignore[self-repository]
+        with:
+          command: engine
+          # One entry per engine: its key when its secret exists.
+          ready-engines: ${{ (secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '') && 'claude' || '' }}
+      # In a repository, the AI is off without its secret; here that would hide the
+      # path that the canary watches.
+      - name: Fail without the engine's secret
+        if: steps.engine.outputs.ready != 'true'
+        env:
+          ENGINE: ${{ steps.engine.outputs.engine }}
+        run: |
+          echo "::error::The canary needs the secret of the engine $ENGINE in the environment issue-assistant."
+          exit 1
+      - name: Collect the canary's issue, earlier issues and discussions
+        id: context
+        if: steps.engine.outputs.ready == 'true'
+        uses: ./ # zizmor: ignore[self-repository]
+        env:
+          ISSUE_ASSISTANT_FIXTURE: tests/fixtures/canary-issue.json
+        with:
+          command: context
+          mode: triage
+
+      # The engines, as in the template, but they also run when a bot started the
+      # run: the job start starts it as github-actions[bot], and GitHub may name an
+      # app that changed this file as the one who started a scheduled run. No event
+      # from outside this repository starts the canary.
+
+      - name: Analyze with Claude
+        id: claude
+        if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'claude'
+        uses: anthropics/claude-code-action@58985842b834ed26087302ba27d07bc24ca8697a # v1.0.244
+        env:
+          DISABLE_TELEMETRY: "1"
+          DISABLE_ERROR_REPORTING: "1"
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Issues come from people without write access. The token is the job's
+          # read-only GITHUB_TOKEN, and Claude can only read files of the checkout.
+          github_token: ${{ github.token }}
+          allowed_non_write_users: "*"
+          allowed_bots: "*"
+          prompt: ${{ steps.context.outputs.prompt }}
+          # --restricted removes every tool that runs code or reaches the network,
+          # ignores settings files and confines the file tools to the checkout;
+          # --tools leaves only the reading tools, and nothing ever prompts.
+          claude_args: |
+            --restricted
+            --tools "Read,Grep,Glob"
+            --permission-prompts none
+            --model ${{ steps.engine.outputs.model }}
+            --max-turns 40
+            --json-schema '${{ steps.context.outputs.schema }}'
+
+      # The template skips apply without an answer; here no answer is the failure
+      # the canary is for, such as a renamed output of the engine's action.
+      - name: Check that the engine answered
+        env:
+          ANSWER: ${{ steps.claude.outputs.structured_output }}
+        run: |
+          if [[ -z "$ANSWER" ]]; then
+            echo "::error::The engine gave no structured answer; did its action rename its output, or did it fail?"
+            exit 1
+          fi
+          echo "The engine answered with ${#ANSWER} characters of JSON."
+
+  # The job apply of the template, as a dry run with a token that can only read: it
+  # checks the answer as for a real issue, and its summary shows the comment.
+  apply:
+    name: Check the answer and show the comment
+    needs: analyze
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      discussions: read
+    steps:
+      - name: Block every host but GitHub's
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the engine's answer and show the comment
+        uses: ./ # zizmor: ignore[self-repository]
+        env:
+          ISSUE_ASSISTANT_FIXTURE: tests/fixtures/canary-issue.json
+        with:
+          command: apply
+          mode: triage
+          engine: ${{ needs.analyze.outputs.engine }}
+          answer: ${{ needs.analyze.outputs.answer }}
+          dry-run: true

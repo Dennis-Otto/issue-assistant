@@ -17,5 +17,19 @@
       matchDepNames: ["Dennis-Otto/issue-assistant"],
       enabled: false,
     },
+    {
+      // The engine's action runs only in the job analyze, on the firewall runner and
+      // with the engine's secret, which only main may use: no check of a pull
+      // request runs it. So its updates come in a pull request of their own and wait
+      // for the maintainer. The push of the merge to main starts the Canary
+      // (.github/workflows/canary.yml), which runs the AI's whole path with the new
+      // version; a release follows only once it passed (docs/architecture.md).
+      matchDepNames: ["anthropics/claude-code-action"],
+      groupName: "the engine's action",
+      automerge: false,
+      prBodyNotes: [
+        "**This update waits for you.** The engine's action runs only on `main`, where the engine's secret is, so no check of this pull request runs it. Merge it when you can watch the [Canary](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/canary.yml): the push to `main` starts it, and it runs the analysis of a fixture issue with this version, from the engine on the firewall runner to the checked answer. Release only once it passed; if it fails, revert this update.",
+      ],
+    },
   ],
 }

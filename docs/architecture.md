@@ -20,6 +20,7 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 | Lifecycle | `sweep` | Reminders after 15 days, closing after 30 days, closing duplicates after 3 days, marking fixed issues, closing them with the release and filing them under its milestone |
 | Labels | `sync_labels` | Create and update the labels of `labels.toml`, never delete one |
 | Findings | `watch_findings` | Dismiss the findings of code scanning that `findings.toml` accepts and fail while others are open |
+| Fixture | `read_fixture`, `GitHub.use_fixture` | An issue and its comments from a JSON file in place of GitHub's, for [the canary](#the-canary) and for trying a prompt; `context` and `apply` then write nothing |
 | Set-up | `install`, `check` | Write the four workflows, the firewall policy and the starter files of `templates/` into a repository, and check that its set-up still fits the templates; both need only the checkout and name its files with slashes on every system |
 
 ## The workflows of a repository
@@ -144,7 +145,7 @@ flowchart TB
 ```
 
 1. **A pull request here** changes `templates/`, never the copies in `.github/`. `tests/test_templates.py` pins the rules of the templates. The Action test lints them with actionlint and zizmor, installs them into the sample repository and into a copy of this repository, and checks both set-ups through the action. The required check `issue-assistant` runs `check` of the release that the Lint workflow pins, on this repository's own copies, which the pull request leaves as they are.
-2. **The release** of the change is a new minor version, and its notes say that repositories run `install` again.
+2. **The release** of the change is a new minor version, and its notes say that repositories run `install` again. A change of `issue-assistant.yml` or of the firewall policy starts [the canary](#the-canary) with its merge, and the release waits until it passed.
 3. **The blueprint takes the release over** in a pull request of its own: it runs `install` of the release in its root, takes over the firewall policy of `templates/` and moves every pin of the action, that of the check in its Lint workflow too. It also adapts its own checks to the templates when they need it, as when actionlint had to ignore the queue of a concurrency group, which it doesn't know yet. A pull request that changed only the blueprint's copies would fail the check `issue-assistant` there in the same way.
 4. **The next release of the blueprint** reaches every repository made from it, this one too, as an update pull request of the blueprint bot. Repositories that use the action without the blueprint receive the release as a Dependabot pull request and run `install` again.
 
@@ -173,6 +174,39 @@ flowchart TB
 1. **Every GraphQL document meets GitHub's schema.** `tests/test_graphql_contract.py` runs each method of the class `GitHub` that sends GraphQL, catches what it hands to `gh` and checks it against GitHub's public schema, whose copy is `tests/github/schema.docs.graphql`: every field and argument must exist and none may be deprecated, and every variable must fit its type, such as the reason for closing an issue. The answer is worked out from the schema as well, so it holds only the fields that the document asks for, and the method can read no other. A document that the test doesn't know fails it, so a new one comes with its case.
 2. **The commands that read run against GitHub.** The job `egress` of the Action test runs the action of the pull request as dry runs of `sweep` and `sync-labels` on this repository, and `context` for a closed issue of [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), a public repository that uses the action, with its comments, the other issues and the discussions. Its token can only read, so a write that a dry run let through would fail too.
 3. **Every week, the schema of the day.** GitHub changes its API without a release of the action. The job `schema` of the Action test checks the documents every week against the schema that GitHub publishes that day. GitHub deprecates a field, an argument or a value of an enum months before it removes it, and says when, so the run turns red as soon as the script uses something deprecated, while it still works. When the copy in `tests/github/` is behind, a notice says so, and a pull request refreshes it with the command in `tests/test_graphql_contract.py`.
+
+## The canary
+
+The tests replace the engine, and the Action test runs everything but it, so the path that matters most, from an issue through the engine to the checked answer, ran only when someone opened an issue: here that is rare, and every repository that uses the action runs it with its own secret. A renamed output of the engine's action, a host that the firewall blocks or an expired secret would show as issues without an answer, in every repository at once. The Canary, `.github/workflows/canary.yml`, runs the whole path every Monday, after every change on `main` of what it runs, and by hand:
+
+```mermaid
+flowchart TB
+  accTitle: How the Canary runs the path of an issue through the AI
+  accDescr: The Canary starts every Monday, after a change on main of the script, the prompts, the action, the workflow template, the firewall policy, the settings or the canary's issue, and by hand. Its job analyze is that of the template: on the firewall runner, with the engine's secret of the environment issue-assistant, context reads the issue of tests/fixtures/canary-issue.json instead of one on GitHub, and the engine answers with JSON. Without the secret or without an answer, the canary fails. Its job apply checks the answer as for a real issue, as a dry run with a token that can only read: an answer that breaks a check fails the canary, and one that passes shows the comment it would post in the summary.
+  start(["every Monday, a change<br/>on main, or by hand"]) --> analyze
+  fixture[("tests/fixtures/<br/>canary-issue.json")] --> analyze
+  analyze["<b>analyze</b>, as in the template:<br/>the firewall runner,<br/>the secret, the engine"] --> answered{"a structured<br/>answer?"}
+  answered -- "no" --> red["the canary fails:<br/>no release"]
+  answered -- "yes" --> apply["<b>apply</b>, a dry run<br/>with a token that only reads:<br/>the checks of every answer"]
+  apply -- "a check fails" --> red
+  apply -- "it passes" --> green["the comment it would post,<br/>in the summary"]
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  class start,fixture,answered trigger
+  class analyze ai
+  class apply job
+  class green safe
+  class red untrusted
+```
+
+- **The issue exists nowhere.** `tests/fixtures/canary-issue.json` holds an issue of the bug report form of this repository and a comment, as GitHub's REST API gives them. The environment variable `ISSUE_ASSISTANT_FIXTURE` gives them to `context` and `apply` in place of an issue on GitHub; the other issues, the discussions, the labels and the latest release come from GitHub, as for a real issue. With a fixture, `apply` is a dry run whatever `dry-run` says, and the tokens of the jobs `analyze` and `apply` can only read, so nothing reaches an issue. A test keeps the issue fitting the form and the labels of this repository.
+- **The engine runs as in every repository.** `tests/test_templates.py` keeps the job `analyze` of the canary equal to that of the template: the runner, the environment, the permissions, the outputs and the steps of the engines, with their pins. Only the steps of the issue assistant run the action of the commit, as `./`, and the engines also accept a run that a bot started, as the canary's own runs after a push are. Where a repository's run skips the AI, without the secret or without an answer, the canary fails.
+- **The firewall policy is this repository's.** The runner enforces `.github/egress-firewall.yaml`, the blueprint's copy of the template of the release that it pins, so a change of `templates/.github/egress-firewall.yaml` reaches the canary with the blueprint's next update.
+- **Only `main` runs it.** Only the default branch may use the environment `issue-assistant`, so no pull request runs the canary, and an update of the engine's action doesn't merge on its own: Renovate gives it a pull request of its own that waits for the maintainer, as `.github/renovate.json5` says. The push of its merge starts the canary with the new version; the release waits until the canary passed, and a failed update is reverted. The engine's action runs for a schedule or a run by hand, not for a push, so after a push the job `start`, whose token may only start workflows, starts the canary as a run by hand and waits for its result.
+- **A red canary is seen.** GitHub mails the failure of a scheduled run to whoever last changed its schedule, here the maintainer. A run that the job `start` started has nobody to mail, so that job fails with it, and GitHub mails the failure of the push's run to the person who merged; a canary that a later push's canary replaced fails nothing. Every red run also shows under Actions.
 
 ## When a call to GitHub fails
 

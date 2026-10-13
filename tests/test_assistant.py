@@ -4134,6 +4134,246 @@ def test_the_apply_command_previews_a_dry_run(
     assert "\n```markdown\n<!-- issue-assistant:analysis" in summary
 
 
+# A fixture: an issue from a file, which the Canary analyzes
+
+
+def fixture_of(issue, *comments, **data):
+    return {"issue": issue, "comments": list(comments), **data}
+
+
+def write_fixture(path, data):
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def test_context_reads_the_issue_of_a_fixture_instead_of_github(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    issue = make_issue(1000000, title="The live card stays empty")
+    comment = make_comment(1, "reporter", "Still empty after a reload.", 0.5)
+    # Named relative to the checkout, as the Canary names it.
+    write_fixture(root / "canary.json", fixture_of(issue, comment))
+    # GitHub has the other issues of the repository, but not the fixture's.
+    github = FakeGitHub(config, make_issue(5))
+    code, outputs, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        root,
+        github,
+        "context",
+        MODE="triage",
+        ISSUE_ASSISTANT_FIXTURE="canary.json",
+    )
+    assert code == 0
+    assert (
+        "::notice::Issue #1000000 comes from the fixture canary.json; "
+        "nothing is written.\n"
+    ) in capsys.readouterr().out
+    context = root / assistant.CONTEXT
+    text = (context / "issue.md").read_text("utf-8")
+    assert text.startswith("# Issue #1000000: The live card stays empty\n")
+    assert "## Comment 1 by @reporter (reporter)" in text
+    assert "Still empty after a reload." in text
+    others = (context / "issues.jsonl").read_text("utf-8").splitlines()
+    assert [json.loads(line)["number"] for line in others] == [5]
+    assert "issue #1000000" in outputs
+    # Nothing about the fixture's issue was asked of GitHub.
+    assert not [call for call in github.calls if "1000000" in str(call)]
+
+
+def test_apply_checks_the_answer_for_a_fixture_and_writes_nothing(
+    monkeypatch, tmp_path, sample_root, config
+):
+    fixture = write_fixture(tmp_path / "canary.json", fixture_of(make_issue(1000000)))
+    # Neither the run nor GitHub is a dry run: the fixture makes it one.
+    github = FakeGitHub(config, make_issue(5, labels=("bug",)))
+    answer = make_answer(
+        missing_information=["Which version?"],
+        duplicates=[{"number": 5, "confidence": "medium", "reason": "Same card."}],
+    )
+    code, _, summary = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        github,
+        "apply",
+        MODE="triage",
+        RESULT=json.dumps(answer),
+        ENGINE="claude",
+        GITHUB_SHA="abc",
+        ISSUE_ASSISTANT_FIXTURE=str(fixture),
+    )
+    assert code == 0
+    assert github.dry_run and github.writes_made() == []
+    assert "### Issue assistant: triage of #1000000 (dry run)" in summary
+    for write in (
+        "suggest closing #1000000 as a duplicate of #5",
+        "comment on #1000000",
+        "add needs-info to #1000000",
+    ):
+        assert f"- {write}\n" in summary
+    assert "<details><summary>Comment</summary>" in summary
+    # Every other issue still comes from GitHub.
+    assert ("GET", "issues/5", None) in github.calls
+
+
+def test_a_fixture_holds_the_issue_of_the_run(
+    monkeypatch, tmp_path, sample_root, config, capsys
+):
+    fixture = write_fixture(tmp_path / "canary.json", fixture_of(make_issue(12)))
+    github = FakeGitHub(config, make_issue(13))
+    code, _, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        github,
+        "apply",
+        ISSUE="13",
+        MODE="triage",
+        RESULT=json.dumps(make_answer()),
+        ISSUE_ASSISTANT_FIXTURE=str(fixture),
+    )
+    assert code == 1
+    assert (
+        f"::error::The fixture {fixture} holds issue #12, not #13.\n"
+        in capsys.readouterr().out
+    )
+    assert not github.calls
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["event"],
+        ["sweep"],
+        ["sync-labels"],
+        ["findings"],
+        ["engine"],
+        ["check"],
+        ["install", "--ref", "0" * 40, "--version", "v1.0.0"],
+    ],
+    ids=lambda argv: argv[0],
+)
+def test_a_fixture_is_only_for_context_and_apply(
+    monkeypatch, tmp_path, sample_root, config, capsys, argv
+):
+    # The other commands would read or write the real repository.
+    github = FakeGitHub(config)
+    code, _, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        github,
+        *argv,
+        ISSUE_ASSISTANT_FIXTURE="canary.json",
+    )
+    assert code == 1
+    assert capsys.readouterr().out == (
+        "::error::ISSUE_ASSISTANT_FIXTURE is for context and apply; "
+        f"unset it for {argv[0]}.\n"
+    )
+    assert not github.calls
+
+
+ISSUE = make_issue(12)
+
+
+@pytest.mark.parametrize(
+    ("content", "problem"),
+    [
+        (None, "can't be read: No such file or directory"),
+        ("{", "is no JSON: Expecting property name enclosed in double quotes"),
+        (b"\xff", "is no JSON: 'utf-8' codec can't decode byte 0xff"),
+        ([ISSUE], "must be an object with the issue and its comments"),
+        (
+            {"issue": ISSUE, "comment": []},
+            "doesn't fit: unknown key comment; did you mean comments?",
+        ),
+        ({"comments": []}, "doesn't fit: issue must be an object"),
+        (
+            fixture_of(
+                dict(
+                    ISSUE,
+                    number=0,
+                    title=None,
+                    state="merged",
+                    labels=["bug"],
+                    body=5,
+                    user="reporter",
+                    created_at="yesterday",
+                )
+            ),
+            "doesn't fit: issue.number must be a whole number, 1 or more; "
+            "issue.title must be a string; "
+            'issue.state must be "open" or "closed"; '
+            "issue.labels must be a list of objects with a name; "
+            "issue.body must be a string; "
+            "issue.user must be an object with a login; "
+            "issue.created_at must be a moment, such as 2026-10-13T07:23:00Z",
+        ),
+        (
+            fixture_of(dict(ISSUE, number=True, labels="bug", user={"login": 5})),
+            "doesn't fit: issue.number must be a whole number, 1 or more; "
+            "issue.labels must be a list of objects with a name; "
+            "issue.user must be an object with a login",
+        ),
+        (
+            {"issue": ISSUE, "comments": {"id": 1}},
+            "doesn't fit: comments must be a list",
+        ),
+        (
+            fixture_of(ISSUE, 5, make_comment(2, "reporter", "Hi", 1) | {"user": {}}),
+            "doesn't fit: comments[0] must be an object; "
+            "comments[1].user must be an object with a login",
+        ),
+        (
+            fixture_of(ISSUE, make_comment(1, "reporter", None, 1) | {"created_at": 5}),
+            "doesn't fit: comments[0].created_at must be a moment, "
+            "such as 2026-10-13T07:23:00Z",
+        ),
+    ],
+    ids=[
+        "missing",
+        "no JSON",
+        "no UTF-8",
+        "a list",
+        "a typo",
+        "no issue",
+        "wrong values",
+        "wrong types",
+        "comments no list",
+        "comments of wrong kinds",
+        "a comment without its moment",
+    ],
+)
+def test_a_fixture_that_github_would_not_send_is_refused(tmp_path, content, problem):
+    path = tmp_path / "canary.json"
+    if isinstance(content, bytes):
+        path.write_bytes(content)
+    elif isinstance(content, str):
+        path.write_text(content, encoding="utf-8")
+    elif content is not None:
+        write_fixture(path, content)
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.read_fixture(tmp_path, "canary.json")
+    assert str(refused.value).startswith(f"The fixture canary.json {problem}")
+
+
+def test_a_fixture_needs_no_more_than_github_sends(tmp_path):
+    # A body that GitHub sends as null, and an issue without labels or comments.
+    issue = {key: ISSUE[key] for key in ("number", "title", "state", "created_at")}
+    issue |= {"body": None, "user": {"login": "reporter"}}
+    write_fixture(tmp_path / "canary.json", {"issue": issue})
+    fixture = assistant.read_fixture(tmp_path, "canary.json")
+    assert (fixture.number, fixture.issue, fixture.comments) == (12, issue, [])
+    github = assistant.GitHub(REPOSITORY)
+    github.use_fixture(fixture)
+    # Each read is a copy, as GitHub sends a new one for every request.
+    github.issue(12)["labels"] = [{"name": "bug"}]
+    github.comments(12).append(make_comment(1, "reporter", "Hi", 1))
+    assert (github.issue(12), github.comments(12)) == (issue, [])
+
+
 def test_the_apply_command_fails_on_a_bad_answer(
     monkeypatch, tmp_path, sample_root, config, capsys
 ):
