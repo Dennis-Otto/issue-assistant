@@ -16,7 +16,7 @@ from hypothesis import strategies as st
 
 import issue_assistant as assistant
 from oracle import CONFIG, problems
-from support import BOT_USER, EARLIER_HTML, REPOSITORY, earlier_form_fields
+from support import BOT_USER, EARLIER_HTML, ESCAPES, REPOSITORY, earlier_form_fields
 
 # Text made of the pieces that matter for Markdown, mentions and links.
 PIECES = st.sampled_from(
@@ -55,17 +55,30 @@ PIECES = st.sampled_from(
         " ",
         "\r",
         "\0",
+        "\t",
+        "\x1d",
+        "- ",
         "word",
+        "HTTPS://evil.example",
+        "support@evil.example",
     ]
 )
 TEXT = st.one_of(st.text(), st.lists(PIECES, max_size=40).map("".join))
 NUMBERS = st.sets(st.integers(min_value=1, max_value=20), max_size=3)
 
 
+def known_escapes(test):
+    """The test, tried first with each text that once got past the cleaning."""
+    for text, numbers in ESCAPES:
+        test = hypothesis.example(text, numbers)(test)
+    return test
+
+
 @hypothesis.settings(
     max_examples=600, suppress_health_check=[hypothesis.HealthCheck.too_slow]
 )
 @given(TEXT, NUMBERS)
+@known_escapes
 def test_sanitized_text_mentions_nobody_and_links_only_allowed_sites(text, numbers):
     output = assistant.sanitize(text, CONFIG, numbers)
     assert problems(output, numbers) == [], output
@@ -81,6 +94,24 @@ def test_a_line_of_the_engine_s_text_is_short_clean_and_one_line(text, limit):
     # Alone, as a rationale, and within a line, as in the log and the job summary.
     assert problems(line, set()) == [], line
     assert problems(f"- Reason: {line}", set()) == [], line
+
+
+@hypothesis.settings(
+    max_examples=300, suppress_health_check=[hypothesis.HealthCheck.too_slow]
+)
+@given(TEXT, NUMBERS)
+@known_escapes
+def test_cleaned_text_stays_safe_wherever_the_comment_puts_it(text, numbers):
+    """Under a heading, in a list, and on one line behind a number, where a fence
+    would start no code block."""
+    cleaned = assistant.sanitize(text, CONFIG, numbers)
+    line = assistant.sanitize(assistant.one_line(text), CONFIG, numbers)
+    for comment in (
+        f"### Summary\n\n{cleaned}\n\n### Next steps",
+        assistant.bullets([cleaned, cleaned]),
+        f"- #7: {line}\n- #8: {line}",
+    ):
+        assert problems(comment, numbers | {7, 8}) == [], comment
 
 
 @given(TEXT)
