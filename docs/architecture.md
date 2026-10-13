@@ -84,7 +84,7 @@ sequenceDiagram
   AI->>P: the answer, JSON
   Note over P: no AI, no secret
   P->>P: checks the answer against the schema,<br/>the labels and the issues, cleans the text
-  P->>G: comment and labels, only on #35;12
+  P->>G: the labels, the comment, then needs-info,<br/>only on #35;12
 ```
 
 `install` copies the workflows of `templates/` with the commit hash of the release, and `check` fails when a repository's copy differs in anything but the commit hashes of its actions.
@@ -202,6 +202,40 @@ flowchart TB
 2. **The commands that read run against GitHub.** The job `egress` of the Action test runs the action of the pull request as dry runs of `sweep` and `sync-labels` on this repository, and `context` for a closed issue of [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), a public repository that uses the action, with its comments, the other issues and the discussions. Its token can only read, so a write that a dry run let through would fail too.
 3. **Every week, the schema of the day.** GitHub changes its API without a release of the action. The job `schema` of the Action test checks the documents every week against the schema that GitHub publishes that day. GitHub deprecates a field, an argument or a value of an enum months before it removes it, and says when, so the run turns red as soon as the script uses something deprecated, while it still works. When the copy in `tests/github/` is behind, a notice says so, and a pull request refreshes it with the command in `tests/test_graphql_contract.py`.
 
+## When a call to GitHub fails
+
+Every call goes through `gh api`, in `GitHub._gh`. When it fails, the `GitHubError` carries what GitHub said: the HTTP status from the message of gh, `gh: Not Found (HTTP 404)`, and the types of GraphQL's errors from GitHub's JSON, such as `NOT_FOUND`. Its methods decide what happens next:
+
+| The error | What happens |
+| --- | --- |
+| `missing()`: status 404 or 410, or the type `NOT_FOUND` | the thing doesn't exist: no other issue, discussion or release, a commit that no release contains, an issue that was deleted or moved |
+| `rate_limited()`: a secondary rate limit | GitHub refused the call before doing anything, so it runs again after a minute, a write too, up to 3 times; gh never shows the header Retry-After, and a minute is what GitHub asks for without it |
+| `transient()`: a status of 500 or more, or a broken connection | a read runs again after 2, 4 and 8 seconds; a write doesn't, since GitHub may have done it anyway |
+| any other, such as the rate limit of the hour | the error goes up to the command |
+
+Only the places that look a thing up catch an error, and only when it is `missing()`. Every other error stops the command: `main` prints it as one escaped `::error::` and the summary lists the writes of the run before it, and the write that failed. A run again repeats nothing, because every step checks first what is done:
+
+```mermaid
+flowchart TB
+  accTitle: How a run of apply after a failed one avoids a second comment
+  accDescr: Apply looks for the comment of an earlier run of the same event. Without one, it adds the labels and possible-duplicate, posts the comment, and adds needs-info last, so that an issue never waits for an answer to a question that GitHub didn't post. With one, it posts nothing: it adds the labels of the answer and the lifecycle labels that the comment named, except the labels that anyone changed since the comment, and needs-info once the reporter answered.
+  apply["<b>apply</b>, the answer<br/>checked"] --> earlier{"a comment of an<br/>earlier run?"}
+  earlier -- "no" --> labels["the labels of the answer<br/>and possible-duplicate"]
+  labels --> comment["the comment"]
+  comment --> waiting["needs-info, last"]
+  earlier -- "yes" --> changed["leave out the labels that<br/>anyone changed since"]
+  changed --> complete["the missing labels;<br/>needs-info and<br/>possible-duplicate<br/>as the comment says"]
+  complete --> none["no second comment"]
+  classDef question fill:#d4a72c33,stroke:#bf8700
+  classDef job fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class earlier question
+  class apply,labels,comment,changed,complete job
+  class waiting,none safe
+```
+
+The sweep runs each step and each issue through `isolate`: a `GitHubError` becomes a `::warning::` and a line of `SweepIncomplete`, which `main` reports with what was done before it fails the run. The steps of the sweep check what an earlier one did: a fixed issue loses `needs-info` and `stale` and gets `fixed-in-next-release` before its notice, so a failed notice never leaves it waiting for an answer, a comment of the release, of the closing of an unanswered issue or of a duplicate isn't posted twice, and an issue closes before its labels are removed, so the next sweep still finds one that GitHub didn't close.
+
 ## Reading the text of issues
 
 Anyone can write an issue, and every analysis reads the text of every issue of the repository, open or closed, for the excerpts of the other issues. One text that kept a pattern busy for minutes would stall every analysis until its job timed out. So the time to read a text grows only with its length:
@@ -236,6 +270,7 @@ flowchart TB
 
 - **The AI only reads, and a job without the AI writes.** The answer of the engine is data that `apply` checks before anything reaches GitHub.
 - **Everything but one step is independent of the engine.** Context, prompts, checks and writes are the same for every engine; a new engine is a step and an entry of `ENGINES`, as the [README](https://github.com/Dennis-Otto/issue-assistant#engines) describes.
+- **An error of GitHub is never an answer.** Only "not found" means that a thing is missing; any other error stops the run instead of changing what it posts, and a run again completes it without a second comment.
 - **No text can make it slow.** Issues come from anyone, so every pattern that reads them takes time linear in the length of the text.
 - **No third-party packages.** The script needs only the standard library, `gh` and `git`, which GitHub's runners have.
 - **The maintainer has the last word.** The assistant labels, asks and suggests; it never decides on behalf of the maintainer.
