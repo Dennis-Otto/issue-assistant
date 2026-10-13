@@ -247,6 +247,12 @@ The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/d
         command: check
     ```
 
+    The check also runs on your computer, on Linux, macOS or Windows, in the root of your repository; it reads YAML with PyYAML or `yq`:
+
+    ```sh
+    python3 /path/to/issue-assistant/issue_assistant.py check
+    ```
+
 8. **Create the environment** `issue-assistant`, limited to the default branch, and add the engine's secret. For Claude, `claude setup-token` creates a token for a Claude subscription; store it as `CLAUDE_CODE_OAUTH_TOKEN`, or an API key as `ANTHROPIC_API_KEY`:
 
     ```sh
@@ -363,7 +369,7 @@ The action runs `issue_assistant.py` with one command:
 | `findings` | findings | dismisses the accepted findings of code scanning and fails while others are open; needs no other settings |
 | `check` | your CI | checks labels, issue forms, workflows, firewall, settings and the notice to reporters |
 
-`install` runs from a checkout, as above. Every command but `install` and `check` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment:
+`install` runs from a checkout, as above. `install`, `check` and `engine` read only the checkout; the other commands call GitHub, for the repository that `GH_REPO` names as `owner/name`, or else the workflow's `GITHUB_REPOSITORY`. Every command but `install` and `check` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/dry-run-dark.png">

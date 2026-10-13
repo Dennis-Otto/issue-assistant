@@ -4,6 +4,11 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+### Fixed
+
+- `check` and `install` name the files of a repository with slashes on Windows too, such as `.github/labels.toml` instead of `.github\labels.toml`.
+- `check` and `engine` no longer need `GH_REPO`, so the check runs on your computer as well. A command that calls GitHub and finds no repository, or one that isn't written as `owner/name`, stops with one clear error instead of a Python traceback.
+
 ## 1.2.2
 
 ### Security
