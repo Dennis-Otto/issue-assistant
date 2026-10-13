@@ -53,6 +53,18 @@ def at(days_ago: float = 0) -> str:
     return (NOW - timedelta(days=days_ago)).isoformat().replace("+00:00", "Z")
 
 
+API = f"https://api.github.com/repos/{REPOSITORY}"
+
+
+def changed_since(item, query):
+    """Whether an issue or a comment changed at or after the `since` of the query,
+    as GitHub filters its lists of issues and of comments."""
+    if "since" not in query:
+        return True
+    changed = item.get("updated_at") or item["created_at"]
+    return assistant.moment(changed) >= assistant.moment(query["since"][0])
+
+
 def make_issue(
     number=12,
     *,
@@ -76,6 +88,7 @@ def make_issue(
         "locked": False,
         "body": body,
         "created_at": at(days_ago),
+        "updated_at": at(days_ago),
         "closed_at": None,
         "comments": 0,
         **extra,
@@ -224,6 +237,11 @@ def analysis(comment_id=1, days_ago=1, **attributes):
     return make_comment(comment_id, "bot", f"{marker}\nFirst analysis", days_ago)
 
 
+def follow_up(comment_id=1, days_ago=1, author="bot"):
+    marker = assistant.render_marker("follow-up", lang="en", questions=0)
+    return make_comment(comment_id, author, f"{marker}\nThanks for the log", days_ago)
+
+
 class FakeGitHub(assistant.GitHub):
     """The REST and GraphQL endpoints the script uses, in memory."""
 
@@ -328,8 +346,17 @@ class FakeGitHub(assistant.GitHub):
                         "labels" not in query
                         or query["labels"][0] in assistant.label_names(issue)
                     )
+                    and changed_since(issue, query)
                 ]
                 return deepcopy(sorted(items, key=lambda item: -item["number"]))
+            if route == "issues/comments":
+                # Every comment of the repository, with the address of its issue.
+                return [
+                    {**deepcopy(comment), "issue_url": f"{API}/issues/{number}"}
+                    for number, comments in sorted(self.comment_store.items())
+                    for comment in comments
+                    if changed_since(comment, query)
+                ]
             if route == "labels":
                 return deepcopy(self.label_store)
             if route == "releases/latest":
@@ -394,6 +421,15 @@ class FakeGitHub(assistant.GitHub):
                         {"event": "reopened", "actor": BOT_USER, "created_at": at()}
                     )
                 return issue
+            if match := re.fullmatch(r"issues/comments/(\d+)", route):
+                comment = next(
+                    item
+                    for comments in self.comment_store.values()
+                    for item in comments
+                    if item["id"] == int(match[1])
+                )
+                comment.update(data, updated_at=at())
+                return comment
             if match := re.fullmatch(r"code-scanning/alerts/(\d+)", route):
                 alert = next(
                     item
