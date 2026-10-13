@@ -603,10 +603,15 @@ class GitHub:
         return data
 
     def _write(self, description: str, action: Callable[[], object]) -> None:
-        self.writes.append(description)
         print(("Would " if self.dry_run else "") + description)
         if not self.dry_run:
-            action()
+            try:
+                action()
+            except GitHubError:
+                # The summary of a failed run says what it wrote, and what failed.
+                self.writes.append(f"Failed: {description}")
+                raise
+        self.writes.append(description)
 
     # Reads
 
@@ -2424,11 +2429,12 @@ def complete_labels(
 ) -> list[str]:
     """Add the labels that belong to a comment of an earlier run, and are missing.
 
-    The labels come before the comment, but a run of an earlier version, which
-    labelled after its comment, could stop in between. A label that anyone added
-    or removed since the comment stays as it is. Whether the issue waits for its
-    reporter, or is a possible duplicate, follows the comment, which said so, not
-    the new answer: the reporter can already have answered it.
+    GitHub can stop a run after its comment: before `needs-info`, which comes
+    after the question, or, in a run of an earlier version, before any label. A
+    label that anyone added or removed since the comment stays as it is. Whether
+    the issue waits for its reporter, or is a possible duplicate, follows the
+    comment, which said so, not the new answer: the reporter can already have
+    answered it.
     """
     number = issue["number"]
     since = created(posted)
@@ -2502,8 +2508,11 @@ def apply_answer(
         for ask in answer["missing_information"]
         if ask.strip() and answer["kind"] in config.asking_kinds()
     ]
-    # The labels come first and the comment last, so that a run that GitHub stops
-    # leaves no comment without its labels; the run again posts the comment.
+    # The labels come before the comment, so that a run that GitHub stops leaves no
+    # comment without its labels; the run again posts the comment. Only `needs-info`
+    # comes after it: without the question, the sweep would remind the reporter of
+    # one that nobody asked, and close the issue. A run again adds it, as the
+    # comment says.
     if mode == "follow-up":
         body = render_follow_up(
             answer,
@@ -2514,9 +2523,9 @@ def apply_answer(
             engine,
         )
         added = apply_labels(github, issue, answer, config)
+        github.comment(number, body)
         if asks and NEEDS_INFO not in label_names(issue):
             github.add_labels(number, [NEEDS_INFO])
-        github.comment(number, body)
         return [f"Follow-up on #{number}; labels added: {', '.join(added) or 'none'}."]
     if answer["security_report"]:
         # Nothing about a possible vulnerability is discussed in public.
@@ -2530,16 +2539,16 @@ def apply_answer(
         if name not in label_names(issue)
     ]
     apply_labels(github, issue, answer, config)
-    lifecycle = []
-    if asks and NEEDS_INFO not in label_names(issue):
-        lifecycle.append(NEEDS_INFO)
-    if findings.duplicate:
-        lifecycle.append(POSSIBLE_DUPLICATE)
-    github.add_labels(number, lifecycle)
+    # Without its notice, `possible-duplicate` closes nothing.
+    duplicate = [POSSIBLE_DUPLICATE] if findings.duplicate else []
+    github.add_labels(number, duplicate)
     github.comment(
         number,
         render_analysis(answer, author, findings, asks, planned, config, engine),
     )
+    waiting = [NEEDS_INFO] if asks and NEEDS_INFO not in label_names(issue) else []
+    github.add_labels(number, waiting)
+    lifecycle = waiting + duplicate
     return [
         f"Analysis on #{number}; labels added: {', '.join(planned + lifecycle) or 'none'}."
     ]
@@ -2610,13 +2619,15 @@ def sweep(github: GitHub, now: datetime, releases: bool = True) -> list[str]:
     failed: list[str] = []
 
     def isolate(name: str, step: Callable[[], list[str]]) -> list[str]:
+        start = len(github.writes)
         try:
             return step()
         except GitHubError as error:
             failure = f"{name}: {error}"
             command("warning", failure)
             failed.append(failure)
-            return []
+            # What the step wrote before GitHub stopped it, and the write that failed.
+            return github.writes[start:]
 
     done = []
     if releases:
@@ -2723,16 +2734,19 @@ def mark_issue_fixed(
         for comment in comments
     ):
         return []
-    # The label first: it closes the issue with the release, and a notice
-    # without it would keep every later sweep from adding it.
+    # The labels before the notice: the label closes the issue with the release,
+    # and every later sweep skips an issue that has it or the notice. So the
+    # issue stops waiting for its reporter first, or the sweep would remind the
+    # reporter of a fixed issue and close it unanswered. A notice that GitHub
+    # fails is the only thing a run can lose; the release closes the issue anyway.
+    for name in (NEEDS_INFO, STALE):
+        if name in current:
+            github.remove_label(number, name)
     github.add_labels(number, [FIXED])
     github.comment(
         number,
         render_fixed(pull["number"], branch, issue_language(issue, comments)),
     )
-    for name in (NEEDS_INFO, STALE):
-        if name in current:
-            github.remove_label(number, name)
     return [f"#{number}: fixed by #{pull['number']}; closes with the next release."]
 
 

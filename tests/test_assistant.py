@@ -8,7 +8,7 @@ import shlex
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from markdown_it import MarkdownIt
@@ -1460,12 +1460,12 @@ def test_a_dry_run_only_previews_the_comment(config):
     answer = json.dumps(make_answer(missing_information=["Log?"]))
     assistant.apply_answer(github, "triage", 12, answer, config, "abc")
     assert not github.writes_made()
-    # The labels come first: a comment is the last write, so it is never left
-    # without them.
+    # The labels come before the comment, so it is never left without them; only
+    # needs-info waits for the question that it is about.
     assert github.writes == [
         "add area: cards to #12",
-        "add needs-info to #12",
         "comment on #12",
+        "add needs-info to #12",
     ]
     assert github.previews[0].startswith("<!-- issue-assistant:analysis")
 
@@ -1517,8 +1517,31 @@ def test_an_analysis_that_github_stopped_is_completed_by_a_run_again(config, fai
     }
 
 
+@pytest.mark.parametrize("mode", ["triage", "follow-up"])
+def test_a_question_that_github_failed_to_post_never_waits_for_an_answer(config, mode):
+    github = FakeGitHub(config, make_issue(labels=("bug",)))
+    if mode == "follow-up":
+        github.comment_store[12] = [
+            analysis(questions=0, days_ago=2),
+            make_comment(2, "reporter", "Log", 1),
+        ]
+        answer = make_follow_up(missing_information=["Which version?"])
+    else:
+        answer = make_answer(missing_information=["Which version?"])
+    github.fail("^POST issues/12/comments", server_error())
+    with pytest.raises(assistant.GitHubError, match="HTTP 502"):
+        assistant.apply_answer(github, mode, 12, json.dumps(answer), config, "abc")
+    assert "needs-info" not in github.labels_of(12)
+    github.failures.clear()
+    # Nobody runs the job again: the sweep neither reminds nor closes.
+    assert assistant.sweep(github, NOW + timedelta(days=40)) == []
+    assert not github.posted(12)
+    assert github.store[12]["state"] == "open"
+
+
 def test_a_run_again_adds_the_labels_of_the_analysis_without_a_second_comment(config):
-    # An earlier version posted the comment first, and then GitHub failed the labels.
+    # GitHub failed the labels after the comment: needs-info, which follows the
+    # question, or, in an earlier version, all of them.
     github = FakeGitHub(config, make_issue(7), make_issue())
     github.comment_store[12] = [analysis(questions=1, duplicate=7, days_ago=1)]
     # Only a change after the analysis is someone's decision.
@@ -2008,13 +2031,26 @@ def test_a_fix_marks_every_issue_but_the_one_that_github_fails(config):
     assert [line.split(":")[0] for line in caught.value.failed] == ["#12"]
 
 
-def test_the_label_of_a_fix_comes_before_its_notice(config):
-    github = merged(config, labels=("bug",))
+def test_the_labels_of_a_fix_come_before_its_notice(config):
+    github = merged(config)
     github.fail("^POST issues/12/comments", server_error())
-    with pytest.raises(assistant.SweepIncomplete):
+    with pytest.raises(assistant.SweepIncomplete) as caught:
         assistant.sweep(github, NOW)
-    # The label, which closes the issue with the release, is never lost.
-    assert "fixed-in-next-release" in github.labels_of(12)
+    # The summary names what the step wrote before GitHub stopped it.
+    assert caught.value.done == [
+        "remove needs-info from #12",
+        "remove stale from #12",
+        "add fixed-in-next-release to #12",
+        "Failed: comment on #12",
+    ]
+    # The label, which closes the issue with the release, is never lost, and the
+    # fixed issue no longer waits for its reporter.
+    assert github.labels_of(12) == {"bug", "fixed-in-next-release"}
+    github.failures.clear()
+    assert assistant.sweep(github, NOW) == []
+    assert assistant.sweep(github, NOW + timedelta(days=40)) == []
+    assert not github.posted(12)
+    assert github.store[12]["state"] == "open"
 
 
 def test_a_release_closes_every_issue_but_the_one_that_github_fails(config):
@@ -2770,9 +2806,13 @@ def test_a_failure_of_github_stops_a_command_with_one_error_and_what_it_wrote(
         "::error::GitHub failed, so the run stopped: gh api: Server Error%0A::add-mask::x"
     ]
     assert "\n::add-mask::x" not in out.replace(summary, "")
-    assert "### Issue assistant: triage of #12\n\n- add area: cards to #12\n" in summary
-    assert "- add needs-info to #12\n- comment on #12\n" in summary
-    assert "- Stopped: GitHub failed; running it again completes the rest." in summary
+    # The comment that failed is not among the writes, and needs-info, which comes
+    # after it, is not made.
+    assert (
+        "### Issue assistant: triage of #12\n\n- add area: cards to #12\n"
+        "- Failed: comment on #12\n"
+        "- Stopped: GitHub failed; running it again completes the rest.\n"
+    ) in summary
 
 
 def test_a_rate_limit_stops_the_context_instead_of_leaving_things_out(

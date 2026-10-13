@@ -84,7 +84,7 @@ sequenceDiagram
   AI->>P: the answer, JSON
   Note over P: no AI, no secret
   P->>P: checks the answer against the schema,<br/>the labels and the issues, cleans the text
-  P->>G: the labels, then the comment, only on #35;12
+  P->>G: the labels, the comment, then needs-info,<br/>only on #35;12
 ```
 
 `install` copies the workflows of `templates/` with the commit hash of the release, and `check` fails when a repository's copy differs in anything but the commit hashes of its actions.
@@ -213,15 +213,16 @@ Every call goes through `gh api`, in `GitHub._gh`. When it fails, the `GitHubErr
 | `transient()`: a status of 500 or more, or a broken connection | a read runs again after 2, 4 and 8 seconds; a write doesn't, since GitHub may have done it anyway |
 | any other, such as the rate limit of the hour | the error goes up to the command |
 
-Only the places that look a thing up catch an error, and only when it is `missing()`. Every other error stops the command: `main` prints it as one escaped `::error::` and the summary lists the writes of the run before it. A run again repeats nothing, because every step checks first what is done:
+Only the places that look a thing up catch an error, and only when it is `missing()`. Every other error stops the command: `main` prints it as one escaped `::error::` and the summary lists the writes of the run before it, and the write that failed. A run again repeats nothing, because every step checks first what is done:
 
 ```mermaid
 flowchart TB
   accTitle: How a run of apply after a failed one avoids a second comment
-  accDescr: Apply looks for the comment of an earlier run of the same event. Without one, it adds the labels, then needs-info and possible-duplicate, and posts the comment last. With one, it posts nothing: it adds the labels of the answer and the lifecycle labels that the comment named, except the labels that anyone changed since the comment, and needs-info once the reporter answered.
+  accDescr: Apply looks for the comment of an earlier run of the same event. Without one, it adds the labels and possible-duplicate, posts the comment, and adds needs-info last, so that an issue never waits for an answer to a question that GitHub didn't post. With one, it posts nothing: it adds the labels of the answer and the lifecycle labels that the comment named, except the labels that anyone changed since the comment, and needs-info once the reporter answered.
   apply["<b>apply</b>, the answer<br/>checked"] --> earlier{"a comment of an<br/>earlier run?"}
-  earlier -- "no" --> labels["the labels of the answer,<br/>then needs-info and<br/>possible-duplicate"]
-  labels --> comment["the comment, last"]
+  earlier -- "no" --> labels["the labels of the answer<br/>and possible-duplicate"]
+  labels --> comment["the comment"]
+  comment --> waiting["needs-info, last"]
   earlier -- "yes" --> changed["leave out the labels that<br/>anyone changed since"]
   changed --> complete["the missing labels;<br/>needs-info and<br/>possible-duplicate<br/>as the comment says"]
   complete --> none["no second comment"]
@@ -229,11 +230,11 @@ flowchart TB
   classDef job fill:#8c959f1f,stroke:#8c959f
   classDef safe fill:#1a7f3726,stroke:#1a7f37
   class earlier question
-  class apply,labels,changed,complete job
-  class comment,none safe
+  class apply,labels,comment,changed,complete job
+  class waiting,none safe
 ```
 
-The sweep runs each step and each issue through `isolate`: a `GitHubError` becomes a `::warning::` and a line of `SweepIncomplete`, which `main` reports with what was done before it fails the run. The steps of the sweep check what an earlier one did: `fixed-in-next-release` is added before its notice, a comment of the release, of the closing of an unanswered issue or of a duplicate isn't posted twice, and an issue closes before its labels are removed, so the next sweep still finds one that GitHub didn't close.
+The sweep runs each step and each issue through `isolate`: a `GitHubError` becomes a `::warning::` and a line of `SweepIncomplete`, which `main` reports with what was done before it fails the run. The steps of the sweep check what an earlier one did: a fixed issue loses `needs-info` and `stale` and gets `fixed-in-next-release` before its notice, so a failed notice never leaves it waiting for an answer, a comment of the release, of the closing of an unanswered issue or of a duplicate isn't posted twice, and an issue closes before its labels are removed, so the next sweep still finds one that GitHub didn't close.
 
 ## Reading the text of issues
 
