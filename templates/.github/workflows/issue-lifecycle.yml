@@ -1,0 +1,63 @@
+name: Issue lifecycle
+
+# Without AI: reminds reporters who were asked for information after 15 days,
+# closes their issue after 30 days without an answer, closes a possible duplicate
+# 3 days after the notice unless someone objected, labels the issues that a merged
+# pull request fixes, and closes them with a link once a release ships the fix.
+# Merges and releases start it at once, and every morning catches what was missed.
+# A fixed issue that a release closes is filed under the release's milestone.
+# https://github.com/Dennis-Otto/issue-assistant
+
+on:
+  schedule:
+    - cron: "41 6 * * *"
+  # The job reads which issues a merged pull request fixes, never its code.
+  pull_request_target:
+    types: [closed]
+  release:
+    types: [published]
+  # A release published with the job's GITHUB_TOKEN starts no workflow, so the end
+  # of the repository's release workflow starts this one too: Release or, as in
+  # ha-autodarts, Release integration.
+  workflow_run:
+    workflows: [Release, Release integration]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only show what would happen
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: issue-lifecycle
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: Remind and close
+    if: >-
+      !github.event.repository.fork &&
+      (github.event_name != 'pull_request_target' ||
+        (github.event.pull_request.merged &&
+         github.event.pull_request.user.login != 'dependabot[bot]')) &&
+      (github.event_name != 'workflow_run' ||
+        github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      # The default branch, also for a merged pull request.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Remind, close and mark fixed issues
+        uses: Dennis-Otto/issue-assistant@a12fb7227ff7d966809cad4e043e159977fccfcd # v1.2.2
+        with:
+          command: sweep
+          dry-run: ${{ inputs.dry_run || false }}

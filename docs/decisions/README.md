@@ -11,4 +11,5 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0003](0003-the-standard-library-alone.md) | Run on the standard library of Python alone | accepted |
 | [0004](0004-prompts-without-a-vendor.md) | Keep the prompts and texts independent of the AI vendor | accepted |
 | [0005](0005-close-with-the-release.md) | Close an issue with the release that ships its fix | accepted |
-| [0006](0006-the-templates-exactly.md) | Every repository uses the workflows exactly as the templates have them | accepted |
+| [0006](0006-the-templates-exactly.md) | Every repository uses the workflows exactly as the templates have them | accepted, amended by [0007](0007-templates-live-in-templates.md) |
+| [0007](0007-templates-live-in-templates.md) | The templates live in `templates/`; this repository's own workflows come from the blueprint | accepted |

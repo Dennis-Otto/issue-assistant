@@ -1,9 +1,11 @@
 name: Action test
 
-# The action as its users run it: installed into the sample repository, whose set-up
-# it checks, and on the set-up of this repository. The action runs on the runner's
-# own Python, without PyYAML: check falls back to yq, as it does in every repository
-# that uses the action. https://github.com/Dennis-Otto/repo-blueprint
+# The templates in templates/, which every repository that uses the action gets,
+# pass actionlint and zizmor. Then the action runs as its users run it: installed
+# into the sample repository and into a copy of this repository, whose set-ups it
+# checks. The action runs on the runner's own Python, without PyYAML: check falls
+# back to yq, as it does in every repository that uses the action.
+# https://github.com/Dennis-Otto/repo-blueprint
 
 on:
   push:
@@ -27,6 +29,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The Lint workflow lints this repository's own workflows only.
+      - name: Lint the templates
+        env:
+          ACTIONLINT: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+        run: |
+          docker run --rm --volume "$PWD:/repo" --workdir /repo "$ACTIONLINT" \
+            -config-file .github/actionlint.yaml templates/.github/workflows/*.yml
+      # The Workflow security workflow reports zizmor's findings to code scanning;
+      # a finding in the templates fails this check, before any repository gets it.
+      # The log names the files of a finding; annotations would name them relative
+      # to templates/, as this repository's own workflows.
+      - name: Check the security of the templates
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          inputs: templates
+          config: .github/zizmor.yml
+          advanced-security: false
       - name: Install the action into the sample repository
         env:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
@@ -39,7 +58,21 @@ jobs:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
         with:
           command: check
-      - name: Check this repository's own set-up
+      # This repository's workflows and firewall policy are the blueprint's copies of
+      # the templates of the release that it pins, which the check issue-assistant of
+      # the Lint workflow compares with them. Here the check of this commit sees the
+      # set-up as the blueprint brings it with the next release: with the templates
+      # of this commit, so that a change of a template never fails this check.
+      - name: Install the templates of this commit into a copy of this repository
+        env:
+          ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/own
+        run: |
+          cp -r . "$ISSUE_ASSISTANT_ROOT"
+          rm "$ISSUE_ASSISTANT_ROOT/.github/egress-firewall.yaml"
+          python3 issue_assistant.py install --ref "$GITHUB_SHA" --version smoke-test
+      - name: Check this repository's set-up through the action
         uses: ./
+        env:
+          ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/own
         with:
           command: check
