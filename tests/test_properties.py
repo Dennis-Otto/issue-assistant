@@ -2,9 +2,10 @@
 
 The engine's answer may be steered by an issue, so these checks don't trust examples:
 Hypothesis generates the text, including the characters that Markdown treats
-specially, and looks for an output that would mention someone, link elsewhere or
-break the checks. The reading of issues, which anyone writes, is checked the same
-way against how it read them before.
+specially, and whole answers from their schema, and looks for a comment that would
+mention someone, link elsewhere or break the checks, as the oracle of
+tests/oracle.py sees it. The reading of issues, which anyone writes, is checked the
+same way against how it read them before.
 """
 
 import json
@@ -15,31 +16,42 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 import issue_assistant as assistant
-from oracle import CONFIG, PARSER, problems
+from oracle import PARSER, problems
 from support import (
     BOT_USER,
+    CONFIG,
     EARLIER_HTML,
     ESCAPES,
     REPOSITORY,
+    answer_of,
     at,
     earlier_form_fields,
     make_comment,
     make_issue,
+    posted_comments,
+    stray_problems,
 )
 
 # Text made of the pieces that matter for Markdown, mentions and links.
 PIECES = st.sampled_from(
     [
+        # Mentions, references and commits.
         "@",
         "@octocat",
         "@org/team",
-        "`",
-        "```",
-        "~~~",
-        "\\",
         "#",
         "#12",
+        "GH-5",
+        "owner/repo",
         "owner/repo#3",
+        "owner/repo@0123abc",
+        # Code, fences and what could split or end them.
+        "`",
+        "```",
+        "````",
+        "~~~",
+        "\\",
+        # Links, images, HTML and entities.
         "[",
         "]",
         "(",
@@ -47,33 +59,59 @@ PIECES = st.sampled_from(
         "!",
         "<",
         ">",
+        "<<b>b>",
         "<!--",
         "-->",
-        "https://evil.example/x",
-        "https://docs.example.com/page",
-        f"https://github.com/{REPOSITORY}/blob/main/README.md",
-        "https://github.com/other/repo/blob/main/x",
-        "www.evil.example",
         "[x]: https://evil.example",
         "[x][x]",
         "&#64;",
         "&",
-        "GH-5",
+        ";",
+        # Addresses, where they lead, and what GitHub leaves out at their end.
+        "https://evil.example/x",
+        "https://docs.example.com/page",
+        f"https://github.com/{REPOSITORY}/blob/main/README.md",
+        "https://github.com/other/repo/blob/main/x",
+        "HTTPS://evil.example",
+        "www.evil.example",
+        "www.",
+        "/../",
+        "%2e%2e",
+        "support@evil.example",
+        "a@b.example",
+        "'",
+        ".",
+        # Emphasis, which splits the text, and the blocks of lists, quotes,
+        # headings and tables.
+        "_",
+        "*",
+        "- ",
+        "* ",
+        "1. ",
+        "> ",
+        "\n#\n",
+        "|",
+        ":",
+        "-",
+        # Spaces, line breaks and characters that only some parsers take for one.
+        "  ",
+        "   ",
         "    ",
         "\n",
         " ",
+        "\t",
+        "\u00a0",
         "\r",
         "\0",
-        "\t",
         "\x1d",
-        "- ",
         "word",
-        "HTTPS://evil.example",
-        "support@evil.example",
     ]
 )
 TEXT = st.one_of(st.text(), st.lists(PIECES, max_size=40).map("".join))
 NUMBERS = st.sets(st.integers(min_value=1, max_value=20), max_size=3)
+# The number of examples of the profile, such as 100 in the CI: the cleaning is
+# fast, so its properties try more.
+EXAMPLES = hypothesis.settings().max_examples
 
 
 def known_escapes(test):
@@ -84,13 +122,13 @@ def known_escapes(test):
 
 
 @hypothesis.settings(
-    max_examples=600, suppress_health_check=[hypothesis.HealthCheck.too_slow]
+    max_examples=EXAMPLES * 6, suppress_health_check=[hypothesis.HealthCheck.too_slow]
 )
 @given(TEXT, NUMBERS)
 @known_escapes
 def test_sanitized_text_mentions_nobody_and_links_only_allowed_sites(text, numbers):
     output = assistant.sanitize(text, CONFIG, numbers)
-    assert problems(output, numbers) == [], output
+    assert problems(output, numbers, CONFIG) == [], output
 
 
 @hypothesis.settings(suppress_health_check=[hypothesis.HealthCheck.too_slow])
@@ -101,12 +139,12 @@ def test_a_line_of_the_engine_s_text_is_short_clean_and_one_line(text, limit):
     assert len(line) <= limit
     assert not assistant.CONTROL.search(line) and line == line.strip()
     # Alone, as a rationale, and within a line, as in the log and the job summary.
-    assert problems(line, set()) == [], line
-    assert problems(f"- Reason: {line}", set()) == [], line
+    assert problems(line, set(), CONFIG) == [], line
+    assert problems(f"- Reason: {line}", set(), CONFIG) == [], line
 
 
 @hypothesis.settings(
-    max_examples=300, suppress_health_check=[hypothesis.HealthCheck.too_slow]
+    max_examples=EXAMPLES * 3, suppress_health_check=[hypothesis.HealthCheck.too_slow]
 )
 @given(TEXT, NUMBERS)
 @known_escapes
@@ -120,7 +158,65 @@ def test_cleaned_text_stays_safe_wherever_the_comment_puts_it(text, numbers):
         assistant.bullets([cleaned, cleaned]),
         f"- #7: {line}\n- #8: {line}",
     ):
-        assert problems(comment, numbers | {7, 8}) == [], comment
+        assert problems(comment, numbers | {7, 8}, CONFIG) == [], comment
+
+
+# Files of the sample repository, and the anchors of headings in one of them, which
+# the engine may name in its references.
+SAMPLE_FILES = ["docs/troubleshooting.md", "./docs/troubleshooting.md", "src/app.py"]
+SAMPLE_ANCHORS = ["no-realtime-updates", "#Setup"]
+
+
+class Drawn:
+    """The choices of an answer, drawn by Hypothesis for `answer_of`: texts of the
+    pieces that matter, files and anchors that exist, issue numbers of issues that
+    exist and of some that don't, and seldom a security report, whose comment shows
+    none of the texts."""
+
+    def __init__(self, data):
+        self.data = data
+
+    def text(self, key, limit):
+        known = {"path": SAMPLE_FILES, "anchor": SAMPLE_ANCHORS}.get(key)
+        texts = st.one_of(st.sampled_from(known), TEXT) if known else TEXT
+        return self.data.draw(texts, label=key)[:limit]
+
+    def count(self, key, most):
+        return self.data.draw(st.integers(0, most), label=f"{key}, how many")
+
+    def one_of(self, key, values):
+        return self.data.draw(st.sampled_from(values), label=key)
+
+    def number(self, key, least):
+        return self.data.draw(st.integers(least, least + 23), label=key)
+
+    def boolean(self, key):
+        if key == "security_report":
+            return self.data.draw(st.sampled_from([False] * 4 + [True]), label=key)
+        return self.data.draw(st.booleans(), label=key)
+
+    def present(self, key):
+        return self.data.draw(st.booleans(), label=f"{key}, given")
+
+
+@hypothesis.settings(
+    suppress_health_check=[
+        hypothesis.HealthCheck.too_slow,
+        hypothesis.HealthCheck.data_too_large,
+    ]
+)
+@given(st.sampled_from(["triage", "follow-up"]), st.data())
+def test_a_whole_comment_mentions_nobody_and_links_only_allowed_places(
+    sample_config, mode, data
+):
+    """Any answer that fits the schema, as the assistant posts it: every text where
+    the comment puts it, next to the assistant's own words and the links that it
+    checked. Only its own words may mention the reporter, show HTML or link to the
+    security policy."""
+    answer = answer_of(assistant.answer_schema(mode, sample_config), Drawn(data))
+    bodies, numbers = posted_comments(sample_config, mode, answer)
+    for body in bodies:
+        assert stray_problems(body, numbers, sample_config) == [], body
 
 
 @given(TEXT)

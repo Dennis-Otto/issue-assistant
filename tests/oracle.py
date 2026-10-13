@@ -1,92 +1,346 @@
-"""What GitHub would make of a comment, judged by a parser of its own.
+"""What GitHub would make of a comment, judged by rules of its own.
 
-A CommonMark parser, independent of the assistant's rules, decides what is code and
-what is text; in the text, the rules of GitHub decide what becomes a mention, a
-reference or a link. The property tests and the fuzzer judge the cleaned text of
-the engine with it.
+The property tests and the fuzzers judge the assistant's comments with this oracle,
+so it shares no code with the assistant: only the type of its settings. A CommonMark
+parser decides what is code, HTML, a link or text. On top of it, the oracle follows
+what GitHub adds to CommonMark, as GitHub's own renderer showed it
+(`gh api markdown -f mode=gfm`, 2026-10-13); tests/test_oracle.py holds the
+examples:
+
+- **Tables.** A line of hyphens with a colon or a pipe, such as `:-:` or `--|--`,
+  makes the line above it the header of a table, also in a quote or a list item.
+  Each row is split at every `|` that no backslash escapes, also inside backticks,
+  and each cell is read alone, so that a pipe can cut code in two.
+- **Autolinks.** An address that starts with http:// or https://, in any case and
+  after anything but a letter, or with www. in lower case at the start, after a
+  space or one of `* _ ~ (`, runs over the source to the next space or `<`: past
+  brackets, entities, backslashes and into the code that follows. Then GitHub
+  leaves out of its end the characters `? ! . , : * _ ~ ' "`, a `)` without its
+  `(`, and a `;` with the entity that it ends. An e-mail address in the text is a
+  link too.
+- **Where a link leads** is where a browser goes: a user or a password before the
+  host hides it, and `.` and `..` segments, also percent-encoded, climb out of a
+  path. A backslash or a backtick in a link is a problem in itself.
+- **Mentions and references:** `@name`, `@org/team`, `#1`, `GH-1`, `owner/repo#1`,
+  and commits of other repositories or forks, `owner/repo@sha` and `user@sha`.
+
+Where GitHub's rules depend on what exists, or on details that a cleaning should not
+rely on, the oracle errs on the safe side: it counts a mention or a reference after
+any character but a letter or a digit, any address that GitHub might link, also in
+the text of a link, and every cell of a table, whether its header fits or not.
 """
 
-from pathlib import Path
+import re
+import string
+import unicodedata
+from collections.abc import Collection, Iterator
+from dataclasses import dataclass
+from typing import Any
+from urllib.parse import unquote
 
 from markdown_it import MarkdownIt
+from markdown_it.token import Token
 
-import issue_assistant as assistant
-
-PARSER = MarkdownIt("commonmark")
-CONFIG = assistant.Config(
-    root=Path("."),
-    repository="owner/project",
-    labels=(assistant.Label("bug", "d73a4a", "Bug", "type"),),
-    project="A project.",
-    hosts=frozenset({"docs.example.com"}),
-)
+from issue_assistant import Config
 
 
-def rendered(markdown: str) -> tuple[list[str], list[str], list[str]]:
-    """The text outside code, the link targets and the HTML of rendered Markdown."""
-    texts: list[str] = []
-    links: list[str] = []
-    html: list[str] = []
+class Parser(MarkdownIt):
+    """CommonMark that keeps what was written: the destination of each link as
+    GitHub passes it on, with its escapes and entities read but nothing encoded,
+    and the escapes and entities of the text as tokens of their own."""
 
-    def walk(tokens):
-        for token in tokens:
-            if token.type in {"code_inline", "fence", "code_block"}:
-                continue
-            if token.type in {"html_inline", "html_block", "image"}:
-                html.append(token.content)
-            if token.type == "link_open":
-                links.append(str(token.attrGet("href")))
-            if token.type == "text":
-                texts.append(token.content)
-            walk(token.children or [])
+    def normalizeLink(self, url: str) -> str:
+        # markdown-it would percent-encode a backslash, which a browser reads as a
+        # slash, and GitHub keeps it as it is.
+        return url
 
-    walk(PARSER.parse(markdown))
-    return texts, links, html
+    def validateLink(self, url: str) -> bool:
+        # A link that markdown-it refuses, such as javascript:, is still a link
+        # that a comment shouldn't hold.
+        return True
 
 
-def linked(text: str) -> tuple[list[str], str]:
-    """The addresses that GitHub links in the text, and the text without them.
+PARSER = Parser("commonmark").disable("text_join")
 
-    GitHub links an address only at the start or after a space or one of * _ ~ (,
-    and a # or @ inside it is part of the address.
+# The delimiter row of a table: cells of hyphens, each perhaps with a colon at its
+# ends, between pipes.
+MARKER = r"[ \t]*:?-+:?[ \t]*"
+DELIMITER_ROW = re.compile(rf"[ \t]*\|?{MARKER}(?:\|{MARKER})*\|?[ \t]*")
+# What ends an autolink in the source: an ASCII space or a <.
+ENDS_ADDRESS = frozenset(" \t\n\r\x0b\x0c<")
+# What GitHub leaves out at the end of an autolink, and the entity that a ; ends.
+TRIMMED = frozenset("?!.,:*_~'\"")
+ENTITY_END = re.compile(r"&[A-Za-z]+;\Z")
+SCHEME = re.compile(r"https?://", re.IGNORECASE)
+WWW = re.compile(r"www\.")
+WWW_AFTER = frozenset(" \t\n\r\x0b\x0c*_~(")
+# What GitHub links in the text besides addresses. The oracle counts each wherever
+# it starts, or after anything but a letter or a digit.
+EMAIL = re.compile(r"[A-Za-z0-9.+_-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+")
+COMMIT = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@[0-9a-f]{7}", re.IGNORECASE)
+CROSS_REFERENCE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+")
+REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)([0-9]+)", re.IGNORECASE)
+MENTION = re.compile(r"(?<![A-Za-z0-9])@[A-Za-z0-9][A-Za-z0-9-]*(?:/[A-Za-z0-9_-]+)?")
+
+
+@dataclass(frozen=True)
+class Piece:
+    """A part of a paragraph: what was written, and what GitHub shows of it as text,
+    or the destination of a link."""
+
+    source: str
+    shown: str = ""
+    # text, code, link, html, image, or other, such as the marks of emphasis.
+    kind: str = "other"
+
+
+def problems(markdown: str, numbers: Collection[int], config: Config) -> list[str]:
+    """What in the Markdown would mention, reference, link elsewhere or show HTML.
+
+    `numbers` are the issues that it may reference, and `config` names the
+    repository and the sites that it may link to.
     """
-    links: list[str] = []
-
-    def drop(match, url):
-        start = match.start()
-        before = match.string[start - 1] if start else " "
-        if before not in " \t\n*_~(":
-            return match[0]
-        links.append(url)
-        return " "
-
-    text = assistant.BARE_URL.sub(lambda m: drop(m, m[0]), text)
-    text = assistant.WWW_URL.sub(lambda m: drop(m, f"https://{m[0]}"), text)
-    return links, text
-
-
-def problems(output: str, numbers: set[int]) -> list[str]:
-    """What in the cleaned text would mention, reference, link or show HTML."""
-    found = []
-    texts, links, html = rendered(output)
-    for part in texts:
-        addresses, part = linked(part)
-        found += [
-            f"link to {url}"
-            for url in addresses
-            if not assistant.allowed_url(url, CONFIG)
-        ]
-        found += [f"mention {m[0]}" for m in assistant.MENTION.finditer(part)]
-        found += [f"reference {m[0]}" for m in assistant.CROSS_REFERENCE.finditer(part)]
-        found += [
-            f"reference {m[0]}"
-            for m in assistant.ISSUE_REFERENCE.finditer(part)
-            if int(m[1]) not in numbers
-        ]
-    found += [
-        f"link to {url}" for url in links if not assistant.allowed_url(url, CONFIG)
-    ]
-    found += [f"HTML {item!r}" for item in html]
-    if "\0" in output or "\r" in output:
+    found: list[str] = []
+    for children in inline_parts(markdown, found):
+        found += judged(children, set(numbers), config)
+    if "\0" in markdown or "\r" in markdown:
         found.append("a NUL or carriage return")
     return found
+
+
+def inline_parts(markdown: str, found: list[str]) -> Iterator[list[Token]]:
+    """The inline content of each heading, paragraph and cell of a table, each as
+    GitHub reads it on its own. The HTML blocks go to `found`."""
+    env: dict[str, Any] = {}
+    tokens = PARSER.parse(markdown, env)
+    for index, token in enumerate(tokens):
+        if token.type == "html_block":
+            found.append(f"HTML {token.content.strip()!r}")
+        elif token.type == "inline" and tokens[index - 1].type == "paragraph_open":
+            yield from table_parts(token, env)
+        elif token.type == "inline":
+            yield token.children or []
+
+
+def table_parts(paragraph: Token, env: dict[str, Any]) -> Iterator[list[Token]]:
+    """A paragraph, or, when it holds a table, its lines before the table and each
+    cell of the table."""
+    lines = paragraph.content.split("\n")
+    for row in range(1, len(lines)):
+        delimiter = lines[row]
+        if DELIMITER_ROW.fullmatch(delimiter) and (
+            "|" in delimiter or ":" in delimiter
+        ):
+            if row > 1:
+                yield inline("\n".join(lines[: row - 1]), env)
+            for line in [lines[row - 1], *lines[row + 1 :]]:
+                for cell in cells(line):
+                    yield inline(cell, env)
+            return
+    yield paragraph.children or []
+
+
+def cells(row: str) -> list[str]:
+    """The cells of a row of a table: split at each `|` that no backslash escapes,
+    also inside code, each with `\\|` as a `|`."""
+    found, cell, index = [], "", 0
+    while index < len(row):
+        pair = row[index : index + 2]
+        if pair[0] == "\\" and pair[1:] in set(string.punctuation):
+            cell += pair
+            index += 2
+            continue
+        if pair[0] == "|":
+            found.append(cell)
+            cell = ""
+        else:
+            cell += pair[0]
+        index += 1
+    found.append(cell)
+    return [cell.strip().replace("\\|", "|") for cell in found]
+
+
+def inline(text: str, env: dict[str, Any]) -> list[Token]:
+    return PARSER.parseInline(text, env)[0].children or []
+
+
+def pieces(children: list[Token]) -> Iterator[Piece]:
+    """The parts of a paragraph, each with what was written for it."""
+    href = ""
+    for token in children:
+        if token.type == "text":
+            yield Piece(token.content, token.content, "text")
+        elif token.type == "text_special":
+            # An escape or an entity: GitHub shows one character for it.
+            yield Piece(token.markup, token.content, "text")
+        elif token.type in {"softbreak", "hardbreak"}:
+            # GitHub would link the backslash of a hard break as part of an address
+            # before it; a backslash that the cleaning leaves is always escaped.
+            yield Piece("\n", "\n", "text")
+        elif token.type == "code_inline":
+            yield Piece(token.markup + token.content + token.markup, kind="code")
+        elif token.type == "html_inline":
+            yield Piece(token.content, kind="html")
+        elif token.type == "image":
+            yield Piece(f"![{token.content}]({token.attrGet('src')})", kind="image")
+        elif token.type == "link_open":
+            href = str(token.attrGet("href"))
+            yield Piece("<" if token.markup == "autolink" else "[", href, "link")
+        elif token.type == "link_close":
+            yield Piece(">" if token.markup == "autolink" else f"]({href})")
+        else:
+            # The marks of emphasis.
+            yield Piece(token.markup)
+
+
+def judged(children: list[Token], numbers: set[int], config: Config) -> list[str]:
+    """What a paragraph would mention, reference, link elsewhere or show."""
+    found = []
+    parts = list(pieces(children))
+    starts, source = [], ""
+    for part in parts:
+        starts.append(len(source))
+        source += part.source
+        if part.kind == "link" and not allowed(part.shown, config):
+            found.append(f"link to {part.shown}")
+        elif part.kind == "html":
+            found.append(f"HTML {part.source!r}")
+        elif part.kind == "image":
+            found.append(f"image {part.source}")
+    in_text = [False] * len(source)
+    for part, start in zip(parts, starts, strict=True):
+        if part.kind == "text":
+            in_text[start : start + len(part.source)] = [True] * len(part.source)
+    # Addresses first, as GitHub links them while it reads the paragraph; the rest
+    # is linked in the text that they leave.
+    taken = [False] * len(source)
+    index = 0
+    while index < len(source):
+        end = autolink(source, index) if in_text[index] else None
+        if end is None:
+            index += 1
+            continue
+        address = source[index:end]
+        url = address if SCHEME.match(address) else f"https://{address}"
+        if not allowed(url, config):
+            found.append(f"link to {address}")
+        taken[index:end] = [True] * (end - index)
+        index = end
+    for node in text_nodes(parts, starts, taken):
+        found += [f"e-mail link to {m[0]}" for m in EMAIL.finditer(node)]
+        found += [f"reference {m[0]}" for m in COMMIT.finditer(node)]
+        found += [f"reference {m[0]}" for m in CROSS_REFERENCE.finditer(node)]
+        found += [
+            f"reference {m[0]}"
+            for m in REFERENCE.finditer(node)
+            if int(m[1]) not in numbers
+        ]
+        found += [f"mention {m[0]}" for m in MENTION.finditer(node)]
+    return found
+
+
+def autolink(source: str, start: int) -> int | None:
+    """The end of the address that GitHub links from `start` on, if it links one."""
+    if scheme := SCHEME.match(source, start):
+        before = source[start - 1] if start else " "
+        # Letters before it make another scheme, such as xhttp://, and the host
+        # must start with a character that can start a name.
+        if (before.isascii() and before.isalpha()) or not starts_host(
+            source[scheme.end() : scheme.end() + 1]
+        ):
+            return None
+    elif not WWW.match(source, start) or (start and source[start - 1] not in WWW_AFTER):
+        return None
+    end = start
+    while end < len(source) and source[end] not in ENDS_ADDRESS:
+        end += 1
+    while end > start:
+        last = source[end - 1]
+        if last in TRIMMED:
+            end -= 1
+        elif last == ";":
+            entity = ENTITY_END.search(source, start, end)
+            end = entity.start() if entity else end - 1
+        elif last == ")" and source.count(")", start, end) > source.count(
+            "(", start, end
+        ):
+            end -= 1
+        else:
+            break
+    return end if end > start else None
+
+
+def starts_host(character: str) -> bool:
+    """Whether a host can start with the character: one that is no space and no
+    punctuation."""
+    return bool(character) and not (
+        character.isspace()
+        or character in string.punctuation
+        or unicodedata.category(character).startswith("P")
+    )
+
+
+def text_nodes(parts: list[Piece], starts: list[int], taken: list[bool]) -> list[str]:
+    """The text that GitHub shows, in runs between code, links, HTML and the marks of
+    emphasis, with a space for each character of an address that it links."""
+    nodes, node = [], ""
+    for part, start in zip(parts, starts, strict=True):
+        if part.kind != "text":
+            nodes.append(node)
+            node = ""
+        elif part.source == part.shown:
+            node += "".join(
+                " " if taken[start + index] else character
+                for index, character in enumerate(part.shown)
+            )
+        else:
+            node += " " if taken[start] else part.shown
+    return [*nodes, node]
+
+
+def allowed(url: str, config: Config) -> bool:
+    """Whether a browser that follows the link lands where a comment may lead: at a
+    file, a folder or a release of the repository on GitHub, or on an allowed site.
+
+    By the rules for URLs that browsers follow: any number of slashes may follow
+    the scheme, a user or a password stands before the host and a port after it,
+    and the path's `.` and `..` segments are resolved, percent-encoded ones too.
+    """
+    if "\\" in url or "`" in url:
+        return False
+    url = re.sub(r"[\t\n\r]", "", url).strip(" " + "".join(map(chr, range(32))))
+    https = re.match(r"https:/*", url, re.IGNORECASE)
+    if not https:
+        return False
+    rest = url[https.end() :]
+    authority = re.split(r"[/?#]", rest, maxsplit=1)[0]
+    if "@" in authority or ":" in authority:
+        return False
+    host = unquote(authority).lower()
+    path = re.split(r"[?#]", rest[len(authority) :], maxsplit=1)[0]
+    segments = resolved(unquote(path))
+    if host == "github.com":
+        return (
+            [segment.lower() for segment in segments[:2]]
+            == config.repository.lower().split("/")
+            and len(segments) > 3
+            and segments[2] in {"blob", "tree", "releases"}
+        )
+    return host in {name.lower() for name in config.hosts}
+
+
+def resolved(path: str) -> list[str]:
+    """The segments of a path after its `.` and `..` are resolved, as a browser
+    resolves them."""
+    segments: list[str] = []
+    names = path.removeprefix("/").split("/")
+    for index, name in enumerate(names):
+        if name == "..":
+            if segments:
+                segments.pop()
+        elif name != ".":
+            segments.append(name)
+            continue
+        if index == len(names) - 1:
+            segments.append("")
+    return segments
