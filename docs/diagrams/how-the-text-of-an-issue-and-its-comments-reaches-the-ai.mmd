@@ -1,0 +1,18 @@
+flowchart TB
+  accTitle: How the text of an issue and its comments reaches the AI
+  accDescr: Each text of the issue and its comments loses its HTML, as GitHub hides it, then the characters that GitHub shows as nothing, and is cut off after 20,000 characters. In this order, no invisible character can end an HTML comment that GitHub never ends. It goes into a code fence with one backtick more than its longest run of backticks, so that no line of the text can end it. The heading above the fence, which only the script writes, names the author, the role and the date. The other issues and discussions become excerpts without HTML comments, lose their invisible characters too and go into JSON. A notice in the log counts the characters that were removed.
+  text["a text of the issue<br>or a comment"] --> html["HTML out,<br>as GitHub hides it"]
+  html --> invisible["`**invisible characters out**<br>Unicode tags, zero-width,<br>direction controls`"]
+  invisible --> fence["`at most 20,000 characters<br>in **a code fence** one<br>backtick longer than any<br>run in the text`"]
+  heading["the heading: author,<br>role and date"] --> issue[("issue.md")]
+  fence --> issue
+  others["other issues and<br>discussions"] --> excerpts["excerpts without HTML<br>comments, then invisible<br>characters out, in JSON"]
+  excerpts --> jsonl[("issues.jsonl,<br>discussions.jsonl")]
+  invisible -.-> notice["a notice in the log:<br>how many"]
+  excerpts -.-> notice
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class text,others untrusted
+  class invisible,html,fence,heading,excerpts,notice job
+  class issue,jsonl safe

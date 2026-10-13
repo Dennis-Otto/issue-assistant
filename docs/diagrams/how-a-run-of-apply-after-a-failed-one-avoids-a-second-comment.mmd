@@ -1,0 +1,16 @@
+flowchart TB
+  accTitle: How a run of apply after a failed one avoids a second comment
+  accDescr: Apply looks for the comment of an earlier run of the same event. Without one, it adds the labels and possible-duplicate, posts the comment, and adds needs-info last, so that an issue never waits for an answer to a question that GitHub didn't post. With one, it posts nothing: it adds the labels of the answer and the lifecycle labels that the comment named, except the labels that anyone changed since the comment, and needs-info once the reporter answered.
+  apply["`**apply**, the answer<br>checked`"] --> earlier{"a comment of an<br>earlier run?"}
+  earlier -- "no" --> labels["the labels of the answer<br>and possible-duplicate"]
+  labels --> comment["the comment"]
+  comment --> waiting["needs-info, last"]
+  earlier -- "yes" --> changed["leave out the labels that<br>anyone changed since"]
+  changed --> complete["the missing labels;<br>needs-info and<br>possible-duplicate<br>as the comment says"]
+  complete --> none["no second comment"]
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class earlier question
+  class apply,labels,comment,changed,complete job
+  class waiting,none safe

@@ -1,0 +1,19 @@
+flowchart TB
+  accTitle: Which release closes a fixed issue
+  accDescr: For an open issue with the label fixed-in-next-release, the assistant looks for its fixes: pull requests of this repository into the default branch that name it, merged at most 14 days before the label, leaving out those that a release closed the issue with before it was reopened. With fixes and a label that the assistant set, the first final release published after the last of them was merged that contains them all closes the issue, also one published before a late label. With fixes and a label set by hand, it is the first final release after the label that contains them all. Without fixes, the first final release published after the label closes it. Drafts and pre-releases never close an issue.
+  label(["`open issue with<br>**fixed-in-next-release**`"]) --> fixes{"fixes of this repository,<br>merged at most 14 days<br>before the label, that<br>no release closed it with<br>before a reopening?"}
+  fixes -- "yes" --> who{"who set<br>the label?"}
+  who -- "the assistant" --> shipped["the first final release<br>after the last merge<br>that contains every fix"]
+  who -- "a maintainer,<br>by hand" --> later["the first final release<br>after the label<br>that contains every fix"]
+  fixes -- "no" --> next["the first final release<br>after the label"]
+  shipped --> released(["closed with a link to the release,<br>under its milestone"])
+  later --> released
+  next --> released
+  classDef fixed fill:#c2e0c666,stroke:#1a7f37,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef release fill:#0969da26,stroke:#0969da,stroke-width:2px
+  classDef done fill:#8250df1f,stroke:#8250df,stroke-width:2px
+  class label fixed
+  class fixes,who question
+  class shipped,later,next release
+  class released done

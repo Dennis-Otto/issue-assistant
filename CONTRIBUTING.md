@@ -81,24 +81,10 @@ On Windows, use `py -3` in place of `python3` and `.venv-docs/Scripts/` in place
 
 Each page of the website has one topic. It includes the parts of the README that belong to it, between the markers `<!-- --8<-- [start:name] -->` and `<!-- --8<-- [end:name] -->`, so that nothing is written twice, and `tests/test_docs.py` checks that each part is on the website once. `scripts/mkdocs_hooks.py` adds what no file of `docs/` holds:
 
-```mermaid
-flowchart TB
-  accTitle: Where the pages of the website come from
-  accDescr: The parts of the README become the pages Get started, How it works, Configuration, Reference, Help and the quick start of the home page. The hook of the website makes every comment of What reporters see from the functions and texts of issue_assistant.py, and the tables of the inputs and outputs on the Reference from action.yml. Every page gets a description of its own, from its front matter or its first paragraph.
-  readme(["README.md,<br/>in parts"]) --> pages["Get started, How it works,<br/>Configuration, Reference,<br/>Help, Home"]
-  script(["issue_assistant.py:<br/>TEXT and render_*()"]) --> hook
-  action(["action.yml"]) --> hook
-  hook["<b>scripts/mkdocs_hooks.py</b><br/>with every build"] --> comments["What reporters see:<br/>every comment,<br/>English and German"]
-  hook --> tables["Reference: the inputs<br/>and outputs of the action"]
-  hook --> described["a description of its own<br/>for every page"]
-  pages --> described
-  classDef source fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef code fill:#8250df33,stroke:#8250df,stroke-width:2px
-  classDef page fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  class readme,script,action source
-  class hook code
-  class pages,comments,tables,described page
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/where-the-pages-of-the-website-come-from.dark.svg">
+  <img src="docs/images/diagrams/where-the-pages-of-the-website-come-from.svg" alt="Where the pages of the website come from: The parts of the README become the pages Get started, How it works, Configuration, Reference, Help and the quick start of the home page. The hook of the website makes every comment of What reporters see from the functions and texts of issue_assistant.py, and the tables of the inputs and outputs on the Reference from action.yml. Every page gets a description of its own, from its front matter or its first paragraph.">
+</picture>
 
 - **What reporters see** shows every comment that the assistant posts, in English and in German. The hook makes them with every build, by the functions and with the texts of `issue_assistant.py`, for the demo project of the pictures, in place of the part of `docs/comments.md` between `<!-- comments of issue_assistant.py -->` and `<!-- end of the comments -->`. A new text in `TEXT` or a new kind of comment needs an example in the hook; a test fails without one.
 - **The reference** has a table of the inputs or the outputs of `action.yml` where a page has the line `<!-- action.yml: inputs -->` or `<!-- action.yml: outputs -->`. The tables of the keys of the settings on the page *Configuration* are written by hand, and tests compare them with the code: every key, its default and the values that `check` accepts.
@@ -110,24 +96,10 @@ The social plugin, which draws the cards of shared links, needs the library Cair
 
 The pictures in `docs/images` show a demo project, never real issues or people. `scripts/render-images.sh` renders them in Docker, each light and dark, from the texts of `issue_assistant.py` itself; run it after a change of those texts, and commit the pictures with the change. They are WebP: the still pictures lossless, as sharp as a PNG at less than a third of its size, and the animation of the life of an issue twice, wide and upright for phones, each with a still picture for readers who asked for less motion. The `<source>`s of a `<picture>` choose among them, the first whose condition holds:
 
-```mermaid
-flowchart TB
-  accTitle: Which picture of the animation a reader sees
-  accDescr: A reader who asked for less motion sees a still picture, upright on a screen up to 600 pixels wide and wide otherwise. Every other reader sees the animation, upright on such a screen and wide otherwise. Each picture comes light or dark, after the theme of the reader.
-  reader(["the README or<br/>the home page"]) --> motion{"less motion<br/>asked for?"}
-  motion -- "yes" --> narrow{"screen up to<br/>600 px wide?"}
-  narrow -- "yes" --> upright["hero-mobile-still"]
-  narrow -- "no" --> still["hero-still"]
-  motion -- "no" --> phone{"screen up to<br/>600 px wide?"}
-  phone -- "yes" --> mobile["hero-mobile,<br/>animated"]
-  phone -- "no" --> hero["hero,<br/>animated"]
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef still fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef animated fill:#8250df33,stroke:#8250df,stroke-width:2px
-  class motion,narrow,phone question
-  class upright,still still
-  class mobile,hero animated
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/which-picture-of-the-animation-a-reader-sees.dark.svg">
+  <img src="docs/images/diagrams/which-picture-of-the-animation-a-reader-sees.svg" alt="Which picture of the animation a reader sees: A reader who asked for less motion sees a still picture, upright on a screen up to 600 pixels wide and wide otherwise. Every other reader sees the animation, upright on such a screen and wide otherwise. Each picture comes light or dark, after the theme of the reader.">
+</picture>
 
 Each of them ends in `-light` or `-dark`, after the theme of the reader. The README shows the pictures with their address on `main`, and `scripts/mkdocs_hooks.py` gives the website its own copies: one for each theme, so that the switch in the header chooses, each loaded only while it is shown and with its size, so that the page doesn't jump when it arrives. Diagrams are pictures of their sources in `docs/diagrams/`, as the next section says: `scripts/mkdocs_hooks.py` leaves them to the hook of the blueprint, which draws each source live on the website, and on a phone, the website lets them scroll sideways. Each one runs from top to bottom, as `flowchart TB` or a `sequenceDiagram`, so that its text keeps its size; tells screen readers what it shows with `accTitle` and `accDescr`; draws its boxes with a border of 2 pixels, as the diagrams of the blueprint do; and is written once: a page of the website shows a diagram of the README by including the part of the README around it, such as `workflows-diagram`. `tests/test_docs.py` checks all four.
 

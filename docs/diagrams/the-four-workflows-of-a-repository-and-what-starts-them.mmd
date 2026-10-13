@@ -1,0 +1,29 @@
+flowchart TB
+  accTitle: The four workflows of a repository and what starts them
+  accDescr: Four workflows, each with what starts it. In issue-assistant.yml, a new issue, an edit or a comment starts event, which sets the labels of the form and chooses the next task; analyze lets the AI read the checkout and answer with JSON; apply checks the answer and is the only job that writes. In issue-lifecycle.yml, every morning, a merged pull request, a release and the end of a release run start sweep, which sends reminders, closes issues, closes duplicates and marks fixed issues. In labels.yml, a change of labels.toml on main starts sync-labels, which creates and updates the labels. In findings.yml, every morning, a scan on main and a change of findings.toml start findings, which dismisses the accepted findings and fails on the others.
+  subgraph lifecycle ["issue-lifecycle.yml"]
+    direction TB
+    shipped(["every morning, a merged<br>pull request, a release,<br>the end of a release run"]) --> sweep["`**sweep**<br>reminders, closing,<br>duplicates, fixed issues`"]
+  end
+  subgraph assistant ["issue-assistant.yml"]
+    direction TB
+    opened(["a new issue, an edit<br>or a comment"]) --> event["`**event**<br>labels from the form,<br>the next task`"]
+    event --> analyze["`**analyze**<br>the AI reads the checkout<br>and answers with JSON`"]
+    analyze --> apply["`**apply**<br>checks the answer,<br>the only job that writes`"]
+  end
+  subgraph scanning ["findings.yml"]
+    direction TB
+    scanned(["every morning, a scan<br>on main, a change<br>of findings.toml"]) --> findings["`**findings**<br>dismisses the accepted<br>findings, fails on others`"]
+  end
+  subgraph labelling ["labels.yml"]
+    direction TB
+    changed(["a change of<br>labels.toml on main"]) --> sync["`**sync-labels**<br>creates and updates<br>the labels`"]
+  end
+  assistant ~~~ labelling
+  lifecycle ~~~ scanning
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  class analyze ai
+  class event,apply,sweep,sync,findings job
+  class opened,shipped,changed,scanned trigger

@@ -1,0 +1,27 @@
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
+flowchart TB
+    accTitle: How a change of a template reaches the repositories
+    accDescr: A pull request in this repository changes templates/. Its checks lint the templates and check the set-up with them installed, while the required check issue-assistant compares this repository's own workflows with the release that they pin, so it stays green. Merged, the change becomes a release. A pull request in the repository blueprint installs that release there and moves the pins of the action. The next release of the blueprint brings it to every repository made from it, this one too. Repositories without the blueprint get the release from Dependabot and run install again.
+
+    change["Pull request here<br>changes templates/ alone"]
+    checks["Its checks pass<br>templates linted and installed<br>own workflows: the pinned release"]
+    release["`Release **vX.Y.Z**<br>its notes name the changed templates`"]
+    sync["Pull request in the blueprint<br>install of vX.Y.Z<br>new pins of the action"]
+    rollout(["Blueprint bot<br>an update pull request<br>in every repository of the blueprint"])
+    fleet["Every repository of the blueprint<br>this one too<br>the templates of vX.Y.Z"]
+    others["Repositories without the blueprint<br>Dependabot moves the pin<br>install again"]
+
+    change --> checks --> release
+    release --> sync --> rollout --> fleet
+    release --> others
+
+    classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
+    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
+    class sync,rollout bot
+    class change,others person
+    class fleet done

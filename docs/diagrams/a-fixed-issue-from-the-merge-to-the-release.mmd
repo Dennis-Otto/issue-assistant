@@ -1,0 +1,21 @@
+sequenceDiagram
+  accTitle: A fixed issue, from the merge to the release
+  accDescr: The maintainer merges a pull request with Fixes #12. issue-lifecycle.yml labels the issue fixed-in-next-release and comments that it closes with the next release; it stays open, since users don't have the fix yet. When the maintainer publishes the release v1.2.0, the lifecycle comments with the link to the release, closes the issue and files it under the milestone v1.2.0, and the reporter is asked to update. When the reporter comments within 30 days that it is still broken, issue-assistant.yml lets the AI read the comment and reopens the issue with needs-triage; after thanks or a question, it stays closed.
+  actor M as Maintainer
+  participant L as issue-lifecycle.yml
+  participant I as Issue #35;12
+  actor R as Reporter
+  participant A as issue-assistant.yml
+  M->>L: merges a pull request<br>with "Fixes #35;12"
+  L->>I: fixed-in-next-release,<br>a comment: closes with<br>the next release
+  Note over I: stays open: users<br>don't have the fix yet
+  M->>L: publishes the<br>release v1.2.0
+  L->>I: a comment with the link<br>to the release, closed,<br>milestone v1.2.0
+  I-->>R: please update
+  alt within 30 days: "still broken"
+    R->>A: comments on<br>the closed issue
+    A->>I: the AI reads it:<br>reopened, needs-triage
+  else thanks or a question
+    R->>A: comments on<br>the closed issue
+    A->>I: stays closed
+  end

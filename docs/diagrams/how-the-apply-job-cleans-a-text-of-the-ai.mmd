@@ -1,0 +1,20 @@
+flowchart TB
+  accTitle: How the apply job cleans a text of the AI
+  accDescr: The job removes control characters and trims the text, then splits it into code and the text around the code. Code stays as it is. In the text, the removals repeat until nothing changes; then the rewrites, which remove nothing, turn what GitHub would link elsewhere into code and keep allowed links and checked issue numbers. Last, characters that could start code, a link, an image or a fence are escaped, and the parts go into the comment in a way that keeps code in code.
+  answer(["a text of the<br>AI's answer"]) --> normal["control characters removed,<br>spaces trimmed"]
+  normal --> split{"code? a fence at the<br>start of a line,<br>or a span"}
+  split -- "yes" --> code["stays as it is"]
+  split -- "no" --> removals["`**removals**, until nothing<br>changes: HTML, images,<br>headings, foreign links`"]
+  removals --> rewrites["`**rewrites**, which remove<br>nothing: mentions, e-mail,<br>commits and references<br>elsewhere become code`"]
+  rewrites --> escapes["`**escapes** of what could<br>start code, a link,<br>an image or a fence`"]
+  code --> comment["`**the comment**: list<br>items indented as a<br>whole, reasons on one line`"]
+  escapes --> comment
+  comment --> github[("GitHub")]
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class answer untrusted
+  class split question
+  class normal,code,removals,rewrites,escapes,comment job
+  class github safe

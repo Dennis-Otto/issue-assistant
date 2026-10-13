@@ -1,0 +1,29 @@
+flowchart TB
+  accTitle: The trust boundaries of the issue assistant
+  accDescr: Anyone can write an issue, its comments, other issues and discussions, and a pull request. The text reaches the event job, which runs no AI and chooses the task, and, as data in files, the job analyze: the first boundary. There the AI reads with Read, Grep and Glob alone, behind a firewall, with a read-only token and the engine's secret. Its answer in JSON crosses the second boundary into the job apply, which runs no AI and holds no secret. Its checks want the schema, labels and issues that exist, and no secret, mention, image, HTML or foreign link. When they fail, nothing is posted; when they pass, apply writes to GitHub, only to the issue of the event: the third boundary. A merged pull request starts issue-lifecycle.yml on the default branch, without AI, which learns only the issues that it fixes, the fourth boundary, and writes to GitHub.
+  text["issue, comments,<br>other issues, discussions"]
+  merged(["merged pull request"])
+  event["`**event**<br>no AI`"]
+  subgraph firewall ["analyze: firewall, read-only token"]
+    analyze["`**the AI** with Read,<br>Grep and Glob,<br>the engine's secret`"]
+  end
+  subgraph checked ["apply: no AI, no secret"]
+    checks("`**checks**<br>schema, labels and<br>issues that exist; no<br>secret, mention, image,<br>HTML or foreign link`")
+    refused["nothing is posted"]
+  end
+  text -- "1 · as data, in files" --> firewall
+  text --> event
+  event -- "the task" --> firewall
+  firewall -- "2 · an answer in JSON" --> checked
+  checks -- "fails" --> refused
+  checks -- "3 · passes: only the<br>issue of the event" --> github[("GitHub")]
+  merged -- "4 · only the issues it fixes" --> lifecycle["`**issue-lifecycle.yml**<br>the default branch, no AI`"]
+  lifecycle --> github
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class text,merged untrusted
+  class analyze ai
+  class event,lifecycle,checks,refused job
+  class github safe

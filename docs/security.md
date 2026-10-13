@@ -36,33 +36,10 @@ Two published attacks show what goes wrong when an AI in GitHub Actions reads te
 
 The [research note of the Cloud Security Alliance](https://labs.cloudsecurityalliance.org/research/csa-research-note-ai-github-actions-security-20260503-csa-st/) of May 2026 describes both and lists what protects a workflow. The difference to the assistant in one picture:
 
-```mermaid
-flowchart TB
-  accTitle: The pattern that PromptPwnd attacks, and the assistant's
-  accDescr: In the attacked pattern, the text of an issue goes into the prompt of an AI that holds a write token, a shell and the network, so a steered AI writes to GitHub or sends secrets away. In the assistant, the text of the issue goes into files that the prompt calls material; the AI reads them with a read-only token and reading tools alone, behind a firewall, and answers with JSON. A job without AI and without the engine's secret checks that answer and is the only one that writes to GitHub.
-  subgraph attacked ["the attacked pattern"]
-    direction TB
-    issue1["issue text"] --> prompt1["in the prompt"]
-    prompt1 --> agent1["<b>AI</b><br/>write token, shell,<br/>network"]
-    agent1 --> github1[("GitHub")]
-    agent1 --> leak(["secrets sent away"])
-  end
-  subgraph assistant ["the issue assistant"]
-    direction TB
-    issue2["issue text"] --> files["files that the prompt<br/>calls material"]
-    files --> agent2["<b>AI</b><br/>read-only token, Read,<br/>Grep, Glob, firewall"]
-    agent2 -- "JSON" --> apply("<b>apply</b><br/>no AI, no secret:<br/>checks, then writes")
-    apply --> github2[("GitHub")]
-  end
-  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class issue1,issue2,leak untrusted
-  class agent1,agent2 ai
-  class prompt1,files,apply job
-  class github1,github2 safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-pattern-that-promptpwnd-attacks-and-the-assistant-s.dark.svg">
+  <img src="images/diagrams/the-pattern-that-promptpwnd-attacks-and-the-assistant-s.svg" alt="The pattern that PromptPwnd attacks, and the assistant's: In the attacked pattern, the text of an issue goes into the prompt of an AI that holds a write token, a shell and the network, so a steered AI writes to GitHub or sends secrets away. In the assistant, the text of the issue goes into files that the prompt calls material; the AI reads them with a read-only token and reading tools alone, behind a firewall, and answers with JSON. A job without AI and without the engine's secret checks that answer and is the only one that writes to GitHub.">
+</picture>
 
 Each mitigation that the three sources recommend, how the assistant implements it, and the test that pins it:
 
@@ -107,75 +84,29 @@ Red is what anyone can write; the numbers are those of the list below.
 
 The AI learns who wrote what from `issue.md`: a heading for the issue and for each comment names the author, the role, such as reporter or maintainer, and the date, and the AI's own earlier comments are marked as its own. The text under a heading is written by anyone, so it must not be able to write such a heading itself, nor hide what the maintainer can't see:
 
-```mermaid
-flowchart TB
-  accTitle: How the text of an issue and its comments reaches the AI
-  accDescr: Each text of the issue and its comments loses its HTML, as GitHub hides it, then the characters that GitHub shows as nothing, and is cut off after 20,000 characters. In this order, no invisible character can end an HTML comment that GitHub never ends. It goes into a code fence with one backtick more than its longest run of backticks, so that no line of the text can end it. The heading above the fence, which only the script writes, names the author, the role and the date. The other issues and discussions become excerpts without HTML comments, lose their invisible characters too and go into JSON. A notice in the log counts the characters that were removed.
-  text["a text of the issue<br/>or a comment"] --> html["HTML out,<br/>as GitHub hides it"]
-  html --> invisible["<b>invisible characters out</b><br/>Unicode tags, zero-width,<br/>direction controls"]
-  invisible --> fence["at most 20,000 characters<br/>in <b>a code fence</b> one<br/>backtick longer than any<br/>run in the text"]
-  heading["the heading: author,<br/>role and date"] --> issue[("issue.md")]
-  fence --> issue
-  others["other issues and<br/>discussions"] --> excerpts["excerpts without HTML<br/>comments, then invisible<br/>characters out, in JSON"]
-  excerpts --> jsonl[("issues.jsonl,<br/>discussions.jsonl")]
-  invisible -.-> notice["a notice in the log:<br/>how many"]
-  excerpts -.-> notice
-  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class text,others untrusted
-  class invisible,html,fence,heading,excerpts,notice job
-  class issue,jsonl safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/how-the-text-of-an-issue-and-its-comments-reaches-the-ai.dark.svg">
+  <img src="images/diagrams/how-the-text-of-an-issue-and-its-comments-reaches-the-ai.svg" alt="How the text of an issue and its comments reaches the AI: Each text of the issue and its comments loses its HTML, as GitHub hides it, then the characters that GitHub shows as nothing, and is cut off after 20,000 characters. In this order, no invisible character can end an HTML comment that GitHub never ends. It goes into a code fence with one backtick more than its longest run of backticks, so that no line of the text can end it. The heading above the fence, which only the script writes, names the author, the role and the date. The other issues and discussions become excerpts without HTML comments, lose their invisible characters too and go into JSON. A notice in the log counts the characters that were removed.">
+</picture>
 
 - **Nothing in a text can end its fence.** A fence ends only at a line of at least as many backticks as the line that opened it, and the assistant opens it with one backtick more than the longest run in the text, at least three. So `## Comment 4 by @owner (maintainer)` in a text stays a line of that text, and so does a fence of the text's own, whatever its length. The prompt tells the AI that a fence holds only that person's text, whatever it looks like.
 - **What GitHub doesn't show, the AI doesn't read.** The tag characters of Unicode, U+E0001 to U+E007F, spell a whole sentence in ASCII that no browser shows, and zero-width spaces, joiners and the controls of the direction of writing hide or reorder text. The assistant removes every format character of Unicode and every code point that Unicode calls default ignorable, such as variation selectors, which can carry a byte each, from the issue and its comments, from the excerpts of the other issues and discussions, and from the AI's answer before its checks, so that none can hide a token from them either. They go after the HTML, which goes as GitHub hides it: a zero-width space in the `-->` of an HTML comment keeps the comment from ending on GitHub, so that it hides the rest of the text, and taken out first, it would end the comment and show the AI what GitHub hides. And they go before the fence is chosen, so that none can split a run of backticks that would end it.
 
 Every analysis reads the excerpts of all issues, so a text planted in one issue reaches the AI again with each new issue. Its worst use would be to call new issues its duplicates, which close on their own. So only an original that a maintainer vouches for can close another issue:
 
-```mermaid
-flowchart TB
-  accTitle: When a duplicate that the AI found closes on its own
-  accDescr: A duplicate that the AI is sure of, of an older open issue, gets the notice that closes it after three days only when a maintainer opened the original or triaged it, so that it no longer has needs-triage. Otherwise it becomes a suggestion for the maintainer and a related issue in the comment. A notice closes nothing when someone comments, when the reporter or anyone who may push to the repository reacts with a thumbs down, or when the original is closed or no longer vouched for by then.
-  sure["a sure duplicate of an<br/>older, open issue"] --> vouched{"a maintainer opened<br/>it or triaged it?"}
-  vouched -- "no" --> suggestion["a suggestion for the<br/>maintainer, a related issue"]
-  vouched -- "yes" --> notice["<b>possible-duplicate</b><br/>the notice"]
-  notice --> objected{"in 3 days: a comment,<br/>or a thumbs down of the<br/>reporter or of someone<br/>who may push?"}
-  objected -- "yes" --> open["stays open for<br/>the maintainer"]
-  objected -- "no" --> closed["closed as a duplicate"]
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class vouched,objected question
-  class sure,notice,closed job
-  class suggestion,open safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/when-a-duplicate-that-the-ai-found-closes-on-its-own.dark.svg">
+  <img src="images/diagrams/when-a-duplicate-that-the-ai-found-closes-on-its-own.svg" alt="When a duplicate that the AI found closes on its own: A duplicate that the AI is sure of, of an older open issue, gets the notice that closes it after three days only when a maintainer opened the original or triaged it, so that it no longer has needs-triage. Otherwise it becomes a suggestion for the maintainer and a related issue in the comment. A notice closes nothing when someone comments, when the reporter or anyone who may push to the repository reacts with a thumbs down, or when the original is closed or no longer vouched for by then.">
+</picture>
 
 ## Where the AI's words go
 
 The comment is not the only place that shows what the AI wrote. Each place gets its own guard, so that the words stay text wherever they appear:
 
-```mermaid
-flowchart TB
-  accTitle: Where the AI's words go and how each place is guarded
-  accDescr: The answer of the AI must fit its schema and hold nothing like a secret. Its texts for the comment are cleaned before they are posted. Its reasons are put on one line and cleaned, at most 280 characters, before they become a rationale on the timeline or a line of the log and the job summary; a possible security report gets a fixed rationale. The log prints them while workflow commands are turned off with a random token, and errors are escaped. The schema and the model reach the command line of the engine only in a form that adds no arguments.
-  answer["the AI's answer"] --> checks("schema and<br/>secret check")
-  checks -- "summary, analysis,<br/>steps, questions" --> cleaned["cleaned: no mention,<br/>image, HTML or<br/>foreign link"]
-  cleaned --> posted[("comment on<br/>the issue")]
-  checks -- "reasons" --> oneline["one line, then cleaned,<br/>at most 280 characters"]
-  oneline -- "labels, duplicates;<br/>fixed for a security report" --> rationale[("rationale on<br/>the timeline")]
-  oneline --> jobsummary[("job summary")]
-  oneline --> runlog[("log of the run")]
-  checks -- "refused" --> refusal["an escaped<br/>::error::"]
-  refusal --> runlog
-  settings["labels.toml,<br/>config.toml"] -- "schema with \u0027,<br/>model as a name" --> cli[("command line<br/>of the engine")]
-  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class answer untrusted
-  class checks,cleaned,oneline,refusal,settings job
-  class posted,rationale,jobsummary,runlog,cli safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/where-the-ai-s-words-go-and-how-each-place-is-guarded.dark.svg">
+  <img src="images/diagrams/where-the-ai-s-words-go-and-how-each-place-is-guarded.svg" alt="Where the AI's words go and how each place is guarded: The answer of the AI must fit its schema and hold nothing like a secret. Its texts for the comment are cleaned before they are posted. Its reasons are put on one line and cleaned, at most 280 characters, before they become a rationale on the timeline or a line of the log and the job summary; a possible security report gets a fixed rationale. The log prints them while workflow commands are turned off with a random token, and errors are escaped. The schema and the model reach the command line of the engine only in a form that adds no arguments.">
+</picture>
 
 The log prints the lines and the comments of a dry run between `::stop-commands::` and a random token, so that the runner reads none of them as a workflow command. Only a terminal outside a runner, such as one running `check` on your own computer, shows them without the token.
 
@@ -183,28 +114,10 @@ The log prints the lines and the comments of a dry run between `::stop-commands:
 
 Every text of an answer passes `sanitize` in the `apply` job before it becomes part of a comment. Code stays as it is, so that a snippet of the AI can show `@dataclass` or `#include`; everything else is cleaned of what GitHub would turn into a mention, a reference, a link, an image or HTML.
 
-```mermaid
-flowchart TB
-  accTitle: How the apply job cleans a text of the AI
-  accDescr: The job removes control characters and trims the text, then splits it into code and the text around the code. Code stays as it is. In the text, the removals repeat until nothing changes; then the rewrites, which remove nothing, turn what GitHub would link elsewhere into code and keep allowed links and checked issue numbers. Last, characters that could start code, a link, an image or a fence are escaped, and the parts go into the comment in a way that keeps code in code.
-  answer(["a text of the<br/>AI's answer"]) --> normal["control characters removed,<br/>spaces trimmed"]
-  normal --> split{"code? a fence at the<br/>start of a line,<br/>or a span"}
-  split -- "yes" --> code["stays as it is"]
-  split -- "no" --> removals["<b>removals</b>, until nothing<br/>changes: HTML, images,<br/>headings, foreign links"]
-  removals --> rewrites["<b>rewrites</b>, which remove<br/>nothing: mentions, e-mail,<br/>commits and references<br/>elsewhere become code"]
-  rewrites --> escapes["<b>escapes</b> of what could<br/>start code, a link,<br/>an image or a fence"]
-  code --> comment["<b>the comment</b>: list<br/>items indented as a<br/>whole, reasons on one line"]
-  escapes --> comment
-  comment --> github[("GitHub")]
-  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class answer untrusted
-  class split question
-  class normal,code,removals,rewrites,escapes,comment job
-  class github safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/how-the-apply-job-cleans-a-text-of-the-ai.dark.svg">
+  <img src="images/diagrams/how-the-apply-job-cleans-a-text-of-the-ai.svg" alt="How the apply job cleans a text of the AI: The job removes control characters and trims the text, then splits it into code and the text around the code. Code stays as it is. In the text, the removals repeat until nothing changes; then the rewrites, which remove nothing, turn what GitHub would link elsewhere into code and keep allowed links and checked issue numbers. Last, characters that could start code, a link, an image or a fence are escaped, and the parts go into the comment in a way that keeps code in code.">
+</picture>
 
 - **Code is what Markdown takes for code.** A fenced block counts only when its fence starts a line: indented, the fence could belong to a list item before it, which the next line without indentation ends, and the code with it. Only a fence at least as long as all of the opening one closes the block; GitHub's block would run on past a shorter one, into the next text of the comment. Control characters go first, because Python and Markdown don't agree on which of them are spaces.
 - **Removals first, then rewrites.** A removal can join the characters around it into something new, such as `foo/bar<b></b>#12` into a reference to another repository. So the removals repeat until nothing changes, and only then is anything kept as a link or written as code; the rewrites remove nothing, so the characters next to what they keep stay the ones they were checked with. Text next to code starts anew for GitHub, so an issue number after an `@`, as in `#0@GH-7`, becomes code too: with `#0` as code, `@GH-7` would mention someone.
@@ -216,29 +129,10 @@ flowchart TB
 
 What the cleaning lets through is judged where it ends up, by an oracle of the tests' own, `tests/oracle.py`, which shares no code with the cleaning. A CommonMark parser decides what is code. On top of it, the oracle follows what GitHub adds: tables that split code at a pipe, autolinks that run over the source to the next space, past brackets, entities and into code, where a browser goes for a link, and mentions and references, also of commits of other repositories. `tests/test_oracle.py` holds it to what GitHub's own renderer made of the same Markdown.
 
-```mermaid
-flowchart TB
-  accTitle: How the tests judge what the cleaning lets through
-  accDescr: Four kinds of input reach the checks: the texts that once got past the cleaning, random text of the pieces that matter to Markdown from Hypothesis, whole answers that Hypothesis builds from the schema of the answer, and inputs that Atheris mutates with a dictionary of Markdown, starting from seeds. Their text is cleaned alone and in each place of a comment, or apply posts the whole comment. The oracle decides what GitHub would make of the result. Anything that would mention, reference, link elsewhere or show HTML, other than the assistant's own words, fails the test.
-  known(["texts that once<br/>got through"]) --> clean
-  random(["random text of the<br/>pieces that matter"]) --> clean
-  answers(["whole answers built<br/>from the schema"]) --> post
-  fuzzed(["fuzzed inputs, with a<br/>dictionary and seeds"]) --> clean
-  fuzzed --> post
-  clean["<b>sanitize</b>: the text alone,<br/>under a heading, in a list,<br/>behind a number"] --> oracle
-  post["<b>apply</b> posts the<br/>whole comment"] --> oracle
-  oracle{"<b>the oracle</b>: what would<br/>GitHub mention, reference,<br/>link or show?"}
-  oracle -- "only the assistant's<br/>own words" --> passes(["the test passes"])
-  oracle -- "anything else" --> fails(["the test fails"])
-  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class known,random,answers,fuzzed,fails untrusted
-  class oracle question
-  class clean,post job
-  class passes safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/how-the-tests-judge-what-the-cleaning-lets-through.dark.svg">
+  <img src="images/diagrams/how-the-tests-judge-what-the-cleaning-lets-through.svg" alt="How the tests judge what the cleaning lets through: Four kinds of input reach the checks: the texts that once got past the cleaning, random text of the pieces that matter to Markdown from Hypothesis, whole answers that Hypothesis builds from the schema of the answer, and inputs that Atheris mutates with a dictionary of Markdown, starting from seeds. Their text is cleaned alone and in each place of a comment, or apply posts the whole comment. The oracle decides what GitHub would make of the result. Anything that would mention, reference, link elsewhere or show HTML, other than the assistant's own words, fails the test.">
+</picture>
 
 - **Each place of a comment.** The property tests in `tests/test_properties.py` clean random text alone, under a heading, in a list and behind an issue number, and let `apply` post whole comments for answers that they build from the schema of the answer itself, so that they try what the AI may answer, and nothing else. Only the assistant's own words may mention the reporter, show HTML or link to the security policy.
 - **Every change, every night and every week.** The CI tries the same inputs on every change and the nightly workflow new ones; the profile `nightly` tries fifty times as many, for a longer search. Atheris fuzzes the cleaning, `fuzz/fuzz_sanitize.py`, and whole comments, `fuzz/fuzz_render.py`, with a dictionary of Markdown, for a minute on every change and a quarter of an hour every week.
@@ -248,29 +142,10 @@ flowchart TB
 
 One text that looks like a token or a key refuses the whole answer: nothing is posted, and the run fails. So the check tells keys apart from the links, paths and names of code that answers are full of:
 
-```mermaid
-flowchart TB
-  accTitle: How the apply job decides whether a text of the answer holds a secret
-  accDescr: A known kind of token refuses the answer wherever it is. Any other text is looked at in runs of 40 or more letters, digits and the characters plus, slash, equals sign, underscore and dash, after the owner, the repository and the commit or branch of every link to GitHub are left out, unless the name of the repository or the branch has 32 or more characters. A run without lower case, upper case and digits is harmless. A run with the plus or equals sign of Base64, or whose letters read like noise, is a key, unless it is part of the path of a file that git tracks. Any other run is harmless.
-  text["a text of<br/>the answer"] --> known{"a known kind<br/>of token?"}
-  known -- "yes" --> refused["the answer<br/>is refused"]
-  known -- "no" --> runs["runs of 40 or more<br/>letters, digits and +/=_-,<br/>without the repository<br/>of links to GitHub"]
-  runs --> mixed{"lower case,<br/>upper case<br/>and digits?"}
-  mixed -- "no" --> harmless["harmless"]
-  mixed -- "yes" --> random{"+ or = of Base64,<br/>or letters that read<br/>like noise?"}
-  random -- "no" --> harmless
-  random -- "yes" --> tracked{"part of a path<br/>that git tracks?"}
-  tracked -- "yes" --> harmless
-  tracked -- "no" --> refused
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class known,mixed,random,tracked question
-  class text,runs job
-  class refused untrusted
-  class harmless safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/how-the-apply-job-decides-whether-a-text-of-the-answer-holds-a-secret.dark.svg">
+  <img src="images/diagrams/how-the-apply-job-decides-whether-a-text-of-the-answer-holds-a-secret.svg" alt="How the apply job decides whether a text of the answer holds a secret: A known kind of token refuses the answer wherever it is. Any other text is looked at in runs of 40 or more letters, digits and the characters plus, slash, equals sign, underscore and dash, after the owner, the repository and the commit or branch of every link to GitHub are left out, unless the name of the repository or the branch has 32 or more characters. A run without lower case, upper case and digits is harmless. A run with the plus or equals sign of Base64, or whose letters read like noise, is a key, unless it is part of the path of a file that git tracks. Any other run is harmless.">
+</picture>
 
 - **Known kinds of tokens** count wherever they are: tokens of GitHub, Anthropic, OpenAI and Slack, access keys of AWS, JSON Web Tokens, private keys, and the addresses of Slack and Microsoft Teams webhooks, which let anyone post as their owner. A placeholder without the secret at the end of such an address, such as `https://hooks.slack.com/services/YOUR/WEBHOOK/URL`, is none.
 - **Letters that read like noise** change between lower and upper case at least once in five pairs of neighbors, in runs of lower case of 3.5 letters or fewer on average. A random key, such as the 40 characters of a secret key of AWS, changes at about every second pair, in runs of two letters. Words change only where a new word starts, and run on in lower case: `src/main/java/com/example/OAuth2ClientConfiguration.java` and `custom_components/autodarts/AutodartsBoardManager2Coordinator.py` are names, not keys.
