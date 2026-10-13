@@ -1,8 +1,16 @@
 blank_issues_enabled: false
+# The links of the blueprint's chooser first, then those of this project. Questions
+# go to the discussions, as SUPPORT.md says, since blank issues are off.
 contact_links:
-  - name: Report a security vulnerability
+  - name: Documentation
+    url: https://dennis-otto.github.io/issue-assistant/
+    about: Look up how it works, how to set it up and what to do when something goes wrong.
+  - name: Security vulnerability
     url: https://github.com/Dennis-Otto/issue-assistant/security/advisories/new
     about: Report vulnerabilities privately, never in a public issue.
+  - name: Question or idea
+    url: https://github.com/Dennis-Otto/issue-assistant/discussions
+    about: Ask questions and share ideas in the discussions.
   - name: Problems with Claude Code or the Claude Code action
     url: https://github.com/anthropics/claude-code-action/issues
     about: Problems of the AI engine itself belong to its project.

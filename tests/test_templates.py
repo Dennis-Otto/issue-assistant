@@ -11,6 +11,7 @@ import re
 import shlex
 import shutil
 import tomllib
+from glob import iglob as files_matching
 from pathlib import Path
 
 import pytest
@@ -527,3 +528,61 @@ def test_this_repository_s_own_settings_fit(tmp_path):
     used = {"autorelease: pending", "autorelease: tagged", "merge-conflict"}
     used |= {"dependencies"}
     assert used <= defined, used - defined
+
+
+# The area labels of pull requests, which actions/labeler gives by the files that a
+# pull request changes.
+LABELER = load(ROOT / ".github/labeler.yml")
+
+
+def area_globs(label):
+    return [
+        glob
+        for rule in LABELER[label]
+        for files in rule["changed-files"]
+        for glob in files["any-glob-to-any-file"]
+    ]
+
+
+def matches(glob, path):
+    """Whether a glob of the labeler matches a path: ** spans folders, * stays in one,
+    and both match names that start with a dot."""
+    pattern = re.escape(glob).replace(r"\*\*/", "(?:.*/)?").replace(r"\*\*", ".*")
+    return re.fullmatch(pattern.replace(r"\*", "[^/]*"), path) is not None
+
+
+def test_globs_match_as_the_labeler_matches_them():
+    assert matches("templates/**", "templates/.github/labels.toml")
+    assert matches("**/x.yml", "x.yml") and matches("**/x.yml", "a/.b/x.yml")
+    assert matches("a/*.yml", "a/b.yml") and not matches("a/*.yml", "a/b/c.yml")
+    assert not matches("action.yml", "action.yaml")
+
+
+def test_the_area_labels_of_pull_requests_exist_and_match_files():
+    config = assistant.load_config(ROOT, "Dennis-Otto/issue-assistant")
+    areas = {label.name for label in config.labels if label.group == "area"}
+    assert LABELER and set(LABELER) <= areas, set(LABELER) - areas
+    # A glob that matches no file has lost its file, or names it wrong. It looks at
+    # the files on disk, not at git: the mutation tests run a copy without .git.
+    for label in LABELER:
+        for pattern in area_globs(label):
+            found = files_matching(
+                pattern, root_dir=ROOT, recursive=True, include_hidden=True
+            )
+            assert any((ROOT / path).is_file() for path in found), pattern
+
+
+def test_a_change_of_what_install_writes_is_labeled_setup():
+    # install writes the workflows, the firewall policy and the starter files that a
+    # repository lacks, all from templates/; action.yml runs the script. This
+    # repository's own copies in .github/ are the blueprint's and change with it.
+    templates = assistant.TEMPLATES.relative_to(ROOT).as_posix()
+    written = [
+        *(assistant.WORKFLOWS / name for name in NAMES),
+        assistant.FIREWALL,
+        *assistant.STARTERS,
+    ]
+    globs = area_globs("area: setup")
+    for path in [*(f"{templates}/{path}" for path in written), "action.yml"]:
+        assert (ROOT / path).is_file(), path
+        assert any(matches(glob, path) for glob in globs), path

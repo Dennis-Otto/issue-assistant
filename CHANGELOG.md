@@ -15,6 +15,10 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 - The jobs of the workflows that write, `event`, `apply`, `sweep`, `sync-labels` and `findings`, reach only GitHub: Harden-Runner blocks every host but `api.github.com` and `github.com`, and no step can use sudo or containers to lift the block. A compromised action or tool in a job with a write token can no longer send it anywhere else. The action turns off the telemetry of the GitHub CLI, which would only knock at a blocked host.
 
+### Security
+
+- One issue can no longer stall the AI analysis of a whole repository. Each analysis reads the text of every issue, and some crafted texts, such as a form heading `###` followed by many blanks, or many `<!--` or `<a` without an end, kept the reading busy for hours, so every later analysis ran until its job timed out. The answers of issue forms, HTML comments and tags are now read in time that grows only with the length of a text, at most GitHub's 65,536 characters. The AI reads at most 20,000 characters of each text of its issue, marked "(shortened)" after that, and a line that starts with a `<!--` without its end hides the rest of a text from it, as GitHub hides it from people. A new fuzz target, `fuzz/fuzz_issue_text.py`, fails when reading a crafted text takes longer than half a second.
+
 ### Fixed
 
 - `check` and `install` name the files of a repository with slashes on Windows too, such as `.github/labels.toml` instead of `.github\labels.toml`.
