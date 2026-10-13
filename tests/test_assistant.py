@@ -37,6 +37,7 @@ from support import (
     release_history,
     run_main,
     server_error,
+    stray_problems,
 )
 
 
@@ -208,6 +209,24 @@ def test_without_an_analysis_the_reporter_s_words_decide():
     )
 
 
+def test_a_bystander_s_words_decide_no_language():
+    """Only the reporter's: someone else who writes in German doesn't make the
+    assistant answer the reporter in German."""
+    issue = make_issue(body="Die Karte bleibt leer.")
+    comments = [
+        make_comment(
+            1, "reporter", "It is not the card but the board, and it does not help.", 1
+        ),
+        make_comment(
+            2,
+            "someone",
+            "Bei mir ist das auch so, ich habe keine Lösung und das nervt.",
+            1,
+        ),
+    ]
+    assert assistant.issue_language(issue, comments) == "en"
+
+
 def test_dates_read_naturally():
     moment = datetime(2026, 10, 22, tzinfo=UTC)
     assert assistant.format_date(moment, "en") == "October 22, 2026"
@@ -223,6 +242,17 @@ def test_only_the_assistant_s_own_comments_carry_markers():
     # A person who copies the marker does not speak for the assistant.
     assert assistant.marker(make_comment(2, "reporter", body, 0)) is None
     assert assistant.marker(make_comment(3, "bot", "No marker", 0)) is None
+
+
+def test_only_the_assistant_s_marked_comments_are_its_own_in_the_context():
+    """Another workflow posts as github-actions[bot] too: without the marker, its
+    comment is no earlier word of the assistant."""
+    assert (
+        assistant.describe_author(analysis(), "reporter")
+        == "the issue assistant (you, earlier)"
+    )
+    other = make_comment(3, "bot", "Deployed to the preview.", 0)
+    assert assistant.describe_author(other, "reporter") == "@github-actions[bot]"
 
 
 def test_bots_and_maintainers_are_recognized():
@@ -1275,6 +1305,13 @@ def test_the_schemas_fit_into_the_engine_arguments(config, mode):
 def test_a_complete_answer_fits_the_schema(config):
     for mode, answer in (
         ("triage", make_answer()),
+        # #1 is an issue too: the least number that the schema allows.
+        (
+            "triage",
+            make_answer(
+                duplicates=[{"number": 1, "confidence": "high", "reason": "Same."}]
+            ),
+        ),
         ("follow-up", make_follow_up()),
         ("maintainer-reply", {"waiting_for_reporter": True, "reason": "Asked."}),
         (
@@ -1550,6 +1587,27 @@ def test_only_checked_issue_numbers_stay_links(config):
     assert assistant.sanitize(text, config, {7}) == (
         "Like #7 and `#8`, see `other/repo#3` and the color #fff."
     )
+    # Found by the property tests: once #0 is code, the @ starts GitHub's text, and
+    # @GH-7 would mention the user GH-7, so a reference after an @ is code.
+    assert assistant.sanitize("#0@GH-7 and @#7", config, {7}) == (
+        "`#0`@`GH-7` and @`#7`"
+    )
+
+
+def test_the_summary_and_the_analysis_keep_allowed_links_and_checked_numbers(config):
+    """The checks found #7, so the analysis may name it, as it may link the
+    project's documentation; #8 wasn't checked."""
+    github = FakeGitHub(config, make_issue(7, labels=("bug",)), make_issue())
+    text = "Like #7 and #8, see [the guide](https://docs.autodarts.io/x)."
+    answer = make_answer(
+        summary=text,
+        analysis=text,
+        related=[{"kind": "issue", "number": 7, "reason": "The same card."}],
+    )
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    cleaned = "Like #7 and `#8`, see [the guide](https://docs.autodarts.io/x)."
+    assert f"### Summary\n\n{cleaned}\n\n### First analysis\n\n{cleaned}\n" in body
 
 
 def test_code_stays_as_it_is(config):
@@ -1617,6 +1675,12 @@ def test_code_stays_as_it_is(config):
         # at any indentation, since the stripped text can start with it.
         ("<b></b>    ~~~\nx\n~~~\n@a\n~~~", "\\~~~\nx\n~~~\n@a\n~~~"),
         ("x\n ~~~\ny\n~~~\n@a\n~~~", "x\n \\~~~\ny\n~~~\n@a\n~~~"),
+        # Found by fuzz/fuzz_render.py: a fence is all of its tildes, and only one
+        # at least as long closes it. GitHub's block ran on past the shorter one,
+        # out of this text into the next, and the fence there closed it, so that
+        # the code of the next text became text.
+        ("~~~~~~\n@a\n~~~", "\\~~~~~~\n`@a`\n\\~~~"),
+        ("~~~~\n@a\n~~~~~", "~~~~\n@a\n~~~~~"),
     ],
 )
 def test_tricky_text_is_cleaned_safely(config, text, cleaned):
@@ -1693,10 +1757,44 @@ def test_no_removal_joins_text_to_what_was_kept(config, text, numbers, cleaned):
             "`octocat/Hello-World@7fd1a60b01f91b314f59955a4e4d4e80d8edf11d` and "
             "`octocat@7fd1a60`",
         ),
+        # Found by the oracle of tests/oracle.py: GitHub links www. without a name
+        # after it, to the host www.
+        ("see www. and www.) here", "see `www.` and `www.)` here"),
+        # Found by fuzz/fuzz_sanitize.py: the target of a link runs on past a ) that
+        # closes a (, and Markdown reads its entities, so that both could hide dot
+        # segments that lead out of the repository.
+        (
+            "[x](https://github.com/owner/project/blob/(a)/../../../../evil/repo)",
+            "\\[x\\](`https://github.com/owner/project/blob/(a`)/../../../../evil/repo)",
+        ),
+        (
+            "[x](https://github.com/owner/project/blob/&#46;&#46;/&#46;&#46;/e/r) "
+            "[y](https://docs.autodarts.io/?a=1&amp;b=2)",
+            "x [y](https://docs.autodarts.io/?a=1&amp;b=2)",
+        ),
     ],
 )
 def test_what_github_would_link_elsewhere_becomes_code(config, text, cleaned):
     assert assistant.sanitize(text, config) == cleaned
+
+
+@pytest.mark.parametrize(
+    ("text", "cleaned"),
+    [
+        # Found by the oracle of tests/oracle.py: GitHub splits each row of a table
+        # at every pipe, also inside code, so that the rest of the code becomes
+        # text. No table forms without its delimiter row, a line of hyphens with a
+        # colon or a pipe, also in a quote or with a single column.
+        ("f | g\n--|--\n`x|@a` | y", "f | g\n-\\-|\\--\n`x|@a` | y"),
+        ("a\n:-:\n`https://evil.example|x`", "a\n:\\-:\n`https://evil.example|x`"),
+        ("> h\n> |:--|\n> `#1|x`", "> h\n> |:\\-\\-|\n> `#1|x`"),
+        # A single line can't hold a table, so a line of the log keeps its hyphens.
+        ("Error: -1 | -2", "Error: -1 | -2"),
+    ],
+)
+def test_no_table_cuts_code_in_two(config, text, cleaned):
+    assert assistant.sanitize(text, config) == cleaned
+    assert problems(assistant.bullets([cleaned]), set(), config) == []
 
 
 @pytest.mark.parametrize(
@@ -1713,16 +1811,14 @@ def test_what_github_would_link_elsewhere_becomes_code(config, text, cleaned):
         ("https://@docs.autodarts.io/", False),
         ("https://docs.autodarts.io:8443/", False),
         ("https://docs.autodarts.io:x/", False),
+        # A browser reads a backslash as a slash, and a backtick could pair with
+        # code elsewhere in the text.
+        ("https://docs.autodarts.io/x\\y", False),
+        ("https://docs.autodarts.io/x`y", False),
     ],
 )
 def test_links_lead_only_to_the_allowed_places(config, url, allowed):
     assert assistant.allowed_url(url, config) is allowed
-
-
-def engine_text(body):
-    """The comment without what the assistant writes itself and the oracle would
-    flag: its marker, the author it thanks and the HTML of its footer."""
-    return re.sub(r"<!-- issue-assistant:[^>]* -->|@reporter\b|</?sub>", "", body)
 
 
 @pytest.mark.parametrize(("text", "numbers"), ESCAPES)
@@ -1754,8 +1850,8 @@ def test_the_whole_comment_mentions_nobody_and_links_nowhere_else(
     first, follow_up = github.posted(12)
     assert "### Possible duplicate" in first and "### Where to look" in follow_up
     # The numbers of the duplicate and the related issue were checked.
-    assert problems(engine_text(first), {3, 7}) == []
-    assert problems(engine_text(follow_up), {3, 7}) == []
+    assert stray_problems(first, {3, 7}, config) == []
+    assert stray_problems(follow_up, {3, 7}, config) == []
 
 
 def test_code_written_next_to_code_keeps_its_own_backticks(config):

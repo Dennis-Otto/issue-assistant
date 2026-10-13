@@ -56,14 +56,16 @@ The dev container in `.devcontainer/` has all of this set up, for VS Code and fo
 
 Update `requirements-dev.txt` with `pip-compile --generate-hashes --allow-unsafe requirements-dev.in`.
 
-The cleaning of the AI's text has two more guards, which judge the result with an independent CommonMark parser (`tests/oracle.py`): property tests with Hypothesis in `tests/test_properties.py`, part of the test suite, and coverage-guided fuzzing with Atheris, which the Fuzzing workflow runs for a minute on every change and for a quarter of an hour every week:
+The cleaning of the AI's text has two more guards, which judge the result with an oracle of their own, `tests/oracle.py`: a CommonMark parser with a model of what GitHub adds, its tables, autolinks, mentions and references, which shares no code with the cleaning and which `tests/test_oracle.py` holds to what GitHub's renderer does. Property tests with Hypothesis in `tests/test_properties.py`, part of the test suite, judge cleaned text and whole comments, built from the schema of the answer; for a longer search, run them with the profile `nightly`, which tries fifty times as many examples. Coverage-guided fuzzing with Atheris, which the Fuzzing workflow runs for a minute on every change and for a quarter of an hour every week, fuzzes the cleaning and whole comments, each with its dictionary `fuzz/<target>.dict` and its seeds in `fuzz/corpus/<target>/`:
 
 ```sh
+.venv/bin/python -m pytest -m hypothesis --hypothesis-profile=nightly
 .venv/bin/pip install --require-hashes -r requirements-fuzz.txt
 .venv/bin/python fuzz/fuzz_sanitize.py -max_total_time=60
+.venv/bin/python fuzz/fuzz_render.py -max_total_time=60
 ```
 
-A finding of either becomes an example in `test_tricky_text_is_cleaned_safely` in `tests/test_assistant.py` with its fix.
+A finding of either becomes an example in `test_tricky_text_is_cleaned_safely` in `tests/test_assistant.py` with its fix, and a seed of the fuzzers: the text after three bytes for `fuzz_sanitize`, such as `printf '\0\0\377%s' "$text"`, and after two for `fuzz_render`, `printf '\0\0%s' "$text"`. A text that GitHub renders differently from the oracle becomes an example in `tests/test_oracle.py`, with what `gh api markdown -f mode=gfm -f text=...` made of it.
 
 ## Website
 

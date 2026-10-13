@@ -18,9 +18,13 @@ SAMPLE = Path(__file__).parent / "sample"
 
 # Property tests try fixed inputs in the CI, so that a run repeats exactly, and new
 # random ones locally and in the nightly Property tests workflow, which can replay a
-# seed.
+# seed. The profile nightly tries fifty times as many, for a long search,
+#   pytest -m hypothesis --hypothesis-profile=nightly
+# and the tests of the cleaning, which is fast, try three or six times as many as the
+# profile (see EXAMPLES in test_properties.py).
 settings.register_profile("ci", deadline=None, derandomize=True, print_blob=True)
 settings.register_profile("local", deadline=None)
+settings.register_profile("nightly", max_examples=5000, deadline=None, print_blob=True)
 settings.load_profile("ci" if os.environ.get("CI") else "local")
 
 
