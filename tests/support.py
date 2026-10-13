@@ -489,6 +489,8 @@ class FakeGitHub(assistant.GitHub):
             self.suggestions.append(variables)
             return {"closeIssue": {"issue": {"number": number}}}
         if "closeIssue" in query:
+            # The values of GitHub's IssueClosedStateReason.
+            assert variables["reason"] in {"COMPLETED", "NOT_PLANNED", "DUPLICATE"}
             issue = self._issue(number)
             issue["state"] = "closed"
             issue["state_reason"] = variables["reason"].lower()
