@@ -1,0 +1,48 @@
+/* The comments on the page What reporters see, as GitHub shows them: a box with the
+   app that posts them above their text. scripts/mkdocs_hooks.py makes them. */
+.md-typeset .ia-comment {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.3rem;
+  overflow: hidden;
+}
+
+.md-typeset .ia-comment__header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  background-color: var(--md-code-bg-color);
+  font-size: 0.7rem;
+}
+
+.md-typeset .ia-comment__avatar {
+  flex: none;
+}
+
+.md-typeset .ia-comment__badge {
+  padding: 0 0.4em;
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 2em;
+  font-size: 0.6rem;
+}
+
+.md-typeset .ia-comment__body {
+  padding: 0 0.8rem;
+}
+
+.md-typeset .ia-comment__body h3 {
+  margin-top: 1.2em;
+}
+
+/* The links of the demo project, which lead nowhere: they only look like links. */
+.md-typeset .ia-link {
+  color: var(--md-typeset-a-color);
+  text-decoration: underline;
+  text-decoration-thickness: max(1px, 0.06em);
+  text-underline-offset: 0.18em;
+}
+
+.md-typeset .ia-mention {
+  font-weight: 700;
+}

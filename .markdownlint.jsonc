@@ -1,4 +1,8 @@
 // The rules of the Markdown lint of this project.
 {
-  "extends": ".github/markdownlint.jsonc"
+  "extends": ".github/markdownlint.jsonc",
+  // The title in the front matter of a page of the website is the title of its tab
+  // and for search engines, not a second heading: the home page has one with words
+  // that people search for, beside its heading with the name of the project.
+  "MD025": { "front_matter_title": "" }
 }

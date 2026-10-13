@@ -1,21 +1,43 @@
+---
+description: The guide to the issue assistant, a page for each topic - how it works, its configuration, the reference of its commands and action, and every comment it posts.
+---
+
 # Guide
 
-How the issue assistant works, how it keeps an AI that reads untrusted issues in check, what it needs, how to set it up in a repository, and what its settings, engines and commands do. Questions and problems have [a page of their own](faq.md).
+Everything about the issue assistant once it is [set up](getting-started.md), on a page for each topic. Problems and questions have [a page of their own](faq.md).
 
---8<-- "README.md:how-it-works"
+<div class="grid cards" markdown>
 
---8<-- "README.md:security"
+- :material-sitemap-outline:{ .lg .middle } **How it works**
 
---8<-- "README.md:requirements"
+    ---
 
---8<-- "README.md:set-up"
+    The four workflows, the life of an issue from its first analysis to the release that ships its fix, and what keeps the AI in check.
 
---8<-- "README.md:settings"
+    [:octicons-arrow-right-24: How it works](how-it-works.md)
 
---8<-- "README.md:findings"
+- :material-tune-variant:{ .lg .middle } **Configuration**
 
---8<-- "README.md:engines"
+    ---
 
---8<-- "README.md:commands"
+    The labels, the settings and the accepted findings, with every key, its type, its default and what the check makes sure of.
 
---8<-- "README.md:try-a-prompt"
+    [:octicons-arrow-right-24: Configuration](configuration.md)
+
+- :material-console-line:{ .lg .middle } **Reference**
+
+    ---
+
+    The commands, every input and output of the action, the AI engines, and how to try a prompt on your own computer.
+
+    [:octicons-arrow-right-24: Reference](reference.md)
+
+- :material-comment-text-multiple-outline:{ .lg .middle } **What reporters see**
+
+    ---
+
+    Every comment that the assistant posts, from the first analysis to the release that ships the fix, in English and in German.
+
+    [:octicons-arrow-right-24: What reporters see](comments.md)
+
+</div>

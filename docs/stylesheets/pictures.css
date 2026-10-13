@@ -1,0 +1,8 @@
+/* Each picture is on a page twice, once for each theme, and the theme hides the copy
+   of the other one; scripts/mkdocs_hooks.py makes the copies. The plugin glightbox
+   puts a link around each copy, so the link of the hidden copy goes too: else a
+   keyboard would stop on a link with nothing to see or read. */
+[data-md-color-scheme="default"] .md-typeset .glightbox:has(> img[src$="#only-dark"]),
+[data-md-color-scheme="slate"] .md-typeset .glightbox:has(> img[src$="#only-light"]) {
+  display: none;
+}
