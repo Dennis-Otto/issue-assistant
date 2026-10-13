@@ -300,6 +300,17 @@ class FakeGitHub(assistant.GitHub):
             raise not_found()
         return self.store[number]
 
+    def _label(self, name):
+        """The label of that name, in any case, as GitHub finds it; None without one."""
+        return next(
+            (
+                label
+                for label in self.label_store
+                if label["name"].casefold() == name.casefold()
+            ),
+            None,
+        )
+
     def _add(self, number, names):
         issue = self._issue(number)
         for name in names:
@@ -394,6 +405,12 @@ class FakeGitHub(assistant.GitHub):
                 self._add(int(match[1]), data["labels"])
                 return []
             if route == "labels":
+                # GitHub ignores the case of label names.
+                if self._label(data["name"]):
+                    raise assistant.GitHubError(
+                        "gh api: Validation Failed: already_exists (HTTP 422)",
+                        status=422,
+                    )
                 self.label_store.append({**data, "node_id": f"L_{data['name']}"})
                 return data
             if route == "milestones":
@@ -404,6 +421,10 @@ class FakeGitHub(assistant.GitHub):
             match := re.fullmatch(r"issues/(\d+)/labels/(.+)", route)
         ):
             issue = self._issue(int(match[1]))
+            # A name is one segment of the path: GitHub reads an unencoded slash
+            # as the start of another.
+            if "/" in match[2]:
+                raise not_found()
             name = unquote(match[2])
             if name not in assistant.label_names(issue):
                 raise not_found("Label does not exist")
@@ -439,12 +460,13 @@ class FakeGitHub(assistant.GitHub):
                 alert.update(data)
                 return alert
             if match := re.fullmatch(r"labels/(.+)", route):
-                label = next(
-                    item
-                    for item in self.label_store
-                    if item["name"] == unquote(match[1])
-                )
-                label.update(data)
+                label = self._label(unquote(match[1]))
+                if "/" in match[1] or label is None:
+                    raise not_found()
+                changes = dict(data)
+                if "new_name" in changes:
+                    changes["name"] = changes.pop("new_name")
+                label.update(changes)
                 return label
         raise AssertionError(f"unexpected call {method} {path}")
 

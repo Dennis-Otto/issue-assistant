@@ -12,7 +12,7 @@ A repository sets up the issue assistant in three files of `.github/`, which `in
 
 ## Every key
 
-Each key of the three files, its type, its default and what `check` makes sure of. A key that says *required* has no default.
+Each key of the three files, its type, its default and what `check` makes sure of. A key that says *required* has no default. Besides, `check` makes sure that every value has the type of its key, and fails on every key that these tables don't have, naming the key that was probably meant, such as `form_options` for `form_option`.
 
 ### labels.toml
 
@@ -20,12 +20,12 @@ Each `[[label]]` of `.github/labels.toml` is a label of the repository:
 
 | Key | Type | Default | What it does | What `check` makes sure of |
 | --- | --- | --- | --- | --- |
-| `name` | string | required | The name of the label | No other label has it |
+| `name` | string | required | The name of the label | 1 to 50 characters, as GitHub allows, and no other label has it, in any case: GitHub takes `bug` and `Bug` for one label |
 | `color` | string | required | Its colour, six hexadecimal digits without `#` | Six digits, such as `d73a4a` |
 | `description` | string | required | What the label means; GitHub shows it with the label | 1 to 100 characters |
 | `group` | string | required | `type`, `area`, `topic`, `lifecycle`, `decision`, `release` or `dependabot`. The AI chooses one label of the group `type`, the kind of the issue, and any of `area` and `topic` | One of these groups, and at least one label of the group `type` |
-| `form_options` | list of strings | `[]` | The answers of the area field of the issue forms that choose the label | Only kinds, areas and topics have them; each is an option of a form and belongs to one label alone |
-| `ask` | boolean | `true` | For a kind: whether the AI may ask its reporters for information | Nothing |
+| `form_options` | list of strings | `[]` | The answers of the area field of the issue forms that choose the label; of a dropdown with `multiple: true`, each chosen answer adds its label | Only kinds, areas and topics have them; each is an option of a form and belongs to one label alone |
+| `ask` | boolean | `true` | For a kind: whether the AI may ask its reporters for information | It is `true` or `false` |
 
 The group `lifecycle` needs the seven labels that the assistant sets: `needs-triage`, `needs-info`, `stale`, `possible-duplicate`, `duplicate`, `invalid` and `fixed-in-next-release`, the last one only while `close_with_release` is `true`.
 
@@ -42,7 +42,7 @@ The group `lifecycle` needs the seven labels that the assistant sets: `needs-tri
 | `[engine] release_replies` | integer | `2` | How many comments of the reporter the AI reads after each release that closed their issue | A whole number, 0 or more |
 | `[links] hosts` | list of strings | `[]` | The hosts that links in the comments may lead to, besides the repository itself | Each is a host name, such as `docs.example.com` |
 | `[forms] area_field` | string | `"Area"` | The dropdown of the issue forms whose answer chooses an area label | Each of its options belongs to one label, or to `unmapped_options` |
-| `[forms] unmapped_options` | list of strings | `["Other"]` | Answers of that dropdown that choose no label | Nothing |
+| `[forms] unmapped_options` | list of strings | `["Other"]` | Answers of that dropdown that choose no label | A list of strings |
 | `[transparency] files` | list of strings | `["SUPPORT.md"]` | The files that tell reporters which AI reads their issue | Each exists and names the engine and its vendor: Claude and Anthropic |
 | `[releases] close_with_release` | boolean | `true` | Whether a fixed issue stays open until a release ships the fix; `false` for a repository without releases | It is `true` or `false` |
 
@@ -56,4 +56,4 @@ Each `[[accept]]` of `.github/findings.toml` accepts the alerts of one rule of c
 | `rule` | string | required | The rule, such as `py/unused-import` | It isn't empty |
 | `reason` | string | required | The reason that GitHub records for the dismissal | `false positive`, `won't fix` or `used in tests` |
 | `comment` | string | required | Why, in words, shown with the dismissed alert | 1 to 200 characters |
-| `path` | string | `""` | Only alerts in files under this path; empty for every file | Nothing |
+| `path` | string | `""` | Only alerts in this file, or in the files of this folder, such as `vendor` for `vendor/board.js` but not `vendored/board.js`; empty for every file | Nothing; a key that the table doesn't have, such as `paths`, stops the findings command too, since the acceptance would cover every file |
