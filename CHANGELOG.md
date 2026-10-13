@@ -4,6 +4,8 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.3.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.2.2...v1.3.0) (2026-10-13)
+
 ### Changed
 
 - The action is ready for the GitHub Marketplace, as *Read-only issue assistant*, because another action there is already called Issue Assistant, and with a purple badge. Workflows keep using `Dennis-Otto/issue-assistant` as before. The README opens with what the assistant does, why an issue can't make its AI write, and three commands that install the latest release; the action, the repository and the website describe it as AI issue triage, and the repository has the topics that people browse, such as `triage`, `claude-code` and `prompt-injection`.
