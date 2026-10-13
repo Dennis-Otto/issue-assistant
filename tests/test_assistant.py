@@ -14,9 +14,11 @@ import pytest
 from markdown_it import MarkdownIt
 
 import issue_assistant as assistant
+from oracle import problems
 from support import (
     BOT_USER,
     BUG_BODY,
+    ESCAPES,
     NOW,
     REPOSITORY,
     FakeGitHub,
@@ -917,7 +919,7 @@ def test_mentions_images_html_and_headings_are_removed(config):
         "<img src=x><b>bold</b><!-- hidden -->\nMail me at a@b.de"
     )
     assert assistant.sanitize(text, config) == (
-        "Title\nAsk `@maintainer` or `@org/team`.\nshotbold\nMail me at a@b.de"
+        "Title\nAsk `@maintainer` or `@org/team`.\nshotbold\nMail me at `a@b.de`"
     )
 
 
@@ -970,7 +972,8 @@ def test_code_stays_as_it_is(config):
         ("&#64;user <<b>!A> <!X", "&amp;`#64`;user &lt;!A> &lt;!X"),
         # Glued mentions and references, and references to pull requests with GH-.
         ("@a@b 0/0#0A/0#0 GH-5", "`@a` `@b` `0/0#0` `A/0#0` `GH-5`"),
-        # GitHub doesn't link an address glued to other text: it would mention @https.
+        # An address glued to other text becomes code: GitHub leaves www. after
+        # other text as text, and links https:// only at times.
         ("@https://docs.autodarts.io/x", "@`https://docs.autodarts.io/x`"),
         (
             "www.evil.example and www.home-assistant.io",
@@ -993,10 +996,158 @@ def test_code_stays_as_it_is(config):
         # Also by the fuzzer: an underscore after the number ends an emphasis, and
         # GitHub still links the reference inside it.
         ("_!}#8_", "_!}`#8`_"),
+        # A fence starts a code block only at the start of a line, so the cleaning
+        # of the text before it keeps that line break: a heading mark goes without
+        # it, and so does a comment that hides the rest of the text.
+        ("`a`\n#\n```\n@a\n````", "`a`\n\n```\n@a\n````"),
+        ("`a`<!-- b\n```\n@a\n```", "`a`\n```\n@a\n```"),
+        # An indented fence after a list item belongs to the item, which the next
+        # line without indentation ends, and the code with it: it is text.
+        ("- a\n  ```\n@b\n```", "- a\n  \\`\\`\\`\n`@b`\n\\`\\`\\`"),
+        # Found by the fuzzer: Python strips a control character as a space, which
+        # Markdown doesn't, so it goes before the code is found.
+        ("\x1d~~~\nx\n~~~~\n@a\n~~~~", "~~~\nx\n~~~~\n`@a`\n\\~~~~"),
+        # Tildes can't be escaped with a backtick: a fence of them in the text is,
+        # at any indentation, since the stripped text can start with it.
+        ("<b></b>    ~~~\nx\n~~~\n@a\n~~~", "\\~~~\nx\n~~~\n@a\n~~~"),
+        ("x\n ~~~\ny\n~~~\n@a\n~~~", "x\n \\~~~\ny\n~~~\n@a\n~~~"),
     ],
 )
 def test_tricky_text_is_cleaned_safely(config, text, cleaned):
     assert assistant.sanitize(text, config) == cleaned
+
+
+@pytest.mark.parametrize(
+    ("text", "numbers", "cleaned"),
+    [
+        # The removals end before anything is kept, so that a removal can't join
+        # text to a kept reference or link: a reference to another repository,
+        # an unchecked number, an image.
+        ("foo/bar<<x>y>#12", {12}, "`foo/bar#12`"),
+        ("see #1<<b>i>337 here", {1}, "see `#1337` here"),
+        ("!<<x>y>[pic](https://docs.autodarts.io/p.png)", set(), "pic"),
+    ],
+)
+def test_no_removal_joins_text_to_what_was_kept(config, text, numbers, cleaned):
+    assert assistant.sanitize(text, config, numbers) == cleaned
+
+
+@pytest.mark.parametrize(
+    ("text", "cleaned"),
+    [
+        # GitHub's link runs to the next space, into the code after an address.
+        (
+            "see https://docs.autodarts.io`@evil.example/` end",
+            "see `https://docs.autodarts.io` `@evil.example/` end",
+        ),
+        (
+            "https://docs.autodarts.io<b@evil.example",
+            "`https://docs.autodarts.io`&lt;`b@evil.example`",
+        ),
+        (
+            "https://github.com/owner/project/blob/x)/../../../../evil/repo",
+            "`https://github.com/owner/project/blob/x`)/../../../../evil/repo",
+        ),
+        # Characters that GitHub leaves out of a link may follow an address.
+        (
+            "(see https://docs.autodarts.io/x), and https://docs.autodarts.io/y.",
+            "(see https://docs.autodarts.io/x), and https://docs.autodarts.io/y.",
+        ),
+        # After code, GitHub leaves www. text, which could mention.
+        ("`x`www.home-assistant.io/@a", "`x` `www.home-assistant.io/@a`"),
+        # GitHub links www. after an underscore, which a later rule can put into
+        # code: so after one, even an allowed www. address becomes code.
+        ("x_www.evil.example y", "x_`www.evil.example` y"),
+        ("A _www.evil.example/x y", "A _`www.evil.example/x` y"),
+        (
+            "@a/b_www.home-assistant.io/@octocat",
+            "`@a/b_` `www.home-assistant.io/@octocat`",
+        ),
+        # After a letter, a digit, a dot or a dash, GitHub links no www. address.
+        (
+            "éwww.evil.example 1www.evil.example a.www.evil.example",
+            "éwww.evil.example 1www.evil.example a.www.evil.example",
+        ),
+        # GitHub links https:// in any case and after a digit or an underscore.
+        (
+            "HTTPS://evil.example/x _https://evil.example/y 1https://evil.example/z",
+            "`HTTPS://evil.example/x` _`https://evil.example/y` "
+            "1`https://evil.example/z`",
+        ),
+        # E-mail addresses and commits of other repositories or forks.
+        (
+            "Write to support@evil.example, mailto:x@evil.example or "
+            "xmpp:a@evil.example/r",
+            "Write to `support@evil.example`, `mailto:x@evil.example` or "
+            "`xmpp:a@evil.example`/r",
+        ),
+        (
+            "octocat/Hello-World@7fd1a60b01f91b314f59955a4e4d4e80d8edf11d and "
+            "octocat@7fd1a60",
+            "`octocat/Hello-World@7fd1a60b01f91b314f59955a4e4d4e80d8edf11d` and "
+            "`octocat@7fd1a60`",
+        ),
+    ],
+)
+def test_what_github_would_link_elsewhere_becomes_code(config, text, cleaned):
+    assert assistant.sanitize(text, config) == cleaned
+
+
+@pytest.mark.parametrize(
+    ("url", "allowed"),
+    [
+        ("https://github.com/owner/project/blob/main/.github/labels.toml", True),
+        ("https://DOCS.autodarts.io/x", True),
+        # Browsers resolve dot segments, also encoded ones, to any repository.
+        ("https://github.com/owner/project/blob/../../../evil/repo/issues/1", False),
+        ("https://github.com/owner/project/blob/%2e%2e/%2E%2E/evil/repo", False),
+        ("https://github.com/owner/project/tree/main/./x", False),
+        # A user, a password or a port hides where a link leads.
+        ("https://user:secret@docs.autodarts.io/", False),
+        ("https://@docs.autodarts.io/", False),
+        ("https://docs.autodarts.io:8443/", False),
+        ("https://docs.autodarts.io:x/", False),
+    ],
+)
+def test_links_lead_only_to_the_allowed_places(config, url, allowed):
+    assert assistant.allowed_url(url, config) is allowed
+
+
+def engine_text(body):
+    """The comment without what the assistant writes itself and the oracle would
+    flag: its marker, the author it thanks and the HTML of its footer."""
+    return re.sub(r"<!-- issue-assistant:[^>]* -->|@reporter\b|</?sub>", "", body)
+
+
+@pytest.mark.parametrize(("text", "numbers"), ESCAPES)
+def test_the_whole_comment_mentions_nobody_and_links_nowhere_else(
+    config, text, numbers
+):
+    """Each text in every place of a comment: under a heading, in a list and behind
+    a number, where a fence starts no code block."""
+    github = FakeGitHub(config, make_issue(3), make_issue(7), make_issue())
+    answer = make_answer(
+        summary=text,
+        analysis=text,
+        next_steps=[text],
+        missing_information=[text],
+        duplicates=[{"number": 7, "confidence": "high", "reason": text}],
+        related=[{"kind": "issue", "number": 3, "reason": text}],
+        references=[{"path": "docs/troubleshooting.md", "reason": text}],
+    )
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    github.comment_store[12] += [make_comment(2, "reporter", "Log", 0)]
+    answer = make_follow_up(
+        reply=text,
+        missing_information=[text],
+        references=[{"path": "docs/troubleshooting.md", "reason": text}],
+    )
+    assistant.apply_answer(github, "follow-up", 12, json.dumps(answer), config, "abc")
+    first, follow_up = github.posted(12)
+    assert "### Possible duplicate" in first and "### Where to look" in follow_up
+    # The numbers of the duplicate and the related issue were checked.
+    assert problems(engine_text(first), {3, 7}) == []
+    assert problems(engine_text(follow_up), {3, 7}) == []
 
 
 def test_code_written_next_to_code_keeps_its_own_backticks(config):
@@ -1044,8 +1195,9 @@ def test_a_line_of_the_engine_s_text_is_cleaned_and_one_line(config):
     assert assistant.plain(text, config) == (
         "Like `#5`, ask `@octocat` now: x \\[8mhidden ::add-mask::y"
     )
-    # In a code block, a mention stays as it is; on one line, the block is text.
-    assert assistant.plain("~~~\n@octocat\n~~~", config) == "~~~ `@octocat` ~~~"
+    # In a code block, a mention stays as it is; on one line, the block is text,
+    # with the fence at its start escaped.
+    assert assistant.plain("~~~\n@octocat\n~~~", config) == "\\~~~ `@octocat` ~~~"
 
 
 def test_a_shortened_line_keeps_its_cleaning(config):

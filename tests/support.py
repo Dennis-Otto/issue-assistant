@@ -431,3 +431,42 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
     code = assistant.main(list(argv))
     text = outputs.read_text("utf-8") if outputs.exists() else ""
     return code, text, summary.read_text("utf-8") if summary.exists() else ""
+
+
+# Texts of the engine that once got past the cleaning, with the issue numbers that
+# were checked: found in review, in GitHub's rendering and by the fuzzer, whose
+# finding of 2026-10-08 is the first of them. The tests judge each where the
+# comment puts it.
+FUZZ_FINDING = "\n".join(
+    [
+        "\0\0" + "\x1d" * 14 + "\0~~~",
+        "~~\x01~[~~",
+        "~~~~~~",
+        "~~8\x18~~",
+        "~~8[~\x7f\x7fA&&(~\x16~~~~~~" + ">" * 30,
+        "\t_@sI\x01,",
+        "*",
+        "\x02A_:\x01\x0f",
+        "*8",
+        "*\t)_:,~",
+        "~~~",
+    ]
+)
+ESCAPES = [
+    (FUZZ_FINDING, set()),
+    (FUZZ_FINDING, {1}),
+    ("\x1d~~~\nx\n~~~~\n@octocat\n~~~~", set()),
+    ("`a`\n#\n```\n@octocat\n````", set()),
+    ("`a`<!-- b\n```\n@octocat\n```", set()),
+    ("```\n@octocat\n````", set()),
+    ("```python\n@dataclass\n```", set()),
+    ("```\n@octocat <img src=https://evil.example/p.png>\n```", set()),
+    ("```\n\t```\n@octocat\n```", set()),
+    ("- item\n  ```\n@octocat https://evil.example/x\n```", set()),
+    ("<b></b>    ~~~\nx\n~~~\n@octocat\n~~~", set()),
+    ("foo/bar<<x>y>#12", {12}),
+    ("see #1<<b>i>337 here", {1}),
+    ("!<<x>y>[pic](https://docs.example.com/page.png)", set()),
+    ("x_www.evil.example y", set()),
+    ("A _www.evil.example/@octocat y", set()),
+]
