@@ -3,8 +3,11 @@
 coverage
 graphql-core
 hypothesis
+# Markdown with the extensions of the website, for the tests of its hooks.
+markdown
 markdown-it-py
 mypy
+pymdown-extensions
 pytest
 pyyaml
 ruff

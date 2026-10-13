@@ -1,4 +1,5 @@
 ---
+description: The issue assistant compared with the issue examples of the Claude Code action, GitHub Agentic Workflows, actions/stale, Dosu and GitHub's duplicate detection.
 hide:
   - navigation
 ---
