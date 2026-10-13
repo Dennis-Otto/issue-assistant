@@ -176,6 +176,32 @@ flowchart TB
 3. **The blueprint takes the release over** in a pull request of its own: it runs `install` of the release in its root, takes over the firewall policy of `templates/` and moves every pin of the action, that of the check in its Lint workflow too. It also adapts its own checks to the templates when they need it, as when actionlint had to ignore the queue of a concurrency group, which it doesn't know yet. A pull request that changed only the blueprint's copies would fail the check `issue-assistant` there in the same way.
 4. **The next release of the blueprint** reaches every repository made from it, this one too, as an update pull request of the blueprint bot. Repositories that use the action without the blueprint receive the release as a Dependabot pull request and run `install` again.
 
+## How the requests to GitHub are tested
+
+Most tests replace GitHub with the fake in `tests/support.py`, which answers the calls of the script from the issues, comments and pull requests that a test sets up. The fake knows a GraphQL query by its words, so it can't tell a misspelt field from a right one, or a field that GitHub renamed last week. The script, for its part, falls back where one of GitHub's newer fields fails: labels go without their rationale, and an issue closes through REST, without the link to its original. Such a mistake would show only as a notice in the log of a repository that uses the action, so three checks look for it before a release:
+
+```mermaid
+flowchart TB
+  accTitle: Three checks of the requests to GitHub
+  accDescr: The GraphQL documents of issue_assistant.py meet a copy of GitHub's schema in the required check of every pull request. The commands sweep, sync-labels and context run against GitHub itself with a token that can only read, on every pull request, on main and every week. Every week the documents also meet the schema that GitHub publishes that day, and a notice says when the copy is behind it.
+  script["<b>issue_assistant.py</b><br/>its GraphQL documents<br/>and REST requests"]
+  copy[("the copy of GitHub's schema<br/>in tests/github/")]
+  github[("GitHub itself")]
+  today[("GitHub's schema<br/>of the day")]
+  script -- "every pull request,<br/>in the required check" --> copy
+  script -- "every pull request,<br/>main and every week:<br/>sweep, sync-labels, context,<br/>a token that only reads" --> github
+  script -- "every week" --> today
+  today -. "a notice when<br/>the copy is behind" .-> copy
+  classDef code fill:#8c959f1f,stroke:#8c959f
+  classDef safe fill:#1a7f3726,stroke:#1a7f37
+  class script code
+  class copy,github,today safe
+```
+
+1. **Every GraphQL document meets GitHub's schema.** `tests/test_graphql_contract.py` runs each method of the class `GitHub` that sends GraphQL, catches what it hands to `gh` and checks it against GitHub's public schema, whose copy is `tests/github/schema.docs.graphql`: every field and argument must exist and none may be deprecated, and every variable must fit its type, such as the reason for closing an issue. The answer is worked out from the schema as well, so it holds only the fields that the document asks for, and the method can read no other. A document that the test doesn't know fails it, so a new one comes with its case.
+2. **The commands that read run against GitHub.** The job `egress` of the Action test runs the action of the pull request as dry runs of `sweep` and `sync-labels` on this repository, and `context` for a closed issue of [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), a public repository that uses the action, with its comments, the other issues and the discussions. Its token can only read, so a write that a dry run let through would fail too.
+3. **Every week, the schema of the day.** GitHub changes its API without a release of the action. The job `schema` of the Action test checks the documents every week against the schema that GitHub publishes that day. GitHub deprecates a field, an argument or a value of an enum months before it removes it, and says when, so the run turns red as soon as the script uses something deprecated, while it still works. When the copy in `tests/github/` is behind, a notice says so, and a pull request refreshes it with the command in `tests/test_graphql_contract.py`.
+
 ## Reading the text of issues
 
 Anyone can write an issue, and every analysis reads the text of every issue of the repository, open or closed, for the excerpts of the other issues. One text that kept a pattern busy for minutes would stall every analysis until its job timed out. So the time to read a text grows only with its length:

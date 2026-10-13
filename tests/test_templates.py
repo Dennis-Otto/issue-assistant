@@ -177,6 +177,7 @@ def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
         job
         for job in jobs.values()
         if job["steps"][0].get("uses", "").startswith(f"{HARDEN_RUNNER}@")
+        and job["steps"][0]["with"]["egress-policy"] == "block"
     ]
     assert job["runs-on"] == RUNNER
     assert job["steps"][0] == JOBS["event"]["steps"][0]
@@ -186,11 +187,34 @@ def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
         {"command": "sweep", "dry-run": True},
         {"command": "sync-labels", "dry-run": True},
     ]
+    # And context, which only reads, for a real issue among issues and discussions.
+    (context,) = [step for step in job["steps"] if " context " in step.get("run", "")]
+    assert context["run"].startswith("python3 issue_assistant.py context --issue ")
+    assert context["env"]["GH_TOKEN"] == "${{ github.token }}"
+    # A token that can only read, so that a write which a dry run let through fails.
     assert job["permissions"] == {
         "contents": "read",
+        "discussions": "read",
         "issues": "read",
         "pull-requests": "read",
     }
+
+
+def test_the_graphql_documents_meet_github_s_schema_of_the_day_every_week():
+    """The tests check them against a copy of the schema; GitHub changes it any day."""
+    workflow = load(OWN / "action-test.yml")
+    # PyYAML reads the key "on" as True.
+    assert workflow[True]["schedule"]
+    job = workflow["jobs"]["schema"]
+    assert job["if"] == (
+        "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'"
+    )
+    (download,) = [step for step in job["steps"] if "curl" in step.get("run", "")]
+    assert "https://docs.github.com/public/fpt/schema.docs.graphql" in download["run"]
+    (check,) = [
+        step for step in job["steps"] if "GRAPHQL_SCHEMA" in step.get("env", {})
+    ]
+    assert check["run"].endswith("tests/test_graphql_contract.py")
 
 
 def test_the_github_cli_sends_no_telemetry():

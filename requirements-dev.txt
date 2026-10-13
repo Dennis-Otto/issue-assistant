@@ -186,6 +186,10 @@ coverage==7.16.2 \
     --hash=sha256:fb9d92ecfe2d5b494367c67f7446f8b75b68d8d0c8cf3bc3e6997478be25d9e2 \
     --hash=sha256:fd3d72233eb8b48acc94fa57d44e2d32ce8e7abed02882ccb6d855ccc4ed33ec
     # via -r requirements-dev.in
+graphql-core==3.3.0 \
+    --hash=sha256:d37fac6ef4dfc3eaa5daa59dcb498d7cbb118439d240993c68fddc4cb1bade44 \
+    --hash=sha256:fd3424e88af3f3211931c6ff96350f1cd9069cf0f1a31b9972899e35d39136b5
+    # via -r requirements-dev.in
 hypothesis==6.169.0 \
     --hash=sha256:00b317f00bc41be393cb681b6684e6d912bff1da673be1e719d6ca7b314b78dd \
     --hash=sha256:01f9c4660bf2627ef36558f3e0f20c746ba30d666e18a2f5af0abc7c71bad695 \
