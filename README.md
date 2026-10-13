@@ -163,8 +163,8 @@ flowchart TB
 
 Apps and integrations reach their users with a release, not with a merge. So an issue stays open until the fix is released:
 
-1. A pull request names the issue it fixes with `Fixes #12`, as usual. When it is merged into the default branch, the issue gets the label `fixed-in-next-release` and a comment: fixed by the pull request, closes with the next release. A maintainer can also set the label by hand, for a fix without a pull request.
-2. When a release is published, every issue with the label whose fix it contains closes as completed. A comment links the release and asks the reporter to update. Drafts and pre-releases don't count, and only a release published after the label closes an issue. The issue is filed under the milestone of the release, such as `v1.2.0`, which the assistant creates, closed, when it is missing; its page lists everything that the release fixed.
+1. A pull request names the issue it fixes with `Fixes #12`, as usual. When it is merged into the default branch, the issue gets the label `fixed-in-next-release` and a comment: fixed by the pull request, closes with the next release. A maintainer can also set the label by hand, for a fix without a pull request. The morning sweep catches a merge whose run failed, up to 14 days later and however many pull requests the repository merged since; if a release ships the fix by then, the issue closes with it at once, without the comment.
+2. When a release is published, every issue with the label whose fix it contains closes as completed. A comment links the release and asks the reporter to update. It is the first final release, no draft or pre-release, that was published after the last fix was merged and contains every fix, so an issue that got its label late still closes with the release that shipped its fix. A label that a maintainer set by hand, for a fix without a pull request or after one that fell short, waits for the next release after it. Only this repository's pull requests count: one of another repository that names the issue with `Fixes owner/project#12` neither keeps it open nor appears in the comment. The issue is filed under the milestone of the release, such as `v1.2.0`, which the assistant creates, closed, when it is missing; its page lists everything that the release fixed.
 3. If the reporter comments within 30 days that the problem persists after the update, the AI reads the comment and the issue reopens. Thanks or questions keep it closed. The AI reads up to two comments of the reporter after each release, as `release_replies` in `config.toml` says; a maintainer reads the rest.
 
 ```mermaid
@@ -187,6 +187,30 @@ sequenceDiagram
     R->>A: comments on the closed issue
     A->>I: stays closed
   end
+```
+
+The fixes of an issue are the pull requests of the repository that name it and were merged into the default branch at most 14 days before its label, the longest that the sweep takes to set it. A fix that a release closed the issue with before it was reopened didn't help, so neither that release nor the fix counts again; any other reopening, such as of an issue that GitHub closed at the merge, keeps the fixes:
+
+```mermaid
+flowchart TB
+  accTitle: Which release closes a fixed issue
+  accDescr: For an open issue with the label fixed-in-next-release, the assistant looks for its fixes: pull requests of this repository into the default branch that name it, merged at most 14 days before the label, leaving out those that a release closed the issue with before it was reopened. With fixes and a label that the assistant set, the first final release published after the last of them was merged that contains them all closes the issue, also one published before a late label. With fixes and a label set by hand, it is the first final release after the label that contains them all. Without fixes, the first final release published after the label closes it. Drafts and pre-releases never close an issue.
+  label(["open issue with<br/><b>fixed-in-next-release</b>"]) --> fixes{"fixes of this repository,<br/>merged at most 14 days<br/>before the label, that<br/>no release closed it with<br/>before a reopening?"}
+  fixes -- "yes" --> who{"who set<br/>the label?"}
+  who -- "the assistant" --> shipped["the first final release<br/>after the last merge<br/>that contains every fix"]
+  who -- "a maintainer,<br/>by hand" --> later["the first final release<br/>after the label<br/>that contains every fix"]
+  fixes -- "no" --> next["the first final release<br/>after the label"]
+  shipped --> released(["closed with a link to the release,<br/>under its milestone"])
+  later --> released
+  next --> released
+  classDef fixed fill:#c2e0c666,stroke:#1a7f37
+  classDef question fill:#d4a72c33,stroke:#bf8700
+  classDef release fill:#0969da26,stroke:#0969da
+  classDef done fill:#8250df1f,stroke:#8250df
+  class label fixed
+  class fixes,who question
+  class shipped,later,next release
+  class released done
 ```
 
 GitHub closes linked issues when a pull request is merged unless the repository turns this off: under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**. A repository without releases sets `close_with_release = false` in `config.toml`.
@@ -603,6 +627,7 @@ The summary of each run says what the assistant did and why; the runs are under 
 | A step of `analyze` fails to connect, and the summary of the run lists a denied host | The egress firewall blocked a host that the engine's action needs, often after an update of the action | Update to the latest release and run `install` again. It keeps your firewall policy, and `check` then names each host of the template that the policy misses, to add there |
 | `check` says that a workflow *differs from the template of the issue assistant* | The workflow was changed by hand, or comes from another release than the action that it pins | Run `install` again with the release that the workflows pin |
 | An issue closed when its fix was merged, not with the release | GitHub closes the issues that a merged pull request names | Under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**; a repository without releases sets `close_with_release = false` |
+| An issue with `fixed-in-next-release` stays open after a release | The release is a draft or a pre-release, it doesn't contain every pull request that fixes the issue, or a maintainer set the label by hand after it, which waits for the next one | Publish a final release that contains the fixes; the sweep of the next morning closes the issue, or start *Issue lifecycle* by hand |
 | A label of `.github/labels.toml` is missing in the repository | The Labels workflow runs when `labels.toml` changes on `main`, not before | Run it by hand: `gh workflow run labels.yml` |
 | actionlint calls `ubuntu-24.04-firewall` an unknown label | actionlint doesn't know the runner of the preview | List it in `.github/actionlint.yaml`, as step 9 of the set-up shows |
 
