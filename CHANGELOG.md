@@ -13,7 +13,7 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ### Security
 
-- The jobs of the workflows that write, `event`, `apply`, `sweep`, `sync-labels` and `findings`, reach only GitHub: Harden-Runner blocks every host but `api.github.com` and `github.com`, and no step can use sudo or containers to lift the block. A compromised action or tool in a job with a write token can no longer send it anywhere else. The action turns off the telemetry of the GitHub CLI, which would only knock at a blocked host.
+- The jobs of the workflows that write, `event`, `apply`, `sweep`, `sync-labels` and `findings`, reach only GitHub: Harden-Runner blocks every host but `api.github.com` and `github.com`, and no step can use sudo or containers to lift the block. A compromised action or tool in a job with a write token can no longer send it anywhere else. The block holds in public repositories, and in private ones with a subscription or trial of StepSecurity, the maker of Harden-Runner; without one, the jobs run as before. StepSecurity receives the repository, run and job of each of these jobs and the hosts that its steps connect to. The action turns off the telemetry of the GitHub CLI, which would only knock at a blocked host.
 
 ### Security
 
