@@ -2740,6 +2740,41 @@ def test_a_fix_that_a_release_already_ships_closes_the_issue_at_once(config):
     assert assistant.sweep(github, NOW) == []
 
 
+def test_a_fix_that_closed_the_issue_at_once_isn_t_announced_after_a_reopening(
+    config,
+):
+    github = merged(config, make_pull(days_ago=3), days_ago=10)
+    github.release_store = release_history(10, 2)
+    github.contained = {(f"{40:040x}", "v1.10.0")}
+    assert assistant.sweep(github, NOW) == ["#12: closed, released in v1.10.0."]
+    # Its reporter said that the problem persists, and the issue reopened while
+    # the merge is still within the lookback.
+    github.store[12]["state"] = "open"
+    github.event_store[12].append(
+        {"event": "reopened", "actor": BOT_USER, "created_at": at()}
+    )
+    assert assistant.sweep(github, NOW) == []
+    assert github.labels_of(12) == {"bug"}
+    assert len(github.posted(12)) == 1
+    # Nor does the next release that contains it close the issue again.
+    github.release_store.append(make_release("v1.11.0", 0))
+    github.contained.add((f"{40:040x}", "v1.11.0"))
+    assert assistant.sweep(github, NOW) == []
+    assert github.store[12]["state"] == "open"
+
+
+def test_a_later_fix_of_a_reopened_issue_is_announced(config):
+    # v1.9.0 shipped #39 and closed the issue, which reopened; #40 fixes the rest.
+    github = merged(config, make_pull(days_ago=1), labels=("bug",), days_ago=30)
+    closing = assistant.render_released(
+        "reporter", make_release("v1.9.0", 3), [39], "en"
+    )
+    github.comment_store[12] = [make_comment(5, "bot", closing, 3)]
+    assert assistant.mark_fixed(github, NOW) == [
+        "#12: fixed by #40; closes with the next release."
+    ]
+
+
 @pytest.mark.parametrize(
     "case", ["other fix unreleased", "pre-release", "draft", "no merge commit"]
 )
@@ -2766,11 +2801,11 @@ def test_the_releases_are_read_once_and_only_to_mark_an_issue(config):
     github = merged(config, make_pull(fixes=(12, 13)), labels=("bug",))
     github.store[13] = make_issue(13, labels=("bug",))
     assistant.mark_fixed(github, NOW)
-    reads = [call for call in github.calls if call[1] == "releases?per_page=30"]
+    reads = [call for call in github.calls if call[1] == "releases?per_page=100"]
     assert len(reads) == 1
     github.calls.clear()
     assert assistant.mark_fixed(github, NOW) == []
-    assert not any(call[1] == "releases?per_page=30" for call in github.calls)
+    assert not any(call[1] == "releases?per_page=100" for call in github.calls)
 
 
 def released(config, *, contained=True, labeled_days_ago=2, pulls=None, releases=None):
@@ -3011,6 +3046,85 @@ def test_a_fix_that_the_reporter_reopened_the_issue_after_isn_t_awaited(config):
     assert "Released in [v1.10.0](" in comment and "with the fix" not in comment
 
 
+def test_a_later_fix_of_a_reopened_issue_is_awaited_alone(config):
+    # v1.9.0 shipped #40 and closed the issue, which reopened; #41 fixes the rest.
+    history = release_history(5, 0.5)
+    pulls = [make_pull(days_ago=6), make_pull(41, days_ago=3)]
+    github = released(config, pulls=pulls, releases=history, contained=False)
+    github.contained = {(f"{41:040x}", "v1.10.0")}
+    closing = assistant.render_released("reporter", history[0], [40], "en")
+    github.comment_store[12] = [make_comment(5, "bot", closing, 5)]
+    github.event_store[12].insert(
+        0, {"event": "reopened", "actor": {"login": "reporter"}, "created_at": at(4)}
+    )
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+    (comment,) = github.posted(12)
+    assert "with the fix from #41. @reporter" in comment
+
+
+@pytest.mark.parametrize("closing", [None, 0.1], ids=["closed at the merge", "stopped"])
+def test_a_reopening_without_a_release_before_it_keeps_the_fix(config, closing):
+    # GitHub closed the issue at the merge and the maintainer reopened it, and the
+    # sweep labeled it after the release; or GitHub stopped the closing after its
+    # comment, after a reopening for another reason.
+    github = released(config, labeled_days_ago=0.2)
+    owner = {"login": "owner", "type": "User"}
+    github.event_store[12][:0] = [
+        {"event": "closed", "actor": owner, "created_at": at(3)},
+        {"event": "reopened", "actor": owner, "created_at": at(2.9)},
+    ]
+    if closing:
+        comment = assistant.render_released("reporter", make_release(), [40], "en")
+        github.comment_store[12] = [make_comment(5, "bot", comment, closing)]
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+    # One comment of the release, which names the fix.
+    (comment,) = github.comment_store[12]
+    assert "with the fix from #40." in comment["body"]
+
+
+def test_a_label_set_by_hand_after_a_fix_fell_short_waits_for_the_next_release(
+    config,
+):
+    # #40 got its notice, and the maintainer removed the label, as the fix fell
+    # short. v1.9.0 shipped #40, and the maintainer set the label again by hand,
+    # for the rest of the fix, which has no pull request.
+    history = release_history(3, 0.5)
+    github = released(
+        config,
+        pulls=[make_pull(days_ago=5)],
+        releases=history[:1],
+        labeled_days_ago=5,
+        contained=False,
+    )
+    github.event_store[12] += [
+        label_event("fixed-in-next-release", 4),
+        label_event("fixed-in-next-release", 1, "labeled"),
+    ]
+    github.contained = {(f"{40:040x}", "v1.9.0")}
+    assert assistant.close_released(github) == []
+    # The next release closes it.
+    github.release_store = history
+    github.contained.add((f"{40:040x}", "v1.10.0"))
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+
+
+def test_a_late_label_finds_its_release_behind_many_pre_releases(config):
+    # A beta channel published a pre-release for each of 40 merges since v1.9.0.
+    betas = [
+        make_release(f"v1.10.0-beta.{n}", 10 - n * 0.2, prerelease=True)
+        for n in range(40)
+    ]
+    github = released(
+        config,
+        pulls=[make_pull(days_ago=12)],
+        releases=[make_release("v1.9.0", 11), *betas],
+        labeled_days_ago=0.2,
+        contained=False,
+    )
+    github.contained = {(f"{40:040x}", "v1.9.0")}
+    assert assistant.close_released(github) == ["#12: closed, released in v1.9.0."]
+
+
 def test_a_fix_merged_before_the_report_closes_it_with_its_release(config):
     # Someone reported a bug that main had fixed already, the fix names the issue,
     # and the sweep labeled it after the release that shipped the fix.
@@ -3023,7 +3137,7 @@ def test_a_fix_merged_before_the_report_closes_it_with_its_release(config):
 def test_without_fixed_issues_the_releases_are_not_read(config):
     github = FakeGitHub(config, make_issue())
     assert assistant.close_released(github) == []
-    assert not any(call[1] == "releases?per_page=30" for call in github.calls)
+    assert not any(call[1] == "releases?per_page=100" for call in github.calls)
 
 
 def test_an_unknown_tag_contains_nothing(config):

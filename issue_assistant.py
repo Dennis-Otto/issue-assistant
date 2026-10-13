@@ -748,8 +748,13 @@ class GitHub:
         return tag
 
     def releases(self) -> list[dict[str, Any]]:
-        """The published final releases, oldest first; no drafts or pre-releases."""
-        items = self.rest("releases?per_page=30")
+        """The published final releases, oldest first; no drafts or pre-releases.
+
+        Of the newest hundred: a repository with a beta channel publishes a
+        pre-release for each fix, and a late label closes with a release up to
+        MERGE_LOOKBACK older than it.
+        """
+        items = self.rest("releases?per_page=100")
         return sorted(
             (
                 item
@@ -3027,11 +3032,18 @@ def mark_issue_fixed(
         return []
     current = label_names(issue)
     comments = github.comments(number)
-    if FIXED in current or any(
-        (found := marker(comment))
-        and found[0] == "fixed"
-        and found[1].get("pull") == str(pull["number"])
-        for comment in comments
+    # Nor is a fix announced again that a release has shipped and closed the issue
+    # with since its merge, such as at once, without the notice: an issue reopened
+    # after it says that the fix didn't help.
+    if (
+        FIXED in current
+        or any(
+            (found := marker(comment))
+            and found[0] == "fixed"
+            and found[1].get("pull") == str(pull["number"])
+            for comment in comments
+        )
+        or posted_since(comments, "released", moment(pull["mergedAt"]))
     ):
         return []
     # A sweep that sees the merge late, as the run of the merge failed, may find a
@@ -3085,43 +3097,61 @@ def close_issue_released(
 ) -> list[str]:
     number = issue["number"]
     events = github.events(number)
-    labeled = max(
-        [
-            created(event)
+    label = max(
+        (
+            event
             for event in events
             if event["event"] == "labeled"
             and (event.get("label") or {}).get("name") == FIXED
-        ]
-        or [created(issue)]
+        ),
+        key=created,
+        default=None,
     )
-    reopened = [created(event) for event in events if event["event"] == "reopened"]
-    # The fixes that the label waits for: merged since the issue was last reopened,
-    # as a fix that it was reopened after didn't help, and at most MERGE_LOOKBACK
-    # before the label, the latest that a sweep sets it.
+    labeled = created(label or issue)
+    comments = cache(partial(github.comments, number))
+    # A fix that a release closed the issue with before it was last reopened
+    # didn't help. Any other reopening, such as of an issue that GitHub closed at
+    # the merge, leaves the fixes as they are.
+    reopened = max(
+        (created(event) for event in events if event["event"] == "reopened"),
+        default=None,
+    )
+    spent = reopened and max(
+        (
+            created(comment)
+            for comment in comments()
+            if kind_of(comment) == "released" and created(comment) <= reopened
+        ),
+        default=None,
+    )
+    # The fixes that the label waits for: merged after that release, and at most
+    # MERGE_LOOKBACK before the label, the latest that a sweep sets it.
     pulls = [
         pull
         for pull in github.fixing_pulls(number)
-        if all(moment(pull["mergedAt"]) >= when for when in reopened)
+        if not (spent and moment(pull["mergedAt"]) <= spent)
         and labeled - moment(pull["mergedAt"]) <= MERGE_LOOKBACK
     ]
     # The first release that ships them all, published after the last of them was
-    # merged: also before the label, when a sweep set it late. Without one, such as
-    # for a label set by hand, the label promises the next release after it.
+    # merged: also before the label, when a sweep set it late. Without one, the
+    # label promises the next release after it, and so does a label that someone
+    # set by hand, such as after a fix that fell short: never a release before it.
     since = max((moment(pull["mergedAt"]) for pull in pulls), default=labeled)
+    if label and login(label.get("actor")) != BOT:
+        since = max(since, labeled)
     release = first_release(
         github, releases, [pull["mergeCommit"]["oid"] for pull in pulls], since
     )
     if not release:
         return []
-    comments = github.comments(number)
-    if not posted_since(comments, "released", since):
+    if not posted_since(comments(), "released", since):
         github.comment(
             number,
             render_released(
                 login(issue.get("user")),
                 release,
                 sorted(pull["number"] for pull in pulls),
-                issue_language(issue, comments),
+                issue_language(issue, comments()),
             ),
         )
     # Closed first: with the label, the next sweep finds an issue that GitHub
