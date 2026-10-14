@@ -91,6 +91,11 @@ MAX_FOLLOW_UPS = 2
 # Pull requests merged this long ago still mark the issues they fix, in case the
 # event of the merge was missed.
 MERGE_LOOKBACK = timedelta(days=14)
+# A sweep reads the merges of MERGE_LOOKBACK before its start and labels their
+# issues later in its run, which the workflows stop after 20 minutes at most. So a
+# fix counts for its label for this much longer, or one merged at the edge of the
+# lookback would lose the release that ships it.
+LABEL_SLACK = timedelta(hours=1)
 # How long a comment of the reporter can reopen an issue that a release closed.
 REOPEN_AFTER_RELEASE = timedelta(days=30)
 # The limits of the AI runs that people who don't maintain the repository start,
@@ -1180,9 +1185,10 @@ class GitHub:
     def merged_pulls(self, since: datetime) -> tuple[str, list[dict[str, Any]]]:
         """The default branch, and the pull requests merged since `since`.
 
-        Each with the issues that it fixes. GitHub lists them by their last update,
-        which a merge is, so the pages end with one that nobody updated since then;
-        a busy repository merges far more than one page in MERGE_LOOKBACK.
+        Each with the issues that it fixes and their state. GitHub lists them by
+        their last update, which a merge is, so the pages end with one that nobody
+        updated since then; a busy repository merges far more than one page in
+        MERGE_LOOKBACK.
         """
         pulls: list[dict[str, Any]] = []
         cursor = None
@@ -1199,7 +1205,7 @@ class GitHub:
                         number mergedAt updatedAt baseRefName
                         mergeCommit { oid }
                         closingIssuesReferences(first: 10) {
-                          nodes { number repository { nameWithOwner } }
+                          nodes { number state repository { nameWithOwner } }
                         }
                       }
                     }
@@ -3571,7 +3577,10 @@ def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> li
         if pull["baseRefName"] != branch:
             continue
         for reference in pull["closingIssuesReferences"]["nodes"]:
-            if not github.owns(reference):
+            # Most issues that a merge names are closed by the time of a sweep, and
+            # each one read would spend the requests that the token has in an
+            # hour; the read of an open one decides.
+            if not github.owns(reference) or reference["state"] == "CLOSED":
                 continue
             number = reference["number"]
             done += isolate(
@@ -3693,12 +3702,13 @@ def close_issue_released(
         default=None,
     )
     # The fixes that the label waits for: merged after that release, and at most
-    # MERGE_LOOKBACK before the label, the latest that a sweep sets it.
+    # MERGE_LOOKBACK before the label, the latest that a sweep sets it, with the
+    # time of its run.
     pulls = [
         pull
         for pull in github.fixing_pulls(number)
         if not (spent and moment(pull["mergedAt"]) <= spent)
-        and labeled - moment(pull["mergedAt"]) <= MERGE_LOOKBACK
+        and labeled - moment(pull["mergedAt"]) <= MERGE_LOOKBACK + LABEL_SLACK
     ]
     # The first release that ships them all, published after the last of them was
     # merged: also before the label, when a sweep set it late. Without one, the
