@@ -1,0 +1,138 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in German.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "German"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "du"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{day}. {month} {year}"
+months = [
+  "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September",
+  "Oktober", "November", "Dezember",
+]
+# Words that are frequent in the language and in no other catalog. A reporter
+# writes in the language of whose stopwords their words have the most, in
+# English when no other language has more, or fewer than two.
+stopwords = [
+  "und", "der", "die", "das", "nicht", "ich", "ist", "mit", "auf", "wenn", "bei",
+  "wird", "kann", "ein", "eine", "habe", "auch", "noch", "dass", "funktioniert",
+  "keine", "aber", "wie", "nach", "mein", "meine",
+]
+
+sample = "Die Karte zeigt nichts an, wenn ich einen Dart werfe und das ist komisch."
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "Danke für dein Issue, @{author}!"
+"thanks.bug" = "Danke für deine Meldung, @{author}!"
+"thanks.enhancement" = "Danke für deinen Vorschlag, @{author}!"
+"thanks.question" = "Danke für deine Frage, @{author}!"
+"thanks.documentation" = "Danke für deinen Hinweis zur Dokumentation, @{author}!"
+"thanks.compatibility" = "Danke für deinen Kompatibilitätsbericht, @{author}!"
+"thanks.feedback" = "Danke fürs Testen und für dein Feedback, @{author}!"
+"thanks.maintenance" = "Danke für deine Meldung, @{author}!"
+intro = """\
+  Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. \
+  Die Maintainer lesen jedes Issue ebenfalls."""
+summary = "Zusammenfassung"
+analysis = "Erste Analyse"
+next_steps = "Das kannst du ausprobieren"
+missing = "Fehlende Informationen"
+"missing.intro" = """\
+  Damit es weitergehen kann, ergänze bitte Folgendes, als Kommentar oder indem du das \
+  Issue bearbeitest:"""
+"missing.outro" = """\
+  Ohne Antwort folgt nach {remind_days} eine Erinnerung, nach {close_days} wird das \
+  Issue geschlossen. Ist es geschlossen, öffnet eine Antwort es wieder."""
+duplicate = "Mögliches Duplikat"
+"duplicate.text" = "Das sieht nach einem Duplikat von #{number} aus: {reason}"
+"duplicate.close" = """\
+  Falls das stimmt, musst du nichts tun: Das Issue wird in {grace_days} als Duplikat \
+  von #{number} geschlossen, damit alles an einer Stelle bleibt. Ein 👍 bei #{number} \
+  zeigt, dass mehr Leute betroffen sind. Geht es um etwas anderes, schreib einen \
+  Kommentar oder reagiere auf diesen Kommentar mit 👎, dann bleibt es offen."""
+"duplicate.named" = """\
+  @{author}, ein Maintainer hat dieses Issue als Duplikat von #{number} markiert."""
+related = "Verwandte Themen"
+discussion = "Diskussion"
+references = "Zum Nachlesen"
+links = "Zum Nachlesen: {count} Links"
+"sensitive.secret" = """\
+  > [!WARNING]\n> Dieses Issue scheint ein Geheimnis zu zeigen, etwa ein Token, einen \
+  Schlüssel oder ein Passwort. Bitte entferne es, indem du den Beitrag bearbeitest, \
+  lösche die frühere Fassung aus dem Bearbeitungsverlauf und ersetze das Geheimnis, \
+  denn andere könnten es gesehen haben."""
+"sensitive.personal" = """\
+  > [!NOTE]\n> Dieses Issue scheint persönliche Daten zu zeigen, etwa eine \
+  E-Mail-Adresse, eine öffentliche IP-Adresse oder die Adresse eines privaten Servers. \
+  Wenn du sie lieber nicht zeigen willst, bearbeite den Beitrag und lösche die frühere \
+  Fassung aus dem Bearbeitungsverlauf."""
+security = """\
+  > [!CAUTION]\n> Das könnte eine Sicherheitslücke beschreiben. Bitte melde so etwas \
+  vertraulich, wie in der [Sicherheitsrichtlinie]({policy}) beschrieben, und entferne \
+  die Details hier."""
+footer = """\
+  <sub>🤖 Automatische Erstanalyse von {engine} auf Grundlage des Codes, der \
+  Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer \
+  entscheiden.{labels} {feedback}</sub>"""
+labels = " Labels: {labels}."
+about = "[So arbeitet der Assistent]({notice})"
+feedback = """\
+  Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat."""
+"feedback.duplicate" = """\
+  Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat; ein 👎 \
+  hält das Issue außerdem offen."""
+"follow-up.thanks" = "Danke für deine Antwort, @{author}!"
+"follow-up.missing" = "Noch offen"
+"follow-up.missing.intro" = "Bitte ergänze noch:"
+"follow-up.footer" = """\
+  <sub>🤖 Automatische Rückmeldung von {engine}. Sie kann falsch sein; die Maintainer \
+  entscheiden. {feedback}</sub>"""
+"answer.intro" = "@{asker}, hier ist meine Antwort auf [deine Frage]({question}):"
+"answer.footer" = """\
+  <sub>🤖 Automatische Antwort von {engine} auf Grundlage des Codes, der Dokumentation \
+  und dieses Issues. Sie kann falsch sein; prüfe sie, bevor du dich darauf verlässt. \
+  {feedback}</sub>"""
+reminder = """\
+  @{author}, eine freundliche Erinnerung: Dieses Issue wartet noch auf deine Antwort \
+  auf {questions}. Ohne Antwort wird es am {date} automatisch geschlossen. Ein kurzer \
+  Kommentar genügt, damit es offen bleibt, etwa wenn du mehr Zeit brauchst."""
+"reminder.questions" = "die Fragen oben"
+"closed-unanswered" = """\
+  Ich schließe dieses Issue, weil die erbetenen Informationen seit {close_days} \
+  fehlen. @{author}, sobald du hier antwortest, wird es automatisch wieder geöffnet. \
+  Danke für deine Meldung!"""
+"closed-duplicate" = """\
+  Als Duplikat von #{number} geschlossen, wie vor {grace_days} angekündigt. Bitte mach \
+  dort weiter; ein 👍 bei #{number} zeigt, dass mehr Leute betroffen sind. Falls das \
+  ein Irrtum war, schreib einen Kommentar, dann öffnen die Maintainer es wieder."""
+reopened = """\
+  Danke für deine Antwort, @{author}! Ich habe das Issue wieder geöffnet; die \
+  Maintainer sehen es sich erneut an."""
+fixed = """\
+  Behoben durch #{pull}, jetzt auf `{branch}`. Der Fix kommt mit dem nächsten Release; \
+  dann wird dieses Issue mit einem Link darauf geschlossen."""
+released = """\
+  🎉 Veröffentlicht in [{tag}]({url}){fixes}. @{author}, bitte aktualisiere auf diese \
+  Version. Besteht das Problem weiter, schreib hier einen Kommentar, dann wird das \
+  Issue wieder geöffnet, oder eröffne ein neues Issue."""
+"released.fixes" = " mit dem Fix aus {pulls}"
+"reopened-release" = """\
+  Danke für die Rückmeldung, @{author}, und schade, dass es noch nicht gelöst ist. Ich \
+  habe das Issue wieder geöffnet; die Maintainer sehen es sich erneut an."""
+locked = """\
+  Dieses Issue ist seit mehr als {lock_days} geschlossen, deshalb habe ich es \
+  gesperrt. Siehst du das Problem oder etwas Ähnliches noch, eröffne bitte ein neues \
+  Issue und verlinke dieses."""
+"days.one" = "{count} Tag"
+"days.other" = "{count} Tagen"
+line = "{file}, Zeile {line}"
+heading = "{heading} in {file}"

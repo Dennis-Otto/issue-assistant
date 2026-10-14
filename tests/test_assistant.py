@@ -6,9 +6,11 @@ import json
 import re
 import runpy
 import shlex
+import string
 import subprocess
 import sys
 import time
+import tomllib
 import unicodedata
 from datetime import UTC, datetime, timedelta
 
@@ -181,16 +183,24 @@ def test_every_answer_of_a_multiple_choice_area_becomes_a_label(config):
 @pytest.mark.parametrize(
     ("text", "language"),
     [
-        (
-            "Die Karte zeigt nichts an, wenn ich einen Dart werfe und das ist komisch.",
-            "de",
-        ),
-        ("The card shows nothing when I throw a dart, and it is not right.", "en"),
         ("", "en"),
+        ("404 :-(", "en"),
+        # A tie goes to English, and every word counts as often as it stands there.
+        ("the und", "en"),
+        ("the die die", "de"),
+        # One stray short word of a log or of code doesn't make another language.
+        ("Plot x y axis swapped", "en"),
+        ("Error: ECONNREFUSED 127.0.0.1:8123 (al retry 3)", "en"),
     ],
 )
 def test_the_language_is_guessed_from_the_words(text, language):
     assert assistant.detect_language(text) == language
+
+
+@pytest.mark.parametrize("code", assistant.LANGUAGES)
+def test_every_language_of_the_catalogs_is_guessed_from_its_sample(code):
+    catalog = tomllib.loads((LOCALES / f"{code}.toml").read_text("utf-8"))
+    assert assistant.detect_language(catalog["sample"]) == code
 
 
 def test_the_language_of_the_last_analysis_wins():
@@ -199,7 +209,16 @@ def test_the_language_of_the_last_analysis_wins():
         make_comment(2, "reporter", "The card is empty.", 1),
     ]
     assert assistant.issue_language(make_issue(), comments) == "de"
-    odd = [make_comment(1, "bot", assistant.render_marker("analysis", lang="fr"), 2)]
+    # The marker decides over the words of the reporter, for every language of
+    # the answers, so that the sweep needs no AI to write in it.
+    for language in assistant.ANSWER_LANGUAGES:
+        marker = assistant.render_marker("follow-up", lang=language, questions=0)
+        marked = [make_comment(1, "bot", marker, 2)]
+        issue = make_issue(
+            body="De kaart toont niets als ik een pijl gooi, en dat is niet goed."
+        )
+        assert assistant.issue_language(issue, marked) == language
+    odd = [make_comment(1, "bot", assistant.render_marker("analysis", lang="xx"), 2)]
     assert assistant.issue_language(make_issue(), odd) == "en"
 
 
@@ -234,10 +253,201 @@ def test_a_bystander_s_words_decide_no_language():
     assert assistant.issue_language(issue, comments) == "en"
 
 
-def test_dates_read_naturally():
+@pytest.mark.parametrize(
+    ("language", "named"),
+    [
+        ("de", "22. Oktober 2026"),
+        ("en", "October 22, 2026"),
+        ("es", "22 de octubre de 2026"),
+        ("fr", "22 octobre 2026"),
+        ("it", "22 ottobre 2026"),
+        ("nl", "22 oktober 2026"),
+        ("pt", "22 de outubro de 2026"),
+        # A language without a catalog gets ISO 8601, which reads the same anywhere.
+        ("other", "2026-10-22"),
+    ],
+)
+def test_dates_read_naturally(language, named):
+    assert assistant.format_date(datetime(2026, 10, 22, tzinfo=UTC), language) == named
+
+
+# The catalogs of the languages in locales/
+
+LOCALES = assistant.TOOL / "locales"
+CATALOGS = sorted(LOCALES.glob("*.toml"))
+ENGLISH = tomllib.loads((LOCALES / "en.toml").read_text("utf-8"))
+
+
+def fields(template):
+    """The names of the placeholders that str.format fills into a text; a brace
+    that format can't read fails here."""
+    return {name for _, name, _, _ in string.Formatter().parse(template) if name}
+
+
+@pytest.mark.parametrize("path", CATALOGS, ids=lambda path: path.stem)
+def test_every_catalog_has_each_text_of_english_with_its_placeholders(path):
+    catalog = tomllib.loads(path.read_text("utf-8"))
+    assert set(catalog) == {
+        "name",
+        "address",
+        "date",
+        "months",
+        "stopwords",
+        "sample",
+        "text",
+    }
+    # The texts in the order of English, so that a review sees each beside it.
+    assert list(catalog["text"]) == list(ENGLISH["text"])
+    for key, template in catalog["text"].items():
+        assert fields(template) == fields(ENGLISH["text"][key]), (path.stem, key)
+    assert re.fullmatch(r"[a-z]{2}", path.stem) and catalog["name"].isalpha()
+    assert len(set(catalog["months"])) == 12
+    assert fields(catalog["date"]) == {"day", "month", "year"}
+    stopwords = catalog["stopwords"]
+    assert len(stopwords) >= 20 and len(set(stopwords)) == len(stopwords)
+    assert all(assistant.LETTERS.fullmatch(word.lower()) for word in stopwords)
+    assert all(word == word.lower() for word in stopwords)
+    # Its license, also for a copy that leaves this repository.
+    assert path.read_text("utf-8").startswith(
+        "# SPDX-FileCopyrightText: 2026 Dennis Otto\n# SPDX-License-Identifier: MIT\n"
+    )
+
+
+def test_each_stopword_counts_for_one_language():
+    owners = {}
+    for code, locale in assistant.LOCALES.items():
+        for word in locale.stopwords:
+            assert owners.setdefault(word, code) == code, word
+
+
+def test_a_catalog_takes_what_it_lacks_from_english(tmp_path, monkeypatch):
+    (tmp_path / "en.toml").write_bytes((LOCALES / "en.toml").read_bytes())
+    (tmp_path / "xx.toml").write_text('name = "Example"\n[text]\nsummary = "Gist"\n')
+    locales = assistant.load_locales(tmp_path)
+    example = locales["xx"]
+    assert example.texts["summary"] == "Gist"
+    assert example.texts["intro"] == locales["en"].texts["intro"]
+    assert (example.address, example.date, example.months) == ("", "", ())
+    assert example.stopwords == frozenset()
+    monkeypatch.setattr(assistant, "LOCALES", locales)
     moment = datetime(2026, 10, 22, tzinfo=UTC)
-    assert assistant.format_date(moment, "en") == "October 22, 2026"
-    assert assistant.format_date(moment, "de") == "22. Oktober 2026"
+    assert assistant.format_date(moment, "xx") == "2026-10-22"
+
+
+@pytest.mark.parametrize(
+    "mode", ["triage", "follow-up", "release-reply", "maintainer-question"]
+)
+def test_an_answer_names_a_language_of_the_catalogs_or_other(config, mode):
+    schema = assistant.answer_schema(mode, config)
+    codes = [path.stem for path in CATALOGS]
+    assert schema["properties"]["language"]["enum"] == [*codes, "other"]
+
+
+def test_the_prompt_lists_the_languages_of_the_catalogs(config, root):
+    github = FakeGitHub(config, make_issue())
+    prompt = assistant.write_context(github, 12, "triage", config)["prompt"]
+    assert "{languages}" not in prompt
+    for code, locale in assistant.LOCALES.items():
+        assert f'  - `"{code}"`: {locale.name}' in prompt
+    assert '  - `"en"`: English\n' in prompt
+    assert '`"de"`: German, addressing the reporter with "du"\n' in prompt
+    assert 'set `language` to `"other"`' in prompt
+
+
+@pytest.mark.parametrize(
+    "path",
+    sorted((assistant.TOOL / "prompts").glob("*.md")),
+    ids=lambda path: path.stem,
+)
+def test_no_prompt_hard_wires_english_and_german(path):
+    # The catalogs decide the languages; a task of its own can't narrow them again.
+    text = path.read_text("utf-8")
+    assert '`"de"` when' not in text
+    assert "English and German" not in text
+    assert "German reporters" not in text
+
+
+@pytest.mark.parametrize("language", assistant.ANSWER_LANGUAGES)
+def test_every_comment_is_written_in_every_language(config, language):
+    lifecycle = dataclasses.replace(config.lifecycle, lock_closed_after_days=90)
+    config = dataclasses.replace(config, lifecycle=lifecycle)
+    texts = assistant.texts(language)
+    first = assistant.render_analysis(
+        make_answer(language=language, sensitive_data="secret"),
+        "reporter",
+        assistant.Findings(
+            duplicate={"number": 7}, duplicate_reason="The same.", numbers={7}
+        ),
+        ["The version"],
+        ["bug"],
+        config,
+    )
+    follow = assistant.render_follow_up(
+        make_follow_up(language=language, sensitive_data="personal"),
+        "reporter",
+        [],
+        ["The log"],
+        config,
+    )
+    answer = assistant.render_answer(
+        {"language": language, "answer": "Because.", "references": []},
+        "maintainer",
+        12,
+        99,
+        [],
+        config,
+    )
+    closes = datetime(2026, 11, 2, tzinfo=UTC)
+    release = make_release()
+    comments = {
+        "analysis": first,
+        "follow-up": follow,
+        "answer": answer,
+        "reminder": assistant.render_reminder("reporter", language, closes),
+        "closed": assistant.render_closed_unanswered("reporter", language, lifecycle),
+        "closed-duplicate": assistant.render_closed_duplicate(7, language, lifecycle),
+        "duplicate": assistant.render_duplicate(7, "reporter", language, config),
+        "reopened": assistant.render_reopened("reporter", language),
+        "fixed": assistant.render_fixed(5, "main", language),
+        "released": assistant.render_released("reporter", release, [5], language),
+        "reopened-release": assistant.render_reopened_release("reporter", language),
+        "locked": assistant.render_locked(language, lifecycle),
+    }
+    for kind, body in comments.items():
+        assert body.startswith("<!-- issue-assistant:"), kind
+        assert "{" not in body and "}" not in body, kind
+    assert first.startswith(f"<!-- issue-assistant:analysis lang={language} ")
+    assert follow.startswith(f"<!-- issue-assistant:follow-up lang={language} ")
+    assert f"### {texts['duplicate']}\n" in first
+    assert texts["sensitive.secret"] in first
+    assert assistant.format_date(closes, language) in comments["reminder"]
+    assert assistant.days(90, language) in comments["locked"]
+
+
+def test_an_answer_in_another_language_keeps_english_around_it(config):
+    """A reporter who writes in a language without a catalog gets the AI's words in
+    that language, between the assistant's own words in English, and the sweep
+    keeps to English with days in ISO 8601."""
+    summary = "Die kaart bly leeg na elke gooi."
+    body = assistant.render_analysis(
+        make_answer(language="other", summary=summary),
+        "reporter",
+        assistant.Findings(),
+        [],
+        [],
+        config,
+    )
+    assert body.startswith("<!-- issue-assistant:analysis lang=other ")
+    assert f"### Summary\n\n{summary}" in body
+    assert "Thanks for the report, @reporter!" in body
+    marked = [make_comment(1, "bot", body, 2)]
+    language = assistant.issue_language(
+        make_issue(body="Die Karte zeigt nichts an, wenn ich einen Dart werfe."), marked
+    )
+    reminder = assistant.render_reminder(
+        "reporter", language, datetime(2026, 11, 2, tzinfo=UTC)
+    )
+    assert "a friendly reminder" in reminder and "on 2026-11-02." in reminder
 
 
 def test_only_the_assistant_s_own_comments_carry_markers():
@@ -2828,6 +3038,13 @@ def test_references_link_to_existing_files_lines_and_headings(config):
     assert link == (
         "[`src/app.py`, Zeile 4](https://github.com/owner/project/blob/abc/src/app.py#L4)"
     )
+    # Each language names the line and the file of a heading in its own words.
+    line = {"path": "src/app.py", "line": 4, "reason": ""}
+    link = assistant.reference_link(line, tracked, "abc", "nl", config)
+    assert link.startswith("[`src/app.py`, regel 4](")
+    heading = {"path": "docs/troubleshooting.md", "anchor": "no-realtime-updates"}
+    link = assistant.reference_link(heading, tracked, "abc", "fr", config)
+    assert link.endswith("#no-realtime-updates) dans `docs/troubleshooting.md`")
     link = assistant.reference_link(
         {"path": "docs/troubleshooting.md", "anchor": "nowhere", "reason": ""},
         tracked,
@@ -4760,17 +4977,34 @@ def test_the_comments_name_the_configured_days(config, language, phrases):
     assert phrases[0] in follow
 
 
-def test_one_day_is_singular():
-    assert [assistant.days(count, "en") for count in (1, 2)] == ["1 day", "2 days"]
-    assert [assistant.days(count, "de") for count in (1, 2)] == ["1 Tag", "2 Tagen"]
+@pytest.mark.parametrize(
+    ("language", "named"),
+    [
+        ("de", ["1 Tag", "2 Tagen"]),
+        ("en", ["1 day", "2 days"]),
+        ("es", ["1 día", "2 días"]),
+        ("fr", ["1 jour", "2 jours"]),
+        ("it", ["1 giorno", "2 giorni"]),
+        ("nl", ["1 dag", "2 dagen"]),
+        ("pt", ["1 dia", "2 dias"]),
+        ("other", ["1 day", "2 days"]),
+    ],
+)
+def test_one_day_is_singular(language, named):
+    assert [assistant.days(count, language) for count in (1, 2)] == named
 
 
 def test_no_text_names_a_period_of_its_own():
     """The periods are settings: a number of days in a text would contradict a
     repository that changed them."""
+    units = {
+        assistant.days(count, language).removeprefix(f"{count} ")
+        for language in assistant.LANGUAGES
+        for count in (1, 2)
+    }
     period = re.compile(
         r"\b(\d+|one|two|three|four|five|ein|einem|zwei|drei|vier|fünf) "
-        r"(days?|Tag|Tage|Tagen)\b"
+        rf"(Tage|{'|'.join(sorted(units))})\b"
     )
     for language, texts in assistant.TEXT.items():
         for key, text in texts.items():

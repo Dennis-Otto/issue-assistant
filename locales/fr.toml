@@ -1,0 +1,143 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in French.
+# A machine draft: native speakers are welcome to improve it.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "French"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "vous"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{day} {month} {year}"
+months = [
+  "janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre",
+  "octobre", "novembre", "décembre",
+]
+# Words that are frequent in the language and in no other catalog. A reporter
+# writes in the language of whose stopwords their words have the most, in
+# English when no other language has more, or fewer than two.
+stopwords = [
+  "les", "est", "pas", "une", "des", "avec", "dans", "mais", "sur", "quand", "cette",
+  "fonctionne", "être", "été", "avoir", "aussi", "très", "après", "mon", "elle", "nous",
+  "vous", "rien", "toujours", "ça", "fait", "peut", "depuis",
+]
+
+sample = "La carte reste vide quand je lance une fléchette, et ce n'est pas normal."
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "Merci d'avoir ouvert ce ticket, @{author}\u00A0!"
+"thanks.bug" = "Merci pour votre signalement, @{author}\u00A0!"
+"thanks.enhancement" = "Merci pour votre suggestion, @{author}\u00A0!"
+"thanks.question" = "Merci pour votre question, @{author}\u00A0!"
+"thanks.documentation" = """\
+  Merci pour votre remarque sur la documentation, @{author}\u00A0!"""
+"thanks.compatibility" = "Merci pour votre rapport de compatibilité, @{author}\u00A0!"
+"thanks.feedback" = "Merci d'avoir testé et pour votre retour, @{author}\u00A0!"
+"thanks.maintenance" = "Merci pour votre signalement, @{author}\u00A0!"
+intro = """\
+  Je suis l'assistant de tickets de ce dépôt et j'y ai jeté un premier coup d'œil. Les \
+  mainteneurs lisent aussi chaque ticket."""
+summary = "Résumé"
+analysis = "Première analyse"
+next_steps = "À essayer"
+missing = "Informations nécessaires"
+"missing.intro" = """\
+  Pour continuer, merci d'ajouter les éléments suivants, dans un commentaire ou en \
+  modifiant le ticket\u00A0:"""
+"missing.outro" = """\
+  Sans réponse, un rappel suit après {remind_days} et le ticket est fermé après \
+  {close_days}. S'il est fermé, une réponse le rouvre."""
+duplicate = "Doublon possible"
+"duplicate.text" = "Cela ressemble à un doublon de #{number}\u00A0: {reason}"
+"duplicate.close" = """\
+  Si c'est exact, vous n'avez rien à faire\u00A0: le ticket sera fermé comme doublon \
+  de #{number} dans {grace_days}, afin que la discussion reste à un seul endroit. Un 👍 \
+  sur #{number} montre que d'autres personnes sont concernées. S'il s'agit d'autre \
+  chose, écrivez un commentaire ou réagissez à ce commentaire avec 👎, et il reste \
+  ouvert."""
+"duplicate.named" = """\
+  @{author}, un mainteneur a marqué ce ticket comme doublon de #{number}."""
+related = "Sujets liés"
+discussion = "discussion"
+references = "Où regarder"
+links = "Où regarder\u00A0: {count} liens"
+"sensitive.secret" = """\
+  > [!WARNING]\n> Ce ticket semble montrer un secret, comme un jeton, une clé ou un \
+  mot de passe. Merci de le retirer en modifiant le message, de supprimer l'ancienne \
+  version de son historique des modifications et de remplacer le secret, car d'autres \
+  ont pu le voir."""
+"sensitive.personal" = """\
+  > [!NOTE]\n> Ce ticket semble montrer des données personnelles, comme une adresse \
+  e-mail, une adresse IP publique ou l'adresse d'un serveur privé. Si vous préférez ne \
+  pas les montrer, modifiez le message et supprimez l'ancienne version de son \
+  historique des modifications."""
+security = """\
+  > [!CAUTION]\n> Ceci pourrait décrire une faille de sécurité. Merci de la signaler \
+  en privé, comme le décrit la [politique de sécurité]({policy}), et de retirer les \
+  détails ici."""
+footer = """\
+  <sub>🤖 Première analyse automatique par {engine}, fondée sur le code, la \
+  documentation et les tickets précédents. Elle peut se tromper\u00A0; les mainteneurs \
+  décident.{labels} {feedback}</sub>"""
+labels = " Étiquettes\u00A0: {labels}."
+about = "[Comment fonctionne l'assistant]({notice})"
+feedback = "Un 👍 ou un 👎 sur ce commentaire indique aux mainteneurs s'il a été utile."
+"feedback.duplicate" = """\
+  Un 👍 ou un 👎 sur ce commentaire indique aux mainteneurs s'il a été utile\u00A0; un 👎 \
+  garde aussi le ticket ouvert."""
+"follow-up.thanks" = "Merci pour votre réponse, @{author}\u00A0!"
+"follow-up.missing" = "Encore nécessaire"
+"follow-up.missing.intro" = "Merci d'ajouter aussi\u00A0:"
+"follow-up.footer" = """\
+  <sub>🤖 Suivi automatique par {engine}. Il peut se tromper\u00A0; les mainteneurs \
+  décident. {feedback}</sub>"""
+"answer.intro" = "@{asker}, voici ma réponse à [votre question]({question})\u00A0:"
+"answer.footer" = """\
+  <sub>🤖 Réponse automatique par {engine}, fondée sur le code, la documentation et ce \
+  ticket. Elle peut se tromper\u00A0; vérifiez-la avant de vous y fier. \
+  {feedback}</sub>"""
+reminder = """\
+  @{author}, un petit rappel\u00A0: ce ticket attend toujours votre réponse à \
+  {questions}. Sans réponse, il sera fermé automatiquement le {date}. Un court \
+  commentaire suffit à le garder ouvert, par exemple si vous avez besoin de plus de \
+  temps."""
+"reminder.questions" = "les questions ci-dessus"
+"closed-unanswered" = """\
+  Je ferme ce ticket, car les informations demandées ci-dessus manquent depuis \
+  {close_days}. @{author}, dès que vous répondrez ici, il sera rouvert \
+  automatiquement. Merci pour votre signalement\u00A0!"""
+"closed-duplicate" = """\
+  Fermé comme doublon de #{number}, comme annoncé il y a {grace_days}. Merci de \
+  poursuivre là-bas\u00A0; un 👍 sur #{number} montre que d'autres personnes sont \
+  concernées. S'il s'agit d'une erreur, écrivez un commentaire et les mainteneurs le \
+  rouvriront."""
+reopened = """\
+  Merci pour votre réponse, @{author}\u00A0! J'ai rouvert le ticket\u00A0; les \
+  mainteneurs vont y jeter un nouveau coup d'œil."""
+fixed = """\
+  Corrigé par #{pull}, qui est maintenant sur `{branch}`. La correction sera livrée \
+  avec la prochaine version\u00A0; ce ticket sera alors fermé, avec un lien vers \
+  celle-ci."""
+released = """\
+  🎉 Publié dans [{tag}]({url}){fixes}. @{author}, merci de mettre à jour vers cette \
+  version. Si le problème persiste, écrivez un commentaire ici et le ticket sera \
+  rouvert, ou ouvrez un nouveau ticket."""
+"released.fixes" = " avec la correction de {pulls}"
+"reopened-release" = """\
+  Merci de nous avoir prévenus, @{author}, et désolé que ce ne soit pas encore résolu. \
+  J'ai rouvert le ticket\u00A0; les mainteneurs vont y jeter un nouveau coup d'œil."""
+locked = """\
+  Ce ticket est fermé depuis plus de {lock_days}, je l'ai donc verrouillé. Si vous \
+  voyez encore le problème, ou un problème semblable, merci d'ouvrir un nouveau ticket \
+  avec un lien vers celui-ci."""
+"days.one" = "{count} jour"
+"days.other" = "{count} jours"
+line = "{file}, ligne {line}"
+heading = "{heading} dans {file}"

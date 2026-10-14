@@ -1,0 +1,133 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in Portuguese.
+# A machine draft: native speakers are welcome to improve it.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "Portuguese"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "você"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{day} de {month} de {year}"
+months = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
+  "setembro", "outubro", "novembro", "dezembro",
+]
+# Words that are frequent in the language and in no other catalog. A reporter
+# writes in the language of whose stopwords their words have the most, in
+# English when no other language has more, or fewer than two.
+stopwords = [
+  "não", "uma", "mas", "quando", "isso", "tem", "tenho", "também", "depois", "porque",
+  "muito", "está", "estou", "eu", "meu", "minha", "ao", "você", "obrigado", "versão",
+  "já", "ainda", "aqui", "quero", "deveria", "isto", "nem", "agora",
+]
+
+sample = "O cartão não mostra nada quando eu lanço um dardo, e isso não é normal."
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "Obrigado por abrir esta issue, @{author}!"
+"thanks.bug" = "Obrigado pelo relato, @{author}!"
+"thanks.enhancement" = "Obrigado pela sugestão, @{author}!"
+"thanks.question" = "Obrigado pela pergunta, @{author}!"
+"thanks.documentation" = "Obrigado pelo aviso sobre a documentação, @{author}!"
+"thanks.compatibility" = "Obrigado pelo relato de compatibilidade, @{author}!"
+"thanks.feedback" = "Obrigado por testar e pelo feedback, @{author}!"
+"thanks.maintenance" = "Obrigado pelo relato, @{author}!"
+intro = """\
+  Sou o assistente de issues deste repositório e dei uma primeira olhada. Os \
+  mantenedores também leem cada issue."""
+summary = "Resumo"
+analysis = "Primeira análise"
+next_steps = "Vale a pena tentar"
+missing = "Informações necessárias"
+"missing.intro" = """\
+  Para continuar, adicione o seguinte, em um comentário ou editando a issue:"""
+"missing.outro" = """\
+  Sem resposta, um lembrete chega após {remind_days} e a issue é fechada após \
+  {close_days}. Se ela for fechada, uma resposta a reabre."""
+duplicate = "Possível duplicata"
+"duplicate.text" = "Isto parece uma duplicata de #{number}: {reason}"
+"duplicate.close" = """\
+  Se estiver certo, você não precisa fazer nada: a issue será fechada como duplicata \
+  de #{number} em {grace_days}, para que a conversa fique em um só lugar. Um 👍 em \
+  #{number} mostra que mais pessoas são afetadas. Se for algo diferente, escreva um \
+  comentário ou reaja a este comentário com 👎, e ela continua aberta."""
+"duplicate.named" = """\
+  @{author}, um mantenedor marcou esta issue como duplicata de #{number}."""
+related = "Relacionadas"
+discussion = "discussão"
+references = "Onde olhar"
+links = "Onde olhar: {count} links"
+"sensitive.secret" = """\
+  > [!WARNING]\n> Esta issue parece mostrar um segredo, como um token, uma chave ou \
+  uma senha. Remova-o editando a publicação, apague a versão anterior do histórico de \
+  edições e troque o segredo, porque outras pessoas podem tê-lo visto."""
+"sensitive.personal" = """\
+  > [!NOTE]\n> Esta issue parece mostrar dados pessoais, como um endereço de e-mail, \
+  um endereço IP público ou o endereço de um servidor privado. Se preferir não \
+  mostrá-los, edite a publicação e apague a versão anterior do histórico de edições."""
+security = """\
+  > [!CAUTION]\n> Isto pode descrever uma vulnerabilidade de segurança. Relate-a de \
+  forma privada, como descrito na [política de segurança]({policy}), e remova os \
+  detalhes daqui."""
+footer = """\
+  <sub>🤖 Primeira análise automática por {engine}, com base no código, na documentação \
+  e em issues anteriores. Ela pode estar errada; os mantenedores decidem.{labels} \
+  {feedback}</sub>"""
+labels = " Rótulos: {labels}."
+about = "[Como o assistente funciona]({notice})"
+feedback = "Um 👍 ou um 👎 neste comentário diz aos mantenedores se ele ajudou."
+"feedback.duplicate" = """\
+  Um 👍 ou um 👎 neste comentário diz aos mantenedores se ele ajudou; um 👎 também mantém \
+  a issue aberta."""
+"follow-up.thanks" = "Obrigado pela resposta, @{author}!"
+"follow-up.missing" = "Ainda falta"
+"follow-up.missing.intro" = "Adicione também:"
+"follow-up.footer" = """\
+  <sub>🤖 Acompanhamento automático por {engine}. Ele pode estar errado; os \
+  mantenedores decidem. {feedback}</sub>"""
+"answer.intro" = "@{asker}, aqui está minha resposta à [sua pergunta]({question}):"
+"answer.footer" = """\
+  <sub>🤖 Resposta automática por {engine}, com base no código, na documentação e nesta \
+  issue. Ela pode estar errada; confira antes de confiar nela. {feedback}</sub>"""
+reminder = """\
+  @{author}, um lembrete amigável: esta issue ainda espera sua resposta a {questions}. \
+  Sem resposta, ela será fechada automaticamente em {date}. Um comentário curto basta \
+  para mantê-la aberta, por exemplo se você precisar de mais tempo."""
+"reminder.questions" = "as perguntas acima"
+"closed-unanswered" = """\
+  Estou fechando esta issue porque as informações pedidas acima estão faltando há \
+  {close_days}. @{author}, assim que você responder aqui, ela será reaberta \
+  automaticamente. Obrigado pelo relato!"""
+"closed-duplicate" = """\
+  Fechada como duplicata de #{number}, como anunciado há {grace_days}. Continue por \
+  lá; um 👍 em #{number} mostra que mais pessoas são afetadas. Se isso foi um engano, \
+  escreva um comentário e os mantenedores vão reabri-la."""
+reopened = """\
+  Obrigado pela resposta, @{author}! Reabri a issue; os mantenedores vão dar outra \
+  olhada."""
+fixed = """\
+  Corrigido por #{pull}, que agora está em `{branch}`. A correção sai na próxima \
+  versão; esta issue será fechada então, com um link para ela."""
+released = """\
+  🎉 Lançado em [{tag}]({url}){fixes}. @{author}, atualize para esta versão. Se o \
+  problema continuar, escreva um comentário aqui e a issue será reaberta, ou abra uma \
+  nova issue."""
+"released.fixes" = " com a correção de {pulls}"
+"reopened-release" = """\
+  Obrigado por avisar, @{author}, e desculpe que ainda não esteja resolvido. Reabri a \
+  issue; os mantenedores vão dar outra olhada."""
+locked = """\
+  Esta issue está fechada há mais de {lock_days}, então eu a bloqueei. Se você ainda \
+  vir o problema, ou algo parecido, abra uma nova issue com um link para esta."""
+"days.one" = "{count} dia"
+"days.other" = "{count} dias"
+line = "{file}, linha {line}"
+heading = "{heading} em {file}"
