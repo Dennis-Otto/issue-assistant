@@ -3,7 +3,7 @@ name: Issue assistant
 # A first analysis of new issues, the labels of the issue forms and the answers that
 # the assistant or the maintainer waits for: https://github.com/Dennis-Otto/issue-assistant
 #
-# event    no AI: labels and the next task
+# event    no AI: labels, the /assistant commands of a comment and the next task
 # analyze  the AI engine of .github/issue-assistant/config.toml reads the checkout and
 #          a context folder and answers with JSON; read-only token, read-only tools,
 #          egress-firewall runner (.github/egress-firewall.yaml)
@@ -29,7 +29,7 @@ on:
       mode:
         description: Task of the assistant
         type: choice
-        options: [triage, follow-up, maintainer-reply, release-reply]
+        options: [triage, follow-up, maintainer-reply, release-reply, maintainer-question]
         default: triage
       dry_run:
         description: Only show what the assistant would do

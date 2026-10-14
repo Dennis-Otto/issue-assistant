@@ -535,6 +535,13 @@ class FakeGitHub(assistant.GitHub):
             if match := re.fullmatch(r"issues/(\d+)/labels", route):
                 self._add(int(match[1]), data["labels"])
                 return []
+            if match := re.fullmatch(r"issues/comments/(\d+)/reactions", route):
+                # The same reaction of the same person again changes nothing.
+                reaction = {"content": data["content"], "user": BOT_USER}
+                reactions = self.reaction_store.setdefault(int(match[1]), [])
+                if reaction not in reactions:
+                    reactions.append(reaction)
+                return reaction
             if route == "labels":
                 # GitHub ignores the case of label names.
                 if self._label(data["name"]):
@@ -795,7 +802,8 @@ def posted_comments(config, mode, answer, sha=REF):
     related issues or numbers that its texts name. Nothing for an answer that the
     checks refuse as a whole.
 
-    A follow-up answers the reporter, who answered the questions of the analysis.
+    A follow-up answers the reporter, who answered the questions of the analysis,
+    and an answer the question of a maintainer, comment 2.
     """
     github = FakeGitHub(
         config,
@@ -806,6 +814,10 @@ def posted_comments(config, mode, answer, sha=REF):
         github.comment_store[12] = [
             analysis(questions=1, days_ago=1),
             make_comment(2, "reporter", "Version 1.9.0.", 0.5),
+        ]
+    if mode == "maintainer-question":
+        github.comment_store[12] = [
+            make_comment(2, "maintainer", "/assistant ask Why?", 0.5, "OWNER")
         ]
     try:
         assistant.apply_answer(github, mode, 12, json.dumps(answer), config, sha)
@@ -833,8 +845,10 @@ def stray_problems(body, numbers, config, author="reporter", *, security=False):
     """What the oracle finds in a comment of the assistant beyond its own words: its
     marker, the thanks that mention the reporter, the HTML of its footer and of the
     fold of its links and, in the comment on a possible security report, the link to
-    the security policy, each once at most."""
+    the security policy, and in an answer, the link to the question of #12 that it
+    answers, each once at most."""
     marker = body.partition("\n")[0]
+    question = re.match(r"<!-- issue-assistant:answer .*?\bto=(\d+)", marker)
     own = Counter(
         [
             f"HTML {marker!r}",
@@ -843,6 +857,11 @@ def stray_problems(body, numbers, config, author="reporter", *, security=False):
             "HTML '</sub>'",
             *own_details(body),
             *([f"link to {config.policy}"] if security else []),
+            *(
+                [f"link to {WEB}/issues/12#issuecomment-{question[1]}"]
+                if question
+                else []
+            ),
         ]
     )
     return list((Counter(problems(body, numbers, config)) - own).elements())

@@ -160,6 +160,12 @@ color = "7057ff"
 description = "Good for newcomers"
 group = "decision"
 
+[[label]]
+name = "assistant-muted"
+color = "ededed"
+description = "The assistant starts no AI run on this issue; /assistant unmute ends it"
+group = "decision"
+
 # Release: set from the title of a pull request, and by the release bot
 
 [[label]]

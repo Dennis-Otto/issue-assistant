@@ -208,21 +208,22 @@ class Drawn:
         hypothesis.HealthCheck.data_too_large,
     ]
 )
-@given(st.sampled_from(["triage", "follow-up"]), st.data())
+@given(st.sampled_from(["triage", "follow-up", "maintainer-question"]), st.data())
 def test_a_whole_comment_mentions_nobody_and_links_only_allowed_places(
     sample_config, mode, data
 ):
     """Any answer that fits the schema, as the assistant posts it: every text where
     the comment puts it, next to the assistant's own words and the links that it
-    checked. Only its own words may mention the reporter, show HTML or link to the
-    security policy."""
+    checked. Only its own words may mention the reporter or the maintainer who
+    asked, show HTML or link to the security policy or the question."""
     answer = answer_of(assistant.answer_schema(mode, sample_config), Drawn(data))
     bodies, numbers = posted_comments(sample_config, mode, answer)
     # How many answers the checks refuse, for --hypothesis-show-statistics.
     hypothesis.event("posted" if bodies else "refused")
     security = answer.get("security_report", False)
+    author = "maintainer" if mode == "maintainer-question" else "reporter"
     for body in bodies:
-        found = stray_problems(body, numbers, sample_config, security=security)
+        found = stray_problems(body, numbers, sample_config, author, security=security)
         assert found == [], body
 
 
@@ -231,6 +232,14 @@ def test_the_whole_comments_include_follow_ups():
     property test above and the fuzzer judge are posted, and are not nothing."""
     (body,), _ = posted_comments(CONFIG, "follow-up", make_follow_up())
     assert body.startswith("<!-- issue-assistant:follow-up lang=en questions=0")
+
+
+def test_the_whole_comments_include_answers_to_questions():
+    """A maintainer asked, so the answers that the property test above judges are
+    posted."""
+    answer = {"language": "de", "answer": "Weil.", "references": []}
+    (body,), _ = posted_comments(CONFIG, "maintainer-question", answer)
+    assert body.startswith("<!-- issue-assistant:answer lang=de to=2 engine=claude")
 
 
 def test_only_the_comment_on_a_security_report_may_link_to_the_policy():

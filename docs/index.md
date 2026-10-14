@@ -62,6 +62,12 @@ hide:
 
     A merged pull request with `Fixes #12` marks the issue `fixed-in-next-release`. The issue closes with a link to the release that ships the fix, and reopens if the problem persists.
 
+- :material-slash-forward-box:{ .lg .middle } **Slash commands**
+
+    ---
+
+    A comment such as `/assistant again`, `/assistant ask` and a question, `/assistant duplicate #12` or `/assistant mute` steers the assistant on its issue. Maintainers give every command; the reporter can ask once for a new analysis.
+
 - :material-shield-search:{ .lg .middle } **Findings of code scanning**
 
     ---
