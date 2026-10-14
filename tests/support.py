@@ -576,6 +576,16 @@ class FakeGitHub(assistant.GitHub):
             )
             start = int(variables["cursor"] or 0)
             end = start + size
+            nodes = deepcopy(pulls[start:end])
+            # The state of each issue at the time of the query, unless a test pins
+            # the one that GitHub reported before the issue changed.
+            for pull in nodes:
+                for ref in pull["closingIssuesReferences"]["nodes"]:
+                    here = ref["repository"]["nameWithOwner"] == REPOSITORY
+                    issue = self.store.get(ref["number"]) if here else None
+                    ref.setdefault(
+                        "state", (issue or {"state": "open"})["state"].upper()
+                    )
             return {
                 "repository": {
                     "defaultBranchRef": {"name": self.branch},
@@ -584,7 +594,7 @@ class FakeGitHub(assistant.GitHub):
                             "hasNextPage": end < len(pulls),
                             "endCursor": str(end),
                         },
-                        "nodes": deepcopy(pulls[start:end]),
+                        "nodes": nodes,
                     },
                 }
             }

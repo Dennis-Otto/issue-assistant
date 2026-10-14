@@ -136,7 +136,11 @@ def pull(
     }
 
 
-FIXES = {"nodes": [{"number": 12, "repository": {"nameWithOwner": REPOSITORY}}]}
+FIXES = {
+    "nodes": [
+        {"number": 12, "state": "OPEN", "repository": {"nameWithOwner": REPOSITORY}}
+    ]
+}
 DISCUSSION = {
     "number": 3,
     "title": "How do I hide the live card?",
