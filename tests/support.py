@@ -308,6 +308,37 @@ def follow_up(comment_id=1, days_ago=1, author="bot"):
     return make_comment(comment_id, author, f"{marker}\nThanks for the log", days_ago)
 
 
+def page_of(items, variables):
+    """The page of a GraphQL connection after the cursor, which is the place in the
+    list, with its pageInfo."""
+    assert 1 <= variables["first"] <= 100, "GitHub gives 1 to 100 nodes a page"
+    start = int(variables["cursor"] or 0)
+    end = start + variables["first"]
+    info = {"hasNextPage": end < len(items), "endCursor": str(end)}
+    return deepcopy(items[start:end]), info
+
+
+def as_graphql(issue):
+    """An issue of the fake as GitHub's GraphQL gives it. Its `closer`, if it has
+    one, is that of its last closing: {"number": 31} for a pull request, {} for a
+    commit and None for a person. Its `fixes` are the pull requests that name it,
+    as GraphQL gives them."""
+    closings = [{"closer": issue["closer"]}] if "closer" in issue else []
+    return {
+        "number": issue["number"],
+        "title": issue["title"],
+        "body": issue["body"],
+        "state": issue["state"].upper(),
+        "stateReason": (issue["state_reason"] or "").upper() or None,
+        "createdAt": issue["created_at"],
+        "closedAt": issue["closed_at"],
+        "labels": {"nodes": [{"name": label["name"]} for label in issue["labels"]]},
+        "comments": {"totalCount": issue["comments"]},
+        "closedByPullRequestsReferences": {"nodes": issue.get("fixes", [])},
+        "timelineItems": {"nodes": closings},
+    }
+
+
 class FakeGitHub(assistant.GitHub):
     """The REST and GraphQL endpoints the script uses, in memory."""
 
@@ -324,6 +355,11 @@ class FakeGitHub(assistant.GitHub):
             "owner": ("admin", "admin")
         }
         self.discussion_store: list[dict] | None = []
+        # The pages of discussions and, by their state, of issues read.
+        self.discussion_pages = 0
+        self.issue_pages: Counter[str] = Counter()
+        # What GitHub's search finds, by the query; nothing for any other query.
+        self.search_store: dict[str, list[dict]] = {}
         self.label_store = [
             {
                 "name": label.name,
@@ -626,9 +662,30 @@ class FakeGitHub(assistant.GitHub):
         if self.graphql_error:
             raise assistant.GitHubError(self.graphql_error)
         if "discussions(" in query:
-            # A repository without discussions has none, as GitHub answers.
-            nodes = self.discussion_store or []
-            return {"repository": {"discussions": {"nodes": nodes}}}
+            # A repository without discussions has none, as GitHub answers; a page
+            # of them after the cursor, by their last update.
+            assert "orderBy: {field: UPDATED_AT, direction: DESC}" in query
+            self.discussion_pages += 1
+            assert self.discussion_pages <= 50, "endless paging of the discussions"
+            nodes, info = page_of(self.discussion_store or [], variables)
+            return {"repository": {"discussions": {"pageInfo": info, "nodes": nodes}}}
+        if "issues(states:" in query:
+            # The issues alone, never a pull request, by their last update.
+            assert "orderBy: {field: UPDATED_AT, direction: DESC}" in query
+            (state,) = variables["states"]
+            self.issue_pages[state] += 1
+            assert self.issue_pages[state] <= 50, "endless paging of the issues"
+            issues = sorted(
+                (
+                    issue
+                    for issue in self.store.values()
+                    if "pull_request" not in issue and issue["state"].upper() == state
+                ),
+                key=lambda issue: issue["updated_at"],
+                reverse=True,
+            )
+            nodes, info = page_of([as_graphql(issue) for issue in issues], variables)
+            return {"repository": {"issues": {"pageInfo": info, "nodes": nodes}}}
         if "discussion(number" in query:
             found = [
                 item
@@ -742,6 +799,22 @@ class FakeGitHub(assistant.GitHub):
             return {"closeIssue": {"issue": {"number": number}}}
         raise AssertionError(f"unexpected query {query}")
 
+    def search(self, query):
+        self.calls.append(("SEARCH", query, None))
+        self._failing(f"SEARCH {query}")
+        scope = f"repo:{REPOSITORY} is:issue ("
+        assert query.startswith(scope) and query.endswith(")"), query
+        words = query.removeprefix(scope).removesuffix(")").split(" OR ")
+        # GitHub's search takes at most five operators and 256 characters.
+        assert len(words) <= assistant.SEARCH_TERMS, query
+        assert len(query) <= 256, query
+        found = deepcopy(self.search_store.get(query, [])[: assistant.SEARCHED])
+        for item in found:
+            item.setdefault(
+                "repository_url", f"https://api.github.com/repos/{REPOSITORY}"
+            )
+        return found
+
     # Helpers for the tests
 
     def labels_of(self, number):
@@ -844,6 +917,8 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
         "ISSUE_ASSISTANT_ROOT",
         "ISSUE_ASSISTANT_FIXTURE",
         "GITHUB_EVENT_NAME",
+        # The event of the CI run that runs the tests, which names no issue here.
+        "GITHUB_EVENT_PATH",
     ):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():

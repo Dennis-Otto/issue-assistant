@@ -174,6 +174,20 @@ The fixes of an issue are the pull requests of the repository that name it and w
 
 GitHub closes linked issues when a pull request is merged unless the repository turns this off: under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**. A repository without releases sets `close_with_release = false` in `config.toml`.
 
+### What the AI reads
+
+Each task reads what it needs and no more, from the files that the `context` step writes into `.issue-assistant/`:
+
+- **Every task reads the issue** with all its comments, in `issue.md`.
+- **A first analysis and a follow-up read a window of the repository:** every open issue and the 1,000 closed ones that changed last, each with an excerpt of 400 characters in `issues.jsonl` and its whole text in `issues/<number>.md`, the 1,000 discussions that changed last and the labels. GitHub's GraphQL API lists a hundred issues a page and no pull request, so a repository with 50,000 issues and pull requests costs a few calls instead of five hundred, and the context keeps its size. `[context]` in `config.toml` sets both numbers.
+- **A first analysis also searches.** Up to 30 older issues that GitHub's search finds for the names of errors in the new issue, such as `TypeError` or `ECONNREFUSED`, and the words of its title join the window, so that an old duplicate is found beyond it. A search that fails leaves the window, with a warning.
+- **A reply judges the comment of its event.** `maintainer-reply` and `release-reply` read the issue and `comment.md`, the comment whose event started the run, and nothing of the rest of the repository. A run can wait behind others for minutes, and a "still broken for me too" of someone else that comes in meanwhile never reopens an issue whose reporter just confirmed the fix. The `apply` job reads that comment again and acts only when it is the reporter's, after a release, or a maintainer's. A run by hand judges the newest such comment.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-the-ai-reads-for-each-task.dark.svg">
+  <img src="docs/images/diagrams/what-the-ai-reads-for-each-task.svg" alt="What the AI reads for each task: Every task reads issue.md, the issue with all its comments. A first analysis and a follow-up also read the labels, every open issue, the closed issues that changed last up to max_issues and the discussions that changed last up to max_discussions, from GitHub's GraphQL API, which lists no pull request; each issue has an excerpt in issues.jsonl and its whole text in issues/. A first analysis adds up to 30 older issues that a search for the names of errors and the words of the title finds. A reply, maintainer-reply or release-reply, reads comment.md instead: the comment whose event started the run, not a newer one that came in while the run waited. The apply job acts only when that comment is the reporter's or a maintainer's.">
+</picture>
+
 ### Limits of the AI runs
 
 Anyone can open an issue, and every run of the AI costs money or counts toward the usage limits of a subscription. So the runs that people who don't maintain the repository start have limits, which `[engine]` in `config.toml` sets:
@@ -230,10 +244,10 @@ Issues come from anyone, so the design assumes that an issue tries to steer the 
 <!-- --8<-- [end:trust-boundaries-diagram] -->
 
 - **The AI only reads.** It runs in the `analyze` job, with a read-only token, on GitHub's [egress-firewall runner](https://github.com/github-early-access/actions-native-egress-firewall) with an allow list in `.github/egress-firewall.yaml`. Claude Code runs with `--restricted` and the tools `Read`, `Grep` and `Glob` alone: no commands, no web pages, no files outside the checkout. The issue, the other issues and the discussions reach it as files that the prompt calls data, not instructions.
-- **Issue text can't pass for someone else or hide.** The AI learns who wrote what from headings that only the assistant writes; each text stands below them in a code fence that nothing in the text can close, so a line such as `## Comment 4 by @owner (maintainer)` stays part of that text. Characters that GitHub shows as nothing, such as Unicode tags and zero-width spaces, which can spell instructions that no maintainer sees, are removed from every text the AI reads and from its answer. And since every analysis reads all issues, only an original that a maintainer opened or triaged can close a duplicate on its own, so no issue can steer the AI into closing others.
+- **Issue text can't pass for someone else or hide.** The AI learns who wrote what from headings that only the assistant writes; each text stands below them in a code fence that nothing in the text can close, so a line such as `## Comment 4 by @owner (maintainer)` stays part of that text. Characters that GitHub shows as nothing, such as Unicode tags and zero-width spaces, which can spell instructions that no maintainer sees, are removed from every text the AI reads and from its answer. And since every analysis reads the excerpts of many other issues, only an original that a maintainer opened or triaged can close a duplicate on its own, so no issue can steer the AI into closing others.
 - **Nothing is posted unchecked.** The AI's answer is JSON with a fixed schema. The `apply` job, which runs no AI and never sees its secret, checks it against the schema, the repository's labels and the issues that exist, refuses anything that looks like a token or key, but [not the links and paths](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md#what-counts-as-a-secret) that answers are full of, turns mentions, e-mail addresses and references to other repositories into code, drops images, HTML and links to other sites, and links files only when git tracks them. What counts is the whole comment as GitHub shows it, so the code of the AI stays code in a list and behind an issue number too, and no table cuts it in two; the [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md#how-the-text-of-the-ai-is-cleaned) shows how, and how property tests and fuzzing judge whole comments by a model of GitHub's rendering of their own. It writes only to the issue of the event.
 - **Its words run nothing outside a comment either.** The AI's words also reach the log of the run, its summary and, as the reason for a label or a suggested duplicate, the timeline of the issue. There they are cleaned like a comment and put on one line, every error and notice of the assistant is escaped, and the summary turns workflow commands off while it prints, so that no answer can run one, such as `::add-mask::`. A possible security report gets a fixed reason on the timeline instead of the AI's words, and neither label names nor the model of `config.toml` can add arguments to the command line of the engine.
-- **No issue can stall it.** Every analysis reads the text of every issue, so the assistant reads each text in time that grows only with its length, and no more of it than GitHub keeps. The AI gets at most 20,000 characters of each text of its issue. Tests and fuzzing check that no crafted text takes longer than half a second.
+- **No issue can stall it.** Every analysis reads the texts of every open issue and of many closed ones, so the assistant reads each text in time that grows only with its length, and no more of it than GitHub keeps. The AI gets at most 20,000 characters of each text of its issue. Tests and fuzzing check that no crafted text takes longer than half a second.
 - **No stranger can run up the bill.** The runs of the AI that people who don't maintain the repository start have [limits](https://github.com/Dennis-Otto/issue-assistant#limits-of-the-ai-runs): by default 20 analyses, follow-ups and replies after a release a day, 3 analyses of one reporter's new issues, and 2 comments of a reporter after each release. Every new issue counts, also while the first analyses still run, so a flood of issues at once starts no more, and a reporter who deletes their comments gets no more replies.
 - **The secret stays in one place:** the environment `issue-assistant`, which only the default branch may use.
 - **No code of a pull request runs.** The lifecycle workflow starts on `pull_request_target` only to learn which issues a merged pull request fixes. It checks out the default branch, runs no AI and skips Dependabot's pull requests.
@@ -386,6 +400,10 @@ max_per_day = 20                # analyses, follow-ups and replies after a relea
 max_per_author_per_day = 3      # analyses of one reporter's new issues in 24 hours
 release_replies = 2             # comments of the reporter after each release that the AI reads
 
+[context]
+max_issues = 1000               # closed issues that an analysis reads besides every open one: those that changed last
+max_discussions = 1000          # discussions that an analysis reads: those that changed last
+
 [links]
 hosts = ["docs.example.com"]    # besides this repository
 
@@ -469,7 +487,7 @@ The action runs `issue_assistant.py` with one command:
 | --- | --- | --- |
 | `event` | event | handles the event, sets labels and names the AI's next task, within the limits of the AI runs |
 | `engine` | analyze | names the engine of `config.toml`, its model, and whether its secret exists |
-| `context` | analyze | writes the issue, the other issues, the discussions, the labels, the prompt and the schema into `.issue-assistant/` |
+| `context` | analyze | writes what the task reads into `.issue-assistant/`: the issue; for an analysis or a follow-up the other issues, the discussions and the labels; for a reply the comment of its event; then the prompt and the schema |
 | `apply` | apply | checks the AI's answer and posts it |
 | `sweep` | lifecycle | reminds, closes unanswered issues and duplicates, marks fixed issues and closes them with the release |
 | `sync-labels` | labels | creates and updates the labels, and renames those that the repository has in another case |

@@ -1265,6 +1265,8 @@ SETTINGS = {
     "[engine] max_per_day": ("max_per_day", 5),
     "[engine] max_per_author_per_day": ("max_per_author_per_day", 1),
     "[engine] release_replies": ("release_replies", 0),
+    "[context] max_issues": ("max_issues", 300),
+    "[context] max_discussions": ("max_discussions", 0),
     "[links] hosts": ("hosts", ["docs.example.com"]),
     "[forms] area_field": ("area_field", "Component"),
     "[forms] unmapped_options": ("unmapped_options", ["None"]),

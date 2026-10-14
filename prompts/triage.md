@@ -3,15 +3,15 @@
 The context files:
 
 - `{context}/issue.md`: the issue with its comments. Read it completely first.
-- `{context}/issues.jsonl`: every other issue of the repository, one JSON object per line with number, title, state, state_reason, labels, dates and an excerpt. Search it with Grep.
-- `{context}/discussions.jsonl`: the GitHub Discussions, in the same form.
+- `{context}/issues.jsonl`: the other issues of the repository, one JSON object per line with number, title, state, state_reason, labels, dates, the number of comments, `closed_by` (the pull request that fixed it, if one did) and an excerpt: every open issue, the {max_issues} closed ones that changed last, and older ones that a search for the words of this issue found. Search it with Grep. `{context}/issues/<number>.md` holds the whole text of each of them.
+- `{context}/discussions.jsonl`: the {max_discussions} GitHub Discussions that changed last, in the same form.
 - `{context}/labels.md`: the labels you choose from.
 
 The latest release is {release}.
 
 1. **Understand the issue:** what the reporter does, expects and observes; the versions and the setup that matter for this project (the project description names them); the part of the project concerned. The answers and choices of an issue form are hints: the text is what counts when they disagree.
 2. **Investigate in the repository.** Read the documentation of the topic (for German reporters also German documentation, if the project has some), especially a troubleshooting guide, and the changelog: was it fixed or changed in a version newer than the reporter's? Then look at the code involved. Find the most likely cause, or at least the part of the code involved. For a feature request: what exists today, whether the project's plans mention it, and what it would touch. For a question: the answer from the documentation. For a compatibility report or feedback: what it means for other users and which points are known issues.
-3. **Search for duplicates and related issues.** Grep `issues.jsonl` and `discussions.jsonl` with several different sets of keywords, in English and German: error messages, names of settings, screens and features, symptoms. Read the promising lines completely.
+3. **Search for duplicates and related issues.** Grep `issues.jsonl` and `discussions.jsonl` with several different sets of keywords, in English and German: error messages, names of settings, screens and features, symptoms. Read the promising lines completely, and the whole text in `issues/` of an issue whose excerpt isn't enough.
    - `duplicates`: only issues about the same problem or the same request, not just the same area. `"high"` only when you are sure that one fix or one decision settles both, and only for an open issue; otherwise `"medium"`. Leave it empty when there is none.
    - `related`: issues and discussions that help, each with the reason: a fix in a closed issue, a similar report, a discussion with an answer. Don't repeat the duplicates.
 4. **Decide what's missing.** `missing_information` lists only what blocks progress and is not in the issue yet, each as a concrete request that says where to find it, for example which version is installed and where the project shows it. Ask for logs or steps to reproduce only when this problem needs them. Leave it empty for feature requests, feedback and reports of working setups, and whenever the issue has what is needed.

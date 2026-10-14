@@ -151,6 +151,58 @@ DISCUSSION = {
     "answer": {"body": "Turn it off in the options of the card."},
 }
 CLOSED = {"closeIssue": {"issue": {"number": 12}}}
+PAGE = {"hasNextPage": False, "endCursor": "Y3Vyc29yOjE="}
+
+
+def issue_node(
+    number: int,
+    closer: dict[str, Any] | None = None,
+    fixes: list[dict[str, Any]] | None = None,
+    **changes: Any,
+) -> dict[str, Any]:
+    """An issue as GitHub holds it, closed last by `closer`, if it was closed, and
+    named by the pull requests `fixes`."""
+    closings = [{"__typename": "ClosedEvent", "closer": closer}] if closer else []
+    return {
+        "number": number,
+        "title": "The live card stays empty",
+        "body": "After a throw.",
+        "state": "CLOSED" if closer else "OPEN",
+        "stateReason": "COMPLETED" if closer else None,
+        "createdAt": "2026-09-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "closedAt": "2026-09-03T12:00:00Z" if closer else None,
+        "labels": {"nodes": [{"name": "bug"}]},
+        "comments": {"totalCount": 2},
+        "closedByPullRequestsReferences": {"nodes": fixes or []},
+        "timelineItems": {"nodes": closings},
+        **changes,
+    }
+
+
+def issue_as_rest(number: int, **changes: Any) -> dict[str, Any]:
+    """The issue of issue_node in the form of the REST API, which the method returns;
+    without `updatedAt`, which the document doesn't ask for."""
+    return {
+        "number": number,
+        "title": "The live card stays empty",
+        "body": "After a throw.",
+        "state": "open",
+        "state_reason": None,
+        "labels": [{"name": "bug"}],
+        "created_at": "2026-09-01T12:00:00Z",
+        "closed_at": None,
+        "comments": 2,
+        "closed_by": None,
+        **changes,
+    }
+
+
+CLOSED_ISSUE = {
+    "state": "closed",
+    "state_reason": "completed",
+    "closed_at": "2026-09-03T12:00:00Z",
+}
 
 REQUESTS = {
     "merged pull requests": Request(
@@ -206,9 +258,54 @@ REQUESTS = {
         [pull(31)],
     ),
     "discussions": Request(
-        lambda github: github.discussions(),
-        {"repository": {"discussions": {"nodes": [DISCUSSION]}}},
+        lambda github: github.discussions(1000),
+        {"repository": {"discussions": {"pageInfo": PAGE, "nodes": [DISCUSSION]}}},
         [DISCUSSION],
+    ),
+    # GitHub answers the document with the open issues here, and with the closed
+    # ones that changed last when asked for any.
+    "the issues of the context": Request(
+        lambda github: github.recent_issues(0),
+        {
+            "repository": {
+                "issues": {
+                    "pageInfo": PAGE,
+                    "nodes": [
+                        issue_node(12),
+                        issue_node(7, {"__typename": "PullRequest", "number": 31}),
+                        issue_node(5, {"__typename": "Commit", "oid": REF}),
+                        issue_node(3, {"__typename": "ProjectV2", "number": 2}),
+                        # Closed by the release after the pull requests that fix it
+                        # merged: the last merged one of this repository fixed it.
+                        issue_node(
+                            4,
+                            None,
+                            [
+                                pull(33),
+                                pull(35),
+                                pull(36, merged=False),
+                                pull(37, repository="someone/else"),
+                            ],
+                            state="CLOSED",
+                            stateReason="COMPLETED",
+                            closedAt="2026-09-03T12:00:00Z",
+                            timelineItems={
+                                "nodes": [{"__typename": "ClosedEvent", "closer": None}]
+                            },
+                        ),
+                        issue_node(2, labels=None),
+                    ],
+                }
+            }
+        },
+        [
+            issue_as_rest(12),
+            issue_as_rest(7, **CLOSED_ISSUE, closed_by=31),
+            issue_as_rest(5, **CLOSED_ISSUE),
+            issue_as_rest(3, **CLOSED_ISSUE),
+            issue_as_rest(4, **CLOSED_ISSUE, closed_by=35),
+            issue_as_rest(2, labels=[]),
+        ],
     ),
     "a discussion that exists": Request(
         lambda github: github.discussion_exists(3),
@@ -349,7 +446,7 @@ def test_every_graphql_document_of_the_script_is_checked(monkeypatch, schema):
         for request in REQUESTS.values()
         for sent in send(monkeypatch, schema, request)[1]
     }
-    assert len(documents) == 8
+    assert len(documents) == 9
     assert documents == checked
 
 
