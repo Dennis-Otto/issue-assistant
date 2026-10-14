@@ -1,0 +1,16 @@
+flowchart TB
+  accTitle: How the tests stand in for GitHub
+  accDescr: The tests of the events, the sweeps and the commands call the fake GitHub in tests/support.py, which gives long lists in pages and checks the body of every write. The tests of the class GitHub run Python's real subprocess.run, which starts tests/fake_gh.py in place of gh; it writes down each command and what it read, and answers as the test asks. What the assistant writes, its comments, the context of each task, the plan of each event and the job summaries, is compared word for word with the golden files in tests/golden/.
+  tests["`**the tests**`"]
+  fake[("the fake GitHub<br>in tests/support.py:<br>pages, checked bodies")]
+  run["`the class **GitHub**<br>and the real subprocess.run`"]
+  gh[("tests/fake_gh.py<br>in place of gh:<br>commands, input, answers")]
+  golden[("tests/golden/:<br>comments, contexts,<br>plans, job summaries")]
+  tests -- "events, sweeps,<br>commands" --> fake
+  tests -- "the requests<br>of gh" --> run
+  run --> gh
+  tests -- "word for word" --> golden
+  classDef code fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class tests,run code
+  class fake,gh,golden safe

@@ -1,0 +1,20 @@
+<!-- issue-assistant:analysis lang=de questions=0 engine=claude duplicate=23 -->
+
+Danke für deinen Vorschlag, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
+
+### Mögliches Duplikat
+
+Das sieht nach einem Duplikat von #23 aus: Wünscht denselben Export des Verlaufs als CSV-Datei.
+
+Falls das stimmt, musst du nichts tun: Das Issue wird in 3 Tagen als Duplikat von #23 geschlossen, damit alles an einer Stelle bleibt. Ein 👍 bei #23 zeigt, dass mehr Leute betroffen sind. Geht es um etwas anderes, schreib einen Kommentar oder reagiere auf diesen Kommentar mit 👎, dann bleibt es offen.
+
+### Zusammenfassung
+
+Eine Schaltfläche, die den Feuchtigkeitsverlauf einer Pflanze als CSV-Datei exportiert.
+
+### Erste Analyse
+
+Das Dashboard hat noch keinen Export. `ChartFeed.history()` liefert die Punkte des Diagramms, die ein Export schreiben könnte.
+
+<sub>🤖 Automatische Erstanalyse von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer entscheiden. Labels: `area: dashboard`. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat; ein 👎 hält das Issue außerdem offen.</sub>
+

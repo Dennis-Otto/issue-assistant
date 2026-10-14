@@ -1,0 +1,39 @@
+### Issue assistant: triage of #12 (dry run)
+
+- Analysis on #12; labels added: area: cards, needs-info.
+- add area: cards to #12
+- comment on #12
+- add needs-info to #12
+
+<details><summary>Comment</summary>
+
+```markdown
+<!-- issue-assistant:analysis lang=en questions=1 engine=claude -->
+
+Thanks for the report, @reporter! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
+
+### Summary
+
+The live card stays empty after a throw.
+
+### First analysis
+
+The card probably misses the `throw` event.
+
+### Worth trying
+
+- Reload the dashboard.
+
+### Information needed
+
+To continue, please add the following, in a comment or by editing the issue:
+
+- Which version do you run?
+
+Without an answer, a reminder follows after 15 days and the issue closes after 30 days. If it closes, an answer reopens it.
+
+<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `area: cards`. [How the assistant works](https://github.com/owner/project/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+```
+
+</details>
+

@@ -1,11 +1,16 @@
-"""Builders for issues, comments and answers, and a fake of the GitHub API.
+"""Builders for issues, comments and answers, a fake of the GitHub API, a fake gh
+and the golden files of what the assistant writes.
 
 The fake answers the REST and GraphQL calls of the script, so the real request code
-runs; only `gh` itself is replaced.
+runs; only `gh` itself is replaced. tests/README.md explains all three.
 """
 
+import difflib
 import json
+import os
 import re
+import subprocess
+import sys
 from collections import Counter
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
@@ -120,6 +125,36 @@ def make_comment(comment_id, author, body, days_ago, association="NONE"):
         "created_at": at(days_ago),
         "author_association": association,
     }
+
+
+def make_comments(count, *, first=1, author="someone", oldest=10.0, newest=0.0):
+    """`count` comments of `author` with the ids from `first` on, written one after
+    the other from `oldest` to `newest` days ago: a long thread, which GitHub gives
+    in more than one page."""
+    step = (oldest - newest) / max(count - 1, 1)
+    return [
+        make_comment(
+            first + index, author, f"Comment {first + index}", oldest - index * step
+        )
+        for index in range(count)
+    ]
+
+
+def event(action, issue, sender="reporter", comment=None, changes=None):
+    """The payload of an event; `changes` are those of an edit, as GitHub sends them."""
+    payload = {
+        "action": action,
+        "issue": issue,
+        "sender": {
+            "login": sender,
+            "type": "Bot" if sender.endswith("[bot]") else "User",
+        },
+    }
+    if comment:
+        payload["comment"] = comment
+    if changes is not None:
+        payload["changes"] = changes
+    return payload
 
 
 def make_answer(**changes):
@@ -318,6 +353,34 @@ def page_of(items, variables):
     return deepcopy(items[start:end]), info
 
 
+def paged(items, query, pages):
+    """A list as GitHub's REST API gives it: in pages of per_page items, 30 unless
+    the path asks for up to 100. With `pages`, gh reads every page, which a reader
+    asks for 100 at a time; without, the call gets the one page that the path
+    names, the first unless it names another. A reader that forgets to page so
+    misses the rest of a long list, as it would on GitHub."""
+    size = int(query.get("per_page", ["30"])[0])
+    assert 1 <= size <= 100, "GitHub gives 1 to 100 items a page"
+    if pages:
+        assert size == 100, "a reader of every page asks for the largest ones"
+        assert "page" not in query, "gh --paginate starts at the first page"
+        return deepcopy(items)
+    page = int(query.get("page", ["1"])[0])
+    return deepcopy(items[(page - 1) * size : page * size])
+
+
+# The reactions that GitHub knows.
+REACTIONS = {"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"}
+
+
+def has_keys(data, required, optional=()):
+    """Whether the body of a request has the keys that GitHub needs, and no others
+    than those it reads."""
+    assert isinstance(data, dict), data
+    assert set(required) <= set(data) <= {*required, *optional}, data
+    return data
+
+
 def as_graphql(issue):
     """An issue of the fake as GitHub's GraphQL gives it. Its `closer`, if it has
     one, is that of its last closing: {"number": 31} for a pull request, {} for a
@@ -496,20 +559,30 @@ class FakeGitHub(assistant.GitHub):
         self._failing(f"{method} {path}")
         parts = urlsplit(path)
         route, query = parts.path, parse_qs(parts.query)
+        assert method in {"GET", "POST", "PATCH", "PUT", "DELETE"}, method
+        if method in {"GET", "DELETE"}:
+            assert data is None, f"{method} {path} sends no body"
         if method == "GET":
             if match := re.fullmatch(r"issues/(\d+)", route):
                 return deepcopy(self._issue(int(match[1])))
             if match := re.fullmatch(r"issues/(\d+)/comments", route):
                 # With the address that GitHub gives each comment.
-                return [
-                    {"html_url": f"{WEB}/issues/{match[1]}#issuecomment-{item['id']}"}
-                    | deepcopy(item)
-                    for item in self.comment_store.get(int(match[1]), [])
-                ]
+                return paged(
+                    [
+                        {
+                            "html_url": f"{WEB}/issues/{match[1]}"
+                            f"#issuecomment-{item['id']}"
+                        }
+                        | item
+                        for item in self.comment_store.get(int(match[1]), [])
+                    ],
+                    query,
+                    pages,
+                )
             if match := re.fullmatch(r"issues/(\d+)/events", route):
-                return deepcopy(self.event_store.get(int(match[1]), []))
+                return paged(self.event_store.get(int(match[1]), []), query, pages)
             if match := re.fullmatch(r"issues/comments/(\d+)/reactions", route):
-                return deepcopy(self.reaction_store.get(int(match[1]), []))
+                return paged(self.reaction_store.get(int(match[1]), []), query, pages)
             if match := re.fullmatch(r"collaborators/([^/]+)/permission", route):
                 user = unquote(match[1])
                 # Anyone else can read a public repository.
@@ -530,17 +603,23 @@ class FakeGitHub(assistant.GitHub):
                     )
                     and changed_since(issue, query)
                 ]
-                return deepcopy(sorted(items, key=lambda item: -item["number"]))
+                return paged(
+                    sorted(items, key=lambda item: -item["number"]), query, pages
+                )
             if route == "issues/comments":
                 # Every comment of the repository, with the address of its issue.
-                return [
-                    {**deepcopy(comment), "issue_url": f"{API}/issues/{number}"}
-                    for number, comments in sorted(self.comment_store.items())
-                    for comment in comments
-                    if changed_since(comment, query)
-                ]
+                return paged(
+                    [
+                        {**comment, "issue_url": f"{API}/issues/{number}"}
+                        for number, comments in sorted(self.comment_store.items())
+                        for comment in comments
+                        if changed_since(comment, query)
+                    ],
+                    query,
+                    pages,
+                )
             if route == "labels":
-                return deepcopy(self.label_store)
+                return paged(self.label_store, query, pages)
             if route == "releases/latest":
                 if not self.release:
                     raise not_found()
@@ -552,15 +631,15 @@ class FakeGitHub(assistant.GitHub):
                     key=lambda item: item["published_at"],
                     reverse=True,
                 )
-                return deepcopy(newest[: int(query["per_page"][0])])
+                return paged(newest, query, pages)
             if route == "milestones":
-                return deepcopy(self.milestone_store)
+                return paged(self.milestone_store, query, pages)
             if route == "code-scanning/alerts":
                 if self.alert_error:
                     raise assistant.GitHubError(self.alert_error)
                 if self.alert_store is None:
                     raise not_found("no analysis found")
-                return deepcopy(self.alert_store)
+                return paged(self.alert_store, query, pages)
             if match := re.fullmatch(r"compare/([0-9a-f]+)\.\.\.(.+)", route):
                 tag = unquote(match[2])
                 if tag not in {item["tag_name"] for item in self.release_store}:
@@ -569,14 +648,18 @@ class FakeGitHub(assistant.GitHub):
                 return {"status": "ahead" if inside else "diverged"}
         if method == "POST":
             if match := re.fullmatch(r"issues/(\d+)/comments", route):
+                has_keys(data, {"body"})
                 comment = make_comment(1000 + len(self.calls), "bot", data["body"], 0)
                 comment["created_at"] = self.time()
                 self.comment_store.setdefault(int(match[1]), []).append(comment)
                 return comment
             if match := re.fullmatch(r"issues/(\d+)/labels", route):
+                has_keys(data, {"labels"})
+                assert all(isinstance(name, str) for name in data["labels"]), data
                 self._add(int(match[1]), data["labels"])
                 return []
             if match := re.fullmatch(r"issues/comments/(\d+)/reactions", route):
+                assert has_keys(data, {"content"})["content"] in REACTIONS, data
                 # The same reaction of the same person again changes nothing.
                 reaction = {"content": data["content"], "user": BOT_USER}
                 reactions = self.reaction_store.setdefault(int(match[1]), [])
@@ -584,6 +667,8 @@ class FakeGitHub(assistant.GitHub):
                     reactions.append(reaction)
                 return reaction
             if route == "labels":
+                has_keys(data, {"name", "color"}, {"description"})
+                assert re.fullmatch(r"[0-9a-f]{6}", data["color"]), data
                 # GitHub ignores the case of label names.
                 if self._label(data["name"]):
                     raise assistant.GitHubError(
@@ -593,6 +678,7 @@ class FakeGitHub(assistant.GitHub):
                 self.label_store.append({**data, "node_id": f"L_{data['name']}"})
                 return data
             if route == "milestones":
+                has_keys(data, {"title"}, {"state", "description", "due_on"})
                 milestone = {**data, "number": len(self.milestone_store) + 1}
                 self.milestone_store.append(milestone)
                 return milestone
@@ -621,6 +707,15 @@ class FakeGitHub(assistant.GitHub):
             return None
         if method == "PATCH":
             if match := re.fullmatch(r"issues/(\d+)", route):
+                has_keys(data, (), {"state", "state_reason", "milestone", "labels"})
+                assert data, "a change of an issue changes something"
+                assert data.get("state", "open") in {"open", "closed"}, data
+                assert data.get("state_reason", "completed") in {
+                    "completed",
+                    "not_planned",
+                    "reopened",
+                    "duplicate",
+                }, data
                 issue = self._issue(int(match[1]))
                 issue.update(data)
                 if data.get("state") == "closed":
@@ -636,6 +731,7 @@ class FakeGitHub(assistant.GitHub):
                     )
                 return issue
             if match := re.fullmatch(r"issues/comments/(\d+)", route):
+                has_keys(data, {"body"})
                 comment = next(
                     item
                     for comments in self.comment_store.values()
@@ -645,6 +741,7 @@ class FakeGitHub(assistant.GitHub):
                 comment.update(data, updated_at=self.time())
                 return comment
             if match := re.fullmatch(r"code-scanning/alerts/(\d+)", route):
+                has_keys(data, {"state"}, {"dismissed_reason", "dismissed_comment"})
                 alert = next(
                     item
                     for item in self.alert_store or []
@@ -653,6 +750,7 @@ class FakeGitHub(assistant.GitHub):
                 alert.update(data)
                 return alert
             if match := re.fullmatch(r"labels/(.+)", route):
+                has_keys(data, (), {"new_name", "color", "description"})
                 label = self._label(unquote(match[1]))
                 if "/" in match[1] or label is None:
                     raise not_found()
@@ -947,6 +1045,117 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
     code = assistant.main(list(argv))
     text = outputs.read_text("utf-8") if outputs.exists() else ""
     return code, text, summary.read_text("utf-8") if summary.exists() else ""
+
+
+# gh itself, for the tests of the GitHub class
+
+# The subprocess.run of Python, which the tests of the GitHub class let start the
+# fake gh; fake_gh replaces it for the assistant.
+REAL_RUN = subprocess.run
+FAKE_GH = Path(__file__).with_name("fake_gh.py")
+
+
+def fake_gh(monkeypatch, folder, *answers):
+    """Let gh give the answers in turn, each a dict with its stdout, stderr and exit
+    status; the last one repeats. Returns the calls so far, each as the command and
+    the text that gh read from its standard input, None when it read none.
+
+    The assistant runs gh with Python's real subprocess.run and its own options,
+    such as check=False; only the program is tests/fake_gh.py in place of gh, so
+    that a test never reaches GitHub, also on a computer that has gh.
+    """
+    log = folder / "gh-calls.jsonl"
+    log.unlink(missing_ok=True)
+    replies = folder / "gh-answers.json"
+    replies.write_text(json.dumps(list(answers)), encoding="utf-8")
+    monkeypatch.setenv("FAKE_GH_LOG", str(log))
+    monkeypatch.setenv("FAKE_GH_ANSWERS", str(replies))
+    calls: list[tuple[list[str], str | None]] = []
+
+    def run(command, **options):
+        assert command[0] == "gh", command
+        result = REAL_RUN([sys.executable, "-I", str(FAKE_GH), *command[1:]], **options)
+        call = json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
+        calls.append((["gh", *call["arguments"]], call["input"]))
+        return result
+
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    return calls
+
+
+# Golden files: what the assistant writes, word for word
+
+GOLDEN = Path(__file__).with_name("golden")
+
+
+def assert_golden(name: str, text: str) -> None:
+    """Check that `text` is the golden file tests/golden/<name>.
+
+    The file holds the text and one line break more, so that it ends with one as
+    every text file of the repository does, whatever the text ends with. With
+    UPDATE_GOLDEN=1, the test writes the file instead, for a change that is meant;
+    the diff of the pull request then shows what readers see differently.
+
+    It raises AssertionError rather than calling pytest, which the fuzzers and the
+    pictures of scripts/images/ import this module without.
+    """
+    # pytest shows where the test called this, not this function.
+    __tracebackhide__ = True
+    path = GOLDEN / name
+    stored = text + "\n"
+    if os.environ.get("UPDATE_GOLDEN") == "1":
+        assert not os.environ.get("CI"), "UPDATE_GOLDEN would pass any text in CI"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(stored.encode("utf-8"))
+        return
+    if not path.is_file():
+        raise AssertionError(
+            f"tests/golden/{name} is missing: run the tests with UPDATE_GOLDEN=1, "
+            "and check the file that they write."
+        )
+    expected = path.read_bytes().decode("utf-8")
+    if stored != expected:
+        diff = "".join(
+            difflib.unified_diff(
+                expected.splitlines(keepends=True),
+                stored.splitlines(keepends=True),
+                f"tests/golden/{name}",
+                "written now",
+            )
+        )
+        raise AssertionError(
+            f"The text differs from tests/golden/{name}. When the change is meant, "
+            f"run the tests with UPDATE_GOLDEN=1 and commit the file.\n{diff}"
+        )
+
+
+def golden_files() -> set[str]:
+    """The names of the golden files, as assert_golden takes them."""
+    return {
+        path.relative_to(GOLDEN).as_posix()
+        for path in GOLDEN.rglob("*")
+        if path.is_file()
+    }
+
+
+def files_of(folder: Path) -> str:
+    """The files in a folder and their texts, as one text for a golden file, in
+    the order of their names, which is the same on every system.
+
+    The texts are read with Python's universal newlines, as the script writes them
+    with \\n: Windows writes \\r\\n in their place, where the runners of GitHub don't.
+    """
+    texts = {
+        path.relative_to(folder).as_posix(): path.read_text(encoding="utf-8")
+        for path in folder.rglob("*")
+        if path.is_file()
+    }
+    return "\n".join(f"==> {name} <==\n{texts[name]}" for name in sorted(texts))
+
+
+def shown(value: Any) -> str:
+    """A value as JSON for a golden file: indented, with the text as it is."""
+    return json.dumps(value, indent=2, ensure_ascii=False)
 
 
 # Texts of the engine that once got past the cleaning, with the issue numbers that

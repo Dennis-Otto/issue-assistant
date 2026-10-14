@@ -1,0 +1,25 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "follow-up",
+    "notes": [
+      "Started by hand: follow-up."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [
+    "add area: cards to #12"
+  ],
+  "requests": [
+    [
+      "POST",
+      "issues/12/labels",
+      {
+        "labels": [
+          "area: cards"
+        ]
+      }
+    ]
+  ]
+}

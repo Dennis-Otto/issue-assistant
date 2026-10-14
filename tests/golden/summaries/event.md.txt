@@ -1,0 +1,5 @@
+### Issue assistant: #12, next task triage
+
+- add area: cards to #12
+- add needs-triage to #12
+

@@ -1,0 +1,42 @@
+<!-- issue-assistant:analysis lang=en questions=1 engine=claude -->
+
+Thanks for the report, @alex-demo! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
+
+### Summary
+
+After the sensor reconnects, the moisture chart stays empty while the current value keeps updating.
+
+### First analysis
+
+The chart subscribes to the history stream once. After a reconnect, `ChartFeed.start()` returns early because `subscribed` is still true, so the chart never gets the new stream. The current value has a subscription of its own and recovers.
+
+### Worth trying
+
+- Reload the dashboard after a reconnect; the chart fills again.
+- Until a fix ships, set `chart.refresh` to `30s`.
+
+### Information needed
+
+To continue, please add the following, in a comment or by editing the issue:
+
+- The firmware version of the sensor.
+- The log of the hub from the reconnect, with `log_level: debug`.
+
+Without an answer, a reminder follows after 15 days and the issue closes after 30 days. If it closes, an answer reopens it.
+
+<details><summary>Where to look: 4 links</summary>
+
+### Related
+
+- #17: The same symptom after a restart of the hub, fixed in 1.2.0.
+- #9 (discussion): How the chart loads the history of a sensor.
+
+### Where to look
+
+- [`src/plant_monitor/chart.py`, line 52](https://github.com/demo-org/plant-monitor/blob/4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c/src/plant_monitor/chart.py#L52): Returns early while `subscribed` is still set.
+- [The chart stays empty](https://github.com/demo-org/plant-monitor/blob/HEAD/docs/troubleshooting.md#the-chart-stays-empty) in `docs/troubleshooting.md`: How to collect the log.
+
+</details>
+
+<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `connectivity`. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+

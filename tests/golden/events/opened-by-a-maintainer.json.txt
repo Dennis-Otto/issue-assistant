@@ -1,0 +1,35 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "none",
+    "notes": [
+      "Opened by a maintainer: no analysis."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [
+    "add area: cards to #12",
+    "add needs-triage to #12"
+  ],
+  "requests": [
+    [
+      "POST",
+      "issues/12/labels",
+      {
+        "labels": [
+          "area: cards"
+        ]
+      }
+    ],
+    [
+      "POST",
+      "issues/12/labels",
+      {
+        "labels": [
+          "needs-triage"
+        ]
+      }
+    ]
+  ]
+}

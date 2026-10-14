@@ -1,0 +1,4 @@
+### Issue assistant set-up
+
+- .gitignore: add /.issue-assistant/
+

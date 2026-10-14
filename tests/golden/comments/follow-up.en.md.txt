@@ -1,0 +1,20 @@
+<!-- issue-assistant:follow-up lang=en questions=1 engine=claude -->
+
+Thanks for your answer, @alex-demo!
+
+The log shows `already subscribed, skipping` right after the reconnect, which confirms the cause above. A fix would end the subscription in `on_disconnect()`, so that `start()` subscribes again.
+
+### Still needed
+
+Please also add:
+
+- The version of the dashboard app, under Settings → About.
+
+Without an answer, a reminder follows after 15 days and the issue closes after 30 days. If it closes, an answer reopens it.
+
+### Where to look
+
+- [`src/plant_monitor/chart.py`, line 52](https://github.com/demo-org/plant-monitor/blob/4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c/src/plant_monitor/chart.py#L52): Returns early while `subscribed` is still set.
+
+<sub>🤖 Automated follow-up by Claude. It can be wrong; the maintainers decide. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+

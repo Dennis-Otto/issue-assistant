@@ -1,0 +1,6 @@
+### Issue assistant: triage of #12
+
+- add area: cards to #12
+- Failed: comment on #12
+- Stopped: GitHub failed; running it again completes the rest.
+

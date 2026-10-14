@@ -1,0 +1,3 @@
+<!-- issue-assistant:closed-duplicate of=23 -->
+Closed as a duplicate of #23, as announced 3 days ago. Please continue there; a 👍 on #23 shows that more people are affected. If this was a mistake, write a comment and the maintainers will reopen it.
+

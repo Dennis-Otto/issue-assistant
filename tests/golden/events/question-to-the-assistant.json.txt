@@ -1,0 +1,23 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "maintainer-question",
+    "notes": [
+      "A maintainer asked a question."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [
+    "react with eyes to comment 5"
+  ],
+  "requests": [
+    [
+      "POST",
+      "issues/comments/5/reactions",
+      {
+        "content": "eyes"
+      }
+    ]
+  ]
+}

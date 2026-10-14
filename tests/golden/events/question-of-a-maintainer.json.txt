@@ -1,0 +1,19 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "maintainer-reply",
+    "notes": [],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [
+    "remove stale from #12"
+  ],
+  "requests": [
+    [
+      "DELETE",
+      "issues/12/labels/stale",
+      null
+    ]
+  ]
+}
