@@ -13,7 +13,7 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 | GitHub client | the class `GitHub` | Every read and write through `gh api`; in a dry run it only records what it would write |
 | Settings | `load_config`, `load_labels`, `load_findings` | Read `.github/issue-assistant/config.toml`, `.github/labels.toml` and `.github/findings.toml` of the repository |
 | Events | `handle_event`, `within_limits` | Labels from the issue forms, and the next task of the engine: `triage`, `follow-up`, `maintainer-reply` or `release-reply`, within the [limits of the AI runs](https://github.com/Dennis-Otto/issue-assistant#limits-of-the-ai-runs) for the tasks that people who don't maintain the repository start |
-| Context | `write_context` | Writes the issue, its comments, related issues and discussions, the labels, the prompt and the JSON schema of the answer into `.issue-assistant/`, for the engine to read; [each text is read in linear time](#reading-the-text-of-issues) |
+| Context | `write_context` | Writes what the task of the engine reads into `.issue-assistant/`: the issue with its comments; for an analysis and a follow-up the other issues and discussions of a bounded window and the labels; for a reply the comment of its event; then the prompt and the JSON schema of the answer ([what the AI reads](how-it-works.md#what-the-ai-reads)); [each text is read in linear time](#reading-the-text-of-issues) |
 | Prompts | `prompts/` | The rules of every task, which call the content of the issue data, not instructions |
 | Checks of the answer | `answer_schema`, `validate`, `parse_answer`, `looks_secret`, `sanitize` | Check the engine's JSON against its schema, the labels and the issues that exist; refuse anything that looks like a secret; clean the text of mentions, images, HTML and links to other sites |
 | Writing | `apply_answer` and the `render_*` functions | Post the comment, set the labels and mark duplicates, only on the issue of the event |
@@ -131,7 +131,7 @@ The sweep runs each step and each issue through `isolate`: a `GitHubError` becom
 
 ## Reading the text of issues
 
-Anyone can write an issue, and every analysis reads the text of every issue of the repository, open or closed, for the excerpts of the other issues. One text that kept a pattern busy for minutes would stall every analysis until its job timed out. So the time to read a text grows only with its length:
+Anyone can write an issue, and every analysis reads the text of every open issue and of the closed ones that changed last, for the excerpts of the other issues. One text that kept a pattern busy for minutes would stall every analysis until its job timed out. So the time to read a text grows only with its length:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/how-the-assistant-reads-the-text-of-an-issue.dark.svg">

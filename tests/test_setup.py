@@ -31,6 +31,7 @@ def test_the_settings_are_read_with_defaults(config, root):
     for settings in (config, plain):
         assert settings.max_per_day == 20 and settings.max_per_author_per_day == 3
         assert settings.release_replies == 2
+        assert (settings.max_issues, settings.max_discussions) == (1000, 1000)
 
 
 def test_the_limits_of_the_ai_runs_can_be_set(root):
@@ -45,6 +46,15 @@ def test_the_limits_of_the_ai_runs_can_be_set(root):
     assert assistant.check_config(config) == []
 
 
+def test_what_the_ai_reads_of_the_repository_can_be_limited(root):
+    (root / ".github/issue-assistant/config.toml").write_text(
+        "[context]\nmax_issues = 200\nmax_discussions = 0\n", encoding="utf-8"
+    )
+    config = assistant.load_config(root, REPOSITORY)
+    assert (config.max_issues, config.max_discussions) == (200, 0)
+    assert assistant.check_config(config) == []
+
+
 def test_the_starter_settings_name_the_default_limits(tmp_path):
     assistant.install(tmp_path, REF, "v1.0.0")
     starter = tomllib.loads(
@@ -53,6 +63,9 @@ def test_the_starter_settings_name_the_default_limits(tmp_path):
     defaults = assistant.Config(tmp_path, REPOSITORY, (), "")
     assert {key: starter["engine"][key] for key in assistant.LIMITS} == {
         key: getattr(defaults, key) for key in assistant.LIMITS
+    }
+    assert {key: starter["context"][key] for key in assistant.CONTEXT_LIMITS} == {
+        key: getattr(defaults, key) for key in assistant.CONTEXT_LIMITS
     }
 
 
@@ -221,8 +234,8 @@ def test_unknown_keys_are_named_with_the_key_they_probably_mean(
         f"{CONFIG}: hosts belongs in the section [links], not in [engine]",
         f"{CONFIG}: unknown section [release]; did you mean [releases]?",
         f"{CONFIG}: unknown key hots in [links]; did you mean hosts?",
-        f"{CONFIG}: unknown section [colours]; known: [engine], [links], [forms], "
-        "[transparency], [releases]",
+        f"{CONFIG}: unknown section [colours]; known: [engine], [context], [links], "
+        "[forms], [transparency], [releases]",
     ]
     # The other commands keep the defaults and warn.
     config = assistant.load_config(root, REPOSITORY)
@@ -602,6 +615,7 @@ def test_config_problems_are_found(config, root):
         max_per_day=-1,
         max_per_author_per_day=True,
         release_replies="2",
+        max_issues=-5,
     )
     assert assistant.check_config(broken) == [
         ".github/issue-assistant/config.toml: unknown engine unknown; known engines: claude",
@@ -611,6 +625,8 @@ def test_config_problems_are_found(config, root):
         ".github/issue-assistant/config.toml: max_per_author_per_day must be a whole "
         "number, 0 or more",
         ".github/issue-assistant/config.toml: release_replies must be a whole number, "
+        "0 or more",
+        ".github/issue-assistant/config.toml: max_issues must be a whole number, "
         "0 or more",
     ]
     (root / "SUPPORT.md").write_text("An AI reads your issue.", encoding="utf-8")
