@@ -1224,6 +1224,8 @@ def test_the_discussions_end_at_their_limit(config):
         ("Bug: the card, the CARD and 2 cards don't work", "", ["card", "cards"]),
         ("Die Karte bleibt leer und Fehler", "Error", ["karte", "bleibt", "leer"]),
         ("Bug", "", []),
+        # A word too long for GitHub's query goes too.
+        ("Card " + "x" * 41 + " empty " + "y" * 40, "", ["card", "empty", "y" * 40]),
     ],
 )
 def test_the_search_for_older_issues_takes_the_telling_words(title, body, terms):
@@ -1241,10 +1243,13 @@ def test_a_first_analysis_also_reads_the_older_issues_that_a_search_finds(
     pull = make_issue(4, pull_request={"url": "x"})
     recent = changed(5, 1, state="closed", closed_at=at(1))
     github = FakeGitHub(config, new, older, pull, recent)
-    query = f"repo:{REPOSITORY} is:issue typeerror OR live OR card OR stays OR empty"
+    query = f"repo:{REPOSITORY} is:issue (typeerror OR live OR card OR stays OR empty)"
     # The search finds the issue itself, one that the context has already and a pull
-    # request, which `is:issue` keeps out on GitHub; none of them twice.
-    github.search_store[query] = [new, recent, older, pull]
+    # request, which `is:issue` keeps out on GitHub; none of them twice. An issue
+    # of another repository stays out too.
+    foreign = changed(6, 2, state="closed", closed_at=at(2))
+    foreign["repository_url"] = "https://api.github.com/repos/someone/else"
+    github.search_store[query] = [new, recent, older, pull, foreign]
     limited = dataclasses.replace(config, max_issues=1)
     assistant.write_context(github, 12, "triage", limited)
     folder = config.root / ".issue-assistant"
@@ -4920,12 +4925,19 @@ def test_the_search_for_issues_builds_the_gh_command(monkeypatch):
 
     def run(command, **options):
         calls.append(command)
-        items = [{"number": 3}, {"number": 4, "pull_request": {"url": "x"}}]
-        return Completed(json.dumps({"total_count": 2, "items": items}))
+        own = f"https://api.github.com/repos/{REPOSITORY}"
+        items = [
+            {"number": 3, "repository_url": own},
+            {"number": 4, "repository_url": own, "pull_request": {"url": "x"}},
+            {"number": 5, "repository_url": "https://api.github.com/repos/a/b"},
+            {"number": 6},
+        ]
+        return Completed(json.dumps({"total_count": 4, "items": items}))
 
     monkeypatch.setattr(assistant.subprocess, "run", run)
     github = assistant.GitHub(REPOSITORY)
-    assert github.search_issues(["live", "card"]) == [{"number": 3}]
+    found = github.search_issues(["live", "card"])
+    assert [item["number"] for item in found] == [3]
     assert calls == [
         [
             "gh",
@@ -4934,7 +4946,7 @@ def test_the_search_for_issues_builds_the_gh_command(monkeypatch):
             "GET",
             "search/issues",
             "-f",
-            f"q=repo:{REPOSITORY} is:issue live OR card",
+            f"q=repo:{REPOSITORY} is:issue (live OR card)",
             "-F",
             "per_page=30",
         ]

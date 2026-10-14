@@ -3,7 +3,7 @@
 The context files:
 
 - `{context}/issue.md`: the issue with its comments. Read it completely first.
-- `{context}/issues.jsonl`: the other issues of the repository, one JSON object per line with number, title, state, state_reason, labels, dates, the number of comments, `closed_by` (the pull request that closed it, if one did) and an excerpt: every open issue, the {max_issues} closed ones that changed last, and older ones that a search for the words of this issue found. Search it with Grep. `{context}/issues/<number>.md` holds the whole text of each of them.
+- `{context}/issues.jsonl`: the other issues of the repository, one JSON object per line with number, title, state, state_reason, labels, dates, the number of comments, `closed_by` (the pull request that fixed it, if one did) and an excerpt: every open issue, the {max_issues} closed ones that changed last, and older ones that a search for the words of this issue found. Search it with Grep. `{context}/issues/<number>.md` holds the whole text of each of them.
 - `{context}/discussions.jsonl`: the {max_discussions} GitHub Discussions that changed last, in the same form.
 - `{context}/labels.md`: the labels you choose from.
 

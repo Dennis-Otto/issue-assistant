@@ -128,6 +128,8 @@ SEARCHED = 30
 SEARCH_TERMS = 6
 # The names of errors among them, before the words of the title.
 SEARCH_ERRORS = 3
+# The longest word of it, so that the query stays within GitHub's 256 characters.
+SEARCH_WORD = 40
 # The excerpt of each other issue in issues.jsonl; issues/<number>.md has its text.
 EXCERPT = 400
 
@@ -1185,6 +1187,9 @@ class GitHub:
                             createdAt closedAt
                             labels(first: 20) { nodes { name } }
                             comments { totalCount }
+                            closedByPullRequestsReferences(first: 5, includeClosedPrs: true) {
+                              nodes { number merged repository { nameWithOwner } }
+                            }
                             timelineItems(itemTypes: [CLOSED_EVENT], last: 1) {
                               nodes {
                                 ... on ClosedEvent {
@@ -1206,7 +1211,7 @@ class GitHub:
                     },
                 )
                 page = data["repository"]["issues"]
-                found += [as_rest(node) for node in page["nodes"]]
+                found += [as_rest(node, self.owns) for node in page["nodes"]]
                 taken += len(page["nodes"])
                 if not page["pageInfo"]["hasNextPage"]:
                     break
@@ -1216,8 +1221,18 @@ class GitHub:
     def search_issues(self, terms: list[str]) -> list[dict[str, Any]]:
         """The issues of the repository that GitHub's search finds best for any of
         the words, at most SEARCHED."""
-        found = self.search(f"repo:{self.repository} is:issue {' OR '.join(terms)}")
-        return [item for item in found if "pull_request" not in item]
+        # The parentheses keep `repo:` on every word, also where AND binds closer
+        # than OR, as in GitHub's advanced search.
+        found = self.search(
+            f"repo:{self.repository} is:issue ({' OR '.join(terms)})"
+        )
+        own = f"/repos/{self.repository}".lower()
+        return [
+            item
+            for item in found
+            if "pull_request" not in item
+            and str(item.get("repository_url", "")).lower().endswith(own)
+        ]
 
     def search(self, query: str) -> list[dict[str, Any]]:
         """The SEARCHED issues and pull requests that GitHub's search finds best for
@@ -1709,13 +1724,26 @@ class GitHub:
 # Comments and issues
 
 
-def as_rest(node: dict[str, Any]) -> dict[str, Any]:
+def as_rest(
+    node: dict[str, Any], owns: Callable[[dict[str, Any]], bool]
+) -> dict[str, Any]:
     """An issue of GraphQL in the form of the REST API, which the assistant reads,
-    with `closed_by`, the number of the pull request that closed it last, if one did."""
+    with `closed_by`, the number of the pull request that fixed it, if one did.
+
+    That is the last merged pull request of this repository that names the issue,
+    such as `Fixes #12`, else the pull request that closed it last. A release
+    closes the issues that its pull requests fix (`close_with_release`), so the
+    closing is often the bot's and not the pull request's."""
     closer = None
     if node["state"] == "CLOSED":
+        fixes = [
+            pull["number"]
+            for pull in node["closedByPullRequestsReferences"]["nodes"]
+            if pull["merged"] and owns(pull)
+        ]
         events = node["timelineItems"]["nodes"]
-        closer = ((events[-1] if events else {}).get("closer") or {}).get("number")
+        closed = ((events[-1] if events else {}).get("closer") or {}).get("number")
+        closer = fixes[-1] if fixes else closed
     return {
         "number": node["number"],
         "title": node["title"],
@@ -2328,7 +2356,8 @@ def search_terms(issue: dict[str, Any]) -> list[str]:
     its text, such as TypeError or ECONNREFUSED, then the words of its title.
 
     Words alone, in lower case, so that none is a qualifier of the search, such as
-    repo:, or one of its operators, such as OR.
+    repo:, or one of its operators, such as OR; none longer than SEARCH_WORD, so
+    that the query stays short enough for GitHub.
     """
     errors = [
         word
@@ -2339,7 +2368,9 @@ def search_terms(issue: dict[str, Any]) -> list[str]:
     terms = [
         word.lower()
         for word in words
-        if len(word) > 2 and not word.isdigit() and word.lower() not in COMMON_WORDS
+        if 2 < len(word) <= SEARCH_WORD
+        and not word.isdigit()
+        and word.lower() not in COMMON_WORDS
     ]
     return list(dict.fromkeys(terms))[:SEARCH_TERMS]
 

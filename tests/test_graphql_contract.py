@@ -155,9 +155,13 @@ PAGE = {"hasNextPage": False, "endCursor": "Y3Vyc29yOjE="}
 
 
 def issue_node(
-    number: int, closer: dict[str, Any] | None = None, **changes: Any
+    number: int,
+    closer: dict[str, Any] | None = None,
+    fixes: list[dict[str, Any]] | None = None,
+    **changes: Any,
 ) -> dict[str, Any]:
-    """An issue as GitHub holds it, closed last by `closer`, if it was closed."""
+    """An issue as GitHub holds it, closed last by `closer`, if it was closed, and
+    named by the pull requests `fixes`."""
     closings = [{"__typename": "ClosedEvent", "closer": closer}] if closer else []
     return {
         "number": number,
@@ -170,6 +174,7 @@ def issue_node(
         "closedAt": "2026-09-03T12:00:00Z" if closer else None,
         "labels": {"nodes": [{"name": "bug"}]},
         "comments": {"totalCount": 2},
+        "closedByPullRequestsReferences": {"nodes": fixes or []},
         "timelineItems": {"nodes": closings},
         **changes,
     }
@@ -270,6 +275,24 @@ REQUESTS = {
                         issue_node(7, {"__typename": "PullRequest", "number": 31}),
                         issue_node(5, {"__typename": "Commit", "oid": REF}),
                         issue_node(3, {"__typename": "ProjectV2", "number": 2}),
+                        # Closed by the release after the pull requests that fix it
+                        # merged: the last merged one of this repository fixed it.
+                        issue_node(
+                            4,
+                            None,
+                            [
+                                pull(33),
+                                pull(35),
+                                pull(36, merged=False),
+                                pull(37, repository="someone/else"),
+                            ],
+                            state="CLOSED",
+                            stateReason="COMPLETED",
+                            closedAt="2026-09-03T12:00:00Z",
+                            timelineItems={
+                                "nodes": [{"__typename": "ClosedEvent", "closer": None}]
+                            },
+                        ),
                         issue_node(2, labels=None),
                     ],
                 }
@@ -280,6 +303,7 @@ REQUESTS = {
             issue_as_rest(7, **CLOSED_ISSUE, closed_by=31),
             issue_as_rest(5, **CLOSED_ISSUE),
             issue_as_rest(3, **CLOSED_ISSUE),
+            issue_as_rest(4, **CLOSED_ISSUE, closed_by=35),
             issue_as_rest(2, labels=[]),
         ],
     ),

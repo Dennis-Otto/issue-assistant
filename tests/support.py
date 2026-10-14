@@ -321,7 +321,8 @@ def page_of(items, variables):
 def as_graphql(issue):
     """An issue of the fake as GitHub's GraphQL gives it. Its `closer`, if it has
     one, is that of its last closing: {"number": 31} for a pull request, {} for a
-    commit and None for a person."""
+    commit and None for a person. Its `fixes` are the pull requests that name it,
+    as GraphQL gives them."""
     closings = [{"closer": issue["closer"]}] if "closer" in issue else []
     return {
         "number": issue["number"],
@@ -333,6 +334,7 @@ def as_graphql(issue):
         "closedAt": issue["closed_at"],
         "labels": {"nodes": [{"name": label["name"]} for label in issue["labels"]]},
         "comments": {"totalCount": issue["comments"]},
+        "closedByPullRequestsReferences": {"nodes": issue.get("fixes", [])},
         "timelineItems": {"nodes": closings},
     }
 
@@ -748,12 +750,18 @@ class FakeGitHub(assistant.GitHub):
     def search(self, query):
         self.calls.append(("SEARCH", query, None))
         self._failing(f"SEARCH {query}")
-        scope = f"repo:{REPOSITORY} is:issue "
-        assert query.startswith(scope), query
-        words = query.removeprefix(scope).split(" OR ")
-        # GitHub's search takes at most five operators.
+        scope = f"repo:{REPOSITORY} is:issue ("
+        assert query.startswith(scope) and query.endswith(")"), query
+        words = query.removeprefix(scope).removesuffix(")").split(" OR ")
+        # GitHub's search takes at most five operators and 256 characters.
         assert len(words) <= assistant.SEARCH_TERMS, query
-        return deepcopy(self.search_store.get(query, [])[: assistant.SEARCHED])
+        assert len(query) <= 256, query
+        found = deepcopy(self.search_store.get(query, [])[: assistant.SEARCHED])
+        for item in found:
+            item.setdefault(
+                "repository_url", f"https://api.github.com/repos/{REPOSITORY}"
+            )
+        return found
 
     # Helpers for the tests
 
