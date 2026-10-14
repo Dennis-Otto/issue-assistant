@@ -45,6 +45,7 @@ A GitHub Action that looks after the issues of a repository:
 - **Labels** from the issue forms and from the analysis, each with its reason.
 - **Duplicates:** a sure duplicate of an issue that a maintainer opened or triaged gets a notice and closes, linked to the original, three days later unless someone objects; other ones become suggestions for the maintainer.
 - **Unanswered questions:** questions of the assistant or the maintainer mark an issue `needs-info`; after 15 days the reporter gets a reminder that names the day the issue closes, and after 30 days it closes on that day. An answer, in a comment or by an edit of the issue, ends the waiting, and a comment reopens a closed issue.
+- **Your own lifecycle:** `[lifecycle]` in `config.toml` sets each of these periods, exempts issues by label, assignee or 👍, and can lock threads closed long ago; the comments and `check` follow the settings.
 - **From the fix to the release:** a merged pull request that fixes an issue (`Fixes #12`) marks it `fixed-in-next-release`, and the issue stays open until a release ships the fix. Then it closes with a link to the release. If the reporter writes that the problem persists, it reopens.
 - **Labels as code** in `.github/labels.toml`.
 - **Findings of code scanning:** the findings that `.github/findings.toml` accepts are dismissed with their reason; any other open finding fails a daily run, without a public issue.
@@ -77,7 +78,7 @@ Four workflows run in the repository. Only the violet job runs an AI, and it can
 | Workflow | When | What |
 | --- | --- | --- |
 | `issue-assistant.yml` | new issues, edits of their reporters, new comments, by hand | labels from the form, the first analysis, follow-ups when the reporter answers, whether a maintainer's comment waits for the reporter, and whether a comment after the release reopens the issue |
-| `issue-lifecycle.yml` | every morning, merged pull requests, published releases, the end of a workflow named Release or Release integration that no schedule started | reminders after 15 days, closing after 30 days, closing duplicates 3 days after the notice, marking fixed issues and closing them with the release |
+| `issue-lifecycle.yml` | every morning, merged pull requests, published releases, the end of a workflow named Release or Release integration that no schedule started | reminders after 15 days, closing after 30 days, closing duplicates 3 days after the notice, or the days of `[lifecycle]`, marking fixed issues and closing them with the release, and locking issues closed long ago when `lock_closed_after_days` is set |
 | `labels.yml` | when `.github/labels.toml` changes on main | creates and updates the labels; never deletes one |
 | `findings.yml` | every morning, after each scan of CodeQL, OpenSSF Scorecard, Workflow security and OSV-Scanner on main, when `.github/findings.toml` changes | dismisses the accepted findings of code scanning and fails while others are open |
 
@@ -127,6 +128,18 @@ An issue that waits for its reporter keeps what the comments of the assistant pr
 - **The reminder names the day, and the issue closes on it.** The waiting counts days of the calendar in UTC, and the hidden marker of the reminder records the day, so the sweep of that morning closes the issue, whatever minute it starts.
 - **A comment of the reporter reopens the issue** that the sweep closed for a missing answer, as the closing comment promises, whatever its labels say: also when an answer came in while the sweep closed it and took them.
 - **A follow-up waits for no maintainer.** The AI writes for a minute or two; the job that posts its follow-up checks again, and posts nothing once a maintainer joined the conversation.
+
+### Waiting periods, exemptions and old threads
+
+The days above are the defaults of `[lifecycle]` in `config.toml`, and a repository with slow reporters or a busy queue sets its own: the reminder after `remind_after_days`, the closing after `close_after_days`, a duplicate after `duplicate_grace_days`, and the window of `reopen_after_release_days` in which the reporter's comment after a release reopens the issue. The comments name the days that the repository set, in English and German, and `check` fails when the description of `needs-info`, `stale` or `possible-duplicate` in `labels.toml` names other days.
+
+- **Exempt issues** are left to the maintainers: those with a label of `exempt_labels`, `pinned` and `security` by default, those assigned to someone when `exempt_assignees` is `true`, and those with at least `exempt_upvotes` 👍. They get no reminder and never close on their own, also not as a duplicate; one that becomes exempt after its reminder loses `stale`.
+- **Old threads lock** when `lock_closed_after_days` is more than 0: an issue closed for longer, and at least `reopen_after_release_days`, gets one line that points to a new issue and is locked as resolved, the oldest first and 25 in a sweep. An exempt issue stays unlocked, and so does one that someone unlocked.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-the-morning-sweep-does-with-an-issue-by-the-settings-of-its-lifecycle.dark.svg">
+  <img src="docs/images/diagrams/what-the-morning-sweep-does-with-an-issue-by-the-settings-of-its-lifecycle.svg" alt="What the morning sweep does with an issue, by the settings of its lifecycle: The sweep reads the lifecycle section of config.toml and stops with an error when a period can't work, such as a closing before the reminder. An issue that waits for its reporter or for the closing as a duplicate is left to the maintainers when it is exempt: it has one of the exempt labels, pinned and security by default, it is assigned while exempt_assignees is true, or it has at least exempt_upvotes thumbs up. Otherwise it gets the reminder after remind_after_days, 15 by default, and closes after close_after_days, 30, or closes as a duplicate after duplicate_grace_days, 3. Only when lock_closed_after_days is set does the sweep lock an issue closed for longer, and at least the reopen window of a release, with one line that points to a new issue, unless it is exempt or someone unlocked it.">
+</picture>
 
 ### A duplicate
 
@@ -385,6 +398,17 @@ files = ["SUPPORT.md"]
 
 [releases]
 close_with_release = true       # false: fixed issues don't wait for a release
+
+[lifecycle]
+remind_after_days = 15          # the reminder after the last question without an answer
+close_after_days = 30           # the closing, on the day that the reminder names; more than remind_after_days
+duplicate_grace_days = 3        # a sure duplicate closes this long after the notice
+reopen_after_release_days = 30  # the reporter's comment after a release reopens the issue this long
+max_follow_ups = 2              # follow-ups of the AI on the reporter's answers; 0: none
+exempt_labels = ["pinned", "security"]   # never reminded, closed or locked by the sweep
+exempt_assignees = false        # true: assigned issues are exempt too
+exempt_upvotes = 0              # issues with at least this many 👍 are exempt; 0: off
+lock_closed_after_days = 0      # lock issues closed longer, at least reopen_after_release_days; 0: off
 ```
 
 Each key has the type that it has here. A file that isn't TOML, or a value of another type, such as `max_per_day = "5"`, stops every command with an error that names the file and the key. A key that the assistant doesn't know, such as `close_with_releases` or a section `[release]`, would leave the default in place unnoticed: `check` fails on it and names the key that was probably meant, and every other command warns of it.
@@ -497,6 +521,10 @@ What strangers can spend has [limits](https://github.com/Dennis-Otto/issue-assis
 ### Can I change the model?
 
 Yes, with `model` under `[engine]` in `.github/issue-assistant/config.toml`, such as `model = "sonnet"` for a faster and cheaper one. Without it, the engine's default runs, `claude-opus-5-5` for Claude. `check` refuses a name that could add arguments to the command line of the engine.
+
+### Can I change when issues are reminded, closed or locked?
+
+Yes, with `[lifecycle]` in `.github/issue-assistant/config.toml`: the days until the reminder, the closing and the closing of a duplicate, the window after a release, the follow-ups of the AI, the issues that are exempt by label, assignee or 👍, and the locking of issues closed long ago, which is off by default. The comments name the days that you set. Say the same days in the descriptions of `needs-info`, `stale` and `possible-duplicate` in `labels.toml`, or none, and in your `SUPPORT.md`; `check` fails on a label that names other days.
 
 ### Which data leaves GitHub?
 

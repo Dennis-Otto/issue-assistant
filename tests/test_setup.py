@@ -233,7 +233,7 @@ def test_unknown_keys_are_named_with_the_key_they_probably_mean(
         f"{CONFIG}: unknown section [release]; did you mean [releases]?",
         f"{CONFIG}: unknown key hots in [links]; did you mean hosts?",
         f"{CONFIG}: unknown section [colours]; known: [engine], [links], [forms], "
-        "[transparency], [releases]",
+        "[transparency], [releases], [lifecycle]",
     ]
     # The other commands keep the defaults and warn.
     config = assistant.load_config(root, REPOSITORY)
@@ -266,10 +266,16 @@ def test_every_key_of_the_settings_is_known():
         tuple(field.name for field in dataclasses.fields(assistant.Acceptance))
         == assistant.ACCEPT_KEYS
     )
-    attributes = {field.name for field in dataclasses.fields(assistant.Config)}
+    attributes = {field.name for field in dataclasses.fields(assistant.Config)} | {
+        f"lifecycle.{field.name}" for field in dataclasses.fields(assistant.Lifecycle)
+    }
     for keys in assistant.CONFIG_KEYS.values():
         for key in keys.values():
             assert key.attribute in attributes
+    # Each attribute of Config.lifecycle has its key in [lifecycle].
+    assert [key.attribute for key in assistant.CONFIG_KEYS["lifecycle"].values()] == [
+        f"lifecycle.{field.name}" for field in dataclasses.fields(assistant.Lifecycle)
+    ]
 
 
 # install
@@ -622,22 +628,51 @@ def test_install_writes_no_notice_outside_the_repository_or_for_an_unknown_engin
 
 
 @pytest.mark.parametrize(
-    ("name", "phrases"),
+    ("language", "phrases", "lock"),
     [
-        ("SUPPORT-notice.md", ("after {} days", "after {} days", "{} days later")),
-        ("SUPPORT-notice.de.md", ("nach {} Tagen", "nach {} Tagen", "{} Tage später")),
+        (
+            "en",
+            (
+                "a reminder follows after 20 days and the issue closes after 45 days;",
+                "closes 7 days later,",
+                "write a comment within 60 days and",
+            ),
+            "closed for more than 90 days.",
+        ),
+        (
+            "de",
+            (
+                "Ohne Antwort folgt nach 20 Tagen eine Erinnerung, nach 45 Tagen wird",
+                "wird nach 7 Tagen geschlossen,",
+                "schreib innerhalb von 60 Tagen einen Kommentar,",
+            ),
+            "seit mehr als 90 Tagen geschlossen sind.",
+        ),
     ],
 )
-def test_the_notice_says_when_the_assistant_acts(name, phrases):
-    text = (assistant.TEMPLATES / name).read_text("utf-8")
-    periods = (assistant.REMIND_AFTER, assistant.CLOSE_AFTER, assistant.DUPLICATE_GRACE)
-    for phrase, period in zip(phrases, periods, strict=True):
-        assert phrase.format(period.days) in text
-    # The reporter's comment after the release, on the line of the fix.
-    assert f" {assistant.REOPEN_AFTER_RELEASE.days} " in text.splitlines()[-1]
+def test_the_notice_says_when_the_assistant_acts(config, language, phrases, lock):
+    engine = assistant.ENGINES["claude"]
+    lifecycle = assistant.Lifecycle(
+        remind_after_days=20,
+        close_after_days=45,
+        duplicate_grace_days=7,
+        reopen_after_release_days=60,
+    )
+    text = assistant.notice(
+        dataclasses.replace(config, lifecycle=lifecycle), engine, language
+    )
+    for phrase in phrases:
+        assert phrase in text, phrase
+    # Locking is off: no line on it.
+    assert lock not in text and "{" not in text
+    locking = dataclasses.replace(lifecycle, lock_closed_after_days=90)
+    text = assistant.notice(
+        dataclasses.replace(config, lifecycle=locking), engine, language
+    )
+    assert lock in text and "{" not in text
     # The engine and its vendor come from ENGINES; the fix of an issue is one line,
     # which a repository without releases leaves out.
-    assert "{engine}" in text and "{vendor}" in text
+    assert f"{engine.name}, " in text and engine.vendor in text
     assert sum(assistant.FIXED in line for line in text.splitlines()) == 1
 
 
@@ -1210,6 +1245,89 @@ def test_config_problems_are_found(config, root):
         "SUPPORT.md: say that Claude by Anthropic reads the issues",
         "docs/missing.md is missing; it tells reporters who reads their issue",
     ]
+
+
+LIFECYCLE_WHERE = ".github/issue-assistant/config.toml: [lifecycle]"
+
+
+def test_the_periods_of_the_lifecycle_are_checked(config):
+    assert assistant.check_lifecycle(config) == []
+    broken = assistant.Lifecycle(
+        remind_after_days=0,
+        close_after_days=0,
+        duplicate_grace_days=4000,
+        reopen_after_release_days=60,
+        max_follow_ups=-1,
+        exempt_upvotes=-2,
+        lock_closed_after_days=30,
+    )
+    assert assistant.check_lifecycle(dataclasses.replace(config, lifecycle=broken)) == [
+        f"{LIFECYCLE_WHERE} remind_after_days must be 1 to 3650",
+        f"{LIFECYCLE_WHERE} close_after_days must be 2 to 3650",
+        f"{LIFECYCLE_WHERE} duplicate_grace_days must be 1 to 3650",
+        f"{LIFECYCLE_WHERE} max_follow_ups must be 0 to 3650",
+        f"{LIFECYCLE_WHERE} exempt_upvotes must be 0 to 3650",
+        f"{LIFECYCLE_WHERE} close_after_days must be more than remind_after_days, so "
+        "that the reminder comes before the closing",
+        f"{LIFECYCLE_WHERE} lock_closed_after_days must be 0 or at least "
+        "reopen_after_release_days, so that a reporter can still say that a release "
+        "didn't fix their issue",
+        # The sample's labels name the default days.
+        ".github/labels.toml: needs-info says 15 and 30 days, "
+        ".github/issue-assistant/config.toml says 0 and 0",
+        ".github/labels.toml: stale says 15 days, "
+        ".github/issue-assistant/config.toml says 0",
+        ".github/labels.toml: possible-duplicate says 3 days, "
+        ".github/issue-assistant/config.toml says 4000",
+    ]
+    fine = assistant.Lifecycle(lock_closed_after_days=30)
+    assert assistant.check_lifecycle(dataclasses.replace(config, lifecycle=fine)) == []
+
+
+def test_the_lifecycle_labels_name_the_configured_days_or_none(config):
+    lifecycle = assistant.Lifecycle(remind_after_days=20, close_after_days=40)
+    labels = tuple(
+        dataclasses.replace(label, description="Waits for the reporter")
+        if label.name == "needs-info"
+        else label
+        for label in config.labels
+    )
+    changed = dataclasses.replace(config, lifecycle=lifecycle, labels=labels)
+    # needs-info names no days; stale names the 15 of the defaults.
+    assert assistant.check(changed) == [
+        ".github/labels.toml: stale says 15 days, "
+        ".github/issue-assistant/config.toml says 20"
+    ]
+
+
+def test_a_lifecycle_that_the_sweep_cannot_use_stops_it(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    settings = root / assistant.SETTINGS / "config.toml"
+    settings.write_text(
+        settings.read_text("utf-8") + "\n[lifecycle]\nremind_after_days = 0\n",
+        encoding="utf-8",
+    )
+    code, _, _ = run_main(monkeypatch, tmp_path, root, FakeGitHub(config), "sweep")
+    assert code == 1
+    assert (
+        f"::error::{LIFECYCLE_WHERE} remind_after_days must be 1 to 3650"
+        in capsys.readouterr().out
+    )
+
+
+def test_the_lifecycle_is_read_from_config_toml(root):
+    settings = root / assistant.SETTINGS / "config.toml"
+    settings.write_text(
+        settings.read_text("utf-8")
+        + '\n[lifecycle]\nclose_after_days = 60\nexempt_labels = ["keep"]\n',
+        encoding="utf-8",
+    )
+    lifecycle = assistant.load_config(root, REPOSITORY).lifecycle
+    assert lifecycle == assistant.Lifecycle(
+        close_after_days=60, exempt_labels=("keep",)
+    )
+    assert lifecycle.warning_days == 45
 
 
 def test_the_check_command_reports_problems(monkeypatch, tmp_path, root, capsys):

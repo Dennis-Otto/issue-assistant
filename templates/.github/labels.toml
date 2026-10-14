@@ -55,6 +55,10 @@ description = "The documentation"
 group = "area"
 form_options = ["Documentation"]
 
+# The lifecycle. The descriptions of needs-info, stale and possible-duplicate name
+# the days of [lifecycle] in config.toml, or no days; stale names the days from the
+# reminder to the closing. The check command fails on a description with other days.
+
 [[label]]
 name = "needs-triage"
 color = "fbca04"

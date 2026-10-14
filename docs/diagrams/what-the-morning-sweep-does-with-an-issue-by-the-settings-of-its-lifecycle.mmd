@@ -1,0 +1,23 @@
+flowchart TB
+  accTitle: What the morning sweep does with an issue, by the settings of its lifecycle
+  accDescr: The sweep reads the lifecycle section of config.toml and stops with an error when a period can't work, such as a closing before the reminder. An issue that waits for its reporter or for the closing as a duplicate is left to the maintainers when it is exempt: it has one of the exempt labels, pinned and security by default, it is assigned while exempt_assignees is true, or it has at least exempt_upvotes thumbs up. Otherwise it gets the reminder after remind_after_days, 15 by default, and closes after close_after_days, 30, or closes as a duplicate after duplicate_grace_days, 3. Only when lock_closed_after_days is set does the sweep lock an issue closed for longer, and at least the reopen window of a release, with one line that points to a new issue, unless it is exempt or someone unlocked it.
+  sweep(["the morning sweep reads<br>[lifecycle] of config.toml"]) --> valid{"the periods<br>can work?"}
+  valid -- "no" --> stops["the sweep stops,<br>naming each value"]
+  valid -- "yes" --> open["an open issue waits for its reporter,<br>or for its closing as a duplicate"]
+  valid -- "yes" --> closed["an issue closed for more than<br>lock_closed_after_days"]
+  open --> exempt{"exempt? an exempt label,<br>an assignee or<br>enough 👍"}
+  exempt -- "yes" --> kept["stays open: no reminder,<br>no closing"]
+  exempt -- "no" --> periods["reminder after remind_after_days,<br>closing after close_after_days;<br>a duplicate after duplicate_grace_days"]
+  closed --> lockable{"locking on, not exempt,<br>and nobody unlocked it?"}
+  lockable -- "yes" --> locked["one line that points to a new issue,<br>locked as resolved"]
+  lockable -- "no" --> unlocked["stays as it is"]
+  classDef source fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  class sweep source
+  class valid,exempt,lockable question
+  class stops stop
+  class kept,unlocked safe
+  class open,closed,periods,locked job
