@@ -1261,9 +1261,7 @@ class GitHub:
         the words, at most SEARCHED."""
         # The parentheses keep `repo:` on every word, also where AND binds closer
         # than OR, as in GitHub's advanced search.
-        found = self.search(
-            f"repo:{self.repository} is:issue ({' OR '.join(terms)})"
-        )
+        found = self.search(f"repo:{self.repository} is:issue ({' OR '.join(terms)})")
         own = f"/repos/{self.repository}".lower()
         return [
             item
