@@ -1610,6 +1610,73 @@ def test_the_summary_and_the_analysis_keep_allowed_links_and_checked_numbers(con
     assert f"### Summary\n\n{cleaned}\n\n### First analysis\n\n{cleaned}\n" in body
 
 
+def test_the_issues_that_the_texts_name_stay_links_when_they_exist(config):
+    """The prompt asks for issues as #123, and the checks find the named ones: an
+    issue or a discussion that exists stays a link, a made-up number becomes code."""
+    github = FakeGitHub(
+        config, make_issue(3), make_issue(5, pull_request={}), make_issue()
+    )
+    github.discussion_store = [{"number": 9}]
+    answer = make_answer(
+        summary="Like #3 and GH-3, see discussion #9.",
+        analysis="Not #8, nor the pull request #5, nor this issue, #12.",
+        next_steps=["Read #3 first."],
+        missing_information=["Did #3 help?"],
+    )
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert "### Summary\n\nLike #3 and GH-3, see discussion #9.\n" in body
+    assert "Not `#8`, nor the pull request `#5`, nor this issue, `#12`." in body
+    assert "- Read #3 first." in body and "- Did #3 help?" in body
+    assert stray_problems(body, {3, 9}, config) == []
+    # Each number is looked up once.
+    assert [call[1] for call in github.calls].count("issues/3") == 1
+
+
+def test_the_reply_of_a_follow_up_links_the_issues_that_exist(config):
+    github = FakeGitHub(config, make_issue(3), make_issue())
+    github.comment_store[12] = [analysis(), make_comment(2, "reporter", "Log", 0)]
+    answer = make_follow_up(
+        reply="The same as #3, not #4.", missing_information=["Is it like #3?"]
+    )
+    assistant.apply_answer(github, "follow-up", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert "The same as #3, not `#4`." in body and "- Is it like #3?" in body
+
+
+@pytest.mark.parametrize("mode", ["triage", "follow-up"])
+def test_the_reasons_of_the_files_link_the_issues_that_exist(config, mode):
+    """Why a file matters may name an issue too, as the summary may."""
+    github = FakeGitHub(config, make_issue(3), make_issue())
+    files = [{"path": "docs/troubleshooting.md", "reason": "Fixed for #3, not #4."}]
+    answer = make_answer(references=files)
+    if mode == "follow-up":
+        github.comment_store[12] = [analysis(), make_comment(2, "reporter", "Log", 0)]
+        answer = make_follow_up(references=files)
+    assistant.apply_answer(github, mode, 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert "docs/troubleshooting.md`](" in body
+    assert "): Fixed for #3, not `#4`.\n" in body
+    assert stray_problems(body, {3}, config) == []
+
+
+def test_only_ten_named_numbers_are_looked_up(config):
+    github = FakeGitHub(config, *(make_issue(number) for number in range(1, 30)))
+    named = " ".join(f"#{number}" for number in range(13, 29))
+    answer = make_answer(summary=f"#0 #{2**31} {named}")
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    looked_up = [
+        path
+        for method, path, _ in github.calls
+        if method == "GET" and re.fullmatch(r"issues/\d+", path)
+    ]
+    assert [path for path in looked_up if path != "issues/12"] == [
+        f"issues/{number}" for number in range(13, 23)
+    ]
+    assert "#22 `#23`" in body and f"`#0` `#{2**31}` #13" in body
+
+
 def test_code_stays_as_it_is(config):
     text = "Run `@decorator #5` and\n```yaml\n# comment @user #9\n```\nthen @user"
     assert assistant.sanitize(text, config) == (
@@ -1994,7 +2061,7 @@ def test_references_to_paths_with_blanks_and_brackets_are_encoded(config, root):
     (root / path).write_text("# Set up\n\nPlug in the board.\n", encoding="utf-8")
     address = "docs/user%20guide%20%28old%29/set%20up.md"
     references = (
-        ({"line": 3}, f"[`{path}`, line 3]({config.blob}/abc/{address}#L3)"),
+        ({"line": 3}, f"[`{path}`, line 3]({config.blob}/abc/{address}?plain=1#L3)"),
         (
             {"anchor": "set-up"},
             f"[Set up]({config.blob}/HEAD/{address}#set-up) in `{path}`",
@@ -2006,6 +2073,95 @@ def test_references_to_paths_with_blanks_and_brackets_are_encoded(config, root):
             {"path": path, **reference, "reason": ""}, {path}, "abc", "en", config
         )
         assert link == expected
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "docs/guide.md",
+        "README.MD",
+        "docs/index.rst",
+        "docs/manual.adoc",
+        "notebooks/demo.ipynb",
+        "docs/images/flow.svg",
+    ],
+)
+def test_a_line_of_a_file_that_github_renders_links_its_source(config, root, path):
+    """GitHub shows Markdown, the other markup languages, notebooks and SVG pictures
+    rendered, where the anchor of a line leads nowhere; ?plain=1 shows the source,
+    with its lines."""
+    (root / path).parent.mkdir(parents=True, exist_ok=True)
+    (root / path).write_text("one\ntwo\nthree\n", encoding="utf-8")
+    link = assistant.reference_link(
+        {"path": path, "line": 2, "reason": ""}, {path}, "abc", "en", config
+    )
+    assert link == f"[`{path}`, line 2]({config.blob}/abc/{path}?plain=1#L2)"
+    assert assistant.allowed_url(f"{config.blob}/abc/{path}?plain=1#L2", config)
+    # A heading and the whole file link the rendered page.
+    whole = assistant.reference_link(
+        {"path": path, "reason": ""}, {path}, "abc", "en", config
+    )
+    assert whole == f"[`{path}`]({config.blob}/HEAD/{path})"
+
+
+def test_a_line_of_code_links_the_file_as_it_is(config):
+    tracked = assistant.tracked_files(config.root)
+    link = assistant.reference_link(
+        {"path": "src/app.py", "line": 4, "reason": ""}, tracked, "abc", "en", config
+    )
+    assert link is not None and "?plain=1" not in link
+
+
+@pytest.mark.parametrize(
+    ("path", "code"),
+    [
+        ("docs/a`b.md", "``docs/a`b.md``"),
+        ("docs/a``b`.md", "```docs/a``b`.md```"),
+        ("`start.md", "`` `start.md ``"),
+    ],
+)
+def test_a_path_with_backticks_stays_one_piece_of_code(config, root, path, code):
+    """A backslash escapes nothing in code: more backticks around the path than in
+    it keep it together, so that no backtick of the path ends the code."""
+    (root / path).parent.mkdir(parents=True, exist_ok=True)
+    (root / path).write_text("# Set up\n\nPlug in the board.\n", encoding="utf-8")
+    address = assistant.quote(path)
+    links = [
+        assistant.reference_link(
+            {"path": path, **reference, "reason": ""}, {path}, "abc", "en", config
+        )
+        for reference in ({"line": 1}, {"anchor": "set-up"}, {})
+    ]
+    assert links == [
+        f"[{code}, line 1]({config.blob}/abc/{address}?plain=1#L1)",
+        f"[Set up]({config.blob}/HEAD/{address}#set-up) in {code}",
+        f"[{code}]({config.blob}/HEAD/{address})",
+    ]
+    for link in links:
+        assert stray_problems(link, set(), config) == []
+        # The path is one piece of code, as GitHub reads it.
+        assert code_spans(link) == [path]
+
+
+def test_code_with_backticks_at_its_ends_keeps_them():
+    # Markdown leaves out one blank at each end, where both ends have one.
+    assert assistant.code_span("end`") == "`` end` ``"
+    assert assistant.code_span("`both`") == "`` `both` ``"
+    assert assistant.code_span("plain") == "`plain`"
+    for text in ("end`", "`both`", "plain", "a ``` b"):
+        assert code_spans(assistant.code_span(text)) == [text]
+
+
+def code_spans(markdown):
+    """The content of each piece of inline code in the Markdown, as GitHub reads it."""
+    tokens = MarkdownIt("commonmark").parse(markdown)
+    return [
+        child.content
+        for token in tokens
+        if token.type == "inline"
+        for child in token.children or []
+        if child.type == "code_inline"
+    ]
 
 
 def test_headings_get_github_s_anchors(tmp_path):
@@ -2047,6 +2203,98 @@ def test_the_first_analysis_is_posted_with_labels_and_a_rationale(config):
         "The live card shows nothing after a throw."
     )
     assert done[0] == "Analysis on #12; labels added: area: cards, area: games."
+
+
+NOTICE = "https://github.com/owner/project/blob/HEAD/SUPPORT.md"
+
+
+@pytest.mark.parametrize(
+    ("language", "words"),
+    [
+        (
+            "en",
+            "It can be wrong; the maintainers decide. Labels: `area: cards`. "
+            f"[How the assistant works]({NOTICE}#what-happens-with-your-issue) · A 👍 "
+            "or 👎 on this comment tells the maintainers whether it helped.</sub>\n",
+        ),
+        (
+            "de",
+            "Sie kann falsch sein; die Maintainer entscheiden. Labels: `area: cards`. "
+            f"[So arbeitet der Assistent]({NOTICE}#what-happens-with-your-issue) · Ein "
+            "👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen "
+            "hat.</sub>\n",
+        ),
+    ],
+)
+def test_the_footer_explains_the_assistant_and_asks_whether_it_helped(
+    config, language, words
+):
+    """A reporter who meets the assistant finds out what it is, and the maintainers,
+    by the reactions, whether its analyses help."""
+    github = FakeGitHub(config, make_issue())
+    answer = make_answer(language=language)
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert body.endswith(words)
+    # A link into the repository, as the cleaning keeps them, and nothing else.
+    link = f"{NOTICE}#what-happens-with-your-issue"
+    assert assistant.allowed_url(link, config)
+    assert assistant.sanitize(f"[x]({link})", config) == f"[x]({link})"
+    assert stray_problems(body, set(), config) == []
+
+
+def test_the_footer_of_a_follow_up_asks_too(config):
+    github = FakeGitHub(config, make_issue())
+    github.comment_store[12] = [analysis(), make_comment(2, "reporter", "Log", 0)]
+    answer = json.dumps(make_follow_up())
+    assistant.apply_answer(github, "follow-up", 12, answer, config, "abc")
+    (body,) = github.posted(12)
+    assert body.endswith(
+        "<sub>🤖 Automated follow-up by Claude. It can be wrong; the maintainers "
+        f"decide. [How the assistant works]({NOTICE}#what-happens-with-your-issue) · "
+        "A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>\n"
+    )
+
+
+def test_the_footer_of_a_duplicate_notice_says_that_a_thumbs_down_objects(config):
+    # A 👎 on the notice keeps the issue open, so the footer says so.
+    github = FakeGitHub(config, make_issue(7, labels=("bug",)), make_issue())
+    answer = make_answer(
+        duplicates=[{"number": 7, "confidence": "high", "reason": "The same."}]
+    )
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert "whether it helped; a 👎 also keeps the issue open.</sub>" in body
+
+
+@pytest.mark.parametrize(
+    ("notices", "support", "link"),
+    [
+        # A notice without the part on what happens with an issue: the whole file.
+        (("SUPPORT.md",), "# Support\n\nClaude by Anthropic reads issues.\n", NOTICE),
+        (("./SUPPORT.md",), None, f"{NOTICE}#what-happens-with-your-issue"),
+        (
+            ("docs/troubleshooting.md", "SUPPORT.md"),
+            None,
+            "https://github.com/owner/project/blob/HEAD/docs/troubleshooting.md",
+        ),
+        # A file that isn't there, which check reports, or outside the repository.
+        (("docs/missing.md",), None, None),
+        (("../SUPPORT.md",), None, None),
+        (("/etc/SUPPORT.md",), None, None),
+        ((), None, None),
+    ],
+)
+def test_the_footer_links_the_first_notice_to_reporters(
+    config, root, notices, support, link
+):
+    if support is not None:
+        (root / "SUPPORT.md").write_text(support, encoding="utf-8")
+    settings = dataclasses.replace(config, notices=notices)
+    assert assistant.notice_link(settings) == link
+    ask = "A 👍 or 👎 on this comment tells the maintainers whether it helped."
+    expected = f"[How the assistant works]({link}) · {ask}" if link else ask
+    assert assistant.invitation("en", settings) == expected
 
 
 def test_the_kind_is_corrected_while_nobody_triaged_the_issue(config):
@@ -2262,6 +2510,66 @@ def test_references_are_listed_once(config):
     (body,) = github.posted(12)
     assert body.count("troubleshooting.md#no-realtime-updates") == 1
     assert "### Where to look" in body and "nowhere" not in body
+
+
+# Five files to look at, each a link of its own.
+FIVE_REFERENCES = [
+    {"path": "src/app.py", "line": line, "reason": f"Line {line}."}
+    for line in range(1, 4)
+] + [
+    {"path": "docs/troubleshooting.md", "anchor": "setup", "reason": "Set-up."},
+    {"path": "SUPPORT.md", "reason": "Support."},
+]
+
+
+def test_many_links_fold_into_one_line_below_the_questions(config):
+    """A first analysis with five links buried its questions: more than three fold,
+    so that the questions for the reporter stay in view."""
+    github = FakeGitHub(config, make_issue(3), make_issue(7), make_issue())
+    answer = make_answer(
+        missing_information=["Which version?"],
+        related=[
+            {"kind": "issue", "number": 3, "reason": "The same card."},
+            {"kind": "issue", "number": 7, "reason": "The same throw."},
+        ],
+        references=FIVE_REFERENCES[:2],
+    )
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    fold = body.index("<details><summary>Where to look: 4 links</summary>\n\n")
+    assert body.index("### Information needed") < fold
+    assert body.index("### Related") > fold and body.index("### Where to look") > fold
+    assert "Line 2.\n\n</details>\n\n<sub>" in body
+    assert stray_problems(body, {3, 7}, config) == []
+
+
+def test_three_links_stay_open(config):
+    github = FakeGitHub(config, make_issue())
+    answer = make_answer(references=FIVE_REFERENCES[:3])
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert "<details>" not in body and "### Where to look\n\n- [`src/app.py`" in body
+
+
+def test_many_files_of_a_follow_up_fold_in_german(config):
+    github = FakeGitHub(config, make_issue())
+    github.comment_store[12] = [analysis(), make_comment(2, "reporter", "Log", 0)]
+    answer = make_follow_up(language="de", references=FIVE_REFERENCES)
+    assistant.apply_answer(github, "follow-up", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert "<details><summary>Zum Nachlesen: 5 Links</summary>\n\n" in body
+    assert "### Zum Nachlesen\n\n- [`src/app.py`, Zeile 1]" in body
+    assert stray_problems(body, set(), config) == []
+
+
+def test_the_fold_shows_as_github_reads_it():
+    """GitHub reads the Markdown inside the fold, between the blank lines."""
+    body = assistant.link_sections("en", ["#3: A.", "#7: B."], ["`a`: C.", "`b`: D."])
+    tokens = MarkdownIt("commonmark").parse(body)
+    kinds = [token.type for token in tokens]
+    assert kinds[0] == "html_block" and kinds[-1] == "html_block"
+    assert kinds.count("heading_open") == 2 and kinds.count("list_item_open") == 4
+    assert assistant.link_sections("en", [], []) == ""
 
 
 @pytest.mark.parametrize(
@@ -2750,6 +3058,63 @@ def test_a_german_reporter_is_reminded_in_german(config):
     assistant.sweep(github, NOW)
     (body,) = github.posted(12)
     assert "eine freundliche Erinnerung" in body and "22. Oktober 2026" in body
+    assert (
+        "deine Antwort auf [die Fragen oben]"
+        "(https://github.com/owner/project/issues/12#issuecomment-1)."
+    ) in body
+
+
+def test_the_reminder_links_the_comment_with_the_questions(config):
+    """Below a long conversation, "the questions above" are hard to find."""
+    github = waiting(config, 16, comments=[make_comment(5, "reporter", "Hm.", 20)])
+    assistant.sweep(github, NOW)
+    (body,) = github.posted(12)
+    assert (
+        "your answer to [the questions above]"
+        "(https://github.com/owner/project/issues/12#issuecomment-1). Without"
+    ) in body
+    # The script's own link, to a comment, which the engine's words never get.
+    assert stray_problems(body, set(), config) == [
+        "link to https://github.com/owner/project/issues/12#issuecomment-1"
+    ]
+
+
+def test_the_reminder_links_the_last_question_of_a_maintainer(config):
+    asked = make_comment(7, "owner", "Which version?", 16, association="OWNER")
+    github = waiting(config, 16, comments=[asked])
+    assistant.sweep(github, NOW)
+    (body,) = github.posted(12)
+    assert "[the questions above](https://github.com/owner/project/issues/12" in body
+    assert body.count("#issuecomment-7)") == 1
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        # The last comment of the assistant asked nothing; the label came by hand.
+        {"body": assistant.render_marker("analysis", lang="en", questions=0)},
+        # An address that GitHub would never give a comment of this issue.
+        {"html_url": "https://github.com/owner/project/issues/13#issuecomment-1"},
+        {"html_url": "https://evil.example/owner/project/issues/12#issuecomment-1"},
+        {"html_url": "https://github.com/owner/project/issues/12#issuecomment-1)x"},
+    ],
+)
+def test_the_reminder_links_no_comment_that_asked_nothing_here(config, change):
+    github = waiting(config, 16)
+    github.comment_store[12][0].update(change)
+    assistant.sweep(github, NOW)
+    (body,) = github.posted(12)
+    assert "your answer to the questions above. Without" in body
+    assert "](" not in body
+
+
+def test_the_reminder_links_the_comment_whatever_case_github_gives_the_name(config):
+    github = waiting(config, 16)
+    address = "https://github.com/Owner/Project/issues/12#issuecomment-1"
+    github.comment_store[12][0]["html_url"] = address
+    assistant.sweep(github, NOW)
+    (body,) = github.posted(12)
+    assert f"[the questions above]({address})" in body
 
 
 def test_the_issue_closes_30_days_after_the_question(config):
@@ -4524,6 +4889,85 @@ def test_a_sweep_that_github_failed_in_part_reports_both_and_fails(
     )
     assert "- #12: reminded the reporter after" in summary
     assert "- Failed: #13: gh api: API rate limit exceeded" in summary
+    # The feedback is counted all the same.
+    assert "- Feedback of the last 30 days: analyses " in summary
+
+
+def rated(comment, up=0, down=0, **others):
+    """The comment with the reactions that GitHub counts in its list of comments."""
+    counts = {"+1": up, "-1": down, "laugh": 0, "heart": 0, **others}
+    return {**comment, "reactions": {"total_count": sum(counts.values()), **counts}}
+
+
+def test_the_sweep_counts_the_feedback_on_the_analyses_of_30_days(config):
+    """The footers ask for a 👍 or 👎; the summary of the sweep counts them, as
+    numbers only."""
+    github = FakeGitHub(config)
+    marker = assistant.render_marker("follow-up", lang="en", questions=0)
+    github.comment_store[12] = [
+        rated(analysis(1, days_ago=29), up=2, down=1, heart=3),
+        rated(make_comment(2, "bot", f"{marker}\nThanks", 20), up=1),
+        # A 👍 for the reporter, not the assistant.
+        rated(make_comment(3, "reporter", "A log", 20), up=5),
+        rated(make_comment(4, "bot", assistant.render_marker("reminder"), 3), down=1),
+    ]
+    github.comment_store[13] = [
+        rated(analysis(5, days_ago=10), up=1),
+        # Older than 30 days, although someone reacted or edited it since.
+        {**rated(analysis(6, days_ago=31), up=4), "updated_at": at(1)},
+        # GitHub left out the counts.
+        analysis(7, days_ago=2),
+    ]
+    assert assistant.feedback(github, NOW) == (
+        "Feedback of the last 30 days: analyses 3, 👍 3, 👎 1; "
+        "follow-ups 1, 👍 1, 👎 0."
+    )
+    assert ("GET", f"issues/comments?since={at(30)}&per_page=100", None) in (
+        github.calls
+    )
+
+
+def test_a_failed_count_of_the_feedback_leaves_the_sweep_green(
+    monkeypatch, tmp_path, sample_root, config, capsys
+):
+    github = waiting(config, 16)
+    github.fail(r"^GET issues/comments\?")
+    code, _, summary = run_main(monkeypatch, tmp_path, sample_root, github, "sweep")
+    assert code == 0
+    assert "::warning::Counting the feedback: gh api: API rate limit" in (
+        capsys.readouterr().out
+    )
+    assert "- #12: reminded the reporter after" in summary
+    assert "- Feedback not counted: GitHub failed." in summary
+
+
+@pytest.mark.parametrize(
+    ("event", "counted"),
+    [
+        ("schedule", True),
+        ("workflow_dispatch", True),
+        ("pull_request_target", False),
+        ("release", False),
+        ("workflow_run", False),
+    ],
+)
+@pytest.mark.parametrize("failed", [False, True])
+def test_only_the_morning_and_a_sweep_by_hand_count_the_feedback(
+    monkeypatch, tmp_path, sample_root, config, event, counted, failed
+):
+    """Merges and releases start a sweep too, often many a day; counting lists every
+    comment of 30 days, which would spend the requests of the token for nothing."""
+    github = two_waiting(config)
+    if failed:
+        github.fail("^GET issues/13/comments")
+    code, _, summary = run_main(
+        monkeypatch, tmp_path, sample_root, github, "sweep", GITHUB_EVENT_NAME=event
+    )
+    assert code == (1 if failed else 0)
+    assert "- #12: reminded the reporter after" in summary
+    assert ("- Feedback of the last 30 days: " in summary) == counted
+    listed = [path for _, path, _ in github.calls if path.startswith("issues/comments")]
+    assert bool(listed) == counted
 
 
 def test_a_repository_without_settings_is_told_what_to_add(
