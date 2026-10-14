@@ -34,6 +34,7 @@ from support import (
     make_issue,
     make_pull,
     make_release,
+    not_found,
     rate_limited,
     release_history,
     run_main,
@@ -285,7 +286,7 @@ def test_follow_ups_are_limited():
             assistant.render_marker("follow-up", lang="en", questions=1),
             1,
         )
-        for index in range(2, 2 + assistant.MAX_FOLLOW_UPS)
+        for index in range(2, 2 + assistant.DEFAULT_LIFECYCLE.max_follow_ups)
     ]
     assert not assistant.follow_up_due([asked, *follow], "reporter")
     assert assistant.follow_up_due([asked, *follow[:-1]], "reporter") is follow[-2]
@@ -897,25 +898,100 @@ def test_the_reporter_may_also_object_to_a_duplicate_but_use_no_other_command(
 ):
     github = FakeGitHub(config, make_issue(labels=("bug", "possible-duplicate")))
     plan, reactions = command_event(
-        config, github, "/assistant mute", "reporter", "NONE"
-    )
-    assert plan.notes == [
-        "Only maintainers use /assistant mute; the reporter may use again and "
-        "not-duplicate."
-    ]
-    # A refused command is no comment that objects to the notice either.
-    assert (reactions, github.labels_of(12)) == (
-        ["confused"],
-        {"bug", "possible-duplicate"},
-    )
-    plan, reactions = command_event(
-        config, github, "/assistant not-duplicate", "reporter", "NONE", comment_id=6
+        config, github, "/assistant not-duplicate", "reporter", "NONE"
     )
     assert (plan.notes, reactions) == (
         ["#12 is no duplicate: it stays open."],
         ["eyes"],
     )
     assert github.labels_of(12) == {"bug"}
+    github.store[12]["labels"].append({"name": "possible-duplicate"})
+    plan, reactions = command_event(
+        config, github, "/assistant mute", "reporter", "NONE", comment_id=6
+    )
+    # A refused command is still the reporter's comment: it objects to the notice.
+    assert plan.notes == [
+        "Only maintainers use /assistant mute; the reporter may use again and "
+        "not-duplicate.",
+        "A comment stopped the duplicate closing.",
+    ]
+    assert (reactions, github.labels_of(12)) == (["confused"], {"bug"})
+
+
+def test_a_mistyped_command_still_objects_and_answers(config):
+    # A space for the hyphen: no command, so the comment objects to the notice.
+    github = FakeGitHub(config, make_issue(labels=("bug", "possible-duplicate")))
+    body = "/assistant not duplicate, mine crashes on start"
+    plan, reactions = command_event(config, github, body, "reporter", "NONE")
+    assert plan.notes[1:] == ["A comment stopped the duplicate closing."]
+    assert (reactions, github.labels_of(12)) == (["confused"], {"bug"})
+    # The sweep counts it as an objection too.
+    github = FakeGitHub(config, make_issue(labels=("bug", "possible-duplicate")))
+    command_event(config, github, "/assistant duplicate #7")
+    github.store[7] = make_issue(7)
+    github.comment_store[12].append(make_comment(9, "reporter", body, -1))
+    assert not assistant.conversing(github.store[12], github.comment_store[12][0])
+    assert assistant.conversing(github.store[12], github.comment_store[12][-1])
+    # And it answers a question.
+    github = FakeGitHub(config, make_issue(labels=("bug", "needs-info")))
+    plan, _ = command_event(config, github, "/assistant oops\nIt is 2.1.", "reporter")
+    assert "The reporter answered." in plan.notes
+    assert "needs-info" not in github.labels_of(12)
+
+
+def test_the_reporter_s_again_counts_the_newer_issues_of_the_day(config):
+    # #12 was analyzed two days ago; three strangers opened newer issues today.
+    newer = [
+        make_issue(number, author=f"stranger{number}", days_ago=0.1)
+        for number in (13, 14, 15)
+    ]
+    github = FakeGitHub(
+        config, make_issue(labels=("bug", "needs-triage"), days_ago=2), *newer
+    )
+    github.comment_store[12] = [analysis(1, days_ago=2)]
+    plan, reactions = command_event(
+        dataclasses.replace(config, max_per_day=3),
+        github,
+        "/assistant again",
+        "reporter",
+        "NONE",
+    )
+    assert (plan.mode, reactions) == ("none", ["confused"])
+    assert plan.notes == [
+        "Daily limit of AI runs reached (max_per_day = 3); the maintainer takes over."
+    ]
+    # Neither the request nor a run is recorded.
+    first = github.comment_store[12][0]
+    assert "again" not in assistant.marker(first)[1]
+    assert assistant.runs_of(first) == []
+
+
+def test_a_deleted_command_comment_still_carries_out_the_command(config):
+    github = FakeGitHub(config, make_issue())
+    github.fail(r"POST issues/comments/\d+/reactions", not_found())
+    plan, reactions = command_event(config, github, "/assistant again")
+    assert (plan.mode, reactions) == ("triage", [])
+
+
+def test_a_reaction_that_fails_otherwise_fails_the_job(config):
+    github = FakeGitHub(config, make_issue())
+    github.fail(r"POST issues/comments/\d+/reactions")
+    with pytest.raises(assistant.GitHubError):
+        command_event(config, github, "/assistant again")
+
+
+def test_an_exempt_issue_is_not_marked_as_a_duplicate(config):
+    config = dataclasses.replace(
+        config,
+        lifecycle=dataclasses.replace(config.lifecycle, exempt_labels=("pinned",)),
+    )
+    github = FakeGitHub(config, make_issue(7), make_issue(labels=("bug", "pinned")))
+    plan, reactions = command_event(config, github, "/assistant duplicate #7")
+    assert (plan.notes, reactions) == (
+        ["#12 is exempt (labeled pinned) and never closes as a duplicate."],
+        ["confused"],
+    )
+    assert github.labels_of(12) == {"bug", "pinned"} and not github.posted(12)
 
 
 def test_a_command_of_anyone_else_is_an_ordinary_comment(config):
@@ -1014,14 +1090,14 @@ def test_a_duplicate_that_a_maintainer_named_closes_after_the_same_days(config):
         make_comment(6, "maintainer", "/assistant mute", -1, "OWNER")
     )
     assert assistant.sweep(github, NOW + timedelta(days=2.9)) == []
-    assert assistant.sweep(github, NOW + assistant.DUPLICATE_GRACE) == [
+    assert assistant.sweep(github, NOW + timedelta(days=3)) == [
         "#12: closed as a duplicate of #7."
     ]
     # A comment objects, as to the notice of an analysis.
     github = FakeGitHub(config, make_issue(7), make_issue())
     command_event(config, github, "/assistant duplicate #7")
     github.comment_store[12].append(make_comment(9, "someone", "Not the same", -1))
-    assert assistant.sweep(github, NOW + assistant.DUPLICATE_GRACE) == [
+    assert assistant.sweep(github, NOW + timedelta(days=3)) == [
         "#12: stays open, the duplicate notice was objected to or is outdated."
     ]
 
@@ -4111,7 +4187,11 @@ def waiting(config, days, *, labels=("bug", "needs-info"), comments=(), language
 
 def reminded(config, days_waiting, days_since_reminder, **options):
     sent = NOW - timedelta(days=days_since_reminder)
-    body = assistant.render_reminder("reporter", "en", sent + assistant.WARNING_PERIOD)
+    body = assistant.render_reminder(
+        "reporter",
+        "en",
+        sent + timedelta(days=assistant.DEFAULT_LIFECYCLE.warning_days),
+    )
     reminder = make_comment(2, "bot", body, days_since_reminder)
     return waiting(
         config,
@@ -4241,7 +4321,9 @@ def test_a_reminder_posted_after_midnight_keeps_the_day_that_it_named(config):
     start, and GitHub dates its comment the next day."""
     started = datetime(2026, 9, 22, 23, 59, 50, tzinfo=UTC)
     body = assistant.render_reminder(
-        "reporter", "en", started + assistant.WARNING_PERIOD
+        "reporter",
+        "en",
+        started + timedelta(days=assistant.DEFAULT_LIFECYCLE.warning_days),
     )
     reminder = make_comment(2, "bot", body, 0) | {"created_at": "2026-09-23T00:00:10Z"}
     github = waiting(
@@ -4538,6 +4620,351 @@ def test_a_label_without_a_notice_is_left_to_the_maintainer(config):
     assert "possible-duplicate" in github.labels_of(12)
     github.store[12]["locked"] = True
     assert assistant.sweep(github, NOW) == []
+
+
+# The periods, exemptions and locking of [lifecycle]
+
+# Periods unlike the defaults: the reminder names the day 25 days after it.
+CUSTOM = assistant.Lifecycle(
+    remind_after_days=20,
+    close_after_days=45,
+    duplicate_grace_days=7,
+    reopen_after_release_days=60,
+    max_follow_ups=1,
+)
+LOCKING = assistant.Lifecycle(lock_closed_after_days=90)
+
+
+def test_the_configured_periods_time_the_reminder(config):
+    assert assistant.sweep(waiting(config, 19.5), NOW, lifecycle=CUSTOM) == []
+    github = waiting(config, 20)
+    assert assistant.sweep(github, NOW, lifecycle=CUSTOM) == [
+        "#12: reminded the reporter after 20 days."
+    ]
+    (body,) = github.posted(12)
+    assert body.startswith("<!-- issue-assistant:reminder closes=2026-11-01 -->\n")
+    assert "November 1, 2026" in body
+
+
+def test_the_configured_periods_time_the_closing(config):
+    sent = NOW - timedelta(days=25)
+    body = assistant.render_reminder("reporter", "en", sent + timedelta(days=25))
+    reminder = make_comment(2, "bot", body, 25)
+    labels = ("bug", "needs-info", "stale")
+    github = waiting(config, 44, labels=labels, comments=(reminder,))
+    assert assistant.sweep(github, NOW, lifecycle=CUSTOM) == []
+    github = waiting(config, 45, labels=labels, comments=(reminder,))
+    assert assistant.sweep(github, NOW, lifecycle=CUSTOM) == [
+        "#12: closed after 45 days without an answer."
+    ]
+    (closing,) = github.posted(12)
+    assert "has been missing for 45 days." in closing
+
+
+def test_a_reminder_without_its_day_closes_after_the_configured_warning():
+    reminder = make_comment(2, "bot", assistant.render_marker("reminder"), 0)
+    assert assistant.closing_day(reminder, CUSTOM) == (NOW + timedelta(days=25)).date()
+
+
+def test_a_duplicate_closes_after_the_configured_grace(config):
+    assert assistant.sweep(possible_duplicate(config, 6.9), NOW, lifecycle=CUSTOM) == []
+    github = possible_duplicate(config, 7)
+    assert assistant.sweep(github, NOW, lifecycle=CUSTOM) == [
+        "#12: closed as a duplicate of #7."
+    ]
+    (body,) = github.posted(12)
+    assert "as announced 7 days ago." in body
+
+
+@pytest.mark.parametrize(("days_ago", "mode"), [(59, "release-reply"), (61, "none")])
+def test_the_reopen_window_after_a_release_is_configurable(config, days_ago, mode):
+    config = dataclasses.replace(config, lifecycle=CUSTOM)
+    github = closed_by_release(config, days_ago=days_ago)
+    assert comment_after_release(github, config).mode == mode
+
+
+@pytest.mark.parametrize(("most", "mode"), [(2, "follow-up"), (0, "none")])
+def test_the_follow_ups_are_limited_as_configured(config, most, mode):
+    config = dataclasses.replace(
+        config, lifecycle=assistant.Lifecycle(max_follow_ups=most)
+    )
+    github = FakeGitHub(config, make_issue(labels=("bug", "needs-info")))
+    answer = make_comment(2, "reporter", "Version 2.1", 0)
+    github.comment_store[12] = [analysis(questions=1), answer]
+    plan = assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(12), comment=answer),
+        config,
+    )
+    assert plan.mode == mode
+    asked = analysis(questions=1)
+    marker = assistant.render_marker("follow-up", lang="en", questions=1)
+    follow = make_comment(2, "bot", marker, 1)
+    assert assistant.follow_up_due([asked, follow], "reporter", most) == (
+        follow if most == 2 else None
+    )
+
+
+@pytest.mark.parametrize(
+    ("language", "phrases"),
+    [
+        (
+            "en",
+            (
+                "a reminder follows after 20 days and the issue closes after 45 days.",
+                "a duplicate of #7 in 7 days,",
+                "has been missing for 45 days.",
+                "as announced 7 days ago.",
+                "closed for more than 90 days,",
+            ),
+        ),
+        (
+            "de",
+            (
+                "Ohne Antwort folgt nach 20 Tagen eine Erinnerung, nach 45 Tagen wird",
+                "Das Issue wird in 7 Tagen als Duplikat",
+                "Informationen seit 45 Tagen fehlen.",
+                "wie vor 7 Tagen angekündigt.",
+                "seit mehr als 90 Tagen geschlossen,",
+            ),
+        ),
+    ],
+)
+def test_the_comments_name_the_configured_days(config, language, phrases):
+    lifecycle = dataclasses.replace(CUSTOM, lock_closed_after_days=90)
+    config = dataclasses.replace(config, lifecycle=lifecycle)
+    analysis_ = assistant.render_analysis(
+        make_answer(language=language),
+        "reporter",
+        assistant.Findings(
+            duplicate={"number": 7}, duplicate_reason="The same.", numbers={7}
+        ),
+        ["The version"],
+        [],
+        config,
+    )
+    follow = assistant.render_follow_up(
+        make_follow_up(language=language), "reporter", [], ["The log"], config
+    )
+    texts = [
+        analysis_,
+        assistant.render_closed_unanswered("reporter", language, lifecycle),
+        assistant.render_closed_duplicate(7, language, lifecycle),
+        assistant.render_locked(language, lifecycle),
+    ]
+    for phrase in phrases:
+        assert any(phrase in text for text in texts), phrase
+    assert phrases[0] in follow
+
+
+def test_one_day_is_singular():
+    assert [assistant.days(count, "en") for count in (1, 2)] == ["1 day", "2 days"]
+    assert [assistant.days(count, "de") for count in (1, 2)] == ["1 Tag", "2 Tagen"]
+
+
+def test_no_text_names_a_period_of_its_own():
+    """The periods are settings: a number of days in a text would contradict a
+    repository that changed them."""
+    period = re.compile(
+        r"\b(\d+|one|two|three|four|five|ein|einem|zwei|drei|vier|fünf) "
+        r"(days?|Tag|Tage|Tagen)\b"
+    )
+    for language, texts in assistant.TEXT.items():
+        for key, text in texts.items():
+            assert not period.search(text), (language, key)
+
+
+def exempt(issue, case):
+    """The issue, made exempt in the way of the case, and the lifecycle with it."""
+    if case == "label":
+        issue["labels"].append({"name": "Pinned"})
+        return assistant.DEFAULT_LIFECYCLE, "labeled Pinned"
+    if case == "assignee":
+        issue["assignees"] = [{"login": "maintainer"}]
+        return assistant.Lifecycle(exempt_assignees=True), "assigned"
+    issue["reactions"] = {"+1": 5, "-1": 0}
+    return assistant.Lifecycle(exempt_upvotes=5), "5 👍"
+
+
+@pytest.mark.parametrize("case", ["label", "assignee", "upvotes"])
+def test_an_exempt_issue_is_neither_reminded_nor_closed(config, case):
+    github = waiting(config, 40)
+    lifecycle, _ = exempt(github.store[12], case)
+    assert assistant.sweep(github, NOW, lifecycle=lifecycle) == []
+    assert not github.writes_made()
+    # Exempted after its reminder, it no longer closes, and loses stale.
+    github = reminded(config, 40, 25)
+    lifecycle, why = exempt(github.store[12], case)
+    assert assistant.sweep(github, NOW, lifecycle=lifecycle) == [
+        f"#12: exempt ({why}); it no longer closes."
+    ]
+    assert github.store[12]["state"] == "open"
+    assert github.labels_of(12) >= {"needs-info"} and "stale" not in github.labels_of(
+        12
+    )
+
+
+def test_assignees_and_upvotes_exempt_only_when_configured():
+    issue = make_issue(assignees=[{"login": "maintainer"}], reactions={"+1": 4})
+    assert assistant.exemption(issue, assistant.DEFAULT_LIFECYCLE) == ""
+    assert assistant.exemption(issue, assistant.Lifecycle(exempt_upvotes=5)) == ""
+    assert (
+        assistant.exemption(make_issue(), assistant.Lifecycle(exempt_assignees=True))
+        == ""
+    )
+    assert assistant.exemption(make_issue(reactions=None), CUSTOM) == ""
+
+
+@pytest.mark.parametrize("case", ["label", "assignee", "upvotes"])
+def test_an_exempt_duplicate_stays_open(config, case):
+    github = possible_duplicate(config)
+    lifecycle, why = exempt(github.store[12], case)
+    assert assistant.sweep(github, NOW, lifecycle=lifecycle) == [
+        f"#12: stays open, exempt ({why})."
+    ]
+    assert github.store[12]["state"] == "open"
+    assert "possible-duplicate" not in github.labels_of(12)
+    assert github.posted(12) == []
+
+
+def closed_long_ago(number=12, days=91, labels=("bug",), **changes):
+    return make_issue(
+        number,
+        labels=labels,
+        state="closed",
+        days_ago=days + 10,
+        closed_at=at(days),
+        **changes,
+    )
+
+
+SEARCH = (
+    "SEARCH",
+    f'repo:{REPOSITORY} is:issue is:closed is:unlocked closed:<2026-07-09 -label:"pinned" '
+    '-label:"security"',
+    None,
+)
+
+
+def test_issues_closed_long_ago_are_locked_with_one_line(config):
+    github = FakeGitHub(
+        config, closed_long_ago(), closed_long_ago(13, days=90), make_issue(14)
+    )
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == [
+        "#12: locked, closed for more than 90 days."
+    ]
+    assert SEARCH in github.calls
+    issue = github.store[12]
+    assert (issue["locked"], issue["active_lock_reason"]) == (True, "resolved")
+    (body,) = github.posted(12)
+    assert body.startswith("<!-- issue-assistant:locked -->\n")
+    assert "closed for more than 90 days, so I locked it." in body
+    assert not github.store[13]["locked"] and not github.store[14]["locked"]
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == []
+
+
+def test_a_german_issue_gets_the_line_in_german(config):
+    github = FakeGitHub(config, closed_long_ago())
+    marker = assistant.render_marker("analysis", lang="de", questions=0)
+    github.comment_store[12] = [make_comment(1, "bot", marker, 100)]
+    assistant.sweep(github, NOW, lifecycle=LOCKING)
+    assert "seit mehr als 90 Tagen geschlossen" in github.posted(12)[-1]
+
+
+def test_nothing_is_locked_by_default(config):
+    github = FakeGitHub(config, closed_long_ago(days=4000))
+    assert assistant.sweep(github, NOW) == []
+    assert not any(call[0] == "SEARCH" for call in github.calls)
+
+
+@pytest.mark.parametrize("case", ["label", "assignee", "upvotes"])
+def test_exempt_issues_stay_unlocked(config, case):
+    github = FakeGitHub(config, closed_long_ago())
+    lifecycle, _ = exempt(github.store[12], case)
+    lifecycle = dataclasses.replace(lifecycle, lock_closed_after_days=90)
+    assert assistant.sweep(github, NOW, lifecycle=lifecycle) == []
+    assert not github.writes_made()
+
+
+def test_the_search_leaves_out_the_exempt_issues_that_it_can(config):
+    lifecycle = assistant.Lifecycle(
+        exempt_labels=("keep", 'say "hi"'),
+        exempt_assignees=True,
+        lock_closed_after_days=90,
+    )
+    github = FakeGitHub(config, closed_long_ago(labels=('say "hi"',)))
+    assert assistant.sweep(github, NOW, lifecycle=lifecycle) == []
+    (search,) = [call[1] for call in github.calls if call[0] == "SEARCH"]
+    assert search.endswith('closed:<2026-07-09 -label:"keep" no:assignee')
+
+
+def test_an_issue_that_someone_unlocked_stays_unlocked(config):
+    github = FakeGitHub(config, closed_long_ago())
+    github.event_store[12] = [
+        {"event": "locked", "actor": BOT_USER, "created_at": at(50)},
+        {"event": "unlocked", "actor": {"login": "owner"}, "created_at": at(40)},
+    ]
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == []
+    assert not github.writes_made()
+
+
+def test_a_locked_issue_that_the_search_still_finds_is_left_alone(config, monkeypatch):
+    github = FakeGitHub(config)
+    monkeypatch.setattr(
+        github, "search_issues_where", lambda _: [closed_long_ago(locked=True)]
+    )
+    assert assistant.lock_closed(github, NOW, LOCKING) == []
+
+
+def test_a_failed_lock_gets_its_line_once(config):
+    github = FakeGitHub(config, closed_long_ago())
+    github.fail(r"^PUT issues/12/lock$")
+    with pytest.raises(assistant.SweepIncomplete):
+        assistant.sweep(github, NOW, lifecycle=LOCKING)
+    github.failures.clear()
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == [
+        "#12: locked, closed for more than 90 days."
+    ]
+    assert len(github.posted(12)) == 1 and github.store[12]["locked"]
+
+
+def test_a_sweep_locks_at_most_25_issues(config):
+    issues = [closed_long_ago(number) for number in range(1, 28)]
+    github = FakeGitHub(config, *issues)
+    # Someone unlocked the oldest; it takes none of the 25.
+    github.event_store[1] = [{"event": "unlocked", "created_at": at(5)}]
+    assert len(assistant.sweep(github, NOW, lifecycle=LOCKING)) == 25
+    assert not github.store[27]["locked"]
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == [
+        "#27: locked, closed for more than 90 days."
+    ]
+    assert not github.store[1]["locked"]
+
+
+def test_more_than_a_page_of_skipped_issues_hides_none_after_them(config):
+    issues = [closed_long_ago(number) for number in range(1, 103)]
+    github = FakeGitHub(config, *issues)
+    for number in range(1, 102):
+        github.event_store[number] = [{"event": "unlocked", "created_at": at(5)}]
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == [
+        "#102: locked, closed for more than 90 days."
+    ]
+    searches = [call for call in github.calls if call[0] == "SEARCH"]
+    assert len(searches) == 2
+
+
+def test_the_search_stops_at_the_1000_results_that_github_returns(monkeypatch):
+    github = assistant.GitHub(REPOSITORY)
+    pages = []
+
+    def full_page(args):
+        pages.append(args[1])
+        return {"items": [{"number": len(pages)}] * 100}
+
+    monkeypatch.setattr(github, "_gh", full_page)
+    assert len(list(github.search_issues_where("is:closed"))) == 1000
+    assert pages[-1].endswith("&per_page=100&page=10") and len(pages) == 10
 
 
 # A sweep that GitHub fails in part

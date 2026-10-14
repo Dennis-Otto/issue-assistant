@@ -36,7 +36,7 @@ from fnmatch import fnmatchcase
 from functools import cache, partial
 from pathlib import Path, PurePosixPath
 from typing import Any
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import quote, unquote, urlencode, urlsplit
 
 TOOL = Path(__file__).resolve().parent
 PROMPTS = TOOL / "prompts"
@@ -103,14 +103,16 @@ REPOSITORY_NAME = re.compile(r"[\w-]+/(?!\.\.?\Z)[\w.-]+", re.ASCII)
 BOT = "github-actions[bot]"
 MAINTAINERS = {"OWNER", "MEMBER", "COLLABORATOR"}
 
-# The waiting for a reporter counts days of the calendar in UTC, see over().
-REMIND_AFTER = timedelta(days=15)
-CLOSE_AFTER = timedelta(days=30)
-# A reminder names the day the issue closes, this much later, also when the
-# reminder came late, for example after the workflow was switched off.
-WARNING_PERIOD = timedelta(days=15)
-DUPLICATE_GRACE = timedelta(days=3)
-MAX_FOLLOW_UPS = 2
+# The periods of the lifecycle are in Lifecycle, which [lifecycle] in config.toml
+# sets. None is longer than this many days, ten years, which keeps every date that
+# the sweep works out within the calendar of Python.
+MAX_DAYS = 3650
+# The most issues that one sweep locks; the next sweep goes on with the rest, so
+# that turning locking on in a repository with many old issues stays within the
+# limits of GitHub for writes.
+LOCKS_PER_SWEEP = 25
+# GitHub's search returns at most 1000 results, 10 pages of 100.
+SEARCH_PAGES = 10
 # Pull requests merged this long ago still mark the issues they fix, in case the
 # event of the merge was missed.
 MERGE_LOOKBACK = timedelta(days=14)
@@ -119,8 +121,6 @@ MERGE_LOOKBACK = timedelta(days=14)
 # fix counts for its label for this much longer, or one merged at the edge of the
 # lookback would lose the release that ships it.
 LABEL_SLACK = timedelta(hours=1)
-# How long a comment of the reporter can reopen an issue that a release closed.
-REOPEN_AFTER_RELEASE = timedelta(days=30)
 # The limits of the AI runs that people who don't maintain the repository start,
 # unless [engine] in config.toml sets others: analyses, follow-ups and replies after
 # a release in 24 hours, analyses of one reporter's new issues in 24 hours, and the
@@ -629,6 +629,92 @@ class Acceptance:
 
 
 @dataclass(frozen=True)
+class Lifecycle:
+    """The periods and the exemptions of the lifecycle, from [lifecycle] in
+    config.toml. The waiting for a reporter counts days of the calendar in UTC, see
+    over(); lifecycle_problems() names the values that the sweep can't use."""
+
+    # A reminder this many days after the last question without an answer, and the
+    # closing this many days after it. The reminder names the day the issue closes,
+    # the difference of the two later, also when it came late, for example after
+    # the workflow was switched off.
+    remind_after_days: int = 15
+    close_after_days: int = 30
+    # A sure duplicate closes this many days after the notice, unless someone
+    # objects.
+    duplicate_grace_days: int = 3
+    # How long a comment of the reporter can reopen an issue that a release closed.
+    reopen_after_release_days: int = 30
+    # How often the AI follows up on the reporter's answers to its questions.
+    max_follow_ups: int = 2
+    # Issues that the sweep never reminds, closes or locks: those with one of these
+    # labels, in any case, those assigned to someone when exempt_assignees is true,
+    # and those with at least exempt_upvotes 👍, unless it is 0.
+    exempt_labels: tuple[str, ...] = ("pinned", "security")
+    exempt_assignees: bool = False
+    exempt_upvotes: int = 0
+    # The sweep locks issues closed for more than this many days, and after the
+    # reopen window of a release; 0 locks none.
+    lock_closed_after_days: int = 0
+
+    @property
+    def warning_days(self) -> int:
+        """The days from the reminder to the closing that it names."""
+        return self.close_after_days - self.remind_after_days
+
+    def text(self, language: str) -> dict[str, str]:
+        """The periods as the comments name them, such as "15 days"."""
+        return {
+            "remind_days": days(self.remind_after_days, language),
+            "close_days": days(self.close_after_days, language),
+            "grace_days": days(self.duplicate_grace_days, language),
+            "reopen_days": days(self.reopen_after_release_days, language),
+            "lock_days": days(self.lock_closed_after_days, language),
+        }
+
+
+DEFAULT_LIFECYCLE = Lifecycle()
+
+
+def days(count: int, language: str) -> str:
+    """A number of days in the words of a comment; German needs the dative, as
+    after "nach", "in", "seit" and "vor"."""
+    if language == "de":
+        return f"{count} Tag" if count == 1 else f"{count} Tagen"
+    return f"{count} day" if count == 1 else f"{count} days"
+
+
+def lifecycle_problems(lifecycle: Lifecycle) -> list[str]:
+    """What the sweep can't work with in the periods of [lifecycle]."""
+    where = f"{SETTINGS / 'config.toml'}: [lifecycle]"
+    problems = []
+    for name, least in (
+        ("remind_after_days", 1),
+        ("close_after_days", 2),
+        ("duplicate_grace_days", 1),
+        ("reopen_after_release_days", 1),
+        ("max_follow_ups", 0),
+        ("exempt_upvotes", 0),
+        ("lock_closed_after_days", 0),
+    ):
+        value = getattr(lifecycle, name)
+        if not least <= value <= MAX_DAYS:
+            problems.append(f"{where} {name} must be {least} to {MAX_DAYS}")
+    if lifecycle.close_after_days <= lifecycle.remind_after_days:
+        problems.append(
+            f"{where} close_after_days must be more than remind_after_days, so that "
+            "the reminder comes before the closing"
+        )
+    if 0 < lifecycle.lock_closed_after_days < lifecycle.reopen_after_release_days:
+        problems.append(
+            f"{where} lock_closed_after_days must be 0 or at least "
+            "reopen_after_release_days, so that a reporter can still say that a "
+            "release didn't fix their issue"
+        )
+    return problems
+
+
+@dataclass(frozen=True)
 class Config:
     """What the assistant knows about the repository it looks after."""
 
@@ -648,6 +734,7 @@ class Config:
     max_per_day: int = MAX_PER_DAY
     max_per_author_per_day: int = MAX_PER_AUTHOR_PER_DAY
     release_replies: int = RELEASE_REPLIES
+    lifecycle: Lifecycle = DEFAULT_LIFECYCLE
     # What the engine reads of the other issues and the discussions; see
     # CONTEXT_LIMITS.
     max_issues: int = MAX_ISSUES
@@ -675,7 +762,8 @@ class Config:
 
 @dataclass(frozen=True)
 class Key:
-    """A key of config.toml: the attribute of Config that it sets, and its type."""
+    """A key of config.toml: the attribute of Config that it sets, such as
+    lifecycle.max_follow_ups for one of Config.lifecycle, and its type."""
 
     attribute: str
     # str, bool, int for a whole number, or list for a list of strings.
@@ -705,6 +793,18 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
     },
     "transparency": {"files": Key("notices", list, tuple)},
     "releases": {"close_with_release": Key("releases", bool)},
+    # The attributes of Config.lifecycle.
+    "lifecycle": {
+        "remind_after_days": Key("lifecycle.remind_after_days", int),
+        "close_after_days": Key("lifecycle.close_after_days", int),
+        "duplicate_grace_days": Key("lifecycle.duplicate_grace_days", int),
+        "reopen_after_release_days": Key("lifecycle.reopen_after_release_days", int),
+        "max_follow_ups": Key("lifecycle.max_follow_ups", int),
+        "exempt_labels": Key("lifecycle.exempt_labels", list, tuple),
+        "exempt_assignees": Key("lifecycle.exempt_assignees", bool),
+        "exempt_upvotes": Key("lifecycle.exempt_upvotes", int),
+        "lock_closed_after_days": Key("lifecycle.lock_closed_after_days", int),
+    },
 }
 # The keys of a [[label]] of labels.toml with their types; the first four are needed.
 LABEL_KEYS: dict[str, type] = {
@@ -900,7 +1000,19 @@ def load_config(root: Path, repository: str, *, lenient: bool = False) -> Config
     else:
         for problem in problems.unknown:
             command("warning", problem)
+    # The keys of [lifecycle] set the attributes of Config.lifecycle.
+    periods = {
+        name: values.pop(f"lifecycle.{name}")
+        for name in CONFIG_KEYS["lifecycle"]
+        if f"lifecycle.{name}" in values
+    }
+    lifecycle = Lifecycle(**periods)
+    # Comments, notices and the sweep all name these periods, so a period that the
+    # sweep can't keep stops every command, not only the sweep.
+    if not lenient and (wrong := lifecycle_problems(lifecycle)):
+        raise SettingsError(wrong)
     return Config(
+        lifecycle=lifecycle,
         root=root,
         repository=repository,
         labels=labels,
@@ -1311,6 +1423,29 @@ class GitHub:
         items: list[dict[str, Any]] = found["items"]
         return items
 
+    def search_issues_where(self, qualifiers: str) -> Iterator[dict[str, Any]]:
+        """The issues of the repository, no pull requests, that GitHub's search
+        finds with the qualifiers, such as is:closed, the oldest first.
+
+        The pages come one by one as the caller reads on, up to the 1000 results
+        that the search returns at most: issues that the caller skips, such as
+        those that someone unlocked, never hide the ones after them.
+        """
+        query = f"repo:{self.repository} is:issue {qualifiers}"
+        for page in range(1, SEARCH_PAGES + 1):
+            found = self._gh(
+                [
+                    "api",
+                    "search/issues?"
+                    + urlencode({"q": query, "sort": "created", "order": "asc"})
+                    + f"&per_page=100&page={page}",
+                ]
+            )
+            items: list[dict[str, Any]] = found["items"]
+            yield from items
+            if len(items) < 100:
+                return
+
     def issues_since(self, since: datetime) -> list[dict[str, Any]]:
         """The issues opened or changed at or after the moment."""
         items = self.rest(
@@ -1562,15 +1697,21 @@ class GitHub:
 
     def react(self, comment_id: int, content: str) -> None:
         """React to a comment, such as with eyes; the same reaction again changes
-        nothing."""
-        self._write(
-            f"react with {content} to comment {comment_id}",
-            lambda: self.rest(
-                f"issues/comments/{comment_id}/reactions",
-                method="POST",
-                data={"content": content},
-            ),
-        )
+        nothing, and neither does a comment that was deleted meanwhile."""
+
+        def react() -> None:
+            try:
+                self.rest(
+                    f"issues/comments/{comment_id}/reactions",
+                    method="POST",
+                    data={"content": content},
+                )
+            except GitHubError as error:
+                # The command was carried out; only its sign has nowhere to go.
+                if not error.missing():
+                    raise
+
+        self._write(f"react with {content} to comment {comment_id}", react)
 
     def add_labels(self, number: int, names: list[str]) -> None:
         if names:
@@ -1710,6 +1851,18 @@ class GitHub:
             f"reopen #{number}",
             lambda: self.rest(
                 f"issues/{number}", method="PATCH", data={"state": "open"}
+            ),
+        )
+
+    def lock(self, number: int) -> None:
+        """Lock the conversation of an issue as resolved; only those who may push
+        can comment then."""
+        self._write(
+            f"lock #{number} (resolved)",
+            lambda: self.rest(
+                f"issues/{number}/lock",
+                method="PUT",
+                data={"lock_reason": "resolved"},
             ),
         )
 
@@ -1961,9 +2114,14 @@ def format_date(moment: datetime, language: str) -> str:
     return f"{moment:%B} {moment.day}, {moment.year}"
 
 
-def follow_up_due(comments: list[dict[str, Any]], author: str) -> dict[str, Any] | None:
+def follow_up_due(
+    comments: list[dict[str, Any]],
+    author: str,
+    most: int = DEFAULT_LIFECYCLE.max_follow_ups,
+) -> dict[str, Any] | None:
     """The assistant's comment with the questions that the reporter answered, when
-    the assistant asked them last and may follow up; None otherwise."""
+    the assistant asked them last and may follow up, up to `most` times; None
+    otherwise."""
     asks = [
         (index, comment)
         for index, comment in enumerate(comments)
@@ -1975,7 +2133,7 @@ def follow_up_due(comments: list[dict[str, Any]], author: str) -> dict[str, Any]
     found = marker(last)
     if not found or found[1].get("questions") != "1":
         return None
-    if sum(kind_of(comment) == "follow-up" for comment in comments) >= MAX_FOLLOW_UPS:
+    if sum(kind_of(comment) == "follow-up" for comment in comments) >= most:
         return None
     # Once the maintainer joined the conversation, the assistant stays out of it.
     if any(
@@ -2079,35 +2237,54 @@ def handle_event(
             and login(payload.get("sender")) == author
             and current & {NEEDS_INFO, STALE}
         ):
-            plan = answered(github, issue)
+            plan = answered(github, issue, config)
             return limited(github, plan, issue, moment(issue["updated_at"]), config)
         return Plan(number, notes=["Edit without a pending question."])
     if name == "issue_comment" and action == "created":
         comment = payload["comment"]
         given = command_of(issue, comment)
-        if given is not None:
+        if given is None:
+            return handle_comment(github, issue, comment, config)
+        refused = refusal(comment, given)
+        if not refused:
             return handle_command(github, issue, comment, given, config)
-        if issue["state"] != "open":
-            plan = reopen_if_answered(github, issue, comment, config)
-            return limited(github, plan, comment, created(comment), config)
-        plan = Plan(number)
-        if POSSIBLE_DUPLICATE in current:
-            # Every human comment after the notice stops the automatic closing.
-            github.remove_label(number, POSSIBLE_DUPLICATE)
-            plan.notes.append("A comment stopped the duplicate closing.")
-        if login(comment.get("user")) == author:
-            if current & {NEEDS_INFO, STALE}:
-                plan = answered(github, issue, plan)
-                return limited(github, plan, comment, created(comment), config)
-            return plan
-        if is_maintainer(comment):
-            if STALE in current:
-                github.remove_label(number, STALE)
-            if NEEDS_INFO not in current and not is_maintainer(issue):
-                plan.mode = "maintainer-reply"
-                return limited(github, plan, comment, created(comment), config)
+        # A line that is no command the author may give is an ordinary comment,
+        # such as an objection or an answer with a typo in its first line.
+        github.react(comment["id"], REFUSED)
+        plan = handle_comment(github, issue, comment, config)
+        plan.notes.insert(0, refused)
         return plan
     return Plan(number, notes=[f"Event {name}.{action} is not handled."])
+
+
+def handle_comment(
+    github: GitHub, issue: dict[str, Any], comment: dict[str, Any], config: Config
+) -> Plan:
+    """A new comment that gives no command: an answer, an objection, a maintainer's
+    reply or a reason to reopen."""
+    number = issue["number"]
+    author = login(issue.get("user"))
+    current = label_names(issue)
+    if issue["state"] != "open":
+        plan = reopen_if_answered(github, issue, comment, config)
+        return limited(github, plan, comment, created(comment), config)
+    plan = Plan(number)
+    if POSSIBLE_DUPLICATE in current:
+        # Every human comment after the notice stops the automatic closing.
+        github.remove_label(number, POSSIBLE_DUPLICATE)
+        plan.notes.append("A comment stopped the duplicate closing.")
+    if login(comment.get("user")) == author:
+        if current & {NEEDS_INFO, STALE}:
+            plan = answered(github, issue, config, plan)
+            return limited(github, plan, comment, created(comment), config)
+        return plan
+    if is_maintainer(comment):
+        if STALE in current:
+            github.remove_label(number, STALE)
+        if NEEDS_INFO not in current and not is_maintainer(issue):
+            plan.mode = "maintainer-reply"
+            return limited(github, plan, comment, created(comment), config)
+    return plan
 
 
 def limited(
@@ -2166,10 +2343,27 @@ def command_of(issue: dict[str, Any], comment: dict[str, Any]) -> Command | None
     return Command(match[1].lower(), f"{match[2]}\n{rest}".strip())
 
 
+def refusal(comment: dict[str, Any], given: Command) -> str:
+    """Why the line is no command that its author may give, or empty when it is one.
+
+    Its text is the author's, so the reason doesn't repeat it.
+    """
+    if given.name not in COMMANDS:
+        return f"No command of the assistant; the commands are {', '.join(COMMANDS)}."
+    if not is_maintainer(comment) and given.name not in REPORTER_COMMANDS:
+        return (
+            f"Only maintainers use /assistant {given.name}; the reporter may use "
+            f"{' and '.join(REPORTER_COMMANDS)}."
+        )
+    return ""
+
+
 def conversing(issue: dict[str, Any], comment: dict[str, Any]) -> bool:
-    """Whether the comment is part of the conversation: no command, which asks,
-    answers and objects to nothing."""
-    return command_of(issue, comment) is None
+    """Whether the comment is part of the conversation: no command that its author
+    may give, which asks, answers and objects to nothing. A refused line, such as a
+    mistyped command, is an ordinary comment."""
+    given = command_of(issue, comment)
+    return given is None or bool(refusal(comment, given))
 
 
 def handle_command(
@@ -2203,14 +2397,6 @@ def carry_out(
     """What the command did and the task it gives the engine, or why it is refused."""
     number = issue["number"]
     name = given.name
-    if name not in COMMANDS:
-        # Its text is the author's, so the run doesn't repeat it.
-        return f"No command of the assistant; the commands are {', '.join(COMMANDS)}."
-    if not maintainer and name not in REPORTER_COMMANDS:
-        return (
-            f"Only maintainers use /assistant {name}; the reporter may use "
-            f"{' and '.join(REPORTER_COMMANDS)}."
-        )
     if name == "mute":
         if not any(
             label["name"].casefold() == MUTED.casefold() for label in github.labels()
@@ -2309,6 +2495,10 @@ def mark_duplicate(
     original = other_issue(github, named, number) if named <= MAX_NUMBER else None
     if original is None or original["state"] != "open":
         return f"#{named} is no other open issue of this repository."
+    exempt = exemption(issue, config.lifecycle)
+    if exempt:
+        # The sweep would only take possible-duplicate away again.
+        return f"#{number} is exempt ({exempt}) and never closes as a duplicate."
     # Without its notice, possible-duplicate closes nothing.
     github.add_labels(number, [POSSIBLE_DUPLICATE])
     language = issue_language(issue, github.comments(number))
@@ -2319,7 +2509,7 @@ def mark_duplicate(
         number,
         notes=[
             f"Marked as a duplicate of #{named}; it closes in "
-            f"{DUPLICATE_GRACE.days} days unless someone objects."
+            f"{config.lifecycle.duplicate_grace_days} days unless someone objects."
         ],
     )
 
@@ -2331,7 +2521,9 @@ def add_form_labels(github: GitHub, issue: dict[str, Any], config: Config) -> No
     github.add_labels(issue["number"], missing)
 
 
-def answered(github: GitHub, issue: dict[str, Any], plan: Plan | None = None) -> Plan:
+def answered(
+    github: GitHub, issue: dict[str, Any], config: Config, plan: Plan | None = None
+) -> Plan:
     """The reporter answered: the issue no longer waits, and the assistant may follow up."""
     number = issue["number"]
     plan = plan or Plan(number)
@@ -2339,7 +2531,11 @@ def answered(github: GitHub, issue: dict[str, Any], plan: Plan | None = None) ->
         if name in label_names(issue):
             github.remove_label(number, name)
     plan.notes.append("The reporter answered.")
-    asked = follow_up_due(github.comments(number), login(issue.get("user")))
+    asked = follow_up_due(
+        github.comments(number),
+        login(issue.get("user")),
+        config.lifecycle.max_follow_ups,
+    )
     if asked:
         plan.mode = "follow-up"
         plan.answers = asked
@@ -2371,14 +2567,16 @@ def within_limits(
     per_day = limit(config, "max_per_day")
     per_author = limit(config, "max_per_author_per_day")
     since = at - DAY
-    triage = plan.mode == "triage"
+    # A new issue counts only the issues opened before it; a new analysis that the
+    # reporter asked for counts every issue of the day, as a follow-up does.
+    first = plan.mode == "triage" and plan.answers is None
     reporters = [
         login(item.get("user"))
         for item in github.issues_since(since)
         if since <= created(item) <= at
         and not is_bot(item.get("user"))
         and not is_maintainer(item)
-        and (not triage or item["number"] < plan.issue)
+        and (not first or item["number"] < plan.issue)
     ]
     # Recording a run changes the comment, so the comments that changed since then
     # hold every recorded run of the day.
@@ -2393,7 +2591,7 @@ def within_limits(
             f"Daily limit of AI runs reached (max_per_day = {per_day}); "
             "the maintainer takes over.",
         )
-    if triage and reporters.count(login(trigger.get("user"))) >= per_author:
+    if first and reporters.count(login(trigger.get("user"))) >= per_author:
         return stopped(
             plan,
             "Daily limit of analyses for this reporter reached "
@@ -2442,7 +2640,8 @@ def reopen_if_answered(
     ]
     if closings and kind_of(closings[-1]) == "released":
         released = closings[-1]
-        if created(comment) - created(released) > REOPEN_AFTER_RELEASE:
+        window = timedelta(days=config.lifecycle.reopen_after_release_days)
+        if created(comment) - created(released) > window:
             return Plan(number, notes=["The release closed this issue long ago."])
         replies = limit(config, "release_replies")
         if len(runs_of(released)) >= replies:
@@ -2468,7 +2667,7 @@ def reopen_if_answered(
     language = issue_language(issue, comments)
     github.comment(number, render_reopened(author, language))
     plan = Plan(number, notes=["Reopened after the reporter's answer."])
-    asked = follow_up_due(comments, author)
+    asked = follow_up_due(comments, author, config.lifecycle.max_follow_ups)
     if asked:
         plan.mode = "follow-up"
         plan.answers = asked
@@ -2615,7 +2814,7 @@ def judges(issue: dict[str, Any], comment: dict[str, Any], mode: str) -> bool:
     return (
         is_maintainer(comment)
         and login(comment.get("user")) != reporter
-        and given is None
+        and conversing(issue, comment)
     )
 
 
@@ -3591,14 +3790,15 @@ TEXT: dict[str, dict[str, str]] = {
         "missing": "Information needed",
         "missing.intro": "To continue, please add the following, in a comment or by "
         "editing the issue:",
-        "missing.outro": "Without an answer, a reminder follows after 15 days and the "
-        "issue closes after 30 days. If it closes, an answer reopens it.",
+        "missing.outro": "Without an answer, a reminder follows after {remind_days} and "
+        "the issue closes after {close_days}. If it closes, an answer reopens it.",
         "duplicate": "Possible duplicate",
         "duplicate.text": "This looks like a duplicate of #{number}: {reason}",
         "duplicate.close": "If that's right, there's nothing to do: the issue closes as "
-        "a duplicate of #{number} in 3 days, so the conversation stays in one place. A "
-        "👍 on #{number} shows that more people are affected. If it's something "
-        "different, write a comment or react to this comment with 👎, and it stays open.",
+        "a duplicate of #{number} in {grace_days}, so the conversation stays in one "
+        "place. A 👍 on #{number} shows that more people are affected. If it's "
+        "something different, write a comment or react to this comment with 👎, and it "
+        "stays open.",
         "duplicate.named": "@{author}, a maintainer marked this issue as a duplicate "
         "of #{number}.",
         "related": "Related",
@@ -3638,12 +3838,12 @@ TEXT: dict[str, dict[str, str]] = {
         "{date}. A short comment keeps it open, for example if you need more time.",
         "reminder.questions": "the questions above",
         "closed-unanswered": "I'm closing this issue because the information asked for "
-        "above has been missing for 30 days. @{author}, as soon as you answer here, it "
-        "reopens automatically. Thanks for reporting!",
-        "closed-duplicate": "Closed as a duplicate of #{number}, as announced three days "
-        "ago. Please continue there; a 👍 on #{number} shows that more people are "
-        "affected. If this was a mistake, write a comment and the maintainers will "
-        "reopen it.",
+        "above has been missing for {close_days}. @{author}, as soon as you answer "
+        "here, it reopens automatically. Thanks for reporting!",
+        "closed-duplicate": "Closed as a duplicate of #{number}, as announced "
+        "{grace_days} ago. Please continue there; a 👍 on #{number} shows that more "
+        "people are affected. If this was a mistake, write a comment and the "
+        "maintainers will reopen it.",
         "reopened": "Thanks for your answer, @{author}! I reopened the issue; the "
         "maintainers will take another look.",
         "fixed": "Fixed by #{pull}, which is now on `{branch}`. The fix ships with the "
@@ -3655,6 +3855,9 @@ TEXT: dict[str, dict[str, str]] = {
         "reopened-release": "Thanks for letting us know, @{author}, and sorry that it "
         "isn't solved yet. I reopened the issue; the maintainers will take another "
         "look.",
+        "locked": "This issue has been closed for more than {lock_days}, so I locked "
+        "it. If you still see the problem, or something like it, please open a new "
+        "issue and link this one.",
     },
     "de": {
         "thanks.default": "Danke für dein Issue, @{author}!",
@@ -3673,16 +3876,16 @@ TEXT: dict[str, dict[str, str]] = {
         "missing": "Fehlende Informationen",
         "missing.intro": "Damit es weitergehen kann, ergänze bitte Folgendes, als "
         "Kommentar oder indem du das Issue bearbeitest:",
-        "missing.outro": "Ohne Antwort folgt nach 15 Tagen eine Erinnerung, nach 30 "
-        "Tagen wird das Issue geschlossen. Ist es geschlossen, öffnet eine Antwort es "
-        "wieder.",
+        "missing.outro": "Ohne Antwort folgt nach {remind_days} eine Erinnerung, nach "
+        "{close_days} wird das Issue geschlossen. Ist es geschlossen, öffnet eine "
+        "Antwort es wieder.",
         "duplicate": "Mögliches Duplikat",
         "duplicate.text": "Das sieht nach einem Duplikat von #{number} aus: {reason}",
-        "duplicate.close": "Falls das stimmt, musst du nichts tun: Das Issue wird in 3 "
-        "Tagen als Duplikat von #{number} geschlossen, damit alles an einer Stelle "
-        "bleibt. Ein 👍 bei #{number} zeigt, dass mehr Leute betroffen sind. Geht es um "
-        "etwas anderes, schreib einen Kommentar oder reagiere auf diesen Kommentar mit "
-        "👎, dann bleibt es offen.",
+        "duplicate.close": "Falls das stimmt, musst du nichts tun: Das Issue wird in "
+        "{grace_days} als Duplikat von #{number} geschlossen, damit alles an einer "
+        "Stelle bleibt. Ein 👍 bei #{number} zeigt, dass mehr Leute betroffen sind. "
+        "Geht es um etwas anderes, schreib einen Kommentar oder reagiere auf diesen "
+        "Kommentar mit 👎, dann bleibt es offen.",
         "duplicate.named": "@{author}, ein Maintainer hat dieses Issue als Duplikat "
         "von #{number} markiert.",
         "related": "Verwandte Themen",
@@ -3725,12 +3928,12 @@ TEXT: dict[str, dict[str, str]] = {
         "etwa wenn du mehr Zeit brauchst.",
         "reminder.questions": "die Fragen oben",
         "closed-unanswered": "Ich schließe dieses Issue, weil die erbetenen "
-        "Informationen seit 30 Tagen fehlen. @{author}, sobald du hier antwortest, wird "
-        "es automatisch wieder geöffnet. Danke für deine Meldung!",
-        "closed-duplicate": "Als Duplikat von #{number} geschlossen, wie vor drei Tagen "
-        "angekündigt. Bitte mach dort weiter; ein 👍 bei #{number} zeigt, dass mehr "
-        "Leute betroffen sind. Falls das ein Irrtum war, schreib einen Kommentar, dann "
-        "öffnen die Maintainer es wieder.",
+        "Informationen seit {close_days} fehlen. @{author}, sobald du hier "
+        "antwortest, wird es automatisch wieder geöffnet. Danke für deine Meldung!",
+        "closed-duplicate": "Als Duplikat von #{number} geschlossen, wie vor "
+        "{grace_days} angekündigt. Bitte mach dort weiter; ein 👍 bei #{number} zeigt, "
+        "dass mehr Leute betroffen sind. Falls das ein Irrtum war, schreib einen "
+        "Kommentar, dann öffnen die Maintainer es wieder.",
         "reopened": "Danke für deine Antwort, @{author}! Ich habe das Issue wieder "
         "geöffnet; die Maintainer sehen es sich erneut an.",
         "fixed": "Behoben durch #{pull}, jetzt auf `{branch}`. Der Fix kommt mit dem "
@@ -3742,6 +3945,9 @@ TEXT: dict[str, dict[str, str]] = {
         "reopened-release": "Danke für die Rückmeldung, @{author}, und schade, dass es "
         "noch nicht gelöst ist. Ich habe das Issue wieder geöffnet; die Maintainer "
         "sehen es sich erneut an.",
+        "locked": "Dieses Issue ist seit mehr als {lock_days} geschlossen, deshalb habe "
+        "ich es gesperrt. Siehst du das Problem oder etwas Ähnliches noch, eröffne "
+        "bitte ein neues Issue und verlinke dieses.",
     },
 }
 
@@ -3825,6 +4031,7 @@ def render_analysis(
 ) -> str:
     language = answer["language"]
     numbers = findings.numbers
+    periods = config.lifecycle.text(language)
 
     def clean(value: str) -> str:
         return sanitize(value, config, numbers)
@@ -3859,7 +4066,7 @@ def render_analysis(
                     reason=clean(one_line(findings.duplicate_reason)),
                 )
                 + "\n\n"
-                + say(language, "duplicate.close", number=number)
+                + say(language, "duplicate.close", number=number, **periods)
             )
         parts.append(f"### {say(language, 'summary')}\n\n{clean(answer['summary'])}")
         parts.append(f"### {say(language, 'analysis')}\n\n{clean(answer['analysis'])}")
@@ -3869,7 +4076,8 @@ def render_analysis(
         if asks:
             parts.append(
                 f"### {say(language, 'missing')}\n\n{say(language, 'missing.intro')}\n\n"
-                f"{bullets(clean(ask) for ask in asks)}\n\n{say(language, 'missing.outro')}"
+                f"{bullets(clean(ask) for ask in asks)}\n\n"
+                f"{say(language, 'missing.outro', **periods)}"
             )
         links = link_sections(language, findings.related, findings.references)
         if links:
@@ -3913,7 +4121,7 @@ def render_follow_up(
             f"### {say(language, 'follow-up.missing')}\n\n"
             f"{say(language, 'follow-up.missing.intro')}\n\n"
             f"{bullets(sanitize(ask, config, numbers) for ask in asks)}\n\n"
-            f"{say(language, 'missing.outro')}"
+            f"{say(language, 'missing.outro', **config.lifecycle.text(language))}"
         )
     links = link_sections(language, [], references)
     if links:
@@ -3983,17 +4191,23 @@ def render_reminder(
     )
 
 
-def render_closed_unanswered(author: str, language: str) -> str:
+def render_closed_unanswered(
+    author: str, language: str, lifecycle: Lifecycle = DEFAULT_LIFECYCLE
+) -> str:
+    periods = lifecycle.text(language)
     return (
         f"{render_marker('closed-unanswered')}\n"
-        f"{say(language, 'closed-unanswered', author=author)}\n"
+        f"{say(language, 'closed-unanswered', author=author, **periods)}\n"
     )
 
 
-def render_closed_duplicate(number: int, language: str) -> str:
+def render_closed_duplicate(
+    number: int, language: str, lifecycle: Lifecycle = DEFAULT_LIFECYCLE
+) -> str:
+    periods = lifecycle.text(language)
     return (
         f"{render_marker('closed-duplicate', of=number)}\n"
-        f"{say(language, 'closed-duplicate', number=number)}\n"
+        f"{say(language, 'closed-duplicate', number=number, **periods)}\n"
     )
 
 
@@ -4001,12 +4215,13 @@ def render_duplicate(number: int, author: str, language: str, config: Config) ->
     """The notice of a duplicate of #number that a maintainer named with /assistant
     duplicate. Its marker names the original, as that of an analysis does, so that
     the sweep closes the issue after the same days unless someone objects."""
+    periods = config.lifecycle.text(language)
     notice = notice_link(config)
     about = f"\n<sub>{say(language, 'about', notice=notice)}</sub>\n" if notice else ""
     return (
         f"{render_marker('duplicate', lang=language, duplicate=number)}\n"
         f"{say(language, 'duplicate.named', author=author, number=number)} "
-        f"{say(language, 'duplicate.close', number=number)}\n{about}"
+        f"{say(language, 'duplicate.close', number=number, **periods)}\n{about}"
     )
 
 
@@ -4044,6 +4259,12 @@ def render_reopened_release(author: str, language: str) -> str:
         f"{render_marker('reopened')}\n"
         f"{say(language, 'reopened-release', author=author)}\n"
     )
+
+
+def render_locked(language: str, lifecycle: Lifecycle) -> str:
+    """The one line on an issue that the sweep locks: where to go instead."""
+    periods = lifecycle.text(language)
+    return f"{render_marker('locked')}\n{say(language, 'locked', **periods)}\n"
 
 
 # Applying the engine's answer
@@ -4359,7 +4580,10 @@ def apply_answer(
                 f"#{number} already has this {mode}; no second comment, "
                 f"labels added: {', '.join(added)}."
             ]
-        if mode == "follow-up" and follow_up_due(comments, author) is None:
+        if (
+            mode == "follow-up"
+            and follow_up_due(comments, author, config.lifecycle.max_follow_ups) is None
+        ):
             # The analyze job takes minutes, in which a maintainer can join the
             # conversation, and the assistant stays out of it then.
             return [
@@ -4569,7 +4793,12 @@ def directly(name: str, step: Callable[[], list[str]]) -> list[str]:
     return step()
 
 
-def sweep(github: GitHub, now: datetime, releases: bool = True) -> list[str]:
+def sweep(
+    github: GitHub,
+    now: datetime,
+    releases: bool = True,
+    lifecycle: Lifecycle = DEFAULT_LIFECYCLE,
+) -> list[str]:
     """The whole lifecycle; every run does all of it, so a missed run loses nothing.
 
     Every step and every issue runs on its own: one that GitHub fails becomes a
@@ -4603,7 +4832,12 @@ def sweep(github: GitHub, now: datetime, releases: bool = True) -> list[str]:
     ):
         done += isolate(
             f"The issues labeled {label}",
-            partial(sweep_labeled, github, label, step, now, isolate),
+            partial(sweep_labeled, github, label, step, now, lifecycle, isolate),
+        )
+    if lifecycle.lock_closed_after_days:
+        done += isolate(
+            "Locking the issues closed long ago",
+            partial(lock_closed, github, now, lifecycle, isolate),
         )
     if failed:
         raise SweepIncomplete(done, failed)
@@ -4655,15 +4889,33 @@ def feedback(github: GitHub, now: datetime) -> str:
 def sweep_labeled(
     github: GitHub,
     label: str,
-    step: Callable[[GitHub, dict[str, Any], datetime], list[str]],
+    step: Callable[[GitHub, dict[str, Any], datetime, Lifecycle], list[str]],
     now: datetime,
+    lifecycle: Lifecycle,
     isolate: Isolate,
 ) -> list[str]:
     done = []
     for issue in github.open_issues(label):
         if not issue.get("locked"):
-            done += isolate(f"#{issue['number']}", partial(step, github, issue, now))
+            done += isolate(
+                f"#{issue['number']}", partial(step, github, issue, now, lifecycle)
+            )
     return done
+
+
+def exemption(issue: dict[str, Any], lifecycle: Lifecycle) -> str:
+    """Why the sweep leaves the issue to the maintainers: a label of exempt_labels,
+    an assignee or enough 👍, in words for its summary; empty when it doesn't."""
+    exempt = {name.casefold() for name in lifecycle.exempt_labels}
+    labels = sorted(name for name in label_names(issue) if name.casefold() in exempt)
+    if labels:
+        return f"labeled {labels[0]}"
+    if lifecycle.exempt_assignees and issue.get("assignees"):
+        return "assigned"
+    upvotes = int((issue.get("reactions") or {}).get("+1") or 0)
+    if lifecycle.exempt_upvotes and upvotes >= lifecycle.exempt_upvotes:
+        return f"{upvotes} 👍"
+    return ""
 
 
 def posted_since(comments: list[dict[str, Any]], kind: str, since: datetime) -> bool:
@@ -4880,11 +5132,15 @@ def close_issue_released(
     return [f"#{number}: closed, released in {release['tag_name']}."]
 
 
-def sweep_waiting(github: GitHub, issue: dict[str, Any], now: datetime) -> list[str]:
-    """Remind the reporter after 15 days, close after 30 days without an answer.
+def sweep_waiting(
+    github: GitHub, issue: dict[str, Any], now: datetime, lifecycle: Lifecycle
+) -> list[str]:
+    """Remind the reporter after remind_after_days, 15 by default, and close after
+    close_after_days, 30, without an answer.
 
     An answer is a comment or an edit of the text by the reporter after the last
-    question. The closing comes on the day that the reminder named.
+    question. The closing comes on the day that the reminder named. An exempt issue
+    goes on waiting without a reminder and never closes.
     """
     number = issue["number"]
     author = login(issue.get("user"))
@@ -4909,6 +5165,13 @@ def sweep_waiting(github: GitHub, issue: dict[str, Any], now: datetime) -> list[
             if name in current:
                 github.remove_label(number, name)
         return [f"#{number}: the reporter answered; no longer waiting."]
+    exempt = exemption(issue, lifecycle)
+    if exempt:
+        if STALE not in current:
+            return []
+        # Exempted after its reminder: it no longer closes.
+        github.remove_label(number, STALE)
+        return [f"#{number}: exempt ({exempt}); it no longer closes."]
     reminders = [
         comment
         for comment in comments
@@ -4918,9 +5181,14 @@ def sweep_waiting(github: GitHub, issue: dict[str, Any], now: datetime) -> list[
     waited = days_between(since, now)
     if reminders:
         reminded = created(reminders[-1])
-        if over(since, CLOSE_AFTER, now) and day_of(now) >= closing_day(reminders[-1]):
+        close_after = timedelta(days=lifecycle.close_after_days)
+        if over(since, close_after, now) and day_of(now) >= closing_day(
+            reminders[-1], lifecycle
+        ):
             if not posted_since(comments, "closed-unanswered", reminded):
-                github.comment(number, render_closed_unanswered(author, language))
+                github.comment(
+                    number, render_closed_unanswered(author, language, lifecycle)
+                )
             github.close(
                 issue,
                 "NOT_PLANNED",
@@ -4934,11 +5202,10 @@ def sweep_waiting(github: GitHub, issue: dict[str, Any], now: datetime) -> list[
     if STALE in current:
         # A new question started a new waiting period.
         github.remove_label(number, STALE)
-    if over(since, REMIND_AFTER, now):
+    if over(since, timedelta(days=lifecycle.remind_after_days), now):
         questions = questions_address(github, issue, comments)
-        github.comment(
-            number, render_reminder(author, language, now + WARNING_PERIOD, questions)
-        )
+        closes = now + timedelta(days=lifecycle.warning_days)
+        github.comment(number, render_reminder(author, language, closes, questions))
         github.add_labels(number, [STALE])
         return [f"#{number}: reminded the reporter after {waited} days."]
     return []
@@ -4963,17 +5230,17 @@ def asking(
     ]
 
 
-def closing_day(reminder: dict[str, Any]) -> date:
+def closing_day(reminder: dict[str, Any], lifecycle: Lifecycle) -> date:
     """The day that the reminder named for the closing.
 
     A reminder of an earlier version, which didn't record it, named the day
-    WARNING_PERIOD after it.
+    warning_days after it.
     """
     _, said = marker(reminder) or ("", {})
     try:
         return date.fromisoformat(said.get("closes", ""))
     except ValueError:
-        return day_of(created(reminder) + WARNING_PERIOD)
+        return day_of(created(reminder) + timedelta(days=lifecycle.warning_days))
 
 
 def questions_address(
@@ -5001,8 +5268,11 @@ def questions_address(
     return address
 
 
-def sweep_duplicate(github: GitHub, issue: dict[str, Any], now: datetime) -> list[str]:
-    """Close a possible duplicate 3 days after the notice, unless someone objected.
+def sweep_duplicate(
+    github: GitHub, issue: dict[str, Any], now: datetime, lifecycle: Lifecycle
+) -> list[str]:
+    """Close a possible duplicate duplicate_grace_days after the notice, 3 by
+    default, unless someone objected or the issue is exempt.
 
     The notice is the analysis that found the duplicate, or the comment that a
     maintainer's /assistant duplicate posted.
@@ -5020,11 +5290,15 @@ def sweep_duplicate(github: GitHub, issue: dict[str, Any], now: datetime) -> lis
     if not notices:
         return []
     notice = notices[-1]
-    if now - created(notice) < DUPLICATE_GRACE:
+    if now - created(notice) < timedelta(days=lifecycle.duplicate_grace_days):
         return []
-    # A comment of anyone objects, other than a command, and a thumbs down of the
-    # reporter or of anyone who may push to the repository: in the repository of an
-    # organization, the owner is the organization, which never reacts.
+    exempt = exemption(issue, lifecycle)
+    if exempt:
+        github.remove_label(number, POSSIBLE_DUPLICATE)
+        return [f"#{number}: stays open, exempt ({exempt})."]
+    # A comment of anyone objects, other than a command, and a thumbs down of the reporter or of anyone
+    # who may push to the repository: in the repository of an organization, the
+    # owner is the organization, which never reacts.
     objected = any(
         created(comment) > created(notice)
         and not is_bot(comment.get("user"))
@@ -5054,7 +5328,9 @@ def sweep_duplicate(github: GitHub, issue: dict[str, Any], now: datetime) -> lis
         ]
     language = issue_language(issue, comments)
     if not posted_since(comments, "closed-duplicate", created(notice)):
-        github.comment(number, render_closed_duplicate(original["number"], language))
+        github.comment(
+            number, render_closed_duplicate(original["number"], language, lifecycle)
+        )
     github.close(
         issue,
         "DUPLICATE",
@@ -5068,6 +5344,62 @@ def sweep_duplicate(github: GitHub, issue: dict[str, Any], now: datetime) -> lis
             github.remove_label(number, name)
     github.add_labels(number, [DUPLICATE])
     return [f"#{number}: closed as a duplicate of #{original['number']}."]
+
+
+def lock_closed(
+    github: GitHub, now: datetime, lifecycle: Lifecycle, isolate: Isolate = directly
+) -> list[str]:
+    """Lock the issues closed for more than lock_closed_after_days, the oldest
+    first and at most LOCKS_PER_SWEEP of them; the next sweep locks the rest.
+
+    lifecycle_problems() keeps the period at least as long as the reopen window of
+    a release. Exempt issues stay unlocked; GitHub's search leaves out those with an
+    exempt label, and those assigned to someone when assignees exempt.
+    """
+    days_ago = timedelta(days=lifecycle.lock_closed_after_days)
+    qualifiers = [f"is:closed is:unlocked closed:<{day_of(now) - days_ago}"]
+    # A quote would end the name in the query; exemption() leaves such a label out.
+    qualifiers += [
+        f'-label:"{name}"' for name in lifecycle.exempt_labels if '"' not in name
+    ]
+    if lifecycle.exempt_assignees:
+        qualifiers.append("no:assignee")
+    done: list[str] = []
+    locked = 0
+    for issue in github.search_issues_where(" ".join(qualifiers)):
+        if locked == LOCKS_PER_SWEEP:
+            break
+        if issue.get("locked") or exemption(issue, lifecycle):
+            continue
+        lines = isolate(
+            f"#{issue['number']}", partial(lock_issue, github, issue, lifecycle)
+        )
+        locked += bool(lines)
+        done += lines
+    return done
+
+
+def lock_issue(
+    github: GitHub, issue: dict[str, Any], lifecycle: Lifecycle
+) -> list[str]:
+    """Lock an issue closed long ago as resolved, with one line that points to a new
+    issue.
+
+    The line comes once, also when GitHub failed the lock after it. An issue that
+    someone unlocked stays unlocked: they want its conversation to go on.
+    """
+    number = issue["number"]
+    if any(event["event"] == "unlocked" for event in github.events(number)):
+        return []
+    comments = github.comments(number)
+    if not any(kind_of(comment) == "locked" for comment in comments):
+        language = issue_language(issue, comments)
+        github.comment(number, render_locked(language, lifecycle))
+    github.lock(number)
+    return [
+        f"#{number}: locked, closed for more than "
+        f"{lifecycle.lock_closed_after_days} days."
+    ]
 
 
 # Labels as code
@@ -5371,6 +5703,38 @@ def check_config(config: Config) -> list[str]:
     return problems
 
 
+# The lifecycle labels whose descriptions may name periods of [lifecycle], and
+# those periods in the order of the starter of labels.toml.
+LABEL_PERIODS: dict[str, Callable[[Lifecycle], tuple[int, ...]]] = {
+    NEEDS_INFO: lambda lifecycle: (
+        lifecycle.remind_after_days,
+        lifecycle.close_after_days,
+    ),
+    STALE: lambda lifecycle: (lifecycle.warning_days,),
+    POSSIBLE_DUPLICATE: lambda lifecycle: (lifecycle.duplicate_grace_days,),
+}
+NAMED_DAYS = re.compile(r"\b(\d+) days?\b")
+
+
+def check_lifecycle(config: Config) -> list[str]:
+    """The periods of [lifecycle] are usable, and the descriptions of the lifecycle
+    labels, which GitHub shows to reporters, name no other days."""
+    problems = lifecycle_problems(config.lifecycle)
+    for label in config.labels:
+        periods = LABEL_PERIODS.get(label.name)
+        said = tuple(int(days) for days in NAMED_DAYS.findall(label.description))
+        if periods is None or not said:
+            continue
+        expected = periods(config.lifecycle)
+        if said != expected:
+            problems.append(
+                f"{LABELS_FILE}: {label.name} says "
+                f"{' and '.join(map(str, said))} days, {SETTINGS / 'config.toml'} "
+                f"says {' and '.join(map(str, expected))}"
+            )
+    return problems
+
+
 def check_accepted_findings(config: Config) -> list[str]:
     try:
         accepted = load_findings(config.root)
@@ -5419,6 +5783,7 @@ def check(config: Config) -> list[str]:
         + check_forms(config)
         + check_workflows(config)
         + check_config(config)
+        + check_lifecycle(config)
         + check_accepted_findings(config)
     )
 
@@ -5728,13 +6093,34 @@ def add_form(root: Path, *, starter_labels: bool) -> list[str]:
     return [f"wrote {FORM_STARTER}; adapt it"]
 
 
+def notice(config: Config, engine: Engine, language: str) -> str:
+    """What happens with an issue, for reporters: the notice of the templates in
+    the language, with the engine and the periods of the repository."""
+    lifecycle = config.lifecycle
+    lines = [
+        line
+        for line in (TEMPLATES / (NOTICE_DE if language == "de" else NOTICE))
+        .read_text(encoding="utf-8")
+        .splitlines(keepends=True)
+        # Without releases, GitHub closes a fixed issue with the merge.
+        if (config.releases or FIXED not in line)
+        and (lifecycle.lock_closed_after_days or "{lock_days}" not in line)
+    ]
+    values = {"engine": engine.name, "vendor": engine.vendor}
+    text_ = "".join(lines)
+    for key, value in (values | lifecycle.text(language)).items():
+        text_ = text_.replace(f"{{{key}}}", value)
+    return text_
+
+
 def add_notices(root: Path) -> list[str]:
     """Tell reporters what happens with their issue, and which AI reads it, in each
     file of [transparency] that doesn't name the engine yet, as `check` asks."""
     config = load_config(root, "", lenient=True)
     engine = ENGINES.get(config.engine)
-    if engine is None:
-        # check names the engine that the assistant doesn't know.
+    if engine is None or lifecycle_problems(config.lifecycle):
+        # check names the engine that the assistant doesn't know, and the periods
+        # that the sweep can't keep; a notice would promise them.
         return []
     done = []
     for name in config.notices:
@@ -5745,19 +6131,10 @@ def add_notices(root: Path) -> list[str]:
         text = path.read_text(encoding="utf-8") if path.is_file() else "# Support\n"
         if engine.name in text and engine.vendor in text:
             continue
-        german = name.casefold().endswith(".de.md")
-        lines = [
-            line
-            for line in (TEMPLATES / (NOTICE_DE if german else NOTICE))
-            .read_text(encoding="utf-8")
-            .splitlines(keepends=True)
-            # Without releases, GitHub closes a fixed issue with the merge.
-            if config.releases or FIXED not in line
-        ]
-        notice = "".join(lines).replace("{engine}", engine.name)
+        language = "de" if name.casefold().endswith(".de.md") else "en"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            f"{text.rstrip()}\n\n{notice.replace('{vendor}', engine.vendor)}",
+            f"{text.rstrip()}\n\n{notice(config, engine, language)}",
             encoding="utf-8",
             newline="\n",
         )
@@ -6204,7 +6581,7 @@ def main(argv: list[str] | None = None) -> int:
             now = datetime.now(UTC)
             counted = os.environ.get("GITHUB_EVENT_NAME", "") in FEEDBACK_EVENTS
             try:
-                done = sweep(github, now, config.releases)
+                done = sweep(github, now, config.releases, config.lifecycle)
             except SweepIncomplete as incomplete:
                 command("error", f"{incomplete}; the next sweep tries again.")
                 summary(

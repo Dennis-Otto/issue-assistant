@@ -335,6 +335,9 @@ LANGUAGES = {"en": "English", "de": "Deutsch"}
 DEMO = "demo-org/plant-monitor"
 REPORTER = "alex-demo"
 MAINTAINER = "sam-demo"
+# The days after the closing that the example of a locked issue names; the default
+# of lock_closed_after_days, 0, locks none.
+LOCK_EXAMPLE = 90
 DEMO_SHA = "4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c"
 CHART = "src/plant_monitor/chart.py"
 TROUBLESHOOTING = "docs/troubleshooting.md"
@@ -547,6 +550,13 @@ KINDS = {
         "persists, the AI reads the comment and the issue reopens. Thanks or "
         "questions keep it closed.",
     ),
+    "locked": (
+        "Locked long after the closing",
+        "Only when `lock_closed_after_days` of `[lifecycle]` is set, here to "
+        "{lock_example} days: an issue closed for longer, and at least the "
+        "{reopen_after_release} days after a release, gets this line and is locked "
+        "as resolved, unless it is exempt or someone unlocked it before.",
+    ),
 }
 # The part of a page that the comments replace; on GitHub, it says where they are.
 REGION = re.compile(
@@ -743,6 +753,9 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
         "fixed": ia.render_fixed(43, "main", language),
         "released": ia.render_released(REPORTER, release, [43], language),
         "reopened-release": ia.render_reopened_release(REPORTER, language),
+        "locked": ia.render_locked(
+            language, ia.Lifecycle(lock_closed_after_days=LOCK_EXAMPLE)
+        ),
     }
 
 
@@ -766,17 +779,19 @@ def examples() -> list[Example]:
     ]
 
 
-def timings(ia: ModuleType) -> dict[str, Any]:
-    """The timing rules of issue_assistant.py, for the texts of KINDS."""
+def timings(ia: ModuleType, lifecycle: Any = None) -> dict[str, Any]:
+    """The timing rules of issue_assistant.py, for the texts of KINDS: those of
+    `lifecycle`, or the defaults of [lifecycle] in config.toml."""
+    lifecycle = lifecycle or ia.DEFAULT_LIFECYCLE
+    follow_ups = lifecycle.max_follow_ups
     return {
-        "remind_after": ia.REMIND_AFTER.days,
-        "close_after": ia.CLOSE_AFTER.days,
-        "duplicate_grace": ia.DUPLICATE_GRACE.days,
+        "remind_after": lifecycle.remind_after_days,
+        "close_after": lifecycle.close_after_days,
+        "duplicate_grace": lifecycle.duplicate_grace_days,
         "open_links": ia.MAX_OPEN_LINKS,
-        "reopen_after_release": ia.REOPEN_AFTER_RELEASE.days,
-        "follow_ups": {1: "once", 2: "twice"}.get(
-            ia.MAX_FOLLOW_UPS, f"{ia.MAX_FOLLOW_UPS} times"
-        ),
+        "reopen_after_release": lifecycle.reopen_after_release_days,
+        "follow_ups": {1: "once", 2: "twice"}.get(follow_ups, f"{follow_ups} times"),
+        "lock_example": LOCK_EXAMPLE,
     }
 
 

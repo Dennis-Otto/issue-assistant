@@ -84,7 +84,8 @@ color = "c5def5"
 description = "User interface or documentation translations"
 group = "topic"
 
-# Lifecycle
+# Lifecycle: the descriptions of needs-info, stale and possible-duplicate name the
+# days of [lifecycle] in config.toml, as the check command makes sure of.
 
 [[label]]
 name = "needs-triage"

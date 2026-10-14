@@ -12,7 +12,7 @@ A command in a comment is text that anyone can write, and the assistant's rules 
 ## Options
 
 1. Commands from anyone, each with a role that the assistant checks. A stranger's command would still be refused with a reaction, which makes the comment a way to get the bot's attention, and the refused line would still need to count as a comment or not.
-2. Commands only from maintainers and the reporter of the issue; from anyone else, the line is an ordinary comment. The reporter gets the commands that change nothing they couldn't do with a comment (`not-duplicate`) and one new analysis per issue, while it waits for triage and within the limits of the day. Commands answer, ask and object to nothing, in the event job and in the sweep alike, so that a `/assistant mute` neither ends the waiting for an answer nor restarts it.
+2. Commands only from maintainers and the reporter of the issue; from anyone else, the line is an ordinary comment. The reporter gets the commands that change nothing they couldn't do with a comment (`not-duplicate`) and one new analysis per issue, while it waits for triage and within the limits of the day. Commands answer, ask and object to nothing, in the event job and in the sweep alike, so that a `/assistant mute` neither ends the waiting for an answer nor restarts it. A line that is no command its author may give, an unknown or mistyped one or a maintainer's command from the reporter, is refused and is still an ordinary comment, so that a typo never swallows an objection or an answer.
 3. Commands from maintainers alone, through a mention of the bot. GitHub's app `github-actions` can't be mentioned, and the reporter couldn't ask for a new analysis after a misunderstanding.
 
 ## Decision
