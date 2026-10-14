@@ -178,13 +178,36 @@ MAX_LABEL_NAME = 50
 # placeholder, and at least this many characters.
 MIN_PROJECT = 80
 
-MODES = ("triage", "follow-up", "maintainer-reply", "release-reply")
+MODES = (
+    "triage",
+    "follow-up",
+    "maintainer-reply",
+    "release-reply",
+    "maintainer-question",
+)
 # The tasks that reporters start, which the limits of the AI runs apply to; a
 # maintainer starts the others.
 LIMITED = {"triage", "follow-up", "release-reply"}
 # The tasks that judge one comment, the one that started them, and read nothing of
-# the repository besides the issue.
-REPLIES = ("maintainer-reply", "release-reply")
+# the repository's issues besides their own.
+REPLIES = ("maintainer-reply", "release-reply", "maintainer-question")
+
+# A command on the first line of a comment: /assistant, its name and what follows,
+# such as /assistant duplicate #12. Maintainers use every command, the reporter
+# those of REPORTER_COMMANDS; from anyone else, the line is an ordinary comment.
+# Commands steer the assistant and are no part of the conversation: they answer no
+# question, ask none and object to no duplicate notice.
+COMMAND_LINE = re.compile(r" {0,3}/assistant(?![\w-])[ \t]*(\S*)[ \t]*(.*)", re.I)
+COMMANDS = ("again", "duplicate", "not-duplicate", "waiting", "mute", "unmute", "ask")
+REPORTER_COMMANDS = ("again", "not-duplicate")
+# The original that /assistant duplicate names: #12, GH-12 or 12, also after "of".
+ORIGINAL = re.compile(r"(?:of[ \t]+)?(?:#|GH-)?(\d{1,10})(?![\w-])", re.I)
+# The label of an issue on which the assistant starts no AI run of its own; the
+# commands mute and unmute set and remove it, and a maintainer can too.
+MUTED = "assistant-muted"
+# The reactions on a command: handled, or refused with the reason in the run.
+HANDLED = "eyes"
+REFUSED = "confused"
 
 MARKER = re.compile(r"<!-- issue-assistant:([a-z-]+)((?: [a-z]+=[\w.+/-]+)*) -->")
 # Control characters other than tab and line break, which no comment needs: Python
@@ -1672,6 +1695,24 @@ class GitHub:
             ),
         )
 
+    def react(self, comment_id: int, content: str) -> None:
+        """React to a comment, such as with eyes; the same reaction again changes
+        nothing, and neither does a comment that was deleted meanwhile."""
+
+        def react() -> None:
+            try:
+                self.rest(
+                    f"issues/comments/{comment_id}/reactions",
+                    method="POST",
+                    data={"content": content},
+                )
+            except GitHubError as error:
+                # The command was carried out; only its sign has nowhere to go.
+                if not error.missing():
+                    raise
+
+        self._write(f"react with {content} to comment {comment_id}", react)
+
     def add_labels(self, number: int, names: list[str]) -> None:
         if names:
             self._write(
@@ -1888,6 +1929,8 @@ class GitHub:
                 },
             ),
         )
+        # The labels read before lack it.
+        self._labels = None
 
     def update_label(self, label: Label, current: str | None = None) -> None:
         """Set the color and the description of a label, and its name where GitHub
@@ -2119,15 +2162,23 @@ def runs_of(comment: dict[str, Any]) -> list[int]:
     return [int(moment) for moment in re.findall(r"\d{1,10}", runs)]
 
 
-def record_run(github: GitHub, comment: dict[str, Any], at: datetime) -> None:
+def record_run(
+    github: GitHub,
+    comment: dict[str, Any],
+    at: datetime,
+    marks: dict[str, str] | None = None,
+) -> None:
     """Add the run of the AI that starts at the moment to the marker of the
-    assistant's comment that it answers. Only the assistant can change its
-    comments, so the record holds where a reporter could delete their own."""
+    assistant's comment that it answers, with the attributes `marks`. Only the
+    assistant can change its comments, so the record holds where a reporter could
+    delete their own."""
     runs = ".".join(str(moment) for moment in [*runs_of(comment), int(at.timestamp())])
+    attributes = {**(marks or {}), "runs": runs}
 
     def recorded(match: re.Match[str]) -> str:
-        others = re.sub(r" runs=\S+", "", match[2])
-        return f"<!-- issue-assistant:{match[1]}{others} runs={runs} -->"
+        others = re.sub(rf" (?:{'|'.join(attributes)})=\S+", "", match[2])
+        added = "".join(f" {key}={value}" for key, value in attributes.items())
+        return f"<!-- issue-assistant:{match[1]}{others}{added} -->"
 
     github.edit_comment(comment["id"], MARKER.sub(recorded, text_of(comment), count=1))
 
@@ -2143,9 +2194,11 @@ class Plan:
     mode: str = "none"
     notes: list[str] = field(default_factory=list)
     # The assistant's comment that the task answers: the questions that a follow-up
-    # takes up, or the release that a reply after it is about. Its marker records
-    # the run once the limits let it start.
+    # takes up, the release that a reply after it is about, or the analysis that the
+    # reporter's /assistant again repeats. Its marker records the run, with `marks`,
+    # once the limits let it start.
     answers: dict[str, Any] | None = None
+    marks: dict[str, str] = field(default_factory=dict)
 
 
 def handle_event(
@@ -2175,9 +2228,7 @@ def handle_event(
             github.add_labels(number, [NEEDS_TRIAGE])
         if is_maintainer(issue):
             return Plan(number, notes=["Opened by a maintainer: no analysis."])
-        return within_limits(
-            github, Plan(number, "triage"), issue, created(issue), config
-        )
+        return limited(github, Plan(number, "triage"), issue, created(issue), config)
     if name == "issues" and action == "edited":
         if "body" not in (payload.get("changes") or {}):
             return Plan(number, notes=["A new title alone answers nothing."])
@@ -2187,32 +2238,280 @@ def handle_event(
             and current & {NEEDS_INFO, STALE}
         ):
             plan = answered(github, issue, config)
-            return within_limits(
-                github, plan, issue, moment(issue["updated_at"]), config
-            )
+            return limited(github, plan, issue, moment(issue["updated_at"]), config)
         return Plan(number, notes=["Edit without a pending question."])
     if name == "issue_comment" and action == "created":
         comment = payload["comment"]
-        if issue["state"] != "open":
-            plan = reopen_if_answered(github, issue, comment, config)
-            return within_limits(github, plan, comment, created(comment), config)
-        plan = Plan(number)
-        if POSSIBLE_DUPLICATE in current:
-            # Every human comment after the notice stops the automatic closing.
-            github.remove_label(number, POSSIBLE_DUPLICATE)
-            plan.notes.append("A comment stopped the duplicate closing.")
-        if login(comment.get("user")) == author:
-            if current & {NEEDS_INFO, STALE}:
-                plan = answered(github, issue, config, plan)
-                return within_limits(github, plan, comment, created(comment), config)
-            return plan
-        if is_maintainer(comment):
-            if STALE in current:
-                github.remove_label(number, STALE)
-            if NEEDS_INFO not in current and not is_maintainer(issue):
-                plan.mode = "maintainer-reply"
+        given = command_of(issue, comment)
+        if given is None:
+            return handle_comment(github, issue, comment, config)
+        refused = refusal(comment, given)
+        if not refused:
+            return handle_command(github, issue, comment, given, config)
+        # A line that is no command the author may give is an ordinary comment,
+        # such as an objection or an answer with a typo in its first line.
+        github.react(comment["id"], REFUSED)
+        plan = handle_comment(github, issue, comment, config)
+        plan.notes.insert(0, refused)
         return plan
     return Plan(number, notes=[f"Event {name}.{action} is not handled."])
+
+
+def handle_comment(
+    github: GitHub, issue: dict[str, Any], comment: dict[str, Any], config: Config
+) -> Plan:
+    """A new comment that gives no command: an answer, an objection, a maintainer's
+    reply or a reason to reopen."""
+    number = issue["number"]
+    author = login(issue.get("user"))
+    current = label_names(issue)
+    if issue["state"] != "open":
+        plan = reopen_if_answered(github, issue, comment, config)
+        return limited(github, plan, comment, created(comment), config)
+    plan = Plan(number)
+    if POSSIBLE_DUPLICATE in current:
+        # Every human comment after the notice stops the automatic closing.
+        github.remove_label(number, POSSIBLE_DUPLICATE)
+        plan.notes.append("A comment stopped the duplicate closing.")
+    if login(comment.get("user")) == author:
+        if current & {NEEDS_INFO, STALE}:
+            plan = answered(github, issue, config, plan)
+            return limited(github, plan, comment, created(comment), config)
+        return plan
+    if is_maintainer(comment):
+        if STALE in current:
+            github.remove_label(number, STALE)
+        if NEEDS_INFO not in current and not is_maintainer(issue):
+            plan.mode = "maintainer-reply"
+            return limited(github, plan, comment, created(comment), config)
+    return plan
+
+
+def limited(
+    github: GitHub,
+    plan: Plan,
+    trigger: dict[str, Any],
+    at: datetime,
+    config: Config,
+) -> Plan:
+    """The plan of a run of the AI that an event asks for, or none while the issue is
+    muted or the run would pass a limit of the day; see within_limits.
+
+    The labels are read anew: the event can have waited its turn behind the run
+    that muted the issue, and its own copy of them is older.
+    """
+    if plan.mode == "none":
+        return plan
+    # An event of an issue always names it.
+    assert plan.issue is not None
+    if MUTED in label_names(github.issue(plan.issue)):
+        return stopped(
+            plan,
+            f"The assistant is muted on #{plan.issue} ({MUTED}): no AI run; "
+            "/assistant unmute ends it.",
+        )
+    return within_limits(github, plan, trigger, at, config)
+
+
+# Commands
+
+
+@dataclass(frozen=True)
+class Command:
+    """A command of a comment: its name, in lower case, and what follows it."""
+
+    name: str
+    argument: str
+
+
+def command_of(issue: dict[str, Any], comment: dict[str, Any]) -> Command | None:
+    """The command on the first line of a comment of a maintainer or of the reporter
+    of the issue; None for any other comment. The same line from anyone else is an
+    ordinary comment.
+
+    The argument is the rest of the comment, for the question of ask, which may
+    take several lines.
+    """
+    if is_bot(comment.get("user")) or not (
+        is_maintainer(comment) or login(comment.get("user")) == login(issue.get("user"))
+    ):
+        return None
+    first, _, rest = text_of(comment).partition("\n")
+    match = COMMAND_LINE.fullmatch(first.rstrip("\r"))
+    if not match:
+        return None
+    return Command(match[1].lower(), f"{match[2]}\n{rest}".strip())
+
+
+def refusal(comment: dict[str, Any], given: Command) -> str:
+    """Why the line is no command that its author may give, or empty when it is one.
+
+    Its text is the author's, so the reason doesn't repeat it.
+    """
+    if given.name not in COMMANDS:
+        return f"No command of the assistant; the commands are {', '.join(COMMANDS)}."
+    if not is_maintainer(comment) and given.name not in REPORTER_COMMANDS:
+        return (
+            f"Only maintainers use /assistant {given.name}; the reporter may use "
+            f"{' and '.join(REPORTER_COMMANDS)}."
+        )
+    return ""
+
+
+def conversing(issue: dict[str, Any], comment: dict[str, Any]) -> bool:
+    """Whether the comment is part of the conversation: no command that its author
+    may give, which asks, answers and objects to nothing. A refused line, such as a
+    mistyped command, is an ordinary comment."""
+    given = command_of(issue, comment)
+    return given is None or bool(refusal(comment, given))
+
+
+def handle_command(
+    github: GitHub,
+    issue: dict[str, Any],
+    comment: dict[str, Any],
+    given: Command,
+    config: Config,
+) -> Plan:
+    """Carry out the command of a maintainer or of the reporter and react to it:
+    👀 when it is done or its task starts, 😕 when it is refused, with the reason
+    in the summary of the run."""
+    number = issue["number"]
+    maintainer = is_maintainer(comment)
+    plan = carry_out(github, issue, comment, given, maintainer, config)
+    if isinstance(plan, str):
+        github.react(comment["id"], REFUSED)
+        return Plan(number, notes=[plan])
+    github.react(comment["id"], HANDLED)
+    return plan
+
+
+def carry_out(
+    github: GitHub,
+    issue: dict[str, Any],
+    comment: dict[str, Any],
+    given: Command,
+    maintainer: bool,
+    config: Config,
+) -> Plan | str:
+    """What the command did and the task it gives the engine, or why it is refused."""
+    number = issue["number"]
+    name = given.name
+    if name == "mute":
+        if not any(
+            label["name"].casefold() == MUTED.casefold() for label in github.labels()
+        ):
+            github.create_label(muted_label(config))
+        github.add_labels(number, [MUTED])
+        return Plan(number, notes=[f"Muted on #{number}: no AI run of its own."])
+    if name == "unmute":
+        github.remove_label(number, MUTED)
+        return Plan(number, notes=[f"Unmuted on #{number}."])
+    if issue["state"] != "open":
+        return f"#{number} is closed; only mute and unmute work on a closed issue."
+    if name == "again":
+        return again(github, issue, comment, maintainer, config)
+    if name == "duplicate":
+        return mark_duplicate(github, issue, given.argument, config)
+    if name == "not-duplicate":
+        github.remove_label(number, POSSIBLE_DUPLICATE)
+        return Plan(number, notes=[f"#{number} is no duplicate: it stays open."])
+    if name == "waiting":
+        if NEEDS_INFO in label_names(issue):
+            return Plan(number, notes=[f"#{number} already waits for the reporter."])
+        github.add_labels(number, [NEEDS_INFO])
+        return Plan(number, notes=[f"#{number} waits for the reporter."])
+    if not given.argument:
+        return "/assistant ask needs a question after it."
+    return Plan(number, "maintainer-question", ["A maintainer asked a question."])
+
+
+def muted_label(config: Config) -> Label:
+    """The label of muted issues, as labels.toml defines it or else as the starter
+    does."""
+    return next(
+        (label for label in config.labels if label.name == MUTED),
+        Label(
+            MUTED,
+            "ededed",
+            "The assistant starts no AI run on this issue; /assistant unmute ends it",
+            "decision",
+        ),
+    )
+
+
+def again(
+    github: GitHub,
+    issue: dict[str, Any],
+    comment: dict[str, Any],
+    maintainer: bool,
+    config: Config,
+) -> Plan | str:
+    """A new first analysis, which decides anew about a duplicate.
+
+    A maintainer may ask for one at any time. The reporter may ask once per issue,
+    while it waits for the maintainer's triage and after an analysis: its marker
+    records the run, within the limits of the day, so that a deleted comment gives
+    no second one.
+    """
+    number = issue["number"]
+    plan = Plan(number, "triage", ["New analysis on request."])
+    if not maintainer:
+        if NEEDS_TRIAGE not in label_names(issue):
+            return (
+                f"The reporter of #{number} may ask for a new analysis only while it "
+                f"has {NEEDS_TRIAGE}."
+            )
+        analyses = [
+            item for item in github.comments(number) if kind_of(item) == "analysis"
+        ]
+        if not analyses:
+            return f"#{number} has no analysis that the reporter could ask again."
+        if any("again" in (marker(item) or ("", {}))[1] for item in analyses):
+            return f"The reporter of #{number} asked for a new analysis once already."
+        plan.answers, plan.marks = analyses[-1], {"again": "1"}
+        plan = limited(github, plan, comment, created(comment), config)
+        if plan.mode == "none":
+            return plan.notes[-1]
+    if POSSIBLE_DUPLICATE in label_names(issue):
+        # The new analysis adds it again, with a new notice, if it finds one.
+        github.remove_label(number, POSSIBLE_DUPLICATE)
+    return plan
+
+
+def mark_duplicate(
+    github: GitHub, issue: dict[str, Any], argument: str, config: Config
+) -> Plan | str:
+    """The notice of a duplicate that a maintainer named, with possible-duplicate;
+    the sweep closes the issue after the same days as an analysis's notice, unless
+    someone objects."""
+    number = issue["number"]
+    found = ORIGINAL.match(argument)
+    if not found:
+        return (
+            "/assistant duplicate needs the original, such as /assistant duplicate #12."
+        )
+    named = int(found[1])
+    original = other_issue(github, named, number) if named <= MAX_NUMBER else None
+    if original is None or original["state"] != "open":
+        return f"#{named} is no other open issue of this repository."
+    exempt = exemption(issue, config.lifecycle)
+    if exempt:
+        # The sweep would only take possible-duplicate away again.
+        return f"#{number} is exempt ({exempt}) and never closes as a duplicate."
+    # Without its notice, possible-duplicate closes nothing.
+    github.add_labels(number, [POSSIBLE_DUPLICATE])
+    language = issue_language(issue, github.comments(number))
+    github.comment(
+        number, render_duplicate(named, login(issue.get("user")), language, config)
+    )
+    return Plan(
+        number,
+        notes=[
+            f"Marked as a duplicate of #{named}; it closes in "
+            f"{config.lifecycle.duplicate_grace_days} days unless someone objects."
+        ],
+    )
 
 
 def add_form_labels(github: GitHub, issue: dict[str, Any], config: Config) -> None:
@@ -2268,14 +2567,16 @@ def within_limits(
     per_day = limit(config, "max_per_day")
     per_author = limit(config, "max_per_author_per_day")
     since = at - DAY
-    triage = plan.mode == "triage"
+    # A new issue counts only the issues opened before it; a new analysis that the
+    # reporter asked for counts every issue of the day, as a follow-up does.
+    first = plan.mode == "triage" and plan.answers is None
     reporters = [
         login(item.get("user"))
         for item in github.issues_since(since)
         if since <= created(item) <= at
         and not is_bot(item.get("user"))
         and not is_maintainer(item)
-        and (not triage or item["number"] < plan.issue)
+        and (not first or item["number"] < plan.issue)
     ]
     # Recording a run changes the comment, so the comments that changed since then
     # hold every recorded run of the day.
@@ -2290,14 +2591,14 @@ def within_limits(
             f"Daily limit of AI runs reached (max_per_day = {per_day}); "
             "the maintainer takes over.",
         )
-    if triage and reporters.count(login(trigger.get("user"))) >= per_author:
+    if first and reporters.count(login(trigger.get("user"))) >= per_author:
         return stopped(
             plan,
             "Daily limit of analyses for this reporter reached "
             f"(max_per_author_per_day = {per_author}); the maintainer takes over.",
         )
     if plan.answers:
-        record_run(github, plan.answers, at)
+        record_run(github, plan.answers, at, plan.marks)
     return plan
 
 
@@ -2502,11 +2803,19 @@ def render_labels(config: Config) -> str:
 
 def judges(issue: dict[str, Any], comment: dict[str, Any], mode: str) -> bool:
     """Whether a reply task may act on the comment: release-reply on one of the
-    reporter, maintainer-reply on one of a maintainer who isn't the reporter."""
+    reporter, maintainer-reply on one of a maintainer who isn't the reporter and
+    gives no command, maintainer-question on a maintainer's /assistant ask."""
     reporter = login(issue.get("user"))
     if mode == "release-reply":
         return login(comment.get("user")) == reporter
-    return is_maintainer(comment) and login(comment.get("user")) != reporter
+    given = command_of(issue, comment)
+    if mode == "maintainer-question":
+        return is_maintainer(comment) and given is not None and given.name == "ask"
+    return (
+        is_maintainer(comment)
+        and login(comment.get("user")) != reporter
+        and conversing(issue, comment)
+    )
 
 
 def judged_comment(
@@ -2811,6 +3120,14 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
             "reason": text(200),
         },
     }
+    if mode == "maintainer-question":
+        return record(
+            {
+                "language": choice(["en", "de"]),
+                "answer": text(3000),
+                "references": {"type": "array", "items": reference, "maxItems": 6},
+            }
+        )
     common = {
         "language": choice(["en", "de"]),
         "kind": choice(config.group("type") + ["spam"]),
@@ -3482,6 +3799,8 @@ TEXT: dict[str, dict[str, str]] = {
         "place. A 👍 on #{number} shows that more people are affected. If it's "
         "something different, write a comment or react to this comment with 👎, and it "
         "stays open.",
+        "duplicate.named": "@{author}, a maintainer marked this issue as a duplicate "
+        "of #{number}.",
         "related": "Related",
         "discussion": "discussion",
         "references": "Where to look",
@@ -3510,6 +3829,10 @@ TEXT: dict[str, dict[str, str]] = {
         "follow-up.missing.intro": "Please also add:",
         "follow-up.footer": "<sub>🤖 Automated follow-up by {engine}. It can be wrong; "
         "the maintainers decide. {feedback}</sub>",
+        "answer.intro": "@{asker}, here is my answer to [your question]({question}):",
+        "answer.footer": "<sub>🤖 Automated answer by {engine}, based on the code, "
+        "the documentation and this issue. It can be wrong; check it before you rely "
+        "on it. {feedback}</sub>",
         "reminder": "@{author}, a friendly reminder: this issue is still waiting for "
         "your answer to {questions}. Without an answer, it closes automatically on "
         "{date}. A short comment keeps it open, for example if you need more time.",
@@ -3563,6 +3886,8 @@ TEXT: dict[str, dict[str, str]] = {
         "Stelle bleibt. Ein 👍 bei #{number} zeigt, dass mehr Leute betroffen sind. "
         "Geht es um etwas anderes, schreib einen Kommentar oder reagiere auf diesen "
         "Kommentar mit 👎, dann bleibt es offen.",
+        "duplicate.named": "@{author}, ein Maintainer hat dieses Issue als Duplikat "
+        "von #{number} markiert.",
         "related": "Verwandte Themen",
         "discussion": "Diskussion",
         "references": "Zum Nachlesen",
@@ -3593,6 +3918,10 @@ TEXT: dict[str, dict[str, str]] = {
         "follow-up.missing.intro": "Bitte ergänze noch:",
         "follow-up.footer": "<sub>🤖 Automatische Rückmeldung von {engine}. Sie kann "
         "falsch sein; die Maintainer entscheiden. {feedback}</sub>",
+        "answer.intro": "@{asker}, hier ist meine Antwort auf [deine Frage]({question}):",
+        "answer.footer": "<sub>🤖 Automatische Antwort von {engine} auf Grundlage des "
+        "Codes, der Dokumentation und dieses Issues. Sie kann falsch sein; prüfe sie, "
+        "bevor du dich darauf verlässt. {feedback}</sub>",
         "reminder": "@{author}, eine freundliche Erinnerung: Dieses Issue wartet noch "
         "auf deine Antwort auf {questions}. Ohne Antwort wird es am {date} "
         "automatisch geschlossen. Ein kurzer Kommentar genügt, damit es offen bleibt, "
@@ -3808,6 +4137,44 @@ def render_follow_up(
     return "\n\n".join(parts) + "\n"
 
 
+def render_answer(
+    answer: dict[str, Any],
+    asker: str,
+    number: int,
+    question: int,
+    references: list[str],
+    config: Config,
+    engine: str = DEFAULT_ENGINE,
+    numbers: Collection[int] = (),
+) -> str:
+    """The answer to the question of a maintainer's /assistant ask, the comment
+    `question` of issue #number; its marker names the comment, so that a run again
+    answers it once. `numbers` are the issues and discussions that exist, which its
+    text may link."""
+    language = answer["language"]
+    address = (
+        f"https://github.com/{config.repository}/issues/{number}"
+        f"#issuecomment-{question}"
+    )
+    parts = [
+        render_marker("answer", lang=language, to=question, engine=engine),
+        say(language, "answer.intro", asker=asker, question=address),
+        sanitize(answer["answer"], config, numbers),
+    ]
+    links = link_sections(language, [], references)
+    if links:
+        parts.append(links)
+    parts.append(
+        say(
+            language,
+            "answer.footer",
+            engine=ENGINES[engine].name,
+            feedback=invitation(language, config),
+        )
+    )
+    return "\n\n".join(parts) + "\n"
+
+
 def render_reminder(
     author: str, language: str, closes: datetime, questions: str = ""
 ) -> str:
@@ -3841,6 +4208,20 @@ def render_closed_duplicate(
     return (
         f"{render_marker('closed-duplicate', of=number)}\n"
         f"{say(language, 'closed-duplicate', number=number, **periods)}\n"
+    )
+
+
+def render_duplicate(number: int, author: str, language: str, config: Config) -> str:
+    """The notice of a duplicate of #number that a maintainer named with /assistant
+    duplicate. Its marker names the original, as that of an analysis does, so that
+    the sweep closes the issue after the same days unless someone objects."""
+    periods = config.lifecycle.text(language)
+    notice = notice_link(config)
+    about = f"\n<sub>{say(language, 'about', notice=notice)}</sub>\n" if notice else ""
+    return (
+        f"{render_marker('duplicate', lang=language, duplicate=number)}\n"
+        f"{say(language, 'duplicate.named', author=author, number=number)} "
+        f"{say(language, 'duplicate.close', number=number, **periods)}\n{about}"
     )
 
 
@@ -4181,6 +4562,10 @@ def apply_answer(
     author = login(issue.get("user"))
     if mode == "maintainer-reply":
         return apply_maintainer_reply(github, issue, answer, config, comment_id)
+    if mode == "maintainer-question":
+        return apply_maintainer_question(
+            github, issue, answer, config, sha, engine, comment_id, repeat=repeat
+        )
     if not repeat:
         comments = github.comments(number)
         posted = earlier_post(github, issue, mode, comments)
@@ -4278,8 +4663,9 @@ def acted_on(
 
     The engine judged the comment of comment.md alone, so the task acts only on
     it, and only when it comes from the reporter (release-reply) or a maintainer
-    (maintainer-reply): neither a newer comment nor a run by hand on the comment of
-    someone else stands in for it.
+    (maintainer-reply), or asks a maintainer's question (maintainer-question):
+    neither a newer comment nor a run by hand on the comment of someone else stands
+    in for it.
     """
     number = issue["number"]
     comments = github.comments(number)
@@ -4287,7 +4673,10 @@ def acted_on(
     if judged is None:
         return f"The comment judged on #{number} is gone; nothing done."
     if not judges(issue, judged, mode):
-        role = "the reporter's" if mode == "release-reply" else "a maintainer's"
+        role = {
+            "release-reply": "the reporter's",
+            "maintainer-question": "a maintainer's question",
+        }.get(mode, "a maintainer's")
         return f"The comment judged on #{number} is not {role}; nothing done."
     return comments, judged
 
@@ -4317,6 +4706,54 @@ def apply_maintainer_reply(
         return [f"The reporter of #{number} already answered."]
     github.add_labels(number, [NEEDS_INFO])
     return [f"#{number} waits for the reporter: {reason}"]
+
+
+def apply_maintainer_question(
+    github: GitHub,
+    issue: dict[str, Any],
+    answer: dict[str, Any],
+    config: Config,
+    sha: str,
+    engine: str = DEFAULT_ENGINE,
+    comment_id: int | None = None,
+    *,
+    repeat: bool = False,
+) -> list[str]:
+    """Post the answer to the question of a maintainer's /assistant ask, once,
+    checked and cleaned as every text of the engine; a run by hand answers again."""
+    number = issue["number"]
+    found = acted_on(github, issue, "maintainer-question", comment_id)
+    if isinstance(found, str):
+        return [found]
+    comments, judged = found
+    question = str(judged["id"])
+    if not repeat and any(
+        (marker(item) or ("", {}))[1].get("to") == question
+        for item in comments
+        if kind_of(item) == "answer"
+    ):
+        return [f"The question on #{number} has its answer already; nothing posted."]
+    numbers = named_numbers(
+        github,
+        number,
+        [answer["answer"], *(item["reason"] for item in answer["references"])],
+        (),
+    )
+    asker = login(judged.get("user"))
+    github.comment(
+        number,
+        render_answer(
+            answer,
+            asker,
+            number,
+            judged["id"],
+            references(answer["references"], sha, answer["language"], config, numbers),
+            config,
+            engine,
+            numbers,
+        ),
+    )
+    return [f"Answer on #{number} to the question of {asker}."]
 
 
 def apply_release_reply(
@@ -4714,16 +5151,13 @@ def sweep_waiting(
         if event["event"] == "labeled"
         and (event.get("label") or {}).get("name") == NEEDS_INFO
     ]
-    asked = [
-        created(comment)
-        for comment in comments
-        if (is_maintainer(comment) and login(comment.get("user")) != author)
-        or kind_of(comment) in {"analysis", "follow-up"}
-    ]
+    asked = [created(comment) for comment in asking(issue, comments)]
     since = max(labeled + asked or [created(issue)])
     current = label_names(issue)
     if any(
-        login(comment.get("user")) == author and created(comment) > since
+        login(comment.get("user")) == author
+        and created(comment) > since
+        and conversing(issue, comment)
         for comment in comments
     ) or edited_since(github, issue, since):
         # The event workflow missed the answer, for example while it was switched off.
@@ -4777,6 +5211,25 @@ def sweep_waiting(
     return []
 
 
+def asking(
+    issue: dict[str, Any], comments: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """The comments that may ask the reporter something: those of a maintainer who
+    isn't the reporter, other than commands, and the assistant's analyses and
+    follow-ups."""
+    author = login(issue.get("user"))
+    return [
+        comment
+        for comment in comments
+        if (
+            is_maintainer(comment)
+            and login(comment.get("user")) != author
+            and conversing(issue, comment)
+        )
+        or kind_of(comment) in {"analysis", "follow-up"}
+    ]
+
+
 def closing_day(reminder: dict[str, Any], lifecycle: Lifecycle) -> date:
     """The day that the reminder named for the closing.
 
@@ -4799,17 +5252,11 @@ def questions_address(
     or follow-up; empty when that one asked the reporter nothing, or GitHub gave it
     no address on this issue.
     """
-    author = login(issue.get("user"))
-    asking = [
-        comment
-        for comment in comments
-        if (is_maintainer(comment) and login(comment.get("user")) != author)
-        or kind_of(comment) in {"analysis", "follow-up"}
-    ]
-    if not asking:
+    asked = asking(issue, comments)
+    if not asked:
         return ""
-    found = marker(asking[-1])
-    address = str(asking[-1].get("html_url") or "")
+    found = marker(asked[-1])
+    address = str(asked[-1].get("html_url") or "")
     expected = (
         rf"https://github\.com/{re.escape(github.repository)}"
         rf"/issues/{issue['number']}#issuecomment-\d+"
@@ -4825,7 +5272,11 @@ def sweep_duplicate(
     github: GitHub, issue: dict[str, Any], now: datetime, lifecycle: Lifecycle
 ) -> list[str]:
     """Close a possible duplicate duplicate_grace_days after the notice, 3 by
-    default, unless someone objected or the issue is exempt."""
+    default, unless someone objected or the issue is exempt.
+
+    The notice is the analysis that found the duplicate, or the comment that a
+    maintainer's /assistant duplicate posted.
+    """
     number = issue["number"]
     author = login(issue.get("user"))
     comments = github.comments(number)
@@ -4833,7 +5284,7 @@ def sweep_duplicate(
         comment
         for comment in comments
         if (found := marker(comment))
-        and found[0] == "analysis"
+        and found[0] in {"analysis", "duplicate"}
         and "duplicate" in found[1]
     ]
     if not notices:
@@ -4845,11 +5296,13 @@ def sweep_duplicate(
     if exempt:
         github.remove_label(number, POSSIBLE_DUPLICATE)
         return [f"#{number}: stays open, exempt ({exempt})."]
-    # A comment of anyone objects, and a thumbs down of the reporter or of anyone
+    # A comment of anyone objects, other than a command, and a thumbs down of the reporter or of anyone
     # who may push to the repository: in the repository of an organization, the
     # owner is the organization, which never reacts.
     objected = any(
-        created(comment) > created(notice) and not is_bot(comment.get("user"))
+        created(comment) > created(notice)
+        and not is_bot(comment.get("user"))
+        and conversing(issue, comment)
         for comment in comments
     ) or any(
         reaction["content"] == "-1"
@@ -4859,13 +5312,15 @@ def sweep_duplicate(
         )
         for reaction in github.reactions(notice["id"])
     )
-    original = other_issue(github, int(marker(notice)[1]["duplicate"]), number)  # type: ignore[index]
-    # A notice from before an original had to be vouched for closes nothing.
+    kind, said = marker(notice)  # type: ignore[misc]
+    original = other_issue(github, int(said["duplicate"]), number)
+    # A notice from before an original had to be vouched for closes nothing; a
+    # maintainer who names the original vouches for it.
     if (
         objected
         or not original
         or original["state"] != "open"
-        or not vouched_for(original)
+        or (kind == "analysis" and not vouched_for(original))
     ):
         github.remove_label(number, POSSIBLE_DUPLICATE)
         return [
@@ -5912,12 +6367,28 @@ def event_comment(number: int) -> int | None:
     The jobs of a run share its event, so the analysis and the apply job of a reply
     find the same comment, also when newer ones came in while the run waited.
     """
+    identifier = (event_payload(number).get("comment") or {}).get("id")
+    return identifier if isinstance(identifier, int) else None
+
+
+def event_payload(number: int) -> dict[str, Any]:
+    """The event that started this run when it is one of the issue; else empty."""
     path = os.environ.get("GITHUB_EVENT_PATH")
     payload = json.loads(Path(path).read_text("utf-8")) if path else {}
     if (payload.get("issue") or {}).get("number") != number:
-        return None
-    identifier = (payload.get("comment") or {}).get("id")
-    return identifier if isinstance(identifier, int) else None
+        return {}
+    found: dict[str, Any] = payload
+    return found
+
+
+def asked_again(number: int) -> bool:
+    """Whether the run is one that a maintainer or the reporter started with
+    /assistant again on the issue, which the event job let start: its analysis
+    is posted also after an earlier one, as by hand."""
+    payload = event_payload(number)
+    comment = payload.get("comment")
+    given = command_of(payload["issue"], comment) if comment else None
+    return given is not None and given.name == "again"
 
 
 def repository_of_run(*, needed: bool) -> str:
@@ -6099,7 +6570,8 @@ def main(argv: list[str] | None = None) -> int:
                 os.environ.get("RESULT", ""),
                 config,
                 os.environ.get("GITHUB_SHA", "HEAD"),
-                repeat=os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch",
+                repeat=os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+                or asked_again(arguments.issue),
                 engine=os.environ.get("ENGINE", ""),
                 comment_id=event_comment(arguments.issue),
             )

@@ -1025,13 +1025,14 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
 
         monkeypatch.setattr(assistant, name, record)
     shown = hooks.examples()
-    assert called == set(writers) and len(writers) == 10
+    assert called == set(writers) and len(writers) == 12
     assert [example.kind for example in shown] == list(hooks.KINDS)
     for example in shown:
         for language in hooks.LANGUAGES:
             text = example.texts[language]
             kind = {
                 "duplicate": "analysis",
+                "named-duplicate": "duplicate",
                 "secret": "analysis",
                 "personal": "analysis",
                 "security": "analysis",

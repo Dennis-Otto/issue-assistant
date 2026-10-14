@@ -22,6 +22,7 @@ from support import (
     ESCAPES,
     NOW,
     REPOSITORY,
+    WEB,
     FakeGitHub,
     analysis,
     at,
@@ -33,6 +34,7 @@ from support import (
     make_issue,
     make_pull,
     make_release,
+    not_found,
     rate_limited,
     release_history,
     run_main,
@@ -691,6 +693,467 @@ def test_unknown_events_are_noted(config):
         github, "issues", event("labeled", make_issue()), config
     )
     assert plan.mode == "none" and "not handled" in plan.notes[0]
+
+
+# Commands
+
+MUTED_NOTE = (
+    "The assistant is muted on #12 (assistant-muted): no AI run; "
+    "/assistant unmute ends it."
+)
+
+
+def command_event(
+    config, github, body, author="maintainer", association="OWNER", comment_id=5
+):
+    """Handle a new comment of `author` on #12; the plan and the reactions on it."""
+    comment = make_comment(comment_id, author, body, 0, association)
+    github.comment_store.setdefault(12, []).append(comment)
+    plan = assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(12), author, comment),
+        config,
+    )
+    return plan, [item["content"] for item in github.reaction_store.get(comment_id, [])]
+
+
+@pytest.mark.parametrize(
+    ("body", "author", "association", "expected"),
+    [
+        ("/assistant again", "maintainer", "OWNER", ("again", "")),
+        ("/Assistant MUTE for now", "maintainer", "MEMBER", ("mute", "for now")),
+        (
+            "   /assistant duplicate #7\r\nThe same crash.",
+            "maintainer",
+            "COLLABORATOR",
+            ("duplicate", "#7\nThe same crash."),
+        ),
+        (
+            "/assistant ask Why?\nAnd since when?",
+            "maintainer",
+            "OWNER",
+            ("ask", "Why?\nAnd since when?"),
+        ),
+        ("/assistant", "maintainer", "OWNER", ("", "")),
+        ("/assistant again", "reporter", "NONE", ("again", "")),
+        # From anyone else, the line is an ordinary comment.
+        ("/assistant again", "someone", "NONE", None),
+        ("/assistants again", "maintainer", "OWNER", None),
+        ("/assistant-bot again", "maintainer", "OWNER", None),
+        # Four blanks make it code, and only the first line gives a command.
+        ("    /assistant again", "maintainer", "OWNER", None),
+        ("> /assistant again", "maintainer", "OWNER", None),
+        ("Thanks!\n/assistant again", "maintainer", "OWNER", None),
+    ],
+)
+def test_a_command_is_the_first_line_of_a_maintainer_s_or_the_reporter_s_comment(
+    body, author, association, expected
+):
+    comment = make_comment(5, author, body, 0, association)
+    given = assistant.command_of(make_issue(), comment)
+    assert (None if given is None else (given.name, given.argument)) == expected
+    # The assistant's own comments are never commands.
+    assert assistant.command_of(make_issue(), make_comment(6, "bot", body, 0)) is None
+
+
+@pytest.mark.parametrize(
+    ("body", "labels", "mode", "after"),
+    [
+        # A new analysis decides anew whether the issue is a duplicate.
+        ("/assistant again", ("bug", "possible-duplicate"), "triage", {"bug"}),
+        ("/assistant not-duplicate", ("bug", "possible-duplicate"), "none", {"bug"}),
+        ("/assistant waiting", ("bug",), "none", {"bug", "needs-info"}),
+        ("/assistant mute", ("bug",), "none", {"bug", "assistant-muted"}),
+        ("/assistant unmute", ("bug", "assistant-muted"), "none", {"bug"}),
+        (
+            "/assistant ask Where is the chart drawn?",
+            ("bug", "needs-info"),
+            "maintainer-question",
+            {"bug", "needs-info"},
+        ),
+    ],
+)
+def test_maintainers_steer_the_assistant_with_commands(
+    config, body, labels, mode, after
+):
+    github = FakeGitHub(config, make_issue(labels=labels))
+    plan, reactions = command_event(config, github, body)
+    assert (plan.mode, github.labels_of(12), reactions) == (mode, after, ["eyes"])
+    assert not github.posted(12)
+
+
+def test_mute_creates_its_label_where_it_is_missing(config):
+    github = FakeGitHub(config, make_issue())
+    command_event(config, github, "/assistant mute")
+    created = [call[2] for call in github.calls if call[:2] == ("POST", "labels")]
+    assert created == [
+        {
+            "name": "assistant-muted",
+            "color": "ededed",
+            "description": "The assistant starts no AI run on this issue; "
+            "/assistant unmute ends it",
+        }
+    ]
+    github.calls.clear()
+    command_event(config, github, "/assistant unmute", comment_id=6)
+    command_event(config, github, "/assistant mute", comment_id=7)
+    assert not [call for call in github.calls if call[:2] == ("POST", "labels")]
+    # labels.toml defines it as it likes.
+    own = assistant.Label("assistant-muted", "000000", "Quiet", "decision")
+    labeled = dataclasses.replace(config, labels=(*config.labels, own))
+    assert assistant.muted_label(labeled) is own
+
+
+def test_waiting_marks_an_issue_that_waits_already_once(config):
+    github = FakeGitHub(config, make_issue(labels=("bug", "needs-info")))
+    plan, reactions = command_event(config, github, "/assistant waiting")
+    assert (plan.notes, reactions) == (
+        ["#12 already waits for the reporter."],
+        ["eyes"],
+    )
+    assert not [call for call in github.calls if call[1] == "issues/12/labels"]
+
+
+def test_the_reporter_may_ask_for_a_new_analysis_once(config):
+    github = FakeGitHub(config, make_issue(labels=("bug", "needs-triage")))
+    github.comment_store[12] = [analysis(1, days_ago=1, questions=0)]
+    plan, reactions = command_event(
+        config, github, "/assistant again", "reporter", "NONE"
+    )
+    assert (plan.mode, plan.notes, reactions) == (
+        "triage",
+        ["New analysis on request."],
+        ["eyes"],
+    )
+    # The analysis records the run, which counts for the day, and that it was asked.
+    first = github.comment_store[12][0]
+    assert assistant.marker(first)[1]["again"] == "1"
+    assert assistant.runs_of(first) == [int(NOW.timestamp())]
+    # The new analysis doesn't make room for another.
+    github.comment_store[12].append(analysis(6, days_ago=0))
+    plan, reactions = command_event(
+        config, github, "/assistant again", "reporter", "NONE", comment_id=7
+    )
+    assert (plan.mode, reactions) == ("none", ["confused"])
+    assert plan.notes == ["The reporter of #12 asked for a new analysis once already."]
+
+
+@pytest.mark.parametrize(
+    ("labels", "state", "analyzed", "reason"),
+    [
+        (
+            ("bug",),
+            "open",
+            True,
+            "The reporter of #12 may ask for a new analysis only while it has "
+            "needs-triage.",
+        ),
+        (
+            ("bug", "needs-triage"),
+            "open",
+            False,
+            "#12 has no analysis that the reporter could ask again.",
+        ),
+        (("bug", "needs-triage", "assistant-muted"), "open", True, MUTED_NOTE),
+        (
+            ("bug", "needs-triage"),
+            "closed",
+            True,
+            "#12 is closed; only mute and unmute work on a closed issue.",
+        ),
+    ],
+)
+def test_the_reporter_s_again_is_refused_where_it_isn_t_due(
+    config, labels, state, analyzed, reason
+):
+    github = FakeGitHub(config, make_issue(labels=labels, state=state))
+    github.comment_store[12] = [analysis(1, days_ago=1)] if analyzed else []
+    plan, reactions = command_event(
+        config, github, "/assistant again", "reporter", "NONE"
+    )
+    assert (plan.mode, plan.notes, reactions) == ("none", [reason], ["confused"])
+    # Neither a run nor the request is recorded, and the issue stays as it was.
+    assert not [call for call in github.calls if call[0] == "PATCH"]
+
+
+def test_the_reporter_s_again_counts_for_the_limits_of_the_day(config):
+    github = FakeGitHub(config, make_issue(labels=("bug", "needs-triage")))
+    github.comment_store[12] = [analysis(1, days_ago=1)]
+    plan, reactions = command_event(
+        dataclasses.replace(config, max_per_day=0),
+        github,
+        "/assistant again",
+        "reporter",
+        "NONE",
+    )
+    assert plan.notes == [
+        "Daily limit of AI runs reached (max_per_day = 0); the maintainer takes over."
+    ]
+    assert reactions == ["confused"]
+
+
+def test_the_reporter_may_also_object_to_a_duplicate_but_use_no_other_command(
+    config,
+):
+    github = FakeGitHub(config, make_issue(labels=("bug", "possible-duplicate")))
+    plan, reactions = command_event(
+        config, github, "/assistant not-duplicate", "reporter", "NONE"
+    )
+    assert (plan.notes, reactions) == (
+        ["#12 is no duplicate: it stays open."],
+        ["eyes"],
+    )
+    assert github.labels_of(12) == {"bug"}
+    github.store[12]["labels"].append({"name": "possible-duplicate"})
+    plan, reactions = command_event(
+        config, github, "/assistant mute", "reporter", "NONE", comment_id=6
+    )
+    # A refused command is still the reporter's comment: it objects to the notice.
+    assert plan.notes == [
+        "Only maintainers use /assistant mute; the reporter may use again and "
+        "not-duplicate.",
+        "A comment stopped the duplicate closing.",
+    ]
+    assert (reactions, github.labels_of(12)) == (["confused"], {"bug"})
+
+
+def test_a_mistyped_command_still_objects_and_answers(config):
+    # A space for the hyphen: no command, so the comment objects to the notice.
+    github = FakeGitHub(config, make_issue(labels=("bug", "possible-duplicate")))
+    body = "/assistant not duplicate, mine crashes on start"
+    plan, reactions = command_event(config, github, body, "reporter", "NONE")
+    assert plan.notes[1:] == ["A comment stopped the duplicate closing."]
+    assert (reactions, github.labels_of(12)) == (["confused"], {"bug"})
+    # The sweep counts it as an objection too.
+    github = FakeGitHub(config, make_issue(labels=("bug", "possible-duplicate")))
+    command_event(config, github, "/assistant duplicate #7")
+    github.store[7] = make_issue(7)
+    github.comment_store[12].append(make_comment(9, "reporter", body, -1))
+    assert not assistant.conversing(github.store[12], github.comment_store[12][0])
+    assert assistant.conversing(github.store[12], github.comment_store[12][-1])
+    # And it answers a question.
+    github = FakeGitHub(config, make_issue(labels=("bug", "needs-info")))
+    plan, _ = command_event(config, github, "/assistant oops\nIt is 2.1.", "reporter")
+    assert "The reporter answered." in plan.notes
+    assert "needs-info" not in github.labels_of(12)
+
+
+def test_the_reporter_s_again_counts_the_newer_issues_of_the_day(config):
+    # #12 was analyzed two days ago; three strangers opened newer issues today.
+    newer = [
+        make_issue(number, author=f"stranger{number}", days_ago=0.1)
+        for number in (13, 14, 15)
+    ]
+    github = FakeGitHub(
+        config, make_issue(labels=("bug", "needs-triage"), days_ago=2), *newer
+    )
+    github.comment_store[12] = [analysis(1, days_ago=2)]
+    plan, reactions = command_event(
+        dataclasses.replace(config, max_per_day=3),
+        github,
+        "/assistant again",
+        "reporter",
+        "NONE",
+    )
+    assert (plan.mode, reactions) == ("none", ["confused"])
+    assert plan.notes == [
+        "Daily limit of AI runs reached (max_per_day = 3); the maintainer takes over."
+    ]
+    # Neither the request nor a run is recorded.
+    first = github.comment_store[12][0]
+    assert "again" not in assistant.marker(first)[1]
+    assert assistant.runs_of(first) == []
+
+
+def test_a_deleted_command_comment_still_carries_out_the_command(config):
+    github = FakeGitHub(config, make_issue())
+    github.fail(r"POST issues/comments/\d+/reactions", not_found())
+    plan, reactions = command_event(config, github, "/assistant again")
+    assert (plan.mode, reactions) == ("triage", [])
+
+
+def test_a_reaction_that_fails_otherwise_fails_the_job(config):
+    github = FakeGitHub(config, make_issue())
+    github.fail(r"POST issues/comments/\d+/reactions")
+    with pytest.raises(assistant.GitHubError):
+        command_event(config, github, "/assistant again")
+
+
+def test_an_exempt_issue_is_not_marked_as_a_duplicate(config):
+    config = dataclasses.replace(
+        config,
+        lifecycle=dataclasses.replace(config.lifecycle, exempt_labels=("pinned",)),
+    )
+    github = FakeGitHub(config, make_issue(7), make_issue(labels=("bug", "pinned")))
+    plan, reactions = command_event(config, github, "/assistant duplicate #7")
+    assert (plan.notes, reactions) == (
+        ["#12 is exempt (labeled pinned) and never closes as a duplicate."],
+        ["confused"],
+    )
+    assert github.labels_of(12) == {"bug", "pinned"} and not github.posted(12)
+
+
+def test_a_command_of_anyone_else_is_an_ordinary_comment(config):
+    github = FakeGitHub(config, make_issue(labels=("bug", "possible-duplicate")))
+    plan, reactions = command_event(
+        config, github, "/assistant mute", "someone", "NONE"
+    )
+    # It objects to the duplicate notice, as any comment does, and steers nothing.
+    assert plan.notes == ["A comment stopped the duplicate closing."]
+    assert (reactions, github.labels_of(12)) == ([], {"bug"})
+
+
+def test_an_unknown_command_is_refused_without_repeating_it(config):
+    github = FakeGitHub(config, make_issue())
+    plan, reactions = command_event(config, github, "/assistant <b>help</b>")
+    assert plan.notes == [
+        "No command of the assistant; the commands are again, duplicate, "
+        "not-duplicate, waiting, mute, unmute, ask."
+    ]
+    assert reactions == ["confused"]
+
+
+def test_on_a_closed_issue_only_mute_and_unmute_work(config):
+    github = FakeGitHub(config, make_issue(labels=("bug",), state="closed"))
+    plan, reactions = command_event(config, github, "/assistant waiting")
+    assert (plan.notes, reactions) == (
+        ["#12 is closed; only mute and unmute work on a closed issue."],
+        ["confused"],
+    )
+    plan, reactions = command_event(config, github, "/assistant mute", comment_id=6)
+    assert (reactions, github.labels_of(12)) == (["eyes"], {"bug", "assistant-muted"})
+
+
+def test_a_question_needs_its_text(config):
+    github = FakeGitHub(config, make_issue())
+    plan, reactions = command_event(config, github, "/assistant ask  ")
+    assert (plan.mode, plan.notes, reactions) == (
+        "none",
+        ["/assistant ask needs a question after it."],
+        ["confused"],
+    )
+
+
+def test_a_muted_issue_gets_no_ai_run_of_its_own(config):
+    # An answer of the reporter still ends the waiting, without a follow-up.
+    github = FakeGitHub(
+        config, make_issue(labels=("bug", "needs-info", "assistant-muted"))
+    )
+    github.comment_store[12] = [analysis(1, days_ago=1, questions=1)]
+    plan, _ = command_event(config, github, "Version 2.0.2", "reporter", "NONE")
+    assert (plan.mode, plan.notes) == ("none", ["The reporter answered.", MUTED_NOTE])
+    assert "needs-info" not in github.labels_of(12)
+    assert assistant.runs_of(github.comment_store[12][0]) == []
+    # A mute counts that came after the event, while it waited its turn.
+    github = FakeGitHub(config, make_issue(labels=("bug",)))
+    issue = github.issue(12)
+    github.store[12]["labels"].append({"name": "assistant-muted"})
+    plan = assistant.handle_event(github, "issues", event("opened", issue), config)
+    assert (plan.mode, plan.notes) == ("none", [MUTED_NOTE])
+    plan, _ = command_event(config, github, "Can you send the log?")
+    assert plan.mode == "none"
+    # Nor does the AI read a comment after the release.
+    github = closed_by_release(config)
+    github.store[12]["labels"].append({"name": "assistant-muted"})
+    assert comment_after_release(github, config).mode == "none"
+    assert assistant.runs_of(github.comment_store[12][1]) == []
+
+
+def test_a_maintainer_s_again_and_question_run_also_on_a_muted_issue(config):
+    github = FakeGitHub(config, make_issue(labels=("bug", "assistant-muted")))
+    plan, _ = command_event(config, github, "/assistant again")
+    assert plan.mode == "triage"
+    plan, _ = command_event(config, github, "/assistant ask Why?", comment_id=6)
+    assert plan.mode == "maintainer-question"
+
+
+def test_a_duplicate_that_a_maintainer_named_closes_after_the_same_days(config):
+    github = FakeGitHub(
+        config,
+        make_issue(7, labels=("bug", "needs-triage")),
+        make_issue(labels=("bug", "needs-triage")),
+    )
+    plan, reactions = command_event(config, github, "/assistant duplicate of #7")
+    assert plan.notes == [
+        "Marked as a duplicate of #7; it closes in 3 days unless someone objects."
+    ]
+    assert reactions == ["eyes"] and "possible-duplicate" in github.labels_of(12)
+    (body,) = github.posted(12)
+    assert body.startswith(
+        "<!-- issue-assistant:duplicate lang=en duplicate=7 -->\n@reporter, a "
+        "maintainer marked this issue as a duplicate of #7. If that's right, "
+    )
+    # A command after the notice objects to nothing, and the maintainer who named
+    # the original vouches for it, though it waits for its triage.
+    github.comment_store[12].append(
+        make_comment(6, "maintainer", "/assistant mute", -1, "OWNER")
+    )
+    assert assistant.sweep(github, NOW + timedelta(days=2.9)) == []
+    assert assistant.sweep(github, NOW + timedelta(days=3)) == [
+        "#12: closed as a duplicate of #7."
+    ]
+    # A comment objects, as to the notice of an analysis.
+    github = FakeGitHub(config, make_issue(7), make_issue())
+    command_event(config, github, "/assistant duplicate #7")
+    github.comment_store[12].append(make_comment(9, "someone", "Not the same", -1))
+    assert assistant.sweep(github, NOW + timedelta(days=3)) == [
+        "#12: stays open, the duplicate notice was objected to or is outdated."
+    ]
+
+
+@pytest.mark.parametrize(
+    ("argument", "reason"),
+    [
+        (
+            "",
+            "/assistant duplicate needs the original, such as /assistant duplicate #12.",
+        ),
+        (
+            "soon",
+            "/assistant duplicate needs the original, such as /assistant duplicate #12.",
+        ),
+        ("#12", "#12 is no other open issue of this repository."),
+        ("GH-8", "#8 is no other open issue of this repository."),
+        ("9", "#9 is no other open issue of this repository."),
+        ("#9999999999", "#9999999999 is no other open issue of this repository."),
+    ],
+)
+def test_a_duplicate_needs_another_open_issue(config, argument, reason):
+    github = FakeGitHub(config, make_issue(9, state="closed"), make_issue())
+    plan, reactions = command_event(config, github, f"/assistant duplicate {argument}")
+    assert (plan.notes, reactions) == ([reason], ["confused"])
+    assert "possible-duplicate" not in github.labels_of(12)
+    assert not github.posted(12)
+
+
+def test_the_notice_of_a_named_duplicate_links_how_the_assistant_works(config):
+    assert "[So arbeitet der Assistent](" in assistant.render_duplicate(
+        7, "reporter", "de", config
+    )
+    without = dataclasses.replace(config, notices=())
+    body = assistant.render_duplicate(7, "reporter", "en", without)
+    assert "<sub>" not in body and body.endswith("and it stays open.\n")
+
+
+def test_commands_neither_answer_nor_ask_the_reporter(config):
+    commands = [
+        make_comment(5, "reporter", "/assistant again", 2),
+        make_comment(6, "maintainer", "/assistant mute", 1, "OWNER"),
+    ]
+    github = waiting(config, 16, comments=commands)
+    assert assistant.sweep(github, NOW) == ["#12: reminded the reporter after 16 days."]
+    # The reminder links the questions of the analysis, not the command.
+    assert f"]({WEB}/issues/12#issuecomment-1)" in github.posted(12)[-1]
+
+
+def test_a_maintainer_reply_judges_no_command(config):
+    issue = make_issue()
+    question = make_comment(2, "maintainer", "Which version?", 1, "OWNER")
+    typed = make_comment(3, "maintainer", "/assistant waiting", 0.5, "OWNER")
+    assert not assistant.judges(issue, typed, "maintainer-reply")
+    found = assistant.judged_comment(issue, [question, typed], "maintainer-reply", None)
+    assert found is question
 
 
 # Limits of the AI runs
@@ -3573,6 +4036,135 @@ def test_a_maintainer_reply_acts_only_on_the_maintainer_s_comment_that_it_judged
     assert apply() == ["#12 waits for the reporter: Asked."]
     github.comment_store[12] = [make_comment(3, "reporter", "1.9.0", 1)]
     assert apply() == ["The comment judged on #12 is gone; nothing done."]
+
+
+# Questions of maintainers
+
+QUESTION = "/assistant ask Why does the card stay empty?"
+
+
+def asked(config, *comments):
+    """Issue #12 with a maintainer's question, comment 4, and the comments after it."""
+    github = FakeGitHub(config, make_issue(), make_issue(7, labels=("bug",)))
+    github.comment_store[12] = [
+        make_comment(4, "maintainer", QUESTION, 0.5, "OWNER"),
+        *comments,
+    ]
+    return github
+
+
+def question_answer(**changes):
+    return json.dumps(
+        {
+            "language": "en",
+            "answer": "The card misses the `throw` event; see #7.",
+            "references": [],
+        }
+        | changes
+    )
+
+
+# The context is written into config.root, which is then a copy of the sample.
+@pytest.mark.usefixtures("root")
+def test_a_question_reads_the_issue_and_the_maintainer_s_question(config):
+    github = asked(config, make_comment(5, "reporter", "Any news?", 0.2))
+    folder = config.root / ".issue-assistant"
+    # The comment of the event, or, by hand, the newest question.
+    for comment_id in (4, None):
+        written = assistant.write_context(
+            github, 12, "maintainer-question", config, comment_id
+        )
+        comment = (folder / "comment.md").read_text("utf-8")
+        assert "Why does the card stay empty?" in comment
+        assert "Any news?" not in comment
+    assert "answer a maintainer's question about issue #12" in written["prompt"]
+    assert not (folder / "issues.jsonl").exists()
+    assert json.loads(written["schema"])["required"] == [
+        "language",
+        "answer",
+        "references",
+    ]
+
+
+def test_the_answer_to_a_maintainer_s_question_is_checked_and_posted_once(config):
+    github = asked(config)
+    raw = question_answer(
+        answer="@octocat, the card misses the event, as in #7 and #8. <img src=x>",
+        references=[{"path": "docs/troubleshooting.md", "reason": "The log."}],
+    )
+
+    def apply(**options):
+        return assistant.apply_answer(
+            github, "maintainer-question", 12, raw, config, "abc", **options
+        )
+
+    assert apply(comment_id=4) == ["Answer on #12 to the question of maintainer."]
+    (body,) = github.posted(12)
+    question = f"{WEB}/issues/12#issuecomment-4"
+    assert body.startswith(
+        "<!-- issue-assistant:answer lang=en to=4 engine=claude -->\n\n"
+        f"@maintainer, here is my answer to [your question]({question}):\n\n"
+    )
+    assert "### Where to look" in body
+    # Only #7 exists, and the engine's text mentions, links and shows nothing.
+    assert stray_problems(body, {7}, config, "maintainer") == []
+    # One answer for each question, and a run by hand answers the newest again.
+    assert apply(comment_id=4) == [
+        "The question on #12 has its answer already; nothing posted."
+    ]
+    assert apply(repeat=True) == ["Answer on #12 to the question of maintainer."]
+
+
+def test_an_answer_goes_only_to_a_maintainer_s_question(config):
+    github = asked(
+        config,
+        make_comment(5, "maintainer", "Which version?", 0.3, "OWNER"),
+        make_comment(6, "reporter", QUESTION, 0.2),
+    )
+    for comment_id in (5, 6):
+        assert assistant.apply_answer(
+            github,
+            "maintainer-question",
+            12,
+            question_answer(),
+            config,
+            "abc",
+            comment_id=comment_id,
+        ) == ["The comment judged on #12 is not a maintainer's question; nothing done."]
+    assert not github.posted(12)
+
+
+def test_again_posts_a_new_analysis_after_the_first(
+    monkeypatch, tmp_path, sample_root, config
+):
+    issue = make_issue(labels=("bug", "needs-triage"))
+    github = FakeGitHub(config, issue)
+    github.comment_store[12] = [analysis(1, days_ago=1)]
+
+    def run(command, body, **environment):
+        comment = make_comment(5, "maintainer", body, 0, "OWNER")
+        path = tmp_path / "event.json"
+        payload = event("created", issue, "maintainer", comment)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return run_main(
+            monkeypatch,
+            tmp_path,
+            sample_root,
+            github,
+            command,
+            GITHUB_EVENT_NAME="issue_comment",
+            GITHUB_EVENT_PATH=str(path),
+            **environment,
+        )
+
+    code, outputs, _ = run("event", "/assistant again")
+    assert (code, outputs) == (0, "issue=12\nmode=triage\n")
+    answer = {"ISSUE": "12", "MODE": "triage", "RESULT": json.dumps(make_answer())}
+    code, _, summary = run("apply", "/assistant again", **answer)
+    assert code == 0 and "Analysis on #12" in summary
+    # Another comment repeats nothing.
+    code, _, summary = run("apply", "Thanks!", **answer)
+    assert "#12 already has this triage; nothing posted." in summary
 
 
 # The daily sweep

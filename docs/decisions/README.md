@@ -17,3 +17,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0009](0009-limit-the-ai-runs.md) | Limit the AI runs that strangers start, counting issues rather than answers | accepted |
 | [0010](0010-the-lifecycle-keeps-the-day-it-names.md) | The lifecycle counts days of the calendar and keeps the day that a reminder names | accepted |
 | [0011](0011-install-pins-its-own-checkout.md) | `install` pins the commit of its own checkout, the release whose templates it writes | accepted |
+| [0012](0012-commands-from-the-issue.md) | Maintainers and the reporter steer the assistant with commands that are no part of the conversation | accepted |

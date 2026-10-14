@@ -696,6 +696,22 @@ def test_the_starter_labels_have_every_lifecycle_label():
     assert set(assistant.LIFECYCLE) == lifecycle
 
 
+def test_mute_creates_the_label_of_the_starter_and_of_this_repository(sample_config):
+    """The label of muted issues is the maintainer's decision, so labels.toml need
+    not define it; where it doesn't, /assistant mute creates it as the starter has it.
+    """
+    for path in (assistant.TEMPLATES, ROOT):
+        data = tomllib.loads((path / assistant.LABELS_FILE).read_text("utf-8"))
+        (label,) = [item for item in data["label"] if item["name"] == assistant.MUTED]
+        made = assistant.muted_label(dataclasses.replace(sample_config, labels=()))
+        assert label == {
+            "name": made.name,
+            "color": made.color,
+            "description": made.description,
+            "group": made.group,
+        }
+
+
 # Names of AI vendors and their products; only the engine table may name one.
 VENDORS = re.compile(r"Claude|Anthropic|OpenAI|Codex|Copilot|GPT|Gemini", re.IGNORECASE)
 
