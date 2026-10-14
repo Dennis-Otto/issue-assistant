@@ -1,0 +1,5 @@
+<!-- issue-assistant:duplicate lang=en duplicate=23 -->
+@alex-demo, a maintainer marked this issue as a duplicate of #23. If that's right, there's nothing to do: the issue closes as a duplicate of #23 in 3 days, so the conversation stays in one place. A 👍 on #23 shows that more people are affected. If it's something different, write a comment or react to this comment with 👎, and it stays open.
+
+<sub>[How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue)</sub>
+

@@ -1,0 +1,3 @@
+<!-- issue-assistant:closed-duplicate of=23 -->
+Als Duplikat von #23 geschlossen, wie vor 3 Tagen angekündigt. Bitte mach dort weiter; ein 👍 bei #23 zeigt, dass mehr Leute betroffen sind. Falls das ein Irrtum war, schreib einen Kommentar, dann öffnen die Maintainer es wieder.
+

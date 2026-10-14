@@ -1,0 +1,3 @@
+<!-- issue-assistant:closed-unanswered -->
+Ich schließe dieses Issue, weil die erbetenen Informationen seit 30 Tagen fehlen. @alex-demo, sobald du hier antwortest, wird es automatisch wieder geöffnet. Danke für deine Meldung!
+

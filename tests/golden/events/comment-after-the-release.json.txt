@@ -1,0 +1,33 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "release-reply",
+    "notes": [
+      "The reporter wrote after the release."
+    ],
+    "answers": {
+      "html_url": "https://github.com/owner/project/issues/12#issuecomment-2",
+      "id": 2,
+      "user": {
+        "login": "github-actions[bot]",
+        "type": "Bot"
+      },
+      "body": "<!-- issue-assistant:released tag=v1.10.0 -->\n🎉 Released in [v1.10.0](https://github.com/owner/project/releases/tag/v1.10.0) with the fix from #40. @reporter, please update to this version. If the problem persists, write a comment here and the issue reopens, or open a new issue.\n",
+      "created_at": "2026-10-05T12:00:00Z",
+      "author_association": "NONE"
+    },
+    "marks": {}
+  },
+  "writes": [
+    "edit comment 2"
+  ],
+  "requests": [
+    [
+      "PATCH",
+      "issues/comments/2",
+      {
+        "body": "<!-- issue-assistant:released tag=v1.10.0 runs=1791374400 -->\n🎉 Released in [v1.10.0](https://github.com/owner/project/releases/tag/v1.10.0) with the fix from #40. @reporter, please update to this version. If the problem persists, write a comment here and the issue reopens, or open a new issue.\n"
+      }
+    ]
+  ]
+}

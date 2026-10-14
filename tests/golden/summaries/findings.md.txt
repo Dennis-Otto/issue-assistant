@@ -1,0 +1,5 @@
+### Findings
+
+- Alert #4 is open: https://github.com/owner/project/security/code-scanning/4
+- Fix these findings, or accept them with a reason in .github/findings.toml.
+

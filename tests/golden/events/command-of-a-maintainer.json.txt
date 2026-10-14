@@ -1,0 +1,43 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "none",
+    "notes": [
+      "Muted on #12: no AI run of its own."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [
+    "create label assistant-muted",
+    "add assistant-muted to #12",
+    "react with eyes to comment 5"
+  ],
+  "requests": [
+    [
+      "POST",
+      "labels",
+      {
+        "name": "assistant-muted",
+        "color": "ededed",
+        "description": "The assistant starts no AI run on this issue; /assistant unmute ends it"
+      }
+    ],
+    [
+      "POST",
+      "issues/12/labels",
+      {
+        "labels": [
+          "assistant-muted"
+        ]
+      }
+    ],
+    [
+      "POST",
+      "issues/comments/5/reactions",
+      {
+        "content": "eyes"
+      }
+    ]
+  ]
+}

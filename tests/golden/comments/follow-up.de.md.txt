@@ -1,0 +1,20 @@
+<!-- issue-assistant:follow-up lang=de questions=1 engine=claude -->
+
+Danke für deine Antwort, @alex-demo!
+
+Das Log zeigt `already subscribed, skipping` direkt nach dem Wiederverbinden, was die Ursache oben bestätigt. Ein Fix würde das Abonnement in `on_disconnect()` beenden, damit `start()` neu abonniert.
+
+### Noch offen
+
+Bitte ergänze noch:
+
+- Die Version der Dashboard-App, unter Einstellungen → Über.
+
+Ohne Antwort folgt nach 15 Tagen eine Erinnerung, nach 30 Tagen wird das Issue geschlossen. Ist es geschlossen, öffnet eine Antwort es wieder.
+
+### Zum Nachlesen
+
+- [`src/plant_monitor/chart.py`, Zeile 52](https://github.com/demo-org/plant-monitor/blob/4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c/src/plant_monitor/chart.py#L52): Kehrt früh zurück, solange `subscribed` gesetzt ist.
+
+<sub>🤖 Automatische Rückmeldung von Claude. Sie kann falsch sein; die Maintainer entscheiden. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+

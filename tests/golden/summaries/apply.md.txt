@@ -1,0 +1,7 @@
+### Issue assistant: triage of #12
+
+- Analysis on #12; labels added: area: cards, needs-info.
+- add area: cards to #12
+- comment on #12
+- add needs-info to #12
+

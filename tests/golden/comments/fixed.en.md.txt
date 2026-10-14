@@ -1,0 +1,3 @@
+<!-- issue-assistant:fixed pull=43 -->
+Fixed by #43, which is now on `main`. The fix ships with the next release; this issue closes then, with a link to it.
+

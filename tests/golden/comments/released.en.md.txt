@@ -1,0 +1,3 @@
+<!-- issue-assistant:released tag=v1.4.0 -->
+🎉 Released in [v1.4.0](https://github.com/demo-org/plant-monitor/releases/tag/v1.4.0) with the fix from #43. @alex-demo, please update to this version. If the problem persists, write a comment here and the issue reopens, or open a new issue.
+

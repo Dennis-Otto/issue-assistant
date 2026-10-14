@@ -1,0 +1,39 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "follow-up",
+    "notes": [
+      "The reporter answered."
+    ],
+    "answers": {
+      "html_url": "https://github.com/owner/project/issues/12#issuecomment-1",
+      "id": 1,
+      "user": {
+        "login": "github-actions[bot]",
+        "type": "Bot"
+      },
+      "body": "<!-- issue-assistant:analysis lang=en questions=1 -->\nFirst analysis",
+      "created_at": "2026-10-05T12:00:00Z",
+      "author_association": "NONE"
+    },
+    "marks": {}
+  },
+  "writes": [
+    "remove needs-info from #12",
+    "edit comment 1"
+  ],
+  "requests": [
+    [
+      "DELETE",
+      "issues/12/labels/needs-info",
+      null
+    ],
+    [
+      "PATCH",
+      "issues/comments/1",
+      {
+        "body": "<!-- issue-assistant:analysis lang=en questions=1 runs=1791374400 -->\nFirst analysis"
+      }
+    ]
+  ]
+}

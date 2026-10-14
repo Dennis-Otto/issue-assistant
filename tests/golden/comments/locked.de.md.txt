@@ -1,0 +1,3 @@
+<!-- issue-assistant:locked -->
+Dieses Issue ist seit mehr als 90 Tagen geschlossen, deshalb habe ich es gesperrt. Siehst du das Problem oder etwas Ähnliches noch, eröffne bitte ein neues Issue und verlinke dieses.
+
