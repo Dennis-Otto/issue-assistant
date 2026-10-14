@@ -1,0 +1,18 @@
+flowchart TB
+  accTitle: How the assistant reads the text of an issue
+  accDescr: The text of an issue or a comment, which anyone can write, is read up to GitHub's 65,536 characters. The answers of a form are cut out between their headings, which are found once; from them come the labels of the form and the reporter's language. For the AI, the answers of a form and HTML comments make an excerpt of each other issue, and HTML comments and tags go in one pass for issue.md. Then the characters that GitHub shows as nothing go, in one pass, after the HTML, so that none can end an HTML comment that GitHub never ends. The excerpts go into issues.jsonl, and issue.md holds up to 20,000 characters of each text in a code fence that the text can't close.
+  text["issue or comment text,<br>which anyone writes"] --> cap["at most 65,536 characters,<br>as much as GitHub keeps"]
+  cap --> forms["`**form_fields**<br>each heading found once,<br>answers cut out between`"]
+  forms --> event["labels of the form,<br>the reporter's language"]
+  cap --> excerpt["`**excerpt** of every<br>other issue: form answers,<br>no HTML comments`"]
+  cap --> html["`**strip_html**<br>comments and tags<br>in one pass`"]
+  excerpt --> visible["`**Visible**<br>invisible characters<br>out, in one pass`"]
+  html --> visible
+  visible -- "the other issues" --> jsonl["`**issues.jsonl**,<br>an excerpt of each`"]
+  visible -- "the issue" --> issue["`**issue.md**, up to 20,000<br>characters of each text,<br>each in its own fence`"]
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class text untrusted
+  class cap,forms,excerpt,html,visible job
+  class event,jsonl,issue safe

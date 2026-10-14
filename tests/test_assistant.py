@@ -3532,7 +3532,15 @@ def test_the_notice_of_a_fix_speaks_the_reporter_s_language(config):
 
 @pytest.mark.parametrize(
     "case",
-    ["other branch", "too old", "other repository", "closed", "locked", "removed"],
+    [
+        "other branch",
+        "too old",
+        "other repository",
+        "closed",
+        "closed since the query",
+        "locked",
+        "removed",
+    ],
 )
 def test_some_merged_fixes_mark_nothing(config, case):
     pull = make_pull(
@@ -3543,10 +3551,13 @@ def test_some_merged_fixes_mark_nothing(config, case):
         pull["closingIssuesReferences"]["nodes"][0]["repository"] = {
             "nameWithOwner": "someone/else"
         }
+    if case == "closed since the query":
+        # GitHub listed the issue as open, and it closed before its read.
+        pull["closingIssuesReferences"]["nodes"][0]["state"] = "OPEN"
     github = merged(
         config,
         pull,
-        state="closed" if case == "closed" else "open",
+        state="closed" if case.startswith("closed") else "open",
         locked=case == "locked",
     )
     if case == "removed":
@@ -3572,11 +3583,41 @@ def test_only_this_repository_s_recent_fixes_on_the_default_branch_mark(config):
     assert notice.startswith("<!-- issue-assistant:fixed pull=41 -->\n")
 
 
+def test_a_closed_issue_that_a_fix_names_costs_no_request(config):
+    # GitHub closed #12 at the merge, and #13 is still open.
+    github = merged(config, make_pull(fixes=(12, 13)), labels=("bug",), state="closed")
+    github.store[13] = make_issue(13, labels=("bug",))
+    assert assistant.mark_fixed(github, NOW) == [
+        "#13: fixed by #40; closes with the next release."
+    ]
+    reads = [path for method, path, _ in github.calls if method == "GET"]
+    assert "issues/13" in reads
+    assert not any(path.startswith("issues/12") for path in reads)
+
+
 def test_a_fix_merged_exactly_14_days_ago_still_marks(config):
     github = merged(config, make_pull(days_ago=14), labels=("bug",), days_ago=30)
     assert assistant.mark_fixed(github, NOW) == [
         "#12: fixed by #40; closes with the next release."
     ]
+
+
+def test_a_fix_at_the_edge_of_the_lookback_closes_with_the_release_that_ships_it(
+    config,
+):
+    # The sweep began a minute before it labeled the issue, and the fix was merged
+    # a second within the lookback of that beginning; v1.9.0 shipped it since.
+    began = NOW - timedelta(minutes=1)
+    pull = make_pull(days_ago=14)
+    pull["mergedAt"] = pull["updatedAt"] = assistant.stamp(
+        began - assistant.MERGE_LOOKBACK + timedelta(seconds=1)
+    )
+    github = merged(config, pull, labels=("bug",), days_ago=30)
+    github.release_store = release_history(10, 2)
+    github.contained = {(f"{40:040x}", "v1.9.0"), (f"{40:040x}", "v1.10.0")}
+    assert assistant.mark_fixed(github, began) == ["#12: closed, released in v1.9.0."]
+    (comment,) = github.posted(12)
+    assert "with the fix from #40." in comment
 
 
 def test_the_notice_of_an_earlier_fix_doesn_t_stop_the_next_one(config):
@@ -3844,14 +3885,23 @@ def test_a_late_label_closes_with_the_release_that_shipped_the_fix(config):
 
 
 @pytest.mark.parametrize(
-    ("merged", "tag"), [(16, "v1.9.0"), (16.5, "v1.10.0")], ids=["14 days", "older"]
+    ("before", "tag"),
+    [(timedelta(0), "v1.9.0"), (timedelta(seconds=1), "v1.10.0")],
+    ids=["14 days and an hour", "older"],
 )
-def test_a_fix_merged_long_before_the_label_isn_t_awaited(config, merged, tag):
-    # The label came 2 days ago; a sweep sets it at most 14 days after a merge, so
-    # an older fix is one that the label, set by hand, doesn't wait for.
-    github = released(
-        config, pulls=[make_pull(days_ago=merged)], releases=release_history(15, 0.5)
+def test_a_fix_merged_long_before_the_label_isn_t_awaited(config, before, tag):
+    # The label came 2 days ago; a sweep sets it at most 14 days after a merge, in
+    # a run of less than an hour, so an older fix is one that the label, set by
+    # hand, doesn't wait for.
+    pull = make_pull()
+    pull["mergedAt"] = pull["updatedAt"] = assistant.stamp(
+        NOW
+        - timedelta(days=2)
+        - assistant.MERGE_LOOKBACK
+        - assistant.LABEL_SLACK
+        - before
     )
+    github = released(config, pulls=[pull], releases=release_history(15, 0.5))
     github.store[12]["created_at"] = at(30)
     github.contained = {(f"{40:040x}", "v1.9.0"), (f"{40:040x}", "v1.10.0")}
     assert assistant.close_released(github) == [f"#12: closed, released in {tag}."]

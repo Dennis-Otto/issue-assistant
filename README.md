@@ -65,37 +65,10 @@ The [documentation website](https://dennis-otto.github.io/issue-assistant/) has 
 
 <!-- --8<-- [start:workflows-diagram] -->
 
-```mermaid
-flowchart TB
-  accTitle: The four workflows of a repository and what starts them
-  accDescr: Four workflows, each with what starts it. In issue-assistant.yml, a new issue, an edit or a comment starts event, which sets the labels of the form and chooses the next task; analyze lets the AI read the checkout and answer with JSON; apply checks the answer and is the only job that writes. In issue-lifecycle.yml, every morning, a merged pull request, a release and the end of a release run start sweep, which sends reminders, closes issues, closes duplicates and marks fixed issues. In labels.yml, a change of labels.toml on main starts sync-labels, which creates and updates the labels. In findings.yml, every morning, a scan on main and a change of findings.toml start findings, which dismisses the accepted findings and fails on the others.
-  subgraph lifecycle ["issue-lifecycle.yml"]
-    direction TB
-    shipped(["every morning, a merged<br/>pull request, a release,<br/>the end of a release run"]) --> sweep["<b>sweep</b><br/>reminders, closing,<br/>duplicates, fixed issues"]
-  end
-  subgraph assistant ["issue-assistant.yml"]
-    direction TB
-    opened(["a new issue, an edit<br/>or a comment"]) --> event["<b>event</b><br/>labels from the form,<br/>the next task"]
-    event --> analyze["<b>analyze</b><br/>the AI reads the checkout<br/>and answers with JSON"]
-    analyze --> apply["<b>apply</b><br/>checks the answer,<br/>the only job that writes"]
-  end
-  subgraph scanning ["findings.yml"]
-    direction TB
-    scanned(["every morning, a scan<br/>on main, a change<br/>of findings.toml"]) --> findings["<b>findings</b><br/>dismisses the accepted<br/>findings, fails on others"]
-  end
-  subgraph labelling ["labels.yml"]
-    direction TB
-    changed(["a change of<br/>labels.toml on main"]) --> sync["<b>sync-labels</b><br/>creates and updates<br/>the labels"]
-  end
-  assistant ~~~ labelling
-  lifecycle ~~~ scanning
-  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  class analyze ai
-  class event,apply,sweep,sync,findings job
-  class opened,shipped,changed,scanned trigger
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/the-four-workflows-of-a-repository-and-what-starts-them.dark.svg">
+  <img src="docs/images/diagrams/the-four-workflows-of-a-repository-and-what-starts-them.svg" alt="The four workflows of a repository and what starts them: Four workflows, each with what starts it. In issue-assistant.yml, a new issue, an edit or a comment starts event, which sets the labels of the form and chooses the next task; analyze lets the AI read the checkout and answer with JSON; apply checks the answer and is the only job that writes. In issue-lifecycle.yml, every morning, a merged pull request, a release and the end of a release run start sweep, which sends reminders, closes issues, closes duplicates and marks fixed issues. In labels.yml, a change of labels.toml on main starts sync-labels, which creates and updates the labels. In findings.yml, every morning, a scan on main and a change of findings.toml start findings, which dismisses the accepted findings and fails on the others.">
+</picture>
 
 <!-- --8<-- [end:workflows-diagram] -->
 
@@ -112,30 +85,10 @@ Every job runs on `ubuntu-24.04`, the AI's on GitHub's egress-firewall runner of
 
 Every task of the AI is one of four: `triage` for a new issue, `follow-up` when the reporter answered the assistant's questions (at most twice, and never once the maintainer joined the conversation), `maintainer-reply` to decide whether a maintainer's comment waits for the reporter, and `release-reply` to decide whether the reporter of an issue that a release closed says that the problem persists. Which one an event of an issue gives it:
 
-```mermaid
-flowchart TB
-  accTitle: Which task an event of an issue gives the AI
-  accDescr: An event of a bot, on a pull request, or a new issue that a maintainer opened gives the AI no task. Otherwise, a new issue gives it triage. An answer of the reporter to the assistant's questions gives it follow-up, at most twice and only while no maintainer joined the conversation since the questions. A comment of a maintainer on a reporter's issue that waits for nobody gives it maintainer-reply. A comment of the reporter within 30 days after a release closed the issue gives it release-reply. Any other event, such as a comment of someone else, gives it no task. A task runs only while the AI is on and its secret is set; otherwise no analysis comes, and labels, reminders and closing go on.
-  start(["an event of an issue"]) --> who{"a bot, a pull<br/>request, or a<br/>maintainer's<br/>new issue?"}
-  who -- "yes" --> none["no task"]
-  who -- "no" --> what{"what<br/>happened?"}
-  what --> triage["<b>triage</b><br/>a new issue"]
-  what --> followup["<b>follow-up</b><br/>the reporter<br/>answered; at most<br/>twice, and no<br/>maintainer since"]
-  what --> reply["<b>maintainer-reply</b><br/>a maintainer<br/>wrote on a<br/>reporter's issue<br/>that waits<br/>for nobody"]
-  what --> persists["<b>release-reply</b><br/>the reporter<br/>wrote within<br/>30 days after<br/>a release<br/>closed it"]
-  what -- "anything else" --> none
-  triage & followup & reply & persists --> on{"the AI on,<br/>and its<br/>secret set?"}
-  on -- "yes" --> analyze["<b>analyze</b><br/>the AI reads<br/>and answers"]
-  on -- "no" --> paused["no analysis;<br/>labels, reminders<br/>and closing go on"]
-  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  class start trigger
-  class who,what,on question
-  class triage,followup,reply,persists,analyze ai
-  class none,paused job
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/which-task-an-event-of-an-issue-gives-the-ai.dark.svg">
+  <img src="docs/images/diagrams/which-task-an-event-of-an-issue-gives-the-ai.svg" alt="Which task an event of an issue gives the AI: An event of a bot, on a pull request, or a new issue that a maintainer opened gives the AI no task. Otherwise, a new issue gives it triage. An answer of the reporter to the assistant's questions gives it follow-up, at most twice and only while no maintainer joined the conversation since the questions. A comment of a maintainer on a reporter's issue that waits for nobody gives it maintainer-reply. A comment of the reporter within 30 days after a release closed the issue gives it release-reply. Any other event, such as a comment of someone else, gives it no task. A task runs only while the AI is on and its secret is set; otherwise no analysis comes, and labels, reminders and closing go on.">
+</picture>
 
 Every other event, such as a comment of someone else, gives it none. A run by hand, under *Actions → Issue assistant → Run workflow*, gives it the task chosen there, `triage` by default. The AI is off while the repository variable `ISSUE_ASSISTANT_AI` is `off`, and pauses while the engine's secret is missing.
 
@@ -150,47 +103,10 @@ A first analysis looks like this, here on an issue of a demo project:
 
 Labels say where an issue stands, and the lifecycle moves it on; each box has the colour of its label:
 
-```mermaid
-flowchart TB
-  accTitle: The life of an issue and its labels
-  accDescr: A new issue gets needs-triage, the labels of its form and a first analysis, and the maintainer takes over. When information is missing, or the maintainer asks the reporter, it gets needs-info and waits for the reporter: on day 15 it gets stale and a reminder, and on day 30 it closes as not planned; an answer, also after the closing, brings it back to the maintainer. A sure duplicate gets possible-duplicate and a notice and closes as a duplicate on day 3, unless an objection, a comment or a thumbs down of the reporter or of someone who may push, brings it back to the maintainer. A merged fix gives it fixed-in-next-release, and the release closes it with a link; a comment within 30 days that it is still broken brings it back to the maintainer.
-  opened(["new issue"]) --> triage["<b>needs-triage</b><br/>labels from the form,<br/>a first analysis"]
-  triage --> maintainer["the maintainer<br/>takes over"]
-  triage -- "information<br/>missing" --> waiting
-  maintainer -- "asks the<br/>reporter" --> waiting
-  subgraph unanswered [" "]
-    direction TB
-    waiting["<b>needs-info</b><br/>waits for<br/>the reporter"] -- "day 15" --> stale["<b>stale</b><br/>a reminder"]
-    stale -- "day 30" --> closed["closed as<br/>not planned"]
-  end
-  unanswered -- "an answer, also<br/>after the closing" --> maintainer
-  triage -- "sure<br/>duplicate" --> notice
-  subgraph duplicates [" "]
-    direction TB
-    notice["<b>possible-duplicate</b><br/>a notice"] -- "day 3" --> duplicate["closed as<br/>a duplicate"]
-  end
-  notice -- "an objection" --> maintainer
-  maintainer -- "fix merged" --> fixed
-  subgraph release [" "]
-    direction TB
-    fixed["<b>fixed-in-next-release</b><br/>waits for the release"] -- "release" --> released["closed with a link<br/>to the release"]
-  end
-  released -- "still broken,<br/>within 30 days" --> maintainer
-  classDef triage fill:#fbca0466,stroke:#bf8700,stroke-width:2px
-  classDef info fill:#fef2c059,stroke:#d4a72c,stroke-width:2px
-  classDef stale fill:#f9d0c466,stroke:#bc4c00,stroke-width:2px
-  classDef duplicate fill:#8c959f33,stroke:#6e7781,stroke-width:2px
-  classDef fixed fill:#c2e0c666,stroke:#1a7f37,stroke-width:2px
-  classDef done fill:#8250df1f,stroke:#8250df,stroke-width:2px
-  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
-  class triage triage
-  class waiting info
-  class stale stale
-  class notice duplicate
-  class fixed fixed
-  class closed,duplicate,released done
-  class maintainer person
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/the-life-of-an-issue-and-its-labels.dark.svg">
+  <img src="docs/images/diagrams/the-life-of-an-issue-and-its-labels.svg" alt="The life of an issue and its labels: A new issue gets needs-triage, the labels of its form and a first analysis, and the maintainer takes over. When information is missing, or the maintainer asks the reporter, it gets needs-info and waits for the reporter: on day 15 it gets stale and a reminder, and on day 30 it closes as not planned; an answer, also after the closing, brings it back to the maintainer. A sure duplicate gets possible-duplicate and a notice and closes as a duplicate on day 3, unless an objection, a comment or a thumbs down of the reporter or of someone who may push, brings it back to the maintainer. A merged fix gives it fixed-in-next-release, and the release closes it with a link; a comment within 30 days that it is still broken brings it back to the maintainer.">
+</picture>
 
 An issue that waits for its reporter keeps what the comments of the assistant promise:
 
@@ -203,29 +119,10 @@ An issue that waits for its reporter keeps what the comments of the assistant pr
 
 A sure duplicate closes only when nobody objects. The AI must be sure, and the original must be older, open, and opened or triaged by a maintainer; any other duplicate becomes a suggestion for the maintainer, in GitHub's panel, and a related issue in the comment:
 
-```mermaid
-sequenceDiagram
-  accTitle: A duplicate, from the notice to its closing
-  accDescr: The reporter opens an issue. The analysis of issue-assistant.yml says that it looks like a duplicate of an older issue and closes in 3 days, and adds possible-duplicate. A comment of anyone in those days removes possible-duplicate at once, and the issue stays open. A thumbs down on the notice by the reporter or by someone who may push makes the morning sweep of issue-lifecycle.yml remove possible-duplicate after the 3 days, and the issue stays open. Without an objection, the morning sweep posts a comment, closes the issue as a duplicate of the original and labels it duplicate.
-  actor R as Reporter
-  participant I as Issue #35;14
-  participant A as issue-assistant.yml
-  participant L as issue-lifecycle.yml
-  R->>I: opens it
-  I->>A: a new issue
-  A->>I: the analysis, with a<br/>notice: a duplicate of<br/>#35;9, closes in 3 days
-  A->>I: label possible-duplicate
-  Note over I: 3 days for<br/>an objection
-  alt a comment of anyone
-    I->>A: the comment
-    A->>I: removes possible-<br/>duplicate at once
-  else a 👎 on the notice, of the reporter<br/>or of someone who may push
-    L->>I: the morning sweep:<br/>removes possible-duplicate
-  else no objection
-    L->>I: the morning sweep: a comment,<br/>closed as a duplicate of #35;9
-    L->>I: label duplicate
-  end
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/a-duplicate-from-the-notice-to-its-closing.dark.svg">
+  <img src="docs/images/diagrams/a-duplicate-from-the-notice-to-its-closing.svg" alt="A duplicate, from the notice to its closing: The reporter opens an issue. The analysis of issue-assistant.yml says that it looks like a duplicate of an older issue and closes in 3 days, and adds possible-duplicate. A comment of anyone in those days removes possible-duplicate at once, and the issue stays open. A thumbs down on the notice by the reporter or by someone who may push makes the morning sweep of issue-lifecycle.yml remove possible-duplicate after the 3 days, and the issue stays open. Without an objection, the morning sweep posts a comment, closes the issue as a duplicate of the original and labels it duplicate.">
+</picture>
 
 The closing comment asks the reporter to go on in the original, where a 👍 shows that more people are affected. The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md#how-the-text-of-an-issue-reaches-the-ai) says why only an original that a maintainer vouches for closes another issue.
 
@@ -237,53 +134,17 @@ Apps and integrations reach their users with a release, not with a merge. So an 
 2. When a release is published, every issue with the label whose fix it contains closes as completed. A comment links the release and asks the reporter to update. It is the first final release, no draft or pre-release, that was published after the last fix was merged and contains every fix, so an issue that got its label late still closes with the release that shipped its fix. A label that a maintainer set by hand, for a fix without a pull request or after one that fell short, waits for the next release after it. Only this repository's pull requests count: one of another repository that names the issue with `Fixes owner/project#12` neither keeps it open nor appears in the comment. The issue is filed under the milestone of the release, such as `v1.2.0`, which the assistant creates, closed, when it is missing; its page lists everything that the release fixed.
 3. If the reporter comments within 30 days that the problem persists after the update, the AI reads the comment and the issue reopens. Thanks or questions keep it closed. The AI reads up to two comments of the reporter after each release, as `release_replies` in `config.toml` says; a maintainer reads the rest.
 
-```mermaid
-sequenceDiagram
-  accTitle: A fixed issue, from the merge to the release
-  accDescr: The maintainer merges a pull request with Fixes #12. issue-lifecycle.yml labels the issue fixed-in-next-release and comments that it closes with the next release; it stays open, since users don't have the fix yet. When the maintainer publishes the release v1.2.0, the lifecycle comments with the link to the release, closes the issue and files it under the milestone v1.2.0, and the reporter is asked to update. When the reporter comments within 30 days that it is still broken, issue-assistant.yml lets the AI read the comment and reopens the issue with needs-triage; after thanks or a question, it stays closed.
-  actor M as Maintainer
-  participant L as issue-lifecycle.yml
-  participant I as Issue #35;12
-  actor R as Reporter
-  participant A as issue-assistant.yml
-  M->>L: merges a pull request<br/>with "Fixes #35;12"
-  L->>I: fixed-in-next-release,<br/>a comment: closes with<br/>the next release
-  Note over I: stays open: users<br/>don't have the fix yet
-  M->>L: publishes the<br/>release v1.2.0
-  L->>I: a comment with the link<br/>to the release, closed,<br/>milestone v1.2.0
-  I-->>R: please update
-  alt within 30 days: "still broken"
-    R->>A: comments on<br/>the closed issue
-    A->>I: the AI reads it:<br/>reopened, needs-triage
-  else thanks or a question
-    R->>A: comments on<br/>the closed issue
-    A->>I: stays closed
-  end
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/a-fixed-issue-from-the-merge-to-the-release.dark.svg">
+  <img src="docs/images/diagrams/a-fixed-issue-from-the-merge-to-the-release.svg" alt="A fixed issue, from the merge to the release: The maintainer merges a pull request with Fixes #12. issue-lifecycle.yml labels the issue fixed-in-next-release and comments that it closes with the next release; it stays open, since users don't have the fix yet. When the maintainer publishes the release v1.2.0, the lifecycle comments with the link to the release, closes the issue and files it under the milestone v1.2.0, and the reporter is asked to update. When the reporter comments within 30 days that it is still broken, issue-assistant.yml lets the AI read the comment and reopens the issue with needs-triage; after thanks or a question, it stays closed.">
+</picture>
 
-The fixes of an issue are the pull requests of the repository that name it and were merged into the default branch at most 14 days before its label, the longest that the sweep takes to set it. A fix that a release closed the issue with before it was reopened didn't help, so neither that release nor the fix counts again; any other reopening, such as of an issue that GitHub closed at the merge, keeps the fixes:
+The fixes of an issue are the pull requests of the repository that name it and were merged into the default branch at most 14 days before its label, the longest that the sweep takes to set it, and an hour more for the run of the sweep. A fix that a release closed the issue with before it was reopened didn't help, so neither that release nor the fix counts again; any other reopening, such as of an issue that GitHub closed at the merge, keeps the fixes:
 
-```mermaid
-flowchart TB
-  accTitle: Which release closes a fixed issue
-  accDescr: For an open issue with the label fixed-in-next-release, the assistant looks for its fixes: pull requests of this repository into the default branch that name it, merged at most 14 days before the label, leaving out those that a release closed the issue with before it was reopened. With fixes and a label that the assistant set, the first final release published after the last of them was merged that contains them all closes the issue, also one published before a late label. With fixes and a label set by hand, it is the first final release after the label that contains them all. Without fixes, the first final release published after the label closes it. Drafts and pre-releases never close an issue.
-  label(["open issue with<br/><b>fixed-in-next-release</b>"]) --> fixes{"fixes of this repository,<br/>merged at most 14 days<br/>before the label, that<br/>no release closed it with<br/>before a reopening?"}
-  fixes -- "yes" --> who{"who set<br/>the label?"}
-  who -- "the assistant" --> shipped["the first final release<br/>after the last merge<br/>that contains every fix"]
-  who -- "a maintainer,<br/>by hand" --> later["the first final release<br/>after the label<br/>that contains every fix"]
-  fixes -- "no" --> next["the first final release<br/>after the label"]
-  shipped --> released(["closed with a link to the release,<br/>under its milestone"])
-  later --> released
-  next --> released
-  classDef fixed fill:#c2e0c666,stroke:#1a7f37,stroke-width:2px
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef release fill:#0969da26,stroke:#0969da,stroke-width:2px
-  classDef done fill:#8250df1f,stroke:#8250df,stroke-width:2px
-  class label fixed
-  class fixes,who question
-  class shipped,later,next release
-  class released done
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/which-release-closes-a-fixed-issue.dark.svg">
+  <img src="docs/images/diagrams/which-release-closes-a-fixed-issue.svg" alt="Which release closes a fixed issue: For an open issue with the label fixed-in-next-release, the assistant looks for its fixes: pull requests of this repository into the default branch that name it, merged at most 14 days before the label, leaving out those that a release closed the issue with before it was reopened. With fixes and a label that the assistant set, the first final release published after the last of them was merged that contains them all closes the issue, also one published before a late label. With fixes and a label set by hand, it is the first final release after the label that contains them all. Without fixes, the first final release published after the label closes it. Drafts and pre-releases never close an issue.">
+</picture>
 
 GitHub closes linked issues when a pull request is merged unless the repository turns this off: under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**. A repository without releases sets `close_with_release = false` in `config.toml`.
 
@@ -297,28 +158,10 @@ Anyone can open an issue, and every run of the AI costs money or counts toward t
 | `max_per_author_per_day` | 3 | analyses of the new issues of one reporter, in the same 24 hours |
 | `release_replies` | 2 | comments of the reporter after a release closed their issue that the AI reads, again after each release |
 
-```mermaid
-flowchart TB
-  accTitle: How the limits decide whether the AI runs
-  accDescr: A new issue, an answer of the reporter or a comment of the reporter after a release asks for a run of the AI. When a maintainer asks, or someone runs the workflow by hand, the AI runs. For everyone else, a comment after a release needs the AI to have read fewer than release_replies comments of the reporter since the release. Then the day needs room: fewer than max_per_day new issues, follow-ups and replies after a release in the 24 hours before. A new issue also needs its reporter to have opened fewer than max_per_author_per_day issues in those 24 hours. Over a limit, the maintainer takes over, and the run notes which limit was reached.
-  asks(["a new issue, an answer<br/>or a comment after a release"]) --> who{"a maintainer,<br/>or by hand?"}
-  who -- "yes" --> runs["the AI runs"]
-  who -- "no" --> release{"after a release:<br/>room in<br/><b>release_replies</b>?"}
-  release -- "yes, or no release" --> day{"room in<br/><b>max_per_day</b>?"}
-  release -- "no" --> waits["the maintainer takes over;<br/>the run notes the limit"]
-  day -- "no" --> waits
-  day -- "yes" --> new{"a new issue:<br/>room in<br/><b>max_per_author_per_day</b>?"}
-  new -- "yes, or no new issue" --> runs
-  new -- "no" --> waits
-  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
-  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
-  class asks trigger
-  class who,release,day,new question
-  class runs ai
-  class waits person
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/how-the-limits-decide-whether-the-ai-runs.dark.svg">
+  <img src="docs/images/diagrams/how-the-limits-decide-whether-the-ai-runs.svg" alt="How the limits decide whether the AI runs: A new issue, an answer of the reporter or a comment of the reporter after a release asks for a run of the AI. When a maintainer asks, or someone runs the workflow by hand, the AI runs. For everyone else, a comment after a release needs the AI to have read fewer than release_replies comments of the reporter since the release. Then the day needs room: fewer than max_per_day new issues, follow-ups and replies after a release in the 24 hours before. A new issue also needs its reporter to have opened fewer than max_per_author_per_day issues in those 24 hours. Over a limit, the maintainer takes over, and the run notes which limit was reached.">
+</picture>
 
 - **Every new issue counts,** also one that a limit kept from the AI, and each counts only the issues opened before it. So a flood of issues at once, or issues made to keep the AI from answering, start no more runs than the limit, even while the first analyses still run. Issues and comments of maintainers and bots and runs by hand never count and are never limited.
 - **A follow-up and a reply after a release count as they start.** The event job records the run in the hidden marker of the assistant's own comment that the run answers: the questions of the analysis, or the note about the release. Only the assistant can change its comments, so a reporter who deletes their comments gets no more runs, and an edit notifies nobody. Answers that come in within the same few seconds can still pass the count together.
@@ -331,27 +174,10 @@ With the defaults, strangers can start about 20 runs a day, about $4 at the pric
 
 GitHub has bad minutes too: a rate limit, a server error, an incident. The assistant never takes such an error for an answer, so a bad minute never changes what it posts:
 
-```mermaid
-flowchart TB
-  accTitle: What the assistant does when a call to GitHub fails
-  accDescr: A call to GitHub that succeeds lets the run go on. Not found means that the thing doesn't exist, and it is left out. A secondary rate limit runs the call again after a minute, up to three times. A server error runs a read again after 2, 4 and 8 seconds. Every other error, and one that stays, stops the run with one error that names what it wrote; running it again completes the rest without a second comment.
-  call["a call to GitHub"] --> answer{"GitHub<br/>answers"}
-  answer -- "with the thing" --> on["the run goes on"]
-  answer -- "not found" --> left["left out: it<br/>doesn't exist"]
-  answer -- "with an error" --> error{"which<br/>error?"}
-  error -- "secondary<br/>rate limit" --> minute["again after a minute,<br/>also a write"]
-  error -- "server error" --> read["a read: again after<br/>2, 4 and 8 seconds"]
-  error -- "any other,<br/>or one that stays" --> stop["the run stops with<br/>one error and names<br/>what it wrote"]
-  stop --> again["running it again<br/>completes it, without<br/>a second comment"]
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  class answer,error question
-  class call,minute,read job
-  class on,left,again safe
-  class stop stop
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-the-assistant-does-when-a-call-to-github-fails.dark.svg">
+  <img src="docs/images/diagrams/what-the-assistant-does-when-a-call-to-github-fails.svg" alt="What the assistant does when a call to GitHub fails: A call to GitHub that succeeds lets the run go on. Not found means that the thing doesn't exist, and it is left out. A secondary rate limit runs the call again after a minute, up to three times. A server error runs a read again after 2, 4 and 8 seconds. Every other error, and one that stays, stops the run with one error that names what it wrote; running it again completes the rest without a second comment.">
+</picture>
 
 - **Only "not found" means missing.** A duplicate, a related issue or discussion, or a release that GitHub says doesn't exist is left out. A rate limit or a server error stops the run instead, so an analysis never leaves out a duplicate that GitHub didn't show for a moment, and the AI never reads "no release yet" because GitHub failed.
 - **A failure of a moment runs again.** A read that a server error or a broken connection stopped runs again after 2, 4 and 8 seconds. A call that a secondary rate limit refused runs again after a minute, a write too, since GitHub did nothing with it. A write that a server error stopped doesn't run again, since GitHub may have done it all the same: the run stops, and running it again completes it.
@@ -370,37 +196,10 @@ Issues come from anyone, so the design assumes that an issue tries to steer the 
 
 <!-- --8<-- [start:trust-boundaries-diagram] -->
 
-```mermaid
-flowchart TB
-  accTitle: The trust boundaries of the issue assistant
-  accDescr: Anyone can write an issue, its comments, other issues and discussions, and a pull request. The text reaches the event job, which runs no AI and chooses the task, and, as data in files, the job analyze: the first boundary. There the AI reads with Read, Grep and Glob alone, behind a firewall, with a read-only token and the engine's secret. Its answer in JSON crosses the second boundary into the job apply, which runs no AI and holds no secret. Its checks want the schema, labels and issues that exist, and no secret, mention, image, HTML or foreign link. When they fail, nothing is posted; when they pass, apply writes to GitHub, only to the issue of the event: the third boundary. A merged pull request starts issue-lifecycle.yml on the default branch, without AI, which learns only the issues that it fixes, the fourth boundary, and writes to GitHub.
-  text["issue, comments,<br/>other issues, discussions"]
-  merged(["merged pull request"])
-  event["<b>event</b><br/>no AI"]
-  subgraph firewall ["analyze: firewall, read-only token"]
-    analyze["<b>the AI</b> with Read,<br/>Grep and Glob,<br/>the engine's secret"]
-  end
-  subgraph checked ["apply: no AI, no secret"]
-    checks("<b>checks</b><br/>schema, labels and<br/>issues that exist; no<br/>secret, mention, image,<br/>HTML or foreign link")
-    refused["nothing is posted"]
-  end
-  text -- "1 · as data, in files" --> firewall
-  text --> event
-  event -- "the task" --> firewall
-  firewall -- "2 · an answer in JSON" --> checked
-  checks -- "fails" --> refused
-  checks -- "3 · passes: only the<br/>issue of the event" --> github[("GitHub")]
-  merged -- "4 · only the issues it fixes" --> lifecycle["<b>issue-lifecycle.yml</b><br/>the default branch, no AI"]
-  lifecycle --> github
-  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class text,merged untrusted
-  class analyze ai
-  class event,lifecycle,checks,refused job
-  class github safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/the-trust-boundaries-of-the-issue-assistant.dark.svg">
+  <img src="docs/images/diagrams/the-trust-boundaries-of-the-issue-assistant.svg" alt="The trust boundaries of the issue assistant: Anyone can write an issue, its comments, other issues and discussions, and a pull request. The text reaches the event job, which runs no AI and chooses the task, and, as data in files, the job analyze: the first boundary. There the AI reads with Read, Grep and Glob alone, behind a firewall, with a read-only token and the engine's secret. Its answer in JSON crosses the second boundary into the job apply, which runs no AI and holds no secret. Its checks want the schema, labels and issues that exist, and no secret, mention, image, HTML or foreign link. When they fail, nothing is posted; when they pass, apply writes to GitHub, only to the issue of the event: the third boundary. A merged pull request starts issue-lifecycle.yml on the default branch, without AI, which learns only the issues that it fixes, the fourth boundary, and writes to GitHub.">
+</picture>
 
 <!-- --8<-- [end:trust-boundaries-diagram] -->
 
@@ -442,40 +241,10 @@ The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/d
 
 A set-up has three parts: what `install` writes, what you edit, and what you set on GitHub:
 
-```mermaid
-flowchart TB
-  accTitle: What install writes, what you edit and what you set on GitHub
-  accDescr: install of a release, run in the root of the repository, writes the four workflows, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore, and starters of project.md, config.toml, labels.toml and findings.toml when they are missing. Then you edit the starters, to describe the project, its labels, its settings and the accepted findings, tell reporters in SUPPORT.md which AI reads their issues, and add a step with check to the CI. Then you set on GitHub the environment issue-assistant, limited to the default branch, with the engine's secret, and turn off the auto-close of issues by merged pull requests. Then check passes, and the next new issue gets its analysis.
-  install(["<b>install</b> of a release,<br/>in the root of the repository"]) --> written
-  subgraph written ["install writes"]
-    direction TB
-    workflows["the four<br/>workflows"]
-    firewall["the firewall policy,<br/>a line in .gitignore"]
-    starters["starters, when missing:<br/>project.md, config.toml,<br/>labels.toml, findings.toml"]
-  end
-  written -- "then" --> edited
-  subgraph edited ["you edit"]
-    direction TB
-    describe["the starters: the project,<br/>the labels, the settings,<br/>accepted findings"]
-    support["SUPPORT.md: which<br/>AI reads the issues"]
-    ci["the CI: a step<br/>with <b>check</b>"]
-  end
-  edited -- "then" --> settings
-  subgraph settings ["you set on GitHub"]
-    direction TB
-    environment["the environment<br/>issue-assistant: the default<br/>branch, the engine's secret"]
-    autoclose["no auto-close of issues<br/>by merged pull requests"]
-  end
-  settings --> check(["<b>check</b> passes, and the next<br/>new issue gets its analysis"])
-  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class install trigger
-  class workflows,firewall,starters job
-  class describe,support,ci,environment,autoclose person
-  class check safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-install-writes-what-you-edit-and-what-you-set-on-github.dark.svg">
+  <img src="docs/images/diagrams/what-install-writes-what-you-edit-and-what-you-set-on-github.svg" alt="What install writes, what you edit and what you set on GitHub: install of a release, run in the root of the repository, writes the four workflows, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore, and starters of project.md, config.toml, labels.toml and findings.toml when they are missing. Then you edit the starters, to describe the project, its labels, its settings and the accepted findings, tell reporters in SUPPORT.md which AI reads their issues, and add a step with check to the CI. Then you set on GitHub the environment issue-assistant, limited to the default branch, with the engine's secret, and turn off the auto-close of issues by merged pull requests. Then check passes, and the next new issue gets its analysis.">
+</picture>
 
 <!-- --8<-- [start:quick-start] -->
 
@@ -589,28 +358,10 @@ close_with_release = true       # false: fixed issues don't wait for a release
 
 Each key has the type that it has here. A file that isn't TOML, or a value of another type, such as `max_per_day = "5"`, stops every command with an error that names the file and the key. A key that the assistant doesn't know, such as `close_with_releases` or a section `[release]`, would leave the default in place unnoticed: `check` fails on it and names the key that was probably meant, and every other command warns of it.
 
-```mermaid
-flowchart TB
-  accTitle: What the assistant does with a problem of its settings
-  accDescr: Every command reads labels.toml and config.toml. A file that isn't TOML stops every command, with the line of the mistake. A value of another type than its key's stops every other command with an error that names the key; check reads the rest with the defaults and names every problem at once. A key that the assistant doesn't know changes nothing, so check fails on it and names the key that was probably meant, while the other commands warn of it and keep the default.
-  read(["labels.toml and<br/>config.toml"]) --> toml{"TOML?"}
-  toml -- "no" --> broken["every command stops,<br/>naming the line"]
-  toml -- "yes" --> typed{"each value of<br/>its key's type?"}
-  typed -- "no" --> which{"check?"}
-  which -- "no" --> stops["the command stops,<br/>naming each value"]
-  which -- "yes" --> named["check names it<br/>with every other problem"]
-  typed -- "yes" --> known{"each key<br/>known?"}
-  known -- "no" --> typo["check fails with the key<br/>that was probably meant;<br/>other commands warn"]
-  known -- "yes" --> runs["the command runs"]
-  classDef source fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
-  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
-  class read source
-  class toml,typed,which,known question
-  class broken,stops,named,typo stop
-  class runs safe
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-the-assistant-does-with-a-problem-of-its-settings.dark.svg">
+  <img src="docs/images/diagrams/what-the-assistant-does-with-a-problem-of-its-settings.svg" alt="What the assistant does with a problem of its settings: Every command reads labels.toml and config.toml. A file that isn't TOML stops every command, with the line of the mistake. A value of another type than its key's stops every other command with an error that names the key; check reads the rest with the defaults and names every problem at once. A key that the assistant doesn't know changes nothing, so check fails on it and names the key that was probably meant, while the other commands warn of it and keep the default.">
+</picture>
 
 The `labels` of an issue form may be a list or one text of names separated by commas, as GitHub allows, and the area field may be a dropdown with `multiple: true`: each option that a reporter chooses adds its label.
 

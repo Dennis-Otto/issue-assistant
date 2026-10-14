@@ -1,0 +1,15 @@
+flowchart TB
+  accTitle: Three checks of the requests to GitHub
+  accDescr: The GraphQL documents of issue_assistant.py meet a copy of GitHub's schema in the required check of every pull request. The commands sweep, sync-labels and context run against GitHub itself with a token that can only read, on every pull request, on main and every week. Every week the documents also meet the schema that GitHub publishes that day, and a notice says when the copy is behind it.
+  script["`**issue_assistant.py**<br>its GraphQL documents<br>and REST requests`"]
+  copy[("the copy of GitHub's schema<br>in tests/github/")]
+  github[("GitHub itself")]
+  today[("GitHub's schema<br>of the day")]
+  script -- "every pull request,<br>in the required check" --> copy
+  script -- "every pull request,<br>main and every week:<br>sweep, sync-labels, context,<br>a token that only reads" --> github
+  script -- "every week" --> today
+  today -. "a notice when<br>the copy is behind" .-> copy
+  classDef code fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class script code
+  class copy,github,today safe

@@ -1,0 +1,19 @@
+sequenceDiagram
+  accTitle: One run of issue-assistant.yml for a new issue
+  accDescr: GitHub sends the event of the new issue 12 to the job event, which adds the labels of the form and needs-triage and hands the issue and the task triage to the job analyze. Its context step writes the issue, the other issues, the discussions, the labels, the prompt and the schema into .issue-assistant/ and hands the prompt and the schema to the engine, which runs with a read-only token, behind the egress firewall, with the engine's secret. The engine reads the checkout with Read, Grep and Glob and hands its answer in JSON to the job apply, which runs no AI and has no secret. apply checks the answer against the schema, the labels and the issues, cleans the text, and writes the labels, the comment and then needs-info, only on issue 12.
+  participant G as GitHub
+  participant E as event
+  participant C as analyze: context
+  participant AI as analyze: engine
+  participant P as apply
+  G->>E: a new issue, #35;12
+  E->>G: labels from the form,<br>needs-triage
+  E->>C: issue 12, task triage
+  C->>C: writes the issue, other<br>issues, discussions, labels,<br>prompt and schema into<br>.issue-assistant/
+  C->>AI: prompt and schema
+  Note over C,AI: read-only token, egress<br>firewall, the engine's secret
+  AI->>AI: reads the checkout<br>with Read, Grep, Glob
+  AI->>P: the answer, JSON
+  Note over P: no AI,<br>no secret
+  P->>P: checks the answer against<br>the schema, the labels and<br>the issues, cleans the text
+  P->>G: the labels, the comment,<br>then needs-info, only on #35;12

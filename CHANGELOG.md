@@ -4,10 +4,6 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
-### Added
-
-- Try the assistant on an issue that exists nowhere: name a JSON file with the issue and its comments, as GitHub's REST API gives them, in the environment variable `ISSUE_ASSISTANT_FIXTURE`, and `context` and `apply` read that issue instead of one on GitHub and write nothing, as in a dry run. The project's own Canary analyzes such an issue every week with the engine, on the firewall runner, so that an update of the engine's action, a host that the firewall blocks or an expired secret shows before a release instead of as issues without an answer.
-
 ### Fixed
 
 - An issue that waits for its reporter closes on the day that its reminder names. The morning sweep starts a few minutes later on some days than on others, and when it started later on the day of the reminder than on the day it named, the issue closed a day late. The waiting now counts days of the calendar, in UTC, and the reminder records its day.
@@ -15,6 +11,16 @@ All notable changes of the issue assistant. The complete notes of every version,
 - A new title is no answer. Fixing a typo in it removed `needs-info`, stopped the reminder and started a follow-up of the AI with nothing new to read.
 - A comment of the reporter reopens an issue that closed for a missing answer also when an answer came in while the sweep closed it and took its labels. An issue that closed in another way since its last reopening stays closed.
 - No follow-up is posted once a maintainer joined the conversation while the AI wrote it.
+
+## [1.4.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.3.1...v1.4.0) (2026-10-14)
+
+### Added
+
+- Try the assistant on an issue that exists nowhere: name a JSON file with the issue and its comments, as GitHub's REST API gives them, in the environment variable `ISSUE_ASSISTANT_FIXTURE`, and `context` and `apply` read that issue instead of one on GitHub and write nothing, as in a dry run. The project's own Canary analyzes such an issue every week with the engine, on the firewall runner, so that an update of the engine's action, a host that the firewall blocks or an expired secret shows before a release instead of as issues without an answer.
+
+### Fixed
+
+- A fix that the morning sweep finds at the very end of the 14 days that it looks back closes its issue with the release that shipped it, as every other fix does. Before, the sweep labeled the issue but no longer counted the fix by the time of the label, so the issue waited for the next release, and its comment didn't name the fix. The sweep also no longer reads the issues that a recent merge names and that are closed already, most of them, so a busy repository spends far fewer of the 1,000 requests an hour that its token has, which its other workflows need too.
 
 ### Security
 

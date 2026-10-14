@@ -1,0 +1,11 @@
+sequenceDiagram
+  accTitle: Comments while an analysis runs
+  accDescr: A new issue starts the first run, which analyzes it. Two comments arrive during the analysis; their runs wait in the group of the issue, first in, first out. When the analysis is posted, the run of the first comment follows, then the run of the second one. Without the queue, the second run would have cancelled the first waiting one.
+  participant G as GitHub
+  participant Q as group issue-assistant-12
+  G->>Q: #35;12 opened: run 1 analyzes
+  G->>Q: comment 1: run 2 waits
+  G->>Q: comment 2: run 3 waits behind run 2
+  Note over Q: without the queue, run 3<br>would cancel run 2
+  Q->>G: run 1 posts the analysis
+  Q->>G: run 2, then run 3

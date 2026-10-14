@@ -1,0 +1,19 @@
+flowchart TB
+  accTitle: Where the AI's words go and how each place is guarded
+  accDescr: The answer of the AI must fit its schema and hold nothing like a secret. Its texts for the comment are cleaned before they are posted. Its reasons are put on one line and cleaned, at most 280 characters, before they become a rationale on the timeline or a line of the log and the job summary; a possible security report gets a fixed rationale. The log prints them while workflow commands are turned off with a random token, and errors are escaped. The schema and the model reach the command line of the engine only in a form that adds no arguments.
+  answer["the AI's answer"] --> checks("schema and<br>secret check")
+  checks -- "summary, analysis,<br>steps, questions" --> cleaned["cleaned: no mention,<br>image, HTML or<br>foreign link"]
+  cleaned --> posted[("comment on<br>the issue")]
+  checks -- "reasons" --> oneline["one line, then cleaned,<br>at most 280 characters"]
+  oneline -- "labels, duplicates;<br>fixed for a security report" --> rationale[("rationale on<br>the timeline")]
+  oneline --> jobsummary[("job summary")]
+  oneline --> runlog[("log of the run")]
+  checks -- "refused" --> refusal["an escaped<br>::error::"]
+  refusal --> runlog
+  settings["labels.toml,<br>config.toml"] -- "schema with \u0027,<br>model as a name" --> cli[("command line<br>of the engine")]
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class answer untrusted
+  class checks,cleaned,oneline,refusal,settings job
+  class posted,rationale,jobsummary,runlog,cli safe

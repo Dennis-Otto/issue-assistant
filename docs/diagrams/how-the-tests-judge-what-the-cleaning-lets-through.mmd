@@ -1,0 +1,21 @@
+flowchart TB
+  accTitle: How the tests judge what the cleaning lets through
+  accDescr: Four kinds of input reach the checks: the texts that once got past the cleaning, random text of the pieces that matter to Markdown from Hypothesis, whole answers that Hypothesis builds from the schema of the answer, and inputs that Atheris mutates with a dictionary of Markdown, starting from seeds. Their text is cleaned alone and in each place of a comment, or apply posts the whole comment. The oracle decides what GitHub would make of the result. Anything that would mention, reference, link elsewhere or show HTML, other than the assistant's own words, fails the test.
+  known(["texts that once<br>got through"]) --> clean
+  random(["random text of the<br>pieces that matter"]) --> clean
+  answers(["whole answers built<br>from the schema"]) --> post
+  fuzzed(["fuzzed inputs, with a<br>dictionary and seeds"]) --> clean
+  fuzzed --> post
+  clean["`**sanitize**: the text alone,<br>under a heading, in a list,<br>behind a number`"] --> oracle
+  post["`**apply** posts the<br>whole comment`"] --> oracle
+  oracle{"`**the oracle**: what would<br>GitHub mention, reference,<br>link or show?`"}
+  oracle -- "only the assistant's<br>own words" --> passes(["the test passes"])
+  oracle -- "anything else" --> fails(["the test fails"])
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class known,random,answers,fuzzed,fails untrusted
+  class oracle question
+  class clean,post job
+  class passes safe
