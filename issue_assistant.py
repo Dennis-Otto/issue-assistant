@@ -476,9 +476,10 @@ class Engine:
     name: str
     vendor: str
     model: str
-    # The secrets of the environment issue-assistant that the engine's step reads,
-    # the one that `install --setup` asks for first.
-    secrets: tuple[str, ...]
+    # The names of the secrets in the environment issue-assistant that the engine's
+    # step reads, the one that `install --setup` asks for first. Only names: the
+    # values never pass through the script.
+    credentials: tuple[str, ...]
 
 
 # The engines the workflow template has a step for; .github/issue-assistant/config.toml
@@ -4678,27 +4679,27 @@ def set_up_github(github: GitHub, config: Config, *, ask: bool) -> Iterator[str]
             )
             yield f"let the branch {branch} use the environment {ENVIRONMENT}"
     engine = ENGINES[engine_named(config.engine)]
-    secrets = github.rest(f"{path}/secrets?per_page=100")
-    present = {item.get("name") for item in secrets.get("secrets") or []}
+    stored = github.rest(f"{path}/secrets?per_page=100")
+    present = {item.get("name") for item in stored.get("secrets") or []}
     command_line = (
-        f"gh secret set {engine.secrets[0]} --env {ENVIRONMENT} "
+        f"gh secret set {engine.credentials[0]} --env {ENVIRONMENT} "
         f"--repo {github.repository}"
     )
-    others = ", ".join(engine.secrets[1:])
-    if present & set(engine.secrets):
+    others = ", ".join(engine.credentials[1:])
+    if present & set(engine.credentials):
         yield f"kept the secret of {engine.name} in the environment {ENVIRONMENT}"
     elif not ask:
         yield f"left for you: {command_line}, or set {others} instead"
     else:
         yield f"{command_line}: paste the secret of {engine.name}, or {others} later"
         asked = subprocess.run(
-            ["gh", "secret", "set", engine.secrets[0], "--env", ENVIRONMENT]
+            ["gh", "secret", "set", engine.credentials[0], "--env", ENVIRONMENT]
             + ["--repo", github.repository],
             check=False,
         )
         if asked.returncode:
             raise AssistantError(f"gh set no secret; run {command_line}")
-        yield f"set the secret {engine.secrets[0]} of the environment {ENVIRONMENT}"
+        yield f"set the secret {engine.credentials[0]} of the environment {ENVIRONMENT}"
     if config.releases:
         yield (
             "left for you: clear Settings > General > Issues > Auto-close issues with "

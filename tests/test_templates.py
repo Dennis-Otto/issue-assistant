@@ -492,7 +492,7 @@ def test_every_engine_has_rules_a_step_and_credentials():
         )
         secrets = " || ".join(f"secrets.{secret} != ''" for secret in rules["secrets"])
         # install --setup asks for the first of them.
-        assert assistant.ENGINES[engine].secrets == rules["secrets"]
+        assert assistant.ENGINES[engine].credentials == rules["secrets"]
         assert f"({secrets}) && '{engine}'" in ready
 
 
