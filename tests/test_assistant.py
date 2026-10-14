@@ -1,5 +1,6 @@
 """The issue assistant: events, the engine's answer, comments, the sweep and the labels."""
 
+import collections
 import dataclasses
 import json
 import re
@@ -6244,6 +6245,15 @@ def digest_github(config):
         # Fixed, with and without a notice of the last 30 days.
         private(33, labels=("bug", "fixed-in-next-release"), days_ago=10),
         private(34, labels=("bug", "fixed-in-next-release"), days_ago=8),
+        # Fixed while it still needs triage, thanked after the maintainer's word:
+        # it waits for the release alone.
+        private(
+            36,
+            labels=("bug", "needs-triage", "fixed-in-next-release"),
+            days_ago=10,
+        ),
+        # A maintainer's own issue that needs triage: planned work, not waiting.
+        private(37, days_ago=6, author="owner", association="OWNER"),
     )
     for number, days_ago in ((22, 3), (30, 20), (31, 4), (32, 4)):
         github.event_store[number] = [labeling("labeled", "needs-info", days_ago)]
@@ -6284,6 +6294,10 @@ def digest_github(config):
         said(292, "owner", 1, "MEMBER"),
     ]
     github.comment_store[34] = [said(341, "reporter", 3)]
+    github.comment_store[36] = [
+        said(361, "owner", 3, "MEMBER"),
+        said(362, "reporter", 2),
+    ]
     github.comment_store[33] = [
         make_comment(331, "bot", assistant.render_fixed(41, "main", "en"), 0.1)
     ]
@@ -6318,8 +6332,9 @@ def test_the_digest_lists_what_waits_on_whom(config, capsys):
             " never closes",
             f"- [#22]({link}/issues/22): asked 3 days ago; reminder on 2026-10-19",
             "",
-            "**Fixed, waiting for a release: 2**",
+            "**Fixed, waiting for a release: 3**",
             "",
+            f"- [#36]({link}/issues/36): fixed",
             f"- [#34]({link}/issues/34): fixed",
             f"- [#33]({link}/issues/33): fixed by [#41]({link}/pull/41) today",
         ]
@@ -6372,6 +6387,24 @@ def quality_github(config):
         private(47, labels=("bug",), days_ago=10),
         # A follow-up's questions, unanswered.
         private(48, labels=("bug",), days_ago=15, state="closed"),
+        # A maintainer closed it as a duplicate before the sweep did.
+        private(
+            49,
+            labels=("bug",),
+            days_ago=12,
+            state="closed",
+            state_reason="duplicate",
+        ),
+        # A maintainer closed it while it waited for an answer.
+        private(
+            50,
+            labels=("bug",),
+            days_ago=12,
+            state="closed",
+            state_reason="not_planned",
+        ),
+        # A maintainer removed `possible-duplicate` without a word.
+        private(51, labels=("bug",), days_ago=12),
     )
     github.comment_store[40] = [rated(notice(400, 10 - 1 / 48, questions=1), up=2)]
     github.comment_store[41] = [
@@ -6389,6 +6422,12 @@ def quality_github(config):
         notice(470, 10 - 1 / 8, duplicate=7),
         said(471, "reporter", 9),
     ]
+    github.comment_store[49] = [notice(490, 12 - 1 / 24, duplicate=7)]
+    github.comment_store[50] = [
+        notice(500, 12 - 1 / 24, questions=1),
+        said(501, "owner", 11, "MEMBER"),
+    ]
+    github.comment_store[51] = [notice(510, 12 - 1 / 24, duplicate=7)]
     github.comment_store[48] = [
         make_comment(
             480,
@@ -6438,13 +6477,14 @@ def test_the_quality_numbers_tell_how_good_the_assistant_is(config):
         [
             "| Number | Value |",
             "| --- | --- |",
-            "| Analyses posted | 7, on 6 issues |",
+            "| Analyses posted | 10, on 9 issues |",
             "| Median time from a new issue to its analysis | 60 min |",
             "| Labels of the AI kept for 14 days | 3 of 4 (75 %) |",
             "| Labels that maintainers added within 7 days | 1 |",
-            "| Duplicate notices | 3: closed 1, objected to 1, waiting 1 |",
-            "| Questions to reporters | 3 issues: answered 1, closed without an"
-            " answer 1, waiting 1 |",
+            "| Duplicate notices | 5: closed 2, objected to 1, kept open otherwise 1,"
+            " waiting 1 |",
+            "| Questions to reporters | 4 issues: answered 1, closed without an"
+            " answer 1, settled otherwise 1, waiting 1 |",
             "| Feedback on the analyses | 👍 2, 👎 1 |",
         ]
     )
@@ -6468,8 +6508,8 @@ def test_the_corrections_are_those_of_the_maintainers(config):
                 40, "documentation", False, "owner", assistant.moment(at(9))
             ),
         ),
-        read=6,
-        analyzed=6,
+        read=9,
+        analyzed=9,
     )
 
 
@@ -6500,9 +6540,10 @@ def test_the_quality_of_a_quiet_month(config):
         "| Median time from a new issue to its analysis | no new issue analyzed |",
         "| Labels of the AI kept for 14 days | 0 of 0 |",
         "| Labels that maintainers added within 7 days | 0 |",
-        "| Duplicate notices | 0: closed 0, objected to 0, waiting 0 |",
-        "| Questions to reporters | 0 issues: answered 0, closed without an answer 0,"
+        "| Duplicate notices | 0: closed 0, objected to 0, kept open otherwise 0,"
         " waiting 0 |",
+        "| Questions to reporters | 0 issues: answered 0, closed without an answer 0,"
+        " settled otherwise 0, waiting 0 |",
         "| Feedback on the analyses | 👍 0, 👎 0 |",
     ]
 
@@ -6557,6 +6598,55 @@ def test_the_summary_of_a_sweep_by_hand_has_the_digest_and_the_quality(
     assert "#### Maintainer digest\n\nNot made: GitHub failed.\n\n" in summary
     assert "#### Assistant quality (last 30 days)\n\n| Number | Value |" in summary
     assert not re.search(r"Private|live card", summary, re.IGNORECASE)
+
+
+def test_a_morning_sweep_reads_the_comments_and_events_of_an_issue_once(
+    monkeypatch, tmp_path, sample_root, config
+):
+    """The digest lists the issues that wait for their reporters with what the
+    sweep's own step just read: the token's requests per hour are few."""
+    github = digest_github(config)
+    code, _, summary = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        github,
+        "sweep",
+        GITHUB_EVENT_NAME="schedule",
+    )
+    assert code == 0
+    assert "**Waiting on reporters: 3**" in summary
+    reads = collections.Counter(
+        path
+        for method, path, _ in github.calls
+        if method == "GET" and re.match(r"issues/\d+/(comments|events)", path)
+    )
+    assert reads["issues/22/comments?per_page=100"] == 1
+    assert reads["issues/22/events?per_page=100"] == 1
+    assert set(reads.values()) == {1}
+
+
+def test_a_write_forgets_what_was_read_of_its_issue(config):
+    github = FakeGitHub(config, make_issue(5), make_issue(6))
+    github.remember()
+
+    def reads():
+        return [path for method, path, _ in github.calls if method == "GET"]
+
+    github.comments(5)
+    github.events(6)
+    # What a caller changes stays its own.
+    github.comments(5).append({})
+    assert github.comments(5) == []
+    assert len(reads()) == 2
+    github.comment(5, "Hello")
+    assert [comment["body"] for comment in github.comments(5)] == ["Hello"]
+    github.events(6)
+    assert len(reads()) == 3
+    # An edit of a comment names no issue: everything is read again.
+    github.edit_comment(github.comments(5)[0]["id"], "Hi")
+    github.events(6)
+    assert len(reads()) == 4
 
 
 def test_a_repository_without_settings_is_told_what_to_add(

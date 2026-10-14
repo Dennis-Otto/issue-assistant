@@ -1180,6 +1180,9 @@ class GitHub:
         # The comments a dry run would post, for the job summary.
         self.previews: list[str] = []
         self._labels: list[dict[str, Any]] | None = None
+        # The comments and events read in this run, by their path, once remember()
+        # turned it on: a sweep reads them for its steps and again for its digest.
+        self._memo: dict[str, list[dict[str, Any]]] | None = None
         # The issue that a file holds in place of GitHub.
         self.fixture: Fixture | None = None
 
@@ -1257,9 +1260,35 @@ class GitHub:
         data: dict[str, Any] = response["data"]
         return data
 
+    def remember(self) -> None:
+        """Read the comments and the events of an issue once, until a write of this
+        run changes the issue: for a sweep, whose digest reads what its steps read."""
+        self._memo = {}
+
+    def _remembered(self, path: str) -> list[dict[str, Any]]:
+        if self._memo is None:
+            found: list[dict[str, Any]] = self.rest(path, pages=True)
+            return found
+        if path not in self._memo:
+            self._memo[path] = self.rest(path, pages=True)
+        return deepcopy(self._memo[path])
+
+    def _forget(self, description: str) -> None:
+        """Forget what was read of the issues that a write names; of all, when it
+        names none, as an edit of a comment."""
+        if self._memo is None:
+            return
+        numbers = re.findall(r"#(\d+)", description)
+        if not numbers:
+            self._memo.clear()
+        for number in numbers:
+            for kind in ("comments", "events"):
+                self._memo.pop(f"issues/{number}/{kind}?per_page=100", None)
+
     def _write(self, description: str, action: Callable[[], object]) -> None:
         print(("Would " if self.dry_run else "") + description)
         if not self.dry_run:
+            self._forget(description)
             try:
                 action()
             except GitHubError:
@@ -1280,16 +1309,10 @@ class GitHub:
     def comments(self, number: int) -> list[dict[str, Any]]:
         if self.fixture and number == self.fixture.number:
             return deepcopy(self.fixture.comments)
-        comments: list[dict[str, Any]] = self.rest(
-            f"issues/{number}/comments?per_page=100", pages=True
-        )
-        return comments
+        return self._remembered(f"issues/{number}/comments?per_page=100")
 
     def events(self, number: int) -> list[dict[str, Any]]:
-        events: list[dict[str, Any]] = self.rest(
-            f"issues/{number}/events?per_page=100", pages=True
-        )
-        return events
+        return self._remembered(f"issues/{number}/events?per_page=100")
 
     def reactions(self, comment_id: int) -> list[dict[str, Any]]:
         reactions: list[dict[str, Any]] = self.rest(
@@ -4601,9 +4624,10 @@ def objected(comments: list[dict[str, Any]]) -> datetime | None:
 
 
 def waits_on_others(issue: dict[str, Any]) -> bool:
-    """Whether the issue waits on its reporter or the sweep, or is locked."""
+    """Whether the issue waits on its reporter, the sweep or a release, or is
+    locked."""
     return bool(issue.get("locked")) or bool(
-        label_names(issue) & {NEEDS_INFO, STALE, POSSIBLE_DUPLICATE}
+        label_names(issue) & {NEEDS_INFO, STALE, POSSIBLE_DUPLICATE, FIXED}
     )
 
 
@@ -4616,7 +4640,7 @@ def waiting_on_maintainers(
     found: dict[int, Waiting] = {}
     for issue in github.open_issues(NEEDS_TRIAGE):
         opened = created(issue)
-        if waits_on_others(issue) or now - opened < TRIAGE_WAIT:
+        if waits_on_others(issue) or is_maintainer(issue) or now - opened < TRIAGE_WAIT:
             continue
         found[issue["number"]] = Waiting(
             opened,
@@ -4825,43 +4849,71 @@ def duration(seconds: float) -> str:
     return days(round(seconds / 86400), "en")
 
 
+def plural(count: int, word: str) -> str:
+    """The count with its noun, which takes an s unless the count is 1."""
+    return f"{count} {word}" + ("" if count == 1 else "s")
+
+
 def duplicate_outcomes(activity: Activity) -> str:
-    """What became of the issues with a duplicate notice: closed as a duplicate,
-    kept open after an objection, or still waiting for the closing."""
-    closed = kept = pending = 0
+    """What became of the issues with a duplicate notice: closed as a duplicate, by
+    the sweep or by a maintainer, kept open after someone objected in a comment,
+    kept open otherwise, or still waiting for the closing."""
+    closed = objections = otherwise = pending = 0
     for number, issue in activity.issues.items():
         comments = activity.comments.get(number, [])
-        if not any(is_duplicate_notice(comment) for comment in comments):
+        notices = [
+            created(comment) for comment in comments if is_duplicate_notice(comment)
+        ]
+        if not notices:
             continue
-        if any(kind_of(comment) == "closed-duplicate" for comment in comments):
+        if any(kind_of(comment) == "closed-duplicate" for comment in comments) or (
+            issue["state"] == "closed" and issue.get("state_reason") == "duplicate"
+        ):
             closed += 1
         elif issue["state"] == "open" and POSSIBLE_DUPLICATE in label_names(issue):
             pending += 1
+        elif any(
+            created(comment) > notices[-1]
+            and not is_bot(comment.get("user"))
+            and not is_maintainer(comment)
+            for comment in comments
+        ):
+            objections += 1
         else:
-            kept += 1
+            otherwise += 1
     return (
-        f"{closed + kept + pending}: closed {closed}, objected to {kept}, "
+        f"{closed + objections + otherwise + pending}: closed {closed}, "
+        f"objected to {objections}, kept open otherwise {otherwise}, "
         f"waiting {pending}"
     )
 
 
 def question_outcomes(activity: Activity) -> str:
     """What became of the issues whose analysis or follow-up asked the reporter:
-    closed without an answer, still waiting, or answered, which ended the waiting."""
-    answered = closed = pending = 0
+    answered in a comment, closed without an answer, settled otherwise, as by a
+    maintainer, or still waiting."""
+    answered = closed = otherwise = pending = 0
     for number, issue in activity.issues.items():
         comments = activity.comments.get(number, [])
-        if not any(asks(comment) for comment in comments):
+        asked = [created(comment) for comment in comments if asks(comment)]
+        if not asked:
             continue
+        author = login(issue.get("user"))
         if any(kind_of(comment) == "closed-unanswered" for comment in comments):
             closed += 1
         elif issue["state"] == "open" and NEEDS_INFO in label_names(issue):
             pending += 1
-        else:
+        elif any(
+            login(comment.get("user")) == author and created(comment) > asked[-1]
+            for comment in comments
+        ):
             answered += 1
+        else:
+            otherwise += 1
     return (
-        f"{answered + closed + pending} issues: answered {answered}, "
-        f"closed without an answer {closed}, waiting {pending}"
+        f"{plural(answered + closed + otherwise + pending, 'issue')}: "
+        f"answered {answered}, closed without an answer {closed}, "
+        f"settled otherwise {otherwise}, waiting {pending}"
     )
 
 
@@ -6628,6 +6680,7 @@ def main(argv: list[str] | None = None) -> int:
             title = "Issue lifecycle"
             now = datetime.now(UTC)
             event = os.environ.get("GITHUB_EVENT_NAME", "")
+            github.remember()
             try:
                 done = sweep(github, now, config.releases, config.lifecycle)
             except SweepIncomplete as incomplete:
