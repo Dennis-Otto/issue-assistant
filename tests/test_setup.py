@@ -299,7 +299,8 @@ def test_install_writes_the_workflows_with_the_release(sample_root):
         "utf-8"
     )
     assert f"uses: Dennis-Otto/issue-assistant@{REF} # v1.0.0" in workflow
-    assert workflow.count(f"Dennis-Otto/issue-assistant@{REF} # v1.0.0") == 4
+    # The steps event, engine, context, usage and apply.
+    assert workflow.count(f"Dennis-Otto/issue-assistant@{REF} # v1.0.0") == 5
     for name in ("issue-lifecycle.yml", "labels.yml"):
         assert (sample_root / ".github/workflows" / name).is_file()
     assert (sample_root / ".github/egress-firewall.yaml").read_text("utf-8") == (

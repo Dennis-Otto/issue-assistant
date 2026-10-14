@@ -109,11 +109,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The engine and what a run of the task may use: its model, turns, dollars and
+      # effort, from config.toml.
       - name: Choose the engine and check its secret
         id: engine
         uses: Dennis-Otto/issue-assistant@a12fb7227ff7d966809cad4e043e159977fccfcd # v1.2.2
         with:
           command: engine
+          mode: ${{ needs.event.outputs.mode }}
           # One entry per engine: its key when its secret exists.
           ready-engines: ${{ (secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '') && 'claude' || '' }}
       - name: Collect the issue, earlier issues and discussions
@@ -125,8 +128,8 @@ jobs:
           issue: ${{ needs.event.outputs.issue }}
           mode: ${{ needs.event.outputs.mode }}
 
-      # The engines. Each one gets the prompt and the JSON schema, may only read
-      # files of the checkout and returns the JSON answer.
+      # The engines. Each one gets the rules as its system prompt, the task and the
+      # JSON schema, may only read files of the checkout and returns the JSON answer.
 
       - name: Analyze with Claude
         id: claude
@@ -143,17 +146,33 @@ jobs:
           # read-only GITHUB_TOKEN, and Claude can only read files of the checkout.
           github_token: ${{ github.token }}
           allowed_non_write_users: "*"
-          prompt: ${{ steps.context.outputs.prompt }}
+          prompt: ${{ steps.context.outputs.task }}
           # --restricted removes every tool that runs code or reaches the network,
           # ignores settings files and confines the file tools to the checkout;
-          # --tools leaves only the reading tools, and nothing ever prompts.
+          # --tools leaves only the reading tools, and nothing ever prompts. The
+          # rules come first, as the system prompt, and the task stops at its turns
+          # and dollars.
           claude_args: |
             --restricted
             --tools "Read,Grep,Glob"
             --permission-prompts none
+            --append-system-prompt-file .issue-assistant/rules.md
             --model ${{ steps.engine.outputs.model }}
-            --max-turns 40
+            --max-turns ${{ steps.engine.outputs.turns }}
+            --max-budget-usd ${{ steps.engine.outputs.budget }}
+            ${{ steps.engine.outputs.effort && format('--effort {0}', steps.engine.outputs.effort) || '' }}
             --json-schema '${{ steps.context.outputs.schema }}'
+      # Numbers alone, also after a failure: the turns, time, cost and tokens of
+      # the run, in the summary of the job.
+      - name: Report what the analysis cost
+        id: usage
+        if: always() && steps.claude.outputs.execution_file != ''
+        uses: Dennis-Otto/issue-assistant@a12fb7227ff7d966809cad4e043e159977fccfcd # v1.2.2
+        with:
+          command: usage
+          issue: ${{ needs.event.outputs.issue }}
+          mode: ${{ needs.event.outputs.mode }}
+          execution-file: ${{ steps.claude.outputs.execution_file }}
 
   apply:
     name: Check and post the analysis

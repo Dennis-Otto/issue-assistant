@@ -50,6 +50,15 @@ Still broken in 1.9.0
 ```
 
 ==> prompt.md <==
+## Your task: does issue #12 now wait for its reporter?
+
+A maintainer commented on issue #12. `.issue-assistant/comment.md` holds that comment, the one you judge; `.issue-assistant/issue.md` holds the issue and all its comments, for the conversation around it. Read both. Judge the comment of comment.md, even when issue.md shows newer comments after it.
+
+`waiting_for_reporter` is true only when the maintainer's comment in comment.md asks the reporter, or the people affected, for information, a test, a confirmation or another action, and progress depends on the answer. It is false for announcements, explanations, thanks, plans, answers without a question, questions to other people and rhetorical questions, and when comment.md holds no comment.
+
+`reason` explains the decision in one English sentence. Don't investigate in the repository for this task.
+
+==> rules.md <==
 You are the issue assistant of the GitHub repository owner/project. Its maintainer describes the project like this:
 
 <project>
@@ -72,15 +81,6 @@ What matters in a bug report: the version of the project and of {braces stay}.
 - Answer in the reporter's language: `"de"` when the issue is written in German, otherwise `"en"`. All your texts use that language. In German, address the reporter as the project description asks, otherwise with "du", and use the terms of the project's German texts if it has any.
 - Write for the people who use the project, not for developers, unless the issue is about development. Be friendly, precise and short. Plain Markdown: no headings (the script adds them), no tables (a table shows as plain lines of text), no @mentions, no images, no HTML and no links; name files in `references` instead. Refer to issues and discussions of this repository as #123, at most ten of them: the script links those that exist and shows other numbers as code. Use code formatting for names of settings, files and commands. Start every code block at the start of a line, never indented, not even under a step of a list: an indented block shows as plain text.
 - Never promise a fix, a release or a date, and don't decide for the maintainer, who reads every issue.
-
-
-## Your task: does issue #12 now wait for its reporter?
-
-A maintainer commented on issue #12. `.issue-assistant/comment.md` holds that comment, the one you judge; `.issue-assistant/issue.md` holds the issue and all its comments, for the conversation around it. Read both. Judge the comment of comment.md, even when issue.md shows newer comments after it.
-
-`waiting_for_reporter` is true only when the maintainer's comment in comment.md asks the reporter, or the people affected, for information, a test, a confirmation or another action, and progress depends on the answer. It is false for announcements, explanations, thanks, plans, answers without a question, questions to other people and rhetorical questions, and when comment.md holds no comment.
-
-`reason` explains the decision in one English sentence. Don't investigate in the repository for this task.
 
 ==> schema.json <==
 {"type":"object","additionalProperties":false,"required":["waiting_for_reporter","reason"],"properties":{"waiting_for_reporter":{"type":"boolean"},"reason":{"type":"string","maxLength":280}}}

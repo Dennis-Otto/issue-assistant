@@ -57,12 +57,31 @@ def claude_reads_only(step):
     assert inputs["github_token"] == "${{ github.token }}"
     assert inputs["allowed_non_write_users"] == "*"
     assert "allowed_bots" not in inputs
-    assert inputs["prompt"] == "${{ steps.context.outputs.prompt }}"
+    # The task alone; the rules come before it as the system prompt.
+    assert inputs["prompt"] == "${{ steps.context.outputs.task }}"
     arguments = shlex.split(inputs["claude_args"])
     assert "--restricted" in arguments
     assert arguments[arguments.index("--tools") + 1] == "Read,Grep,Glob"
     assert arguments[arguments.index("--permission-prompts") + 1] == "none"
-    assert "--model ${{ steps.engine.outputs.model }}" in inputs["claude_args"]
+    rules = arguments[arguments.index("--append-system-prompt-file") + 1]
+    assert rules == f"{assistant.CONTEXT}/rules.md"
+    assert "--system-prompt" not in arguments
+    assert "--system-prompt-file" not in arguments
+    # What a run of the task may use, as the engine command chose it for the task.
+    for flag, output in (
+        ("--model", "model"),
+        ("--max-turns", "turns"),
+        ("--max-budget-usd", "budget"),
+    ):
+        assert f"{flag} ${{{{ steps.engine.outputs.{output} }}}}" in (
+            inputs["claude_args"].splitlines()
+        )
+    # The effort only when config.toml sets one: a flag without its value would
+    # take the next flag as its value.
+    assert (
+        "${{ steps.engine.outputs.effort && "
+        "format('--effort {0}', steps.engine.outputs.effort) || '' }}"
+    ) in inputs["claude_args"].splitlines()
     assert arguments[arguments.index("--json-schema") + 1] == (
         "${{ steps.context.outputs.schema }}"
     )
@@ -244,7 +263,15 @@ def test_the_canary_runs_the_ai_as_the_template_does():
     for engine, rules in ENGINE_RULES.items():
         inputs = dict(STEPS[engine]["with"], **rules["canary"])
         assert steps[engine] == dict(STEPS[engine], **{"with": inputs}), engine
-    assert steps["engine"] == dict(STEPS["engine"], uses="./")
+    engine_inputs = dict(STEPS["engine"]["with"], mode="triage")
+    assert steps["engine"] == dict(
+        STEPS["engine"], uses="./", **{"with": engine_inputs}
+    )
+    usage_inputs = {
+        key: value for key, value in STEPS["usage"]["with"].items() if key != "issue"
+    }
+    usage_inputs["mode"] = "triage"
+    assert steps["usage"] == dict(STEPS["usage"], uses="./", **{"with": usage_inputs})
     context = steps["context"]
     assert context["uses"] == "./" and context["if"] == STEPS["context"]["if"]
     assert context["with"] == {"command": "context", "mode": "triage"}
@@ -524,7 +551,11 @@ def test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions():
 
 
 def test_the_engine_is_chosen_before_the_context_and_the_engines():
-    assert STEPS["engine"]["with"]["command"] == "engine"
+    assert STEPS["engine"]["with"] == {
+        "command": "engine",
+        "mode": "${{ needs.event.outputs.mode }}",
+        "ready-engines": STEPS["engine"]["with"]["ready-engines"],
+    }
     assert "vars.ISSUE_ASSISTANT_AI != 'off'" in ANALYZE["if"]
     assert STEPS["context"]["if"] == "steps.engine.outputs.ready == 'true'"
     order = [step.get("id") for step in ANALYZE["steps"]]
@@ -533,6 +564,25 @@ def test_the_engine_is_chosen_before_the_context_and_the_engines():
         < order.index("context")
         < min(order.index(engine) for engine in ENGINE_RULES)
     )
+
+
+def test_the_cost_of_every_run_reaches_the_summary_of_the_job():
+    """After the engine's step, also when it failed, such as at its turns or its
+    dollars, the usage command reports the numbers of its execution file."""
+    usage = STEPS["usage"]
+    assert usage["uses"].startswith("Dennis-Otto/issue-assistant@")
+    assert usage["if"] == "always() && steps.claude.outputs.execution_file != ''"
+    assert usage["with"] == {
+        "command": "usage",
+        "issue": "${{ needs.event.outputs.issue }}",
+        "mode": "${{ needs.event.outputs.mode }}",
+        "execution-file": "${{ steps.claude.outputs.execution_file }}",
+    }
+    order = [step.get("id") for step in ANALYZE["steps"]]
+    assert (
+        order.index("usage") == max(order.index(engine) for engine in ENGINE_RULES) + 1
+    )
+    assert "usage" in ACTION["inputs"]["command"]["description"]
 
 
 def test_the_answer_reaches_github_only_through_the_checks():
