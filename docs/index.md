@@ -36,7 +36,7 @@ hide:
 
     ---
 
-    An AI that only reads writes a summary, the likely cause with links to the code and the documentation involved, what the reporter can try and what is still missing, in English or German.
+    An AI that only reads writes a summary, the likely cause with links to the code and the documentation involved, what the reporter can try and what is still missing, in the reporter's language.
 
 - :material-label-multiple-outline:{ .lg .middle } **Labels**
 

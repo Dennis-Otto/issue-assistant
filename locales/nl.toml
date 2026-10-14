@@ -1,0 +1,135 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in Dutch.
+# A machine draft: native speakers are welcome to improve it.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "Dutch"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "je"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{day} {month} {year}"
+months = [
+  "januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus",
+  "september", "oktober", "november", "december",
+]
+# Words that are frequent in the language and in no other catalog. A reporter
+# writes in the language of whose stopwords their words have the most, in
+# English when no other language has more.
+stopwords = [
+  "het", "een", "van", "niet", "ik", "dat", "maar", "ook", "voor", "wordt", "werkt",
+  "geen", "nog", "mijn", "bij", "deze", "dit", "wel", "kan", "zijn", "heb", "hebben",
+  "wanneer", "omdat", "bedankt", "versie", "moet", "zou",
+]
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "Bedankt voor het openen van dit issue, @{author}!"
+"thanks.bug" = "Bedankt voor je melding, @{author}!"
+"thanks.enhancement" = "Bedankt voor je suggestie, @{author}!"
+"thanks.question" = "Bedankt voor je vraag, @{author}!"
+"thanks.documentation" = "Bedankt voor je opmerking over de documentatie, @{author}!"
+"thanks.compatibility" = "Bedankt voor je compatibiliteitsmelding, @{author}!"
+"thanks.feedback" = "Bedankt voor het testen en voor je feedback, @{author}!"
+"thanks.maintenance" = "Bedankt voor je melding, @{author}!"
+intro = """\
+  Ik ben de issue-assistent van deze repository en heb er een eerste blik op geworpen. \
+  De maintainers lezen ook elk issue."""
+summary = "Samenvatting"
+analysis = "Eerste analyse"
+next_steps = "Het proberen waard"
+missing = "Benodigde informatie"
+"missing.intro" = """\
+  Vul om verder te kunnen het volgende aan, in een reactie of door het issue te \
+  bewerken:"""
+"missing.outro" = """\
+  Zonder antwoord volgt na {remind_days} een herinnering en wordt het issue na \
+  {close_days} gesloten. Is het gesloten, dan heropent een antwoord het."""
+duplicate = "Mogelijk duplicaat"
+"duplicate.text" = "Dit lijkt een duplicaat van #{number}: {reason}"
+"duplicate.close" = """\
+  Als dat klopt, hoef je niets te doen: het issue wordt over {grace_days} gesloten als \
+  duplicaat van #{number}, zodat het gesprek op één plek blijft. Een 👍 op #{number} \
+  laat zien dat meer mensen getroffen zijn. Gaat het om iets anders, schrijf dan een \
+  reactie of reageer op deze reactie met 👎, dan blijft het open."""
+"duplicate.named" = """\
+  @{author}, een maintainer heeft dit issue gemarkeerd als duplicaat van #{number}."""
+related = "Gerelateerd"
+discussion = "discussie"
+references = "Waar te kijken"
+links = "Waar te kijken: {count} links"
+"sensitive.secret" = """\
+  > [!WARNING]\n> Dit issue lijkt een geheim te tonen, zoals een token, een sleutel of \
+  een wachtwoord. Verwijder het door het bericht te bewerken, verwijder de eerdere \
+  versie uit de bewerkingsgeschiedenis en vervang het geheim, want anderen kunnen het \
+  gezien hebben."""
+"sensitive.personal" = """\
+  > [!NOTE]\n> Dit issue lijkt persoonsgegevens te tonen, zoals een e-mailadres, een \
+  openbaar IP-adres of het adres van een privéserver. Wil je ze liever niet tonen, \
+  bewerk dan het bericht en verwijder de eerdere versie uit de bewerkingsgeschiedenis."""
+security = """\
+  > [!CAUTION]\n> Dit kan een beveiligingslek beschrijven. Meld het vertrouwelijk, \
+  zoals beschreven in het [beveiligingsbeleid]({policy}), en verwijder de details \
+  hier."""
+footer = """\
+  <sub>🤖 Automatische eerste analyse door {engine}, op basis van de code, de \
+  documentatie en eerdere issues. Ze kan fout zijn; de maintainers beslissen.{labels} \
+  {feedback}</sub>"""
+labels = " Labels: {labels}."
+about = "[Hoe de assistent werkt]({notice})"
+feedback = "Een 👍 of 👎 op deze reactie laat de maintainers weten of ze geholpen heeft."
+"feedback.duplicate" = """\
+  Een 👍 of 👎 op deze reactie laat de maintainers weten of ze geholpen heeft; een 👎 \
+  houdt het issue ook open."""
+"follow-up.thanks" = "Bedankt voor je antwoord, @{author}!"
+"follow-up.missing" = "Nog nodig"
+"follow-up.missing.intro" = "Vul ook nog aan:"
+"follow-up.footer" = """\
+  <sub>🤖 Automatische opvolging door {engine}. Ze kan fout zijn; de maintainers \
+  beslissen. {feedback}</sub>"""
+"answer.intro" = "@{asker}, hier is mijn antwoord op [je vraag]({question}):"
+"answer.footer" = """\
+  <sub>🤖 Automatisch antwoord door {engine}, op basis van de code, de documentatie en \
+  dit issue. Het kan fout zijn; controleer het voordat je erop vertrouwt. \
+  {feedback}</sub>"""
+reminder = """\
+  @{author}, een vriendelijke herinnering: dit issue wacht nog op je antwoord op \
+  {questions}. Zonder antwoord wordt het op {date} automatisch gesloten. Een korte \
+  reactie houdt het open, bijvoorbeeld als je meer tijd nodig hebt."""
+"reminder.questions" = "de vragen hierboven"
+"closed-unanswered" = """\
+  Ik sluit dit issue, omdat de hierboven gevraagde informatie al {close_days} \
+  ontbreekt. @{author}, zodra je hier antwoordt, wordt het automatisch heropend. \
+  Bedankt voor je melding!"""
+"closed-duplicate" = """\
+  Gesloten als duplicaat van #{number}, zoals {grace_days} geleden aangekondigd. Ga \
+  daar verder; een 👍 op #{number} laat zien dat meer mensen getroffen zijn. Was dit \
+  een vergissing, schrijf dan een reactie en de maintainers heropenen het."""
+reopened = """\
+  Bedankt voor je antwoord, @{author}! Ik heb het issue heropend; de maintainers \
+  kijken er opnieuw naar."""
+fixed = """\
+  Opgelost door #{pull}, die nu op `{branch}` staat. De oplossing komt mee met de \
+  volgende release; dan wordt dit issue gesloten, met een link ernaar."""
+released = """\
+  🎉 Uitgebracht in [{tag}]({url}){fixes}. @{author}, werk bij naar deze versie. Blijft \
+  het probleem bestaan, schrijf dan hier een reactie en het issue wordt heropend, of \
+  open een nieuw issue."""
+"released.fixes" = " met de oplossing uit {pulls}"
+"reopened-release" = """\
+  Bedankt dat je het laat weten, @{author}, en jammer dat het nog niet is opgelost. Ik \
+  heb het issue heropend; de maintainers kijken er opnieuw naar."""
+locked = """\
+  Dit issue is al meer dan {lock_days} gesloten, dus heb ik het vergrendeld. Zie je \
+  het probleem, of iets vergelijkbaars, nog steeds, open dan een nieuw issue met een \
+  link naar dit issue."""
+"days.one" = "{count} dag"
+"days.other" = "{count} dagen"
+line = "{file}, regel {line}"
+heading = "{heading} in {file}"

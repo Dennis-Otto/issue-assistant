@@ -18,3 +18,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0010](0010-the-lifecycle-keeps-the-day-it-names.md) | The lifecycle counts days of the calendar and keeps the day that a reminder names | accepted |
 | [0011](0011-install-pins-its-own-checkout.md) | `install` pins the commit of its own checkout, the release whose templates it writes | accepted |
 | [0012](0012-commands-from-the-issue.md) | Maintainers and the reporter steer the assistant with commands that are no part of the conversation | accepted |
+| [0013](0013-a-catalog-for-each-language.md) | A catalog for each language of the comments, and English around any other | accepted |

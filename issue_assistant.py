@@ -28,6 +28,7 @@ import sys
 import tempfile
 import time
 import tomllib
+from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -379,22 +380,65 @@ LETTER_PAIR = re.compile(r"(?=[A-Za-z]{2})")
 CASE_CHANGE = re.compile(r"(?=[a-z][A-Z]|[A-Z][a-z])")
 LOWER_CASE = re.compile(r"[a-z]+")
 SHA = re.compile(r"[0-9a-f]{40}")
-GERMAN_WORDS = {
-    "und", "der", "die", "das", "nicht", "ich", "ist", "mit", "auf", "wenn",
-    "bei", "wird", "kann", "ein", "eine", "habe", "auch", "noch", "dass",
-    "funktioniert", "keine", "aber", "wie", "nach", "mein", "meine",
-}  # fmt: skip
-ENGLISH_WORDS = {
-    "the", "and", "is", "not", "with", "when", "it", "this", "that", "does",
-    "have", "can", "an", "of", "to", "works", "but", "how", "after", "my",
-    "no", "on", "in", "for", "what", "be",
-}  # fmt: skip
+
+
+@dataclass(frozen=True)
+class Locale:
+    """A language of the comments, from its catalog in locales/."""
+
+    # The language in English, as the prompt names it to the AI.
+    name: str
+    # How the comments address a reporter, such as "du", which the AI does too.
+    address: str
+    # How a comment names a day, with {day}, {month} and {year}; empty for ISO 8601.
+    date: str
+    months: tuple[str, ...]
+    # Frequent words of the language, by which the assistant guesses a reporter's.
+    stopwords: frozenset[str]
+    texts: dict[str, str]
+
+
+def load_locales(folder: Path) -> dict[str, Locale]:
+    """The catalog of each language in the folder, by its code, such as "de" for
+    de.toml. A text that a catalog lacks comes from English, so that a comment never
+    fails for want of one; the tests hold every catalog of this repository complete.
+    """
+    catalogs = {
+        path.stem: tomllib.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(folder.glob("*.toml"))
+    }
+    english = catalogs["en"]["text"]
+    return {
+        code: Locale(
+            name=catalog["name"],
+            address=catalog.get("address", ""),
+            date=catalog.get("date", ""),
+            months=tuple(catalog.get("months", ())),
+            stopwords=frozenset(catalog.get("stopwords", ())),
+            texts=english | catalog["text"],
+        )
+        for code, catalog in catalogs.items()
+    }
+
+
+# The languages of the comments: a catalog for each in locales/, with its texts, how
+# it names a day, and its stopwords. A new language is one more file there; the
+# prompt, the schema of the answer and the guess of a reporter's language take it.
+LOCALES = load_locales(TOOL / "locales")
+TEXT = {code: locale.texts for code, locale in LOCALES.items()}
+LANGUAGES = tuple(sorted(LOCALES))
+# The language of an answer that no catalog has: the AI writes in the reporter's
+# language, and the assistant's own words are English, with days in ISO 8601.
+OTHER = "other"
+ANSWER_LANGUAGES = [*LANGUAGES, OTHER]
+# The letters of a word in any language, for the guess of a reporter's language.
+LETTERS = re.compile(r"[^\W\d_]+")
 # Words that tell little of what an issue is about, which the search for older
 # issues like it leaves out.
 COMMON_WORDS = frozenset(
-    GERMAN_WORDS
-    | ENGLISH_WORDS
+    frozenset[str]().union(*(locale.stopwords for locale in LOCALES.values()))
     | {
+        "in", "no",
         "are", "was", "were", "from", "into", "doesn", "don", "isn", "won",
         "cannot", "can't", "anymore", "there", "should", "would", "could",
         "issue", "bug", "error", "problem", "feature", "request", "help",
@@ -407,10 +451,6 @@ COMMON_WORDS = frozenset(
 WORD = re.compile(r"\w+")
 # The code of a system error, such as ECONNREFUSED or ENOENT.
 ERROR_CODE = re.compile(r"E[A-Z]{3,}")
-MONTHS_DE = (
-    "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
-    "September", "Oktober", "November", "Dezember",
-)  # fmt: skip
 
 
 class AssistantError(Exception):
@@ -678,11 +718,9 @@ DEFAULT_LIFECYCLE = Lifecycle()
 
 
 def days(count: int, language: str) -> str:
-    """A number of days in the words of a comment; German needs the dative, as
-    after "nach", "in", "seit" and "vor"."""
-    if language == "de":
-        return f"{count} Tag" if count == 1 else f"{count} Tagen"
-    return f"{count} day" if count == 1 else f"{count} days"
+    """A number of days in the words of a comment, in the form that its texts need:
+    German needs the dative, as after "nach", "in", "seit" and "vor"."""
+    return say(language, "days.one" if count == 1 else "days.other", count=count)
 
 
 def lifecycle_problems(lifecycle: Lifecycle) -> list[str]:
@@ -2111,10 +2149,14 @@ def form_labels(issue: dict[str, Any], config: Config) -> list[str]:
 
 
 def detect_language(text: str) -> str:
-    words = re.findall(r"[a-zäöüß]+", text.lower())
-    german = sum(word in GERMAN_WORDS for word in words)
-    english = sum(word in ENGLISH_WORDS for word in words)
-    return "de" if german > english else "en"
+    """The language of the catalog whose stopwords the text has the most of; English
+    when no other language has more."""
+    words = Counter(LETTERS.findall(text.lower()))
+    hits = {
+        code: sum(words[word] for word in locale.stopwords)
+        for code, locale in LOCALES.items()
+    }
+    return max(LANGUAGES, key=lambda code: (hits[code], code == "en"))
 
 
 def issue_language(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str:
@@ -2122,7 +2164,8 @@ def issue_language(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str
     for comment in reversed(comments):
         found = marker(comment)
         if found and found[0] in {"analysis", "follow-up"} and "lang" in found[1]:
-            return found[1]["lang"] if found[1]["lang"] in {"en", "de"} else "en"
+            language = found[1]["lang"]
+            return language if language in ANSWER_LANGUAGES else "en"
     author = login(issue.get("user"))
     body = text_of(issue)
     answers = " ".join(form_fields(body).values()) or body
@@ -2133,9 +2176,14 @@ def issue_language(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str
 
 
 def format_date(moment: datetime, language: str) -> str:
-    if language == "de":
-        return f"{moment.day}. {MONTHS_DE[moment.month - 1]} {moment.year}"
-    return f"{moment:%B} {moment.day}, {moment.year}"
+    """A day as the comments of the language name it, such as "2. November 2026"; in
+    ISO 8601 for a language without a catalog or a catalog without a date."""
+    locale = LOCALES.get(language)
+    if locale is None or not locale.date:
+        return moment.date().isoformat()
+    return locale.date.format(
+        day=moment.day, month=locale.months[moment.month - 1], year=moment.year
+    )
 
 
 def follow_up_due(
@@ -2948,6 +2996,20 @@ def write_lines(path: Path, items: Iterable[dict[str, Any]]) -> None:
 CONTEXT_FILES = ("comment.md", "labels.md", "issues.jsonl", "discussions.jsonl")
 
 
+def language_list() -> str:
+    """The languages of the catalogs, as the rules of the prompt list them for
+    `{languages}`: the code of each, its name and how it addresses a reporter."""
+    return "\n".join(
+        f'  - `"{code}"`: {locale.name}'
+        + (
+            f', addressing the reporter with "{locale.address}"'
+            if locale.address
+            else ""
+        )
+        for code, locale in LOCALES.items()
+    )
+
+
 def write_context(
     github: GitHub,
     number: int,
@@ -3001,6 +3063,7 @@ def write_context(
         "context": str(CONTEXT),
         "max_issues": str(config.max_issues),
         "max_discussions": str(config.max_discussions),
+        "languages": language_list(),
     }
     prompt = "\n\n".join(
         (PROMPTS / name).read_text(encoding="utf-8")
@@ -3128,7 +3191,7 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
     if mode == "release-reply":
         return record(
             {
-                "language": choice(["en", "de"]),
+                "language": choice(ANSWER_LANGUAGES),
                 "problem_persists": {"type": "boolean"},
                 "reason": text(280),
             }
@@ -3147,13 +3210,13 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
     if mode == "maintainer-question":
         return record(
             {
-                "language": choice(["en", "de"]),
+                "language": choice(ANSWER_LANGUAGES),
                 "answer": text(3000),
                 "references": {"type": "array", "items": reference, "maxItems": 6},
             }
         )
     common = {
-        "language": choice(["en", "de"]),
+        "language": choice(ANSWER_LANGUAGES),
         "kind": choice(config.group("type") + ["spam"]),
         "areas": many(config.group("area"), 3),
         "topics": many(config.group("topic"), 2),
@@ -3755,17 +3818,16 @@ def reference_link(
     if line:
         if line > len(file.read_text(encoding="utf-8", errors="replace").splitlines()):
             return None
-        word = "Zeile" if language == "de" else "line"
         # GitHub shows a rendered file, such as Markdown, without its lines; the
         # anchor of a line works only in its source.
         source = "?plain=1" if PurePosixPath(path).suffix.lower() in RENDERED else ""
-        return f"[{name}, {word} {line}]({config.blob}/{sha}/{address}{source}#L{line})"
+        words = say(language, "line", file=name, line=line)
+        return f"[{words}]({config.blob}/{sha}/{address}{source}#L{line})"
     if anchor and path.endswith(".md"):
         titles = headings(file)
         if anchor in titles:
-            return (
-                f"[{titles[anchor]}]({config.blob}/HEAD/{address}#{anchor}) in {name}"
-            )
+            heading = f"[{titles[anchor]}]({config.blob}/HEAD/{address}#{anchor})"
+            return say(language, "heading", heading=heading, file=name)
     return f"[{name}]({config.blob}/HEAD/{address})"
 
 
@@ -3796,194 +3858,22 @@ def notice_link(config: Config) -> str | None:
 
 # Comments of the assistant
 
-TEXT: dict[str, dict[str, str]] = {
-    "en": {
-        "thanks.default": "Thanks for opening this issue, @{author}!",
-        "thanks.bug": "Thanks for the report, @{author}!",
-        "thanks.enhancement": "Thanks for the suggestion, @{author}!",
-        "thanks.question": "Thanks for the question, @{author}!",
-        "thanks.documentation": "Thanks for the note on the documentation, @{author}!",
-        "thanks.compatibility": "Thanks for the compatibility report, @{author}!",
-        "thanks.feedback": "Thanks for testing and for the feedback, @{author}!",
-        "thanks.maintenance": "Thanks for the report, @{author}!",
-        "intro": "I'm the issue assistant of this repository and took a first look. "
-        "The maintainers read every issue as well.",
-        "summary": "Summary",
-        "analysis": "First analysis",
-        "next_steps": "Worth trying",
-        "missing": "Information needed",
-        "missing.intro": "To continue, please add the following, in a comment or by "
-        "editing the issue:",
-        "missing.outro": "Without an answer, a reminder follows after {remind_days} and "
-        "the issue closes after {close_days}. If it closes, an answer reopens it.",
-        "duplicate": "Possible duplicate",
-        "duplicate.text": "This looks like a duplicate of #{number}: {reason}",
-        "duplicate.close": "If that's right, there's nothing to do: the issue closes as "
-        "a duplicate of #{number} in {grace_days}, so the conversation stays in one "
-        "place. A 👍 on #{number} shows that more people are affected. If it's "
-        "something different, write a comment or react to this comment with 👎, and it "
-        "stays open.",
-        "duplicate.named": "@{author}, a maintainer marked this issue as a duplicate "
-        "of #{number}.",
-        "related": "Related",
-        "discussion": "discussion",
-        "references": "Where to look",
-        "links": "Where to look: {count} links",
-        "sensitive.secret": "> [!WARNING]\n> This issue seems to show a secret, such "
-        "as a token, a key or a password. Please remove it by editing the post, delete "
-        "the earlier version from its edit history, and replace the secret, because "
-        "others may have seen it.",
-        "sensitive.personal": "> [!NOTE]\n> This issue seems to show personal data, "
-        "such as an e-mail address, a public IP address or the address of a private "
-        "server. If you'd rather not show it, edit the post and delete the earlier "
-        "version from its edit history.",
-        "security": "> [!CAUTION]\n> This may describe a security vulnerability. Please "
-        "report it privately, as described in the [security policy]({policy}), and "
-        "remove the details here.",
-        "footer": "<sub>🤖 Automated first analysis by {engine}, based on the code, the "
-        "documentation and earlier issues. It can be wrong; the maintainers "
-        "decide.{labels} {feedback}</sub>",
-        "labels": " Labels: {labels}.",
-        "about": "[How the assistant works]({notice})",
-        "feedback": "A 👍 or 👎 on this comment tells the maintainers whether it helped.",
-        "feedback.duplicate": "A 👍 or 👎 on this comment tells the maintainers "
-        "whether it helped; a 👎 also keeps the issue open.",
-        "follow-up.thanks": "Thanks for your answer, @{author}!",
-        "follow-up.missing": "Still needed",
-        "follow-up.missing.intro": "Please also add:",
-        "follow-up.footer": "<sub>🤖 Automated follow-up by {engine}. It can be wrong; "
-        "the maintainers decide. {feedback}</sub>",
-        "answer.intro": "@{asker}, here is my answer to [your question]({question}):",
-        "answer.footer": "<sub>🤖 Automated answer by {engine}, based on the code, "
-        "the documentation and this issue. It can be wrong; check it before you rely "
-        "on it. {feedback}</sub>",
-        "reminder": "@{author}, a friendly reminder: this issue is still waiting for "
-        "your answer to {questions}. Without an answer, it closes automatically on "
-        "{date}. A short comment keeps it open, for example if you need more time.",
-        "reminder.questions": "the questions above",
-        "closed-unanswered": "I'm closing this issue because the information asked for "
-        "above has been missing for {close_days}. @{author}, as soon as you answer "
-        "here, it reopens automatically. Thanks for reporting!",
-        "closed-duplicate": "Closed as a duplicate of #{number}, as announced "
-        "{grace_days} ago. Please continue there; a 👍 on #{number} shows that more "
-        "people are affected. If this was a mistake, write a comment and the "
-        "maintainers will reopen it.",
-        "reopened": "Thanks for your answer, @{author}! I reopened the issue; the "
-        "maintainers will take another look.",
-        "fixed": "Fixed by #{pull}, which is now on `{branch}`. The fix ships with the "
-        "next release; this issue closes then, with a link to it.",
-        "released": "🎉 Released in [{tag}]({url}){fixes}. @{author}, please update to "
-        "this version. If the problem persists, write a comment here and the issue "
-        "reopens, or open a new issue.",
-        "released.fixes": " with the fix from {pulls}",
-        "reopened-release": "Thanks for letting us know, @{author}, and sorry that it "
-        "isn't solved yet. I reopened the issue; the maintainers will take another "
-        "look.",
-        "locked": "This issue has been closed for more than {lock_days}, so I locked "
-        "it. If you still see the problem, or something like it, please open a new "
-        "issue and link this one.",
-    },
-    "de": {
-        "thanks.default": "Danke für dein Issue, @{author}!",
-        "thanks.bug": "Danke für deine Meldung, @{author}!",
-        "thanks.enhancement": "Danke für deinen Vorschlag, @{author}!",
-        "thanks.question": "Danke für deine Frage, @{author}!",
-        "thanks.documentation": "Danke für deinen Hinweis zur Dokumentation, @{author}!",
-        "thanks.compatibility": "Danke für deinen Kompatibilitätsbericht, @{author}!",
-        "thanks.feedback": "Danke fürs Testen und für dein Feedback, @{author}!",
-        "thanks.maintenance": "Danke für deine Meldung, @{author}!",
-        "intro": "Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst "
-        "angesehen. Die Maintainer lesen jedes Issue ebenfalls.",
-        "summary": "Zusammenfassung",
-        "analysis": "Erste Analyse",
-        "next_steps": "Das kannst du ausprobieren",
-        "missing": "Fehlende Informationen",
-        "missing.intro": "Damit es weitergehen kann, ergänze bitte Folgendes, als "
-        "Kommentar oder indem du das Issue bearbeitest:",
-        "missing.outro": "Ohne Antwort folgt nach {remind_days} eine Erinnerung, nach "
-        "{close_days} wird das Issue geschlossen. Ist es geschlossen, öffnet eine "
-        "Antwort es wieder.",
-        "duplicate": "Mögliches Duplikat",
-        "duplicate.text": "Das sieht nach einem Duplikat von #{number} aus: {reason}",
-        "duplicate.close": "Falls das stimmt, musst du nichts tun: Das Issue wird in "
-        "{grace_days} als Duplikat von #{number} geschlossen, damit alles an einer "
-        "Stelle bleibt. Ein 👍 bei #{number} zeigt, dass mehr Leute betroffen sind. "
-        "Geht es um etwas anderes, schreib einen Kommentar oder reagiere auf diesen "
-        "Kommentar mit 👎, dann bleibt es offen.",
-        "duplicate.named": "@{author}, ein Maintainer hat dieses Issue als Duplikat "
-        "von #{number} markiert.",
-        "related": "Verwandte Themen",
-        "discussion": "Diskussion",
-        "references": "Zum Nachlesen",
-        "links": "Zum Nachlesen: {count} Links",
-        "sensitive.secret": "> [!WARNING]\n> Dieses Issue scheint ein Geheimnis zu "
-        "zeigen, etwa ein Token, einen Schlüssel oder ein Passwort. Bitte entferne es, "
-        "indem du den Beitrag bearbeitest, lösche die frühere Fassung aus dem "
-        "Bearbeitungsverlauf und ersetze das Geheimnis, denn andere könnten es gesehen "
-        "haben.",
-        "sensitive.personal": "> [!NOTE]\n> Dieses Issue scheint persönliche Daten zu "
-        "zeigen, etwa eine E-Mail-Adresse, eine öffentliche IP-Adresse oder die Adresse "
-        "eines privaten Servers. Wenn du sie lieber nicht zeigen willst, bearbeite den "
-        "Beitrag und lösche die frühere Fassung aus dem Bearbeitungsverlauf.",
-        "security": "> [!CAUTION]\n> Das könnte eine Sicherheitslücke beschreiben. Bitte "
-        "melde so etwas vertraulich, wie in der [Sicherheitsrichtlinie]({policy}) "
-        "beschrieben, und entferne die Details hier.",
-        "footer": "<sub>🤖 Automatische Erstanalyse von {engine} auf Grundlage des Codes, "
-        "der Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer "
-        "entscheiden.{labels} {feedback}</sub>",
-        "labels": " Labels: {labels}.",
-        "about": "[So arbeitet der Assistent]({notice})",
-        "feedback": "Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er "
-        "geholfen hat.",
-        "feedback.duplicate": "Ein 👍 oder 👎 auf diesen Kommentar zeigt den "
-        "Maintainern, ob er geholfen hat; ein 👎 hält das Issue außerdem offen.",
-        "follow-up.thanks": "Danke für deine Antwort, @{author}!",
-        "follow-up.missing": "Noch offen",
-        "follow-up.missing.intro": "Bitte ergänze noch:",
-        "follow-up.footer": "<sub>🤖 Automatische Rückmeldung von {engine}. Sie kann "
-        "falsch sein; die Maintainer entscheiden. {feedback}</sub>",
-        "answer.intro": "@{asker}, hier ist meine Antwort auf [deine Frage]({question}):",
-        "answer.footer": "<sub>🤖 Automatische Antwort von {engine} auf Grundlage des "
-        "Codes, der Dokumentation und dieses Issues. Sie kann falsch sein; prüfe sie, "
-        "bevor du dich darauf verlässt. {feedback}</sub>",
-        "reminder": "@{author}, eine freundliche Erinnerung: Dieses Issue wartet noch "
-        "auf deine Antwort auf {questions}. Ohne Antwort wird es am {date} "
-        "automatisch geschlossen. Ein kurzer Kommentar genügt, damit es offen bleibt, "
-        "etwa wenn du mehr Zeit brauchst.",
-        "reminder.questions": "die Fragen oben",
-        "closed-unanswered": "Ich schließe dieses Issue, weil die erbetenen "
-        "Informationen seit {close_days} fehlen. @{author}, sobald du hier "
-        "antwortest, wird es automatisch wieder geöffnet. Danke für deine Meldung!",
-        "closed-duplicate": "Als Duplikat von #{number} geschlossen, wie vor "
-        "{grace_days} angekündigt. Bitte mach dort weiter; ein 👍 bei #{number} zeigt, "
-        "dass mehr Leute betroffen sind. Falls das ein Irrtum war, schreib einen "
-        "Kommentar, dann öffnen die Maintainer es wieder.",
-        "reopened": "Danke für deine Antwort, @{author}! Ich habe das Issue wieder "
-        "geöffnet; die Maintainer sehen es sich erneut an.",
-        "fixed": "Behoben durch #{pull}, jetzt auf `{branch}`. Der Fix kommt mit dem "
-        "nächsten Release; dann wird dieses Issue mit einem Link darauf geschlossen.",
-        "released": "🎉 Veröffentlicht in [{tag}]({url}){fixes}. @{author}, bitte "
-        "aktualisiere auf diese Version. Besteht das Problem weiter, schreib hier einen "
-        "Kommentar, dann wird das Issue wieder geöffnet, oder eröffne ein neues Issue.",
-        "released.fixes": " mit dem Fix aus {pulls}",
-        "reopened-release": "Danke für die Rückmeldung, @{author}, und schade, dass es "
-        "noch nicht gelöst ist. Ich habe das Issue wieder geöffnet; die Maintainer "
-        "sehen es sich erneut an.",
-        "locked": "Dieses Issue ist seit mehr als {lock_days} geschlossen, deshalb habe "
-        "ich es gesperrt. Siehst du das Problem oder etwas Ähnliches noch, eröffne "
-        "bitte ein neues Issue und verlinke dieses.",
-    },
-}
+
+def texts(language: str) -> dict[str, str]:
+    """The texts of the comments in the language, from its catalog in locales/; in
+    English for OTHER, a language without a catalog, whose answer the AI still
+    writes in the reporter's language."""
+    return TEXT.get(language, TEXT["en"])
 
 
 def say(language: str, key: str, **values: object) -> str:
-    return TEXT[language][key].format(**values)
+    return texts(language)[key].format(**values)
 
 
 def thanks(language: str, kind: str, author: str) -> str:
     key = f"thanks.{kind}"
     return say(
-        language, key if key in TEXT[language] else "thanks.default", author=author
+        language, key if key in texts(language) else "thanks.default", author=author
     )
 
 

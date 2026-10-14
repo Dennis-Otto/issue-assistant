@@ -1,0 +1,130 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in English.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "English"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = ""
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{month} {day}, {year}"
+months = [
+  "January", "February", "March", "April", "May", "June", "July", "August", "September",
+  "October", "November", "December",
+]
+# Words that are frequent in the language and in no other catalog. A reporter
+# writes in the language of whose stopwords their words have the most, in
+# English when no other language has more.
+stopwords = [
+  "the", "and", "is", "not", "with", "when", "it", "this", "that", "does", "have",
+  "can", "an", "of", "to", "works", "but", "how", "after", "my", "on", "for", "what",
+  "be",
+]
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "Thanks for opening this issue, @{author}!"
+"thanks.bug" = "Thanks for the report, @{author}!"
+"thanks.enhancement" = "Thanks for the suggestion, @{author}!"
+"thanks.question" = "Thanks for the question, @{author}!"
+"thanks.documentation" = "Thanks for the note on the documentation, @{author}!"
+"thanks.compatibility" = "Thanks for the compatibility report, @{author}!"
+"thanks.feedback" = "Thanks for testing and for the feedback, @{author}!"
+"thanks.maintenance" = "Thanks for the report, @{author}!"
+intro = """\
+  I'm the issue assistant of this repository and took a first look. The maintainers \
+  read every issue as well."""
+summary = "Summary"
+analysis = "First analysis"
+next_steps = "Worth trying"
+missing = "Information needed"
+"missing.intro" = """\
+  To continue, please add the following, in a comment or by editing the issue:"""
+"missing.outro" = """\
+  Without an answer, a reminder follows after {remind_days} and the issue closes after \
+  {close_days}. If it closes, an answer reopens it."""
+duplicate = "Possible duplicate"
+"duplicate.text" = "This looks like a duplicate of #{number}: {reason}"
+"duplicate.close" = """\
+  If that's right, there's nothing to do: the issue closes as a duplicate of #{number} \
+  in {grace_days}, so the conversation stays in one place. A 👍 on #{number} shows that \
+  more people are affected. If it's something different, write a comment or react to \
+  this comment with 👎, and it stays open."""
+"duplicate.named" = """\
+  @{author}, a maintainer marked this issue as a duplicate of #{number}."""
+related = "Related"
+discussion = "discussion"
+references = "Where to look"
+links = "Where to look: {count} links"
+"sensitive.secret" = """\
+  > [!WARNING]\n> This issue seems to show a secret, such as a token, a key or a \
+  password. Please remove it by editing the post, delete the earlier version from its \
+  edit history, and replace the secret, because others may have seen it."""
+"sensitive.personal" = """\
+  > [!NOTE]\n> This issue seems to show personal data, such as an e-mail address, a \
+  public IP address or the address of a private server. If you'd rather not show it, \
+  edit the post and delete the earlier version from its edit history."""
+security = """\
+  > [!CAUTION]\n> This may describe a security vulnerability. Please report it \
+  privately, as described in the [security policy]({policy}), and remove the details \
+  here."""
+footer = """\
+  <sub>🤖 Automated first analysis by {engine}, based on the code, the documentation \
+  and earlier issues. It can be wrong; the maintainers decide.{labels} \
+  {feedback}</sub>"""
+labels = " Labels: {labels}."
+about = "[How the assistant works]({notice})"
+feedback = "A 👍 or 👎 on this comment tells the maintainers whether it helped."
+"feedback.duplicate" = """\
+  A 👍 or 👎 on this comment tells the maintainers whether it helped; a 👎 also keeps the \
+  issue open."""
+"follow-up.thanks" = "Thanks for your answer, @{author}!"
+"follow-up.missing" = "Still needed"
+"follow-up.missing.intro" = "Please also add:"
+"follow-up.footer" = """\
+  <sub>🤖 Automated follow-up by {engine}. It can be wrong; the maintainers decide. \
+  {feedback}</sub>"""
+"answer.intro" = "@{asker}, here is my answer to [your question]({question}):"
+"answer.footer" = """\
+  <sub>🤖 Automated answer by {engine}, based on the code, the documentation and this \
+  issue. It can be wrong; check it before you rely on it. {feedback}</sub>"""
+reminder = """\
+  @{author}, a friendly reminder: this issue is still waiting for your answer to \
+  {questions}. Without an answer, it closes automatically on {date}. A short comment \
+  keeps it open, for example if you need more time."""
+"reminder.questions" = "the questions above"
+"closed-unanswered" = """\
+  I'm closing this issue because the information asked for above has been missing for \
+  {close_days}. @{author}, as soon as you answer here, it reopens automatically. \
+  Thanks for reporting!"""
+"closed-duplicate" = """\
+  Closed as a duplicate of #{number}, as announced {grace_days} ago. Please continue \
+  there; a 👍 on #{number} shows that more people are affected. If this was a mistake, \
+  write a comment and the maintainers will reopen it."""
+reopened = """\
+  Thanks for your answer, @{author}! I reopened the issue; the maintainers will take \
+  another look."""
+fixed = """\
+  Fixed by #{pull}, which is now on `{branch}`. The fix ships with the next release; \
+  this issue closes then, with a link to it."""
+released = """\
+  🎉 Released in [{tag}]({url}){fixes}. @{author}, please update to this version. If \
+  the problem persists, write a comment here and the issue reopens, or open a new \
+  issue."""
+"released.fixes" = " with the fix from {pulls}"
+"reopened-release" = """\
+  Thanks for letting us know, @{author}, and sorry that it isn't solved yet. I \
+  reopened the issue; the maintainers will take another look."""
+locked = """\
+  This issue has been closed for more than {lock_days}, so I locked it. If you still \
+  see the problem, or something like it, please open a new issue and link this one."""
+"days.one" = "{count} day"
+"days.other" = "{count} days"
+line = "{file}, line {line}"
+heading = "{heading} in {file}"

@@ -1,0 +1,17 @@
+flowchart TB
+  accTitle: How the assistant chooses the language of a comment
+  accDescr: The AI answers in the reporter's language and names its code. A code of a catalog in locales/, such as fr, gives the assistant's own words and days from that catalog; other, for a language without a catalog, gives English words around the AI's text and days in ISO 8601. The hidden marker of the comment keeps the code. A comment without AI, such as a reminder, a closing or the note of a release, takes the code from the marker of the last analysis or follow-up; without one, from the reporter's own words, the language whose stopwords they use most, English on a tie.
+  ai["`**The AI** answers in the<br>reporter's language`"] --> code{"its code: a catalog<br>in locales/?"}
+  code -- "yes, such as fr" --> catalog["the words and days<br>of locales/fr.toml"]
+  code -- "no: other" --> english["English words around<br>the AI's text,<br>days in ISO 8601"]
+  catalog --> marker["the hidden marker<br>keeps the code: lang=fr"]
+  english --> marker
+  sweep["`**A comment without AI**<br>reminder, closing, release`"] --> found{"a marker of an<br>analysis or a follow-up?"}
+  found -- "yes" --> same["the language of the marker"]
+  found -- "no" --> words["the reporter's own words:<br>most stopwords of a catalog,<br>English on a tie"]
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class code,found question
+  class ai,sweep,catalog,english,words job
+  class marker,same safe

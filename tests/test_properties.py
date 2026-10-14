@@ -352,7 +352,7 @@ def test_issue_forms_and_languages_read_any_text(body):
     assert all(
         isinstance(key, str) and isinstance(value, str) for key, value in fields.items()
     )
-    assert assistant.detect_language(body) in {"en", "de"}
+    assert assistant.detect_language(body) in assistant.LANGUAGES
 
 
 # Lines of issue forms, and of what people write around them.

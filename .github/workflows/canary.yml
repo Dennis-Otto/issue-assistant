@@ -28,6 +28,7 @@ on:
       - action.yml
       - issue_assistant.py
       - prompts/**
+      - locales/**
       - templates/.github/workflows/issue-assistant.yml
       - templates/.github/egress-firewall.yaml
       # The settings that this repository's analyses use, and the firewall policy
