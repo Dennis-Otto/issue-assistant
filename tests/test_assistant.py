@@ -6119,7 +6119,8 @@ def test_the_sweep_counts_the_feedback_on_the_analyses_of_30_days(config):
         # GitHub left out the counts.
         analysis(7, days_ago=2),
     ]
-    assert assistant.feedback(github, NOW) == (
+    activity = assistant.Activity.read(github, NOW - assistant.FEEDBACK_PERIOD)
+    assert assistant.feedback(activity) == (
         "Feedback of the last 30 days: analyses 3, 👍 3, 👎 1; "
         "follow-ups 1, 👍 1, 👎 0."
     )
@@ -6135,11 +6136,13 @@ def test_a_failed_count_of_the_feedback_leaves_the_sweep_green(
     github.fail(r"^GET issues/comments\?")
     code, _, summary = run_main(monkeypatch, tmp_path, sample_root, github, "sweep")
     assert code == 0
-    assert "::warning::Counting the feedback: gh api: API rate limit" in (
-        capsys.readouterr().out
+    assert (
+        "::warning::Reading the comments and issues of 30 days: gh api: API rate limit"
+        in capsys.readouterr().out
     )
     assert "- #12: reminded the reporter after" in summary
-    assert "- Feedback not counted: GitHub failed." in summary
+    assert "- Feedback not counted, no digest: GitHub failed." in summary
+    assert "####" not in summary
 
 
 @pytest.mark.parametrize(
@@ -6167,8 +6170,393 @@ def test_only_the_morning_and_a_sweep_by_hand_count_the_feedback(
     assert code == (1 if failed else 0)
     assert "- #12: reminded the reporter after" in summary
     assert ("- Feedback of the last 30 days: " in summary) == counted
+    assert ("#### Maintainer digest" in summary) == counted
+    # By hand, the quality numbers come with every sweep.
+    assert ("#### Assistant quality" in summary) == (
+        event == "workflow_dispatch" or (counted and datetime.now(UTC).day == 1)
+    )
     listed = [path for _, path, _ in github.calls if path.startswith("issues/comments")]
     assert bool(listed) == counted
+
+
+OWNER = {"login": "owner", "type": "User"}
+
+
+def labeling(kind, name, days_ago, actor=BOT_USER):
+    """An event of GitHub's timeline that adds (`labeled`) or removes (`unlabeled`)
+    a label."""
+    return {
+        "event": kind,
+        "label": {"name": name},
+        "actor": actor,
+        "created_at": at(days_ago),
+    }
+
+
+def private(number, **changes):
+    """An open issue whose title and text the summary must never show."""
+    changes.setdefault("body", f"Private text {number}\n\n{BUG_BODY}")
+    return make_issue(number, title=f"Private title {number}", **changes)
+
+
+def said(comment_id, author, days_ago, association="NONE"):
+    return make_comment(
+        comment_id, author, f"Private comment {comment_id}", days_ago, association
+    )
+
+
+def notice(comment_id, days_ago, **attributes):
+    """An analysis of the assistant, a duplicate notice with `duplicate=`."""
+    marker = assistant.render_marker("analysis", lang="en", **attributes)
+    return make_comment(comment_id, "bot", f"{marker}\nPrivate analysis", days_ago)
+
+
+def digest_github(config):
+    """A repository with an issue of every case of the digest."""
+    github = FakeGitHub(
+        config,
+        # Need triage for 5 days, the one with more 👍 first; #21 since a day.
+        private(19, days_ago=5, reactions={"+1": 5}),
+        private(20, days_ago=5, reactions={"+1": 2}),
+        private(21, days_ago=1),
+        # Waits on its reporter, though nobody triaged it.
+        private(22, labels=("bug", "needs-triage", "needs-info"), days_ago=10),
+        # The reporter answered the maintainer, who said nothing since.
+        private(23, labels=("bug",), days_ago=6),
+        # The maintainer answered the reporter.
+        private(24, labels=("bug",), days_ago=6),
+        # Someone objected to the duplicate notice.
+        private(25, labels=("bug",), days_ago=8),
+        # The duplicate notice still waits for its closing.
+        private(26, labels=("bug", "possible-duplicate"), days_ago=8),
+        # A maintainer's own issue.
+        private(27, labels=("bug",), days_ago=6, author="owner", association="OWNER"),
+        # Closed after the reporter's answer.
+        private(28, labels=("bug",), days_ago=6, state="closed"),
+        # A maintainer answered the objection.
+        private(29, labels=("bug",), days_ago=8),
+        # A maintainer settled the notice without a word.
+        private(35, labels=("bug",), days_ago=8),
+        # Wait for their reporters: reminded, exempt and locked.
+        private(30, labels=("bug", "needs-info", "stale"), days_ago=21),
+        private(31, labels=("bug", "needs-info", "pinned"), days_ago=5),
+        private(32, labels=("bug", "needs-info"), days_ago=5, locked=True),
+        # Fixed, with and without a notice of the last 30 days.
+        private(33, labels=("bug", "fixed-in-next-release"), days_ago=10),
+        private(34, labels=("bug", "fixed-in-next-release"), days_ago=8),
+    )
+    for number, days_ago in ((22, 3), (30, 20), (31, 4), (32, 4)):
+        github.event_store[number] = [labeling("labeled", "needs-info", days_ago)]
+        github.comment_store[number] = [notice(number, days_ago, questions=1)]
+    github.comment_store[30].append(
+        make_comment(
+            300,
+            "bot",
+            assistant.render_reminder("reporter", "en", NOW + timedelta(days=10)),
+            5,
+        )
+    )
+    github.comment_store[23] = [
+        said(231, "owner", 4, "MEMBER"),
+        said(232, "someone", 3),
+        said(233, "reporter", 2),
+        said(234, "reporter", 1),
+        follow_up(235, days_ago=1),
+    ]
+    github.comment_store[24] = [
+        said(241, "reporter", 3),
+        said(242, "owner", 2, "MEMBER"),
+    ]
+    github.comment_store[25] = [notice(251, 6, duplicate=7), said(252, "reporter", 5)]
+    github.comment_store[26] = [notice(261, 1, duplicate=7)]
+    github.comment_store[27] = [
+        said(271, "helper", 3, "MEMBER"),
+        said(272, "owner", 2, "OWNER"),
+    ]
+    github.comment_store[28] = [
+        said(281, "owner", 4, "MEMBER"),
+        said(282, "reporter", 2),
+    ]
+    # A maintainer removed `possible-duplicate` without a word.
+    github.comment_store[35] = [notice(351, 6, duplicate=7)]
+    github.comment_store[29] = [
+        notice(291, 6, duplicate=7),
+        said(292, "owner", 1, "MEMBER"),
+    ]
+    github.comment_store[34] = [said(341, "reporter", 3)]
+    github.comment_store[33] = [
+        make_comment(331, "bot", assistant.render_fixed(41, "main", "en"), 0.1)
+    ]
+    for number in github.comment_store:
+        # A comment changes its issue, as on GitHub.
+        github.store[number]["updated_at"] = at(0)
+    return github
+
+
+def test_the_digest_lists_what_waits_on_whom(config, capsys):
+    """Every morning, the summary of the sweep says what waits on the maintainers,
+    on reporters and on a release: links and numbers alone, no text of an issue."""
+    github = digest_github(config)
+    lines, sections = assistant.report(github, config, NOW, "schedule")
+    link = f"https://github.com/{REPOSITORY}"
+    assert sections == "\n".join(
+        [
+            "#### Maintainer digest",
+            "",
+            "**Waiting on the maintainers: 4**",
+            "",
+            f"- [#19]({link}/issues/19): needs triage for 5 days, 👍 5",
+            f"- [#20]({link}/issues/20): needs triage for 5 days, 👍 2",
+            f"- [#25]({link}/issues/25): someone objected to the duplicate notice"
+            " 5 days ago",
+            f"- [#23]({link}/issues/23): the reporter answered 2 days ago",
+            "",
+            "**Waiting on reporters: 3**",
+            "",
+            f"- [#30]({link}/issues/30): asked 20 days ago; closes on 2026-10-17",
+            f"- [#31]({link}/issues/31): asked 4 days ago; exempt (labeled pinned),"
+            " never closes",
+            f"- [#22]({link}/issues/22): asked 3 days ago; reminder on 2026-10-19",
+            "",
+            "**Fixed, waiting for a release: 2**",
+            "",
+            f"- [#34]({link}/issues/34): fixed",
+            f"- [#33]({link}/issues/33): fixed by [#41]({link}/pull/41) today",
+        ]
+    )
+    assert lines == [
+        "Feedback of the last 30 days: analyses 8, 👍 0, 👎 0; "
+        "follow-ups 1, 👍 0, 👎 0."
+    ]
+    assert not re.search(r"Private|live card", sections, re.IGNORECASE)
+    assert "::warning::" not in capsys.readouterr().out
+    # Reading writes nothing.
+    assert github.writes == []
+
+
+def test_a_list_of_the_digest_names_the_first_issues_and_counts_the_rest(
+    monkeypatch, config
+):
+    monkeypatch.setattr(assistant, "DIGEST_ITEMS", 2)
+    github = FakeGitHub(config)
+    items = [
+        assistant.Waiting(NOW - timedelta(days=number), number, 0, "fixed")
+        for number in (1, 2, 3)
+    ]
+    assert assistant.listing(github, "Fixed", items) == "\n".join(
+        [
+            "**Fixed: 3**",
+            "",
+            f"- [#3](https://github.com/{REPOSITORY}/issues/3): fixed",
+            f"- [#2](https://github.com/{REPOSITORY}/issues/2): fixed",
+            "- and 1 more",
+        ]
+    )
+    assert assistant.listing(github, "Fixed", []) == "**Fixed: 0**"
+
+
+def quality_github(config):
+    """A repository with an analysis of every case of the quality numbers."""
+    form = "### What happened?\n\nPrivate text\n\n### Area\n\nDocumentation\n\n### V\n\n1\n"
+    github = FakeGitHub(
+        config,
+        # Asked 30 minutes after the opening, and waits for an answer.
+        private(40, labels=("bug", "needs-info"), days_ago=10),
+        # Opened before the 30 days, analyzed again by hand, answered.
+        private(41, labels=("bug",), days_ago=40),
+        # Analyzed after two hours, with the kind that the form's area chose.
+        private(42, labels=("bug", "documentation"), days_ago=25, body=form),
+        # Duplicate notices: closed, waiting and objected to.
+        private(45, labels=("duplicate",), days_ago=20, state="closed"),
+        private(46, labels=("bug", "possible-duplicate"), days_ago=2),
+        private(47, labels=("bug",), days_ago=10),
+        # A follow-up's questions, unanswered.
+        private(48, labels=("bug",), days_ago=15, state="closed"),
+    )
+    github.comment_store[40] = [rated(notice(400, 10 - 1 / 48, questions=1), up=2)]
+    github.comment_store[41] = [
+        rated(notice(410, 5, questions=1), down=1),
+        said(411, "reporter", 4),
+    ]
+    github.comment_store[42] = [notice(420, 25 - 1 / 12, questions=0)]
+    github.comment_store[44] = [notice(440, 3, questions=0)]
+    github.comment_store[45] = [
+        notice(450, 20 - 1 / 24, duplicate=7),
+        make_comment(451, "bot", assistant.render_closed_duplicate(7, "en"), 17),
+    ]
+    github.comment_store[46] = [notice(460, 2 - 1 / 144, duplicate=7)]
+    github.comment_store[47] = [
+        notice(470, 10 - 1 / 8, duplicate=7),
+        said(471, "reporter", 9),
+    ]
+    github.comment_store[48] = [
+        make_comment(
+            480,
+            "bot",
+            assistant.render_marker("follow-up", lang="en", questions=1),
+            12,
+        ),
+        make_comment(481, "bot", assistant.render_closed_unanswered("r", "en"), 1),
+    ]
+    github.event_store[40] = [
+        # The form's kind, which the reporter's issue form added.
+        labeling("labeled", "bug", 10, {"login": "reporter", "type": "User"}),
+        labeling("labeled", "area: setup", 10 - 1 / 48),
+        labeling("labeled", "enhancement", 10 - 1 / 48),
+        labeling("labeled", "needs-info", 10 - 1 / 48),
+        # A run again took the kind back: no maintainer's correction.
+        labeling("unlabeled", "enhancement", 9.5),
+        labeling("labeled", "documentation", 9, OWNER),
+        labeling("unlabeled", "area: setup", 8, OWNER),
+    ]
+    github.event_store[41] = [
+        # Before the 30 days.
+        labeling("labeled", "bug", 35),
+        labeling("labeled", "question", 5),
+        # Another bot's label.
+        labeling("labeled", "enhancement", 5, {"login": "triage[bot]", "type": "Bot"}),
+    ]
+    github.event_store[42] = [
+        labeling("labeled", "documentation", 25),
+        labeling("labeled", "bug", 25 - 1 / 12),
+        # Too late to count: kept for 14 days, and missing for longer than 7.
+        labeling("labeled", "enhancement", 10, OWNER),
+        labeling("unlabeled", "bug", 5, OWNER),
+    ]
+    for number in github.comment_store:
+        if number in github.store:
+            github.store[number]["updated_at"] = at(0)
+    return github
+
+
+def test_the_quality_numbers_tell_how_good_the_assistant_is(config):
+    """Once a month, the summary of the sweep says how the assistant did in the 30
+    days before: numbers alone, which a maintainer can trust or doubt."""
+    github = quality_github(config)
+    activity = assistant.Activity.read(github, NOW - assistant.FEEDBACK_PERIOD)
+    assert assistant.quality(github, config, activity) == "\n".join(
+        [
+            "| Number | Value |",
+            "| --- | --- |",
+            "| Analyses posted | 7, on 6 issues |",
+            "| Median time from a new issue to its analysis | 60 min |",
+            "| Labels of the AI kept for 14 days | 3 of 4 (75 %) |",
+            "| Labels that maintainers added within 7 days | 1 |",
+            "| Duplicate notices | 3: closed 1, objected to 1, waiting 1 |",
+            "| Questions to reporters | 3 issues: answered 1, closed without an"
+            " answer 1, waiting 1 |",
+            "| Feedback on the analyses | 👍 2, 👎 1 |",
+        ]
+    )
+
+
+def test_the_corrections_are_those_of_the_maintainers(config):
+    """The helper that the quality numbers count with, and that learning from the
+    maintainers' corrections reads."""
+    github = quality_github(config)
+    activity = assistant.Activity.read(github, NOW - assistant.FEEDBACK_PERIOD)
+    found = assistant.corrections(github, config, activity)
+    assert found == assistant.Corrections(
+        labeled=4,
+        removed=(
+            assistant.Correction(
+                40, "area: setup", True, "owner", assistant.moment(at(8))
+            ),
+        ),
+        added=(
+            assistant.Correction(
+                40, "documentation", False, "owner", assistant.moment(at(9))
+            ),
+        ),
+        read=6,
+        analyzed=6,
+    )
+
+
+def test_the_quality_reads_the_events_of_the_latest_issues_alone(monkeypatch, config):
+    monkeypatch.setattr(assistant, "MAX_CORRECTED", 2)
+    github = quality_github(config)
+    activity = assistant.Activity.read(github, NOW - assistant.FEEDBACK_PERIOD)
+    table = assistant.quality(github, config, activity)
+    assert (
+        "| Labels of the AI kept for 14 days | 1 of 1 (100 %), of the 2 issues"
+        " analyzed last |"
+    ) in table
+    assert (
+        "| Labels that maintainers added within 7 days | 0, of the 2 issues analyzed"
+        " last |"
+    ) in table
+    read = [
+        path for _, path, _ in github.calls if path.endswith("/events?per_page=100")
+    ]
+    assert read == ["issues/46/events?per_page=100", "issues/41/events?per_page=100"]
+
+
+def test_the_quality_of_a_quiet_month(config):
+    github = FakeGitHub(config)
+    activity = assistant.Activity.read(github, NOW - assistant.FEEDBACK_PERIOD)
+    assert assistant.quality(github, config, activity).splitlines()[2:] == [
+        "| Analyses posted | 0, on 0 issues |",
+        "| Median time from a new issue to its analysis | no new issue analyzed |",
+        "| Labels of the AI kept for 14 days | 0 of 0 |",
+        "| Labels that maintainers added within 7 days | 0 |",
+        "| Duplicate notices | 0: closed 0, objected to 0, waiting 0 |",
+        "| Questions to reporters | 0 issues: answered 0, closed without an answer 0,"
+        " waiting 0 |",
+        "| Feedback on the analyses | 👍 0, 👎 0 |",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("seconds", "words"),
+    [
+        (59, "1 min"),
+        (2 * 3600 - 31, "119 min"),
+        (2 * 3600, "2 h"),
+        (2 * 86400 - 1, "48 h"),
+        (2 * 86400, "2 days"),
+    ],
+)
+def test_a_duration_reads_in_its_unit(seconds, words):
+    assert assistant.duration(seconds) == words
+
+
+@pytest.mark.parametrize(
+    ("event", "day", "expected"),
+    [
+        ("schedule", 1, True),
+        ("schedule", 2, False),
+        ("workflow_dispatch", 15, True),
+        ("", 15, True),
+    ],
+)
+def test_the_quality_comes_on_the_first_of_a_month_and_by_hand(event, day, expected):
+    assert assistant.monthly(event, datetime(2026, 11, day, 6, 41, tzinfo=UTC)) is (
+        expected
+    )
+
+
+def test_the_summary_of_a_sweep_by_hand_has_the_digest_and_the_quality(
+    monkeypatch, tmp_path, sample_root, config, capsys
+):
+    github = quality_github(config)
+    # GitHub fails the digest alone.
+    github.fail(r"^GET issues\?state=open&labels=needs-triage")
+    code, _, summary = run_main(
+        monkeypatch,
+        tmp_path,
+        sample_root,
+        github,
+        "sweep",
+        GITHUB_EVENT_NAME="workflow_dispatch",
+    )
+    assert code == 0
+    assert "::warning::Maintainer digest: gh api: API rate limit" in (
+        capsys.readouterr().out
+    )
+    assert "#### Maintainer digest\n\nNot made: GitHub failed.\n\n" in summary
+    assert "#### Assistant quality (last 30 days)\n\n| Number | Value |" in summary
+    assert not re.search(r"Private|live card", summary, re.IGNORECASE)
 
 
 def test_a_repository_without_settings_is_told_what_to_add(

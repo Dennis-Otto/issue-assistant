@@ -35,6 +35,7 @@ from datetime import UTC, date, datetime, timedelta
 from fnmatch import fnmatchcase
 from functools import cache, partial
 from pathlib import Path, PurePosixPath
+from statistics import median
 from typing import Any
 from urllib.parse import quote, unquote, urlencode, urlsplit
 
@@ -4407,46 +4408,551 @@ def sweep(
     return done
 
 
-# How far back the summary of the sweep counts the 👍 and 👎 that the footers of the
-# analyses and follow-ups ask for.
+# How far back the summary of the sweep looks: for the 👍 and 👎 that the footers of
+# the analyses and follow-ups ask for, the conversations of the digest and the
+# numbers of the quality.
 FEEDBACK_PERIOD = timedelta(days=30)
 
-# The sweeps whose summary counts the feedback: the morning's, one started by hand
-# and one on a computer, without an event. A merge or a release starts a sweep too,
-# often many a day, and each count lists every comment of the 30 days, which would
-# spend the requests that the token has for the hour.
+# The sweeps whose summary counts the feedback and has the digest: the morning's,
+# one started by hand and one on a computer, without an event. A merge or a release
+# starts a sweep too, often many a day, and each lists every comment of the 30 days,
+# which would spend the requests that the token has for the hour.
 FEEDBACK_EVENTS = frozenset({"schedule", "workflow_dispatch", ""})
 
+# An issue that needs triage waits on the maintainers once it is this old.
+TRIAGE_WAIT = timedelta(days=3)
 
-def feedback(github: GitHub, now: datetime) -> str:
+# The issues that each list of the digest names at most, the longest waiting first.
+DIGEST_ITEMS = 20
+
+# The groups of the labels that the AI chooses, whose corrections the quality counts.
+CHOSEN_GROUPS = ("type", "area", "topic")
+
+# A label of the assistant that a maintainer removed this soon was wrong, and one of
+# those groups that a maintainer added this soon after the analysis was missing.
+CORRECTION_PERIOD = timedelta(days=14)
+ADDITION_PERIOD = timedelta(days=7)
+
+# The analyzed issues whose events the quality reads at most, the latest first: one
+# request each, once a month.
+MAX_CORRECTED = 100
+
+
+def issue_of(comment: dict[str, Any]) -> int:
+    """The number of the issue or pull request of a comment of the repository's list."""
+    return int(str(comment["issue_url"]).rsplit("/", 1)[1])
+
+
+def asks(comment: dict[str, Any]) -> bool:
+    """Whether the comment is an analysis or a follow-up with questions."""
+    found = marker(comment)
+    return (
+        found is not None
+        and found[0] in {"analysis", "follow-up"}
+        and found[1].get("questions") == "1"
+    )
+
+
+def is_duplicate_notice(comment: dict[str, Any]) -> bool:
+    """Whether the comment is an analysis that names a sure duplicate."""
+    found = marker(comment)
+    return found is not None and found[0] == "analysis" and "duplicate" in found[1]
+
+
+def upvotes(issue: dict[str, Any]) -> int:
+    return int((issue.get("reactions") or {}).get("+1") or 0)
+
+
+@dataclass(frozen=True)
+class Activity:
+    """What the summary of the sweep reads once: the comments written since the
+    moment, the oldest first, by the number of their issue or pull request, and the
+    issues that changed since, by their number."""
+
+    since: datetime
+    comments: dict[int, list[dict[str, Any]]]
+    issues: dict[int, dict[str, Any]]
+
+    @classmethod
+    def read(cls, github: GitHub, since: datetime) -> Activity:
+        comments: dict[int, list[dict[str, Any]]] = {}
+        # GitHub lists the comments edited since as well; only those written count.
+        for comment in sorted(github.comments_since(since), key=created):
+            if created(comment) >= since:
+                comments.setdefault(issue_of(comment), []).append(comment)
+        issues = {issue["number"]: issue for issue in github.issues_since(since)}
+        return cls(since, comments, issues)
+
+    def posted(self, kind: str) -> Iterator[tuple[int, dict[str, Any]]]:
+        """The assistant's comments of the kind, with the number of their issue."""
+        for number, comments in self.comments.items():
+            for comment in comments:
+                if kind_of(comment) == kind:
+                    yield number, comment
+
+    def analyzed(self) -> dict[int, datetime]:
+        """The issues with an analysis, and the moment of their first one."""
+        first: dict[int, datetime] = {}
+        for number, comment in self.posted("analysis"):
+            if number in self.issues:
+                first.setdefault(number, created(comment))
+        return first
+
+
+def reactions_on(activity: Activity, kind: str) -> tuple[int, int, int]:
+    """How many comments of the kind the assistant posted, and their 👍 and 👎."""
+    count = up = down = 0
+    for _, comment in activity.posted(kind):
+        reactions = comment.get("reactions") or {}
+        count += 1
+        up += int(reactions.get("+1") or 0)
+        down += int(reactions.get("-1") or 0)
+    return count, up, down
+
+
+def feedback(activity: Activity) -> str:
     """The 👍 and 👎 on the analyses and follow-ups of the last 30 days, for the
     summary of the sweep: numbers only, which tell the maintainers whether the
     assistant helps.
 
     GitHub counts the reactions of each comment in its list of the comments, so
-    one list of the comments of the repository since then is enough. Counting is no
-    step of the lifecycle: one that GitHub fails is a warning, and the sweep passes.
+    one list of the comments of the repository since then is enough.
     """
-    since = now - FEEDBACK_PERIOD
-    try:
-        comments = github.comments_since(since)
-    except GitHubError as error:
-        command("warning", f"Counting the feedback: {error}")
-        return "Feedback not counted: GitHub failed."
-    counts = {"analysis": [0, 0, 0], "follow-up": [0, 0, 0]}
-    for comment in comments:
-        tally = counts.get(kind_of(comment) or "")
-        if tally is None or created(comment) < since:
-            continue
-        reactions = comment.get("reactions") or {}
-        tally[0] += 1
-        tally[1] += int(reactions.get("+1") or 0)
-        tally[2] += int(reactions.get("-1") or 0)
-    (analyses, up, down), (follow_ups, up_after, down_after) = counts.values()
+    analyses, up, down = reactions_on(activity, "analysis")
+    follow_ups, up_after, down_after = reactions_on(activity, "follow-up")
     return (
         f"Feedback of the last {FEEDBACK_PERIOD.days} days: analyses {analyses}, "
         f"👍 {up}, 👎 {down}; follow-ups {follow_ups}, 👍 {up_after}, 👎 {down_after}."
     )
+
+
+@dataclass(frozen=True)
+class Waiting:
+    """An issue in a list of the digest: since when it waits, and for what."""
+
+    since: datetime
+    number: int
+    upvotes: int
+    why: str
+
+
+def ago(when: datetime, now: datetime) -> str:
+    waited = days_between(when, now)
+    return f"{days(waited, 'en')} ago" if waited else "today"
+
+
+def issue_link(github: GitHub, number: int, path: str = "issues") -> str:
+    return f"[#{number}](https://github.com/{github.repository}/{path}/{number})"
+
+
+def listing(github: GitHub, heading: str, items: list[Waiting]) -> str:
+    """A list of the digest: the issues that waited longest first, by the day, and
+    among those of a day the ones with the most 👍; links and numbers alone."""
+    ordered = sorted(
+        items, key=lambda item: (day_of(item.since), -item.upvotes, item.number)
+    )
+    lines = [
+        f"{issue_link(github, item.number)}: {item.why}"
+        + (f", 👍 {item.upvotes}" if item.upvotes else "")
+        for item in ordered[:DIGEST_ITEMS]
+    ]
+    if len(ordered) > DIGEST_ITEMS:
+        lines.append(f"and {len(ordered) - DIGEST_ITEMS} more")
+    return f"**{heading}: {len(ordered)}**" + (f"\n\n{bullets(lines)}" if lines else "")
+
+
+def reporter_answered(
+    issue: dict[str, Any], comments: list[dict[str, Any]]
+) -> datetime | None:
+    """When the reporter answered a maintainer who said nothing since; None when the
+    last word of a person is a maintainer's, or no maintainer spoke."""
+    author = login(issue.get("user"))
+    asked = False
+    answer = None
+    for comment in comments:
+        if is_bot(comment.get("user")):
+            continue
+        if login(comment.get("user")) == author:
+            answer = answer or (created(comment) if asked else None)
+        elif is_maintainer(comment):
+            asked, answer = True, None
+    return answer
+
+
+def objected(comments: list[dict[str, Any]]) -> datetime | None:
+    """When someone first objected in a comment to the last duplicate notice of the
+    issue, and no maintainer answered since; None without such an objection.
+
+    A 👎 alone, or a maintainer who just removed `possible-duplicate`, leaves the
+    issue to `needs-triage`, if it still has it.
+    """
+    notices = [created(comment) for comment in comments if is_duplicate_notice(comment)]
+    objection = None
+    for comment in comments:
+        if (
+            notices
+            and created(comment) > notices[-1]
+            and not is_bot(comment.get("user"))
+        ):
+            objection = (
+                None if is_maintainer(comment) else objection or created(comment)
+            )
+    return objection
+
+
+def waits_on_others(issue: dict[str, Any]) -> bool:
+    """Whether the issue waits on its reporter or the sweep, or is locked."""
+    return bool(issue.get("locked")) or bool(
+        label_names(issue) & {NEEDS_INFO, STALE, POSSIBLE_DUPLICATE}
+    )
+
+
+def waiting_on_maintainers(
+    github: GitHub, activity: Activity, now: datetime
+) -> list[Waiting]:
+    """The open issues whose next step is the maintainers': those that need triage
+    for TRIAGE_WAIT, those whose reporter answered a maintainer, and those whose
+    duplicate notice someone objected to; each until a maintainer answers."""
+    found: dict[int, Waiting] = {}
+    for issue in github.open_issues(NEEDS_TRIAGE):
+        opened = created(issue)
+        if waits_on_others(issue) or now - opened < TRIAGE_WAIT:
+            continue
+        found[issue["number"]] = Waiting(
+            opened,
+            issue["number"],
+            upvotes(issue),
+            f"needs triage for {days(days_between(opened, now), 'en')}",
+        )
+    for number, issue in activity.issues.items():
+        if (
+            number in found
+            or issue["state"] != "open"
+            or waits_on_others(issue)
+            or is_maintainer(issue)
+        ):
+            continue
+        comments = activity.comments.get(number, [])
+        if since := reporter_answered(issue, comments):
+            why = f"the reporter answered {ago(since, now)}"
+        elif since := objected(comments):
+            why = f"someone objected to the duplicate notice {ago(since, now)}"
+        else:
+            continue
+        found[number] = Waiting(since, number, upvotes(issue), why)
+    return list(found.values())
+
+
+def waiting_on_reporters(
+    github: GitHub, lifecycle: Lifecycle, now: datetime
+) -> list[Waiting]:
+    """The open issues that wait for an answer of their reporter, with the day of
+    the reminder or of the closing, as the sweep keeps them."""
+    found = []
+    for issue in github.open_issues(NEEDS_INFO):
+        if issue.get("locked"):
+            continue
+        comments = github.comments(issue["number"])
+        since = asked_since(github, issue, comments)
+        reminders = [
+            comment
+            for comment in comments
+            if kind_of(comment) == "reminder" and created(comment) >= since
+        ]
+        if exempt := exemption(issue, lifecycle):
+            then = f"exempt ({exempt}), never closes"
+        elif reminders:
+            then = f"closes on {closing_day(reminders[-1], lifecycle)}"
+        else:
+            reminder = since + timedelta(days=lifecycle.remind_after_days)
+            then = f"reminder on {day_of(reminder)}"
+        found.append(
+            Waiting(
+                since,
+                issue["number"],
+                upvotes(issue),
+                f"asked {ago(since, now)}; {then}",
+            )
+        )
+    return found
+
+
+def waiting_for_release(
+    github: GitHub, activity: Activity, now: datetime
+) -> list[Waiting]:
+    """The open issues that a merged pull request fixed, with that pull request
+    when its notice is of the last 30 days."""
+    found = []
+    for issue in github.open_issues(FIXED):
+        number = issue["number"]
+        since, why = created(issue), "fixed"
+        for comment in activity.comments.get(number, []):
+            said = marker(comment)
+            if said and said[0] == "fixed" and said[1].get("pull", "").isdigit():
+                since = created(comment)
+                pull = issue_link(github, int(said[1]["pull"]), "pull")
+                why = f"fixed by {pull} {ago(since, now)}"
+        found.append(Waiting(since, number, upvotes(issue), why))
+    return found
+
+
+def digest(
+    github: GitHub, lifecycle: Lifecycle, activity: Activity, now: datetime
+) -> str:
+    """What waits on whom, for the summary of the sweep: links and numbers alone,
+    no text of an issue."""
+    return "\n\n".join(
+        [
+            listing(
+                github,
+                "Waiting on the maintainers",
+                waiting_on_maintainers(github, activity, now),
+            ),
+            listing(
+                github,
+                "Waiting on reporters",
+                waiting_on_reporters(github, lifecycle, now),
+            ),
+            listing(
+                github,
+                "Fixed, waiting for a release",
+                waiting_for_release(github, activity, now),
+            ),
+        ]
+    )
+
+
+@dataclass(frozen=True)
+class Correction:
+    """A maintainer's change of a label of the AI's groups on an analyzed issue:
+    the removal of one that the assistant added, or the addition of a missing one."""
+
+    number: int
+    label: str
+    removed: bool
+    by: str
+    at: datetime
+
+
+@dataclass(frozen=True)
+class Corrections:
+    """What the maintainers changed of the labels of the analyses of an activity."""
+
+    # The labels that the assistant added to the issues that were read.
+    labeled: int
+    removed: tuple[Correction, ...]
+    added: tuple[Correction, ...]
+    # The issues that were read, the latest analyzed, and all that were analyzed.
+    read: int
+    analyzed: int
+
+
+def corrections(github: GitHub, config: Config, activity: Activity) -> Corrections:
+    """The corrections of the maintainers since the activity's moment: the labels of
+    the AI's groups that the assistant added and a maintainer removed within
+    CORRECTION_PERIOD, and those that a maintainer added within ADDITION_PERIOD of
+    the issue's first analysis. Read with Activity.read(github, since).
+
+    The labels that the area field of the form chose are no choice of the AI and
+    don't count. People who may only read can't change labels, so a person who did
+    is a maintainer. Reads the events of the MAX_CORRECTED issues analyzed last.
+    """
+    first = activity.analyzed()
+    chosen = {name for group in CHOSEN_GROUPS for name in config.group(group)}
+    latest = sorted(first, key=lambda number: first[number], reverse=True)
+    labeled = 0
+    removed: list[Correction] = []
+    added: list[Correction] = []
+    for number in latest[:MAX_CORRECTED]:
+        form = set(form_labels(activity.issues[number], config))
+        events = [
+            event
+            for event in github.events(number)
+            if event["event"] in {"labeled", "unlabeled"}
+            and (event.get("label") or {}).get("name") in chosen
+            and created(event) >= activity.since
+        ]
+        for place, event in enumerate(events):
+            name = event["label"]["name"]
+            if event["event"] == "unlabeled":
+                continue
+            if not is_bot(event.get("actor")):
+                if first[number] <= created(event) <= first[number] + ADDITION_PERIOD:
+                    added.append(
+                        Correction(
+                            number, name, False, login(event["actor"]), created(event)
+                        )
+                    )
+                continue
+            # Another bot's label, or the one that the form chose, is no choice of
+            # the AI.
+            if login(event.get("actor")) != BOT or name in form:
+                continue
+            labeled += 1
+            undone = next(
+                (
+                    later
+                    for later in events[place + 1 :]
+                    if later["event"] == "unlabeled" and later["label"]["name"] == name
+                ),
+                None,
+            )
+            if (
+                undone
+                and not is_bot(undone.get("actor"))
+                and created(undone) - created(event) <= CORRECTION_PERIOD
+            ):
+                removed.append(
+                    Correction(
+                        number, name, True, login(undone["actor"]), created(undone)
+                    )
+                )
+    return Corrections(
+        labeled,
+        tuple(removed),
+        tuple(added),
+        min(len(latest), MAX_CORRECTED),
+        len(latest),
+    )
+
+
+def duration(seconds: float) -> str:
+    """A time in the unit that reads best: minutes, hours or days."""
+    if seconds < 2 * 3600:
+        return f"{round(seconds / 60)} min"
+    if seconds < 2 * 86400:
+        return f"{round(seconds / 3600)} h"
+    return days(round(seconds / 86400), "en")
+
+
+def duplicate_outcomes(activity: Activity) -> str:
+    """What became of the issues with a duplicate notice: closed as a duplicate,
+    kept open after an objection, or still waiting for the closing."""
+    closed = kept = pending = 0
+    for number, issue in activity.issues.items():
+        comments = activity.comments.get(number, [])
+        if not any(is_duplicate_notice(comment) for comment in comments):
+            continue
+        if any(kind_of(comment) == "closed-duplicate" for comment in comments):
+            closed += 1
+        elif issue["state"] == "open" and POSSIBLE_DUPLICATE in label_names(issue):
+            pending += 1
+        else:
+            kept += 1
+    return (
+        f"{closed + kept + pending}: closed {closed}, objected to {kept}, "
+        f"waiting {pending}"
+    )
+
+
+def question_outcomes(activity: Activity) -> str:
+    """What became of the issues whose analysis or follow-up asked the reporter:
+    closed without an answer, still waiting, or answered, which ended the waiting."""
+    answered = closed = pending = 0
+    for number, issue in activity.issues.items():
+        comments = activity.comments.get(number, [])
+        if not any(asks(comment) for comment in comments):
+            continue
+        if any(kind_of(comment) == "closed-unanswered" for comment in comments):
+            closed += 1
+        elif issue["state"] == "open" and NEEDS_INFO in label_names(issue):
+            pending += 1
+        else:
+            answered += 1
+    return (
+        f"{answered + closed + pending} issues: answered {answered}, "
+        f"closed without an answer {closed}, waiting {pending}"
+    )
+
+
+def quality(github: GitHub, config: Config, activity: Activity) -> str:
+    """How the assistant did since the activity's moment, as a table of numbers."""
+    first = activity.analyzed()
+    analyses = sum(1 for _ in activity.posted("analysis"))
+    waits = [
+        (first[number] - created(issue)).total_seconds()
+        for number, issue in activity.issues.items()
+        if number in first and created(issue) >= activity.since
+    ]
+    found = corrections(github, config, activity)
+    kept = found.labeled - len(found.removed)
+    share = f" ({round(100 * kept / found.labeled)} %)" if found.labeled else ""
+    of = (
+        f", of the {found.read} issues analyzed last"
+        if found.read < found.analyzed
+        else ""
+    )
+    _, up, down = reactions_on(activity, "analysis")
+    rows = [
+        ("Analyses posted", f"{analyses}, on {len(first)} issues"),
+        (
+            "Median time from a new issue to its analysis",
+            duration(median(waits)) if waits else "no new issue analyzed",
+        ),
+        (
+            f"Labels of the AI kept for {CORRECTION_PERIOD.days} days",
+            f"{kept} of {found.labeled}{share}{of}",
+        ),
+        (
+            f"Labels that maintainers added within {ADDITION_PERIOD.days} days",
+            f"{len(found.added)}{of}",
+        ),
+        ("Duplicate notices", duplicate_outcomes(activity)),
+        ("Questions to reporters", question_outcomes(activity)),
+        ("Feedback on the analyses", f"👍 {up}, 👎 {down}"),
+    ]
+    return "| Number | Value |\n| --- | --- |\n" + "\n".join(
+        f"| {name} | {value} |" for name, value in rows
+    )
+
+
+def monthly(event: str, now: datetime) -> bool:
+    """Whether the summary has the quality numbers: in the morning sweep of the first
+    day of a month, and in every sweep started by hand."""
+    return event != "schedule" or now.day == 1
+
+
+def part(title: str, make: Callable[[], str]) -> str:
+    """A section of the summary; one that GitHub fails is a warning and a line that
+    says so, since the summary is no step of the lifecycle."""
+    try:
+        text = make()
+    except GitHubError as error:
+        command("warning", f"{title}: {error}")
+        text = "Not made: GitHub failed."
+    return f"#### {title}\n\n{text}"
+
+
+def report(
+    github: GitHub, config: Config, now: datetime, event: str
+) -> tuple[list[str], str]:
+    """The line of the feedback and the sections of the summary of the sweep: the
+    maintainer digest, and the quality numbers once a month. Numbers and links
+    alone, no text of an issue: the summary is for the maintainers, but anyone who
+    can read the repository can open it.
+    """
+    if event not in FEEDBACK_EVENTS:
+        return [], ""
+    period = FEEDBACK_PERIOD.days
+    try:
+        activity = Activity.read(github, now - FEEDBACK_PERIOD)
+    except GitHubError as error:
+        command("warning", f"Reading the comments and issues of {period} days: {error}")
+        return ["Feedback not counted, no digest: GitHub failed."], ""
+    parts = [
+        part(
+            "Maintainer digest",
+            partial(digest, github, config.lifecycle, activity, now),
+        )
+    ]
+    if monthly(event, now):
+        parts.append(
+            part(
+                f"Assistant quality (last {period} days)",
+                partial(quality, github, config, activity),
+            )
+        )
+    return [feedback(activity)], "\n\n".join(parts)
 
 
 def sweep_labeled(
@@ -4475,9 +4981,9 @@ def exemption(issue: dict[str, Any], lifecycle: Lifecycle) -> str:
         return f"labeled {labels[0]}"
     if lifecycle.exempt_assignees and issue.get("assignees"):
         return "assigned"
-    upvotes = int((issue.get("reactions") or {}).get("+1") or 0)
-    if lifecycle.exempt_upvotes and upvotes >= lifecycle.exempt_upvotes:
-        return f"{upvotes} 👍"
+    count = upvotes(issue)
+    if lifecycle.exempt_upvotes and count >= lifecycle.exempt_upvotes:
+        return f"{count} 👍"
     return ""
 
 
@@ -4708,19 +5214,7 @@ def sweep_waiting(
     number = issue["number"]
     author = login(issue.get("user"))
     comments = github.comments(number)
-    labeled = [
-        created(event)
-        for event in github.events(number)
-        if event["event"] == "labeled"
-        and (event.get("label") or {}).get("name") == NEEDS_INFO
-    ]
-    asked = [
-        created(comment)
-        for comment in comments
-        if (is_maintainer(comment) and login(comment.get("user")) != author)
-        or kind_of(comment) in {"analysis", "follow-up"}
-    ]
-    since = max(labeled + asked or [created(issue)])
+    since = asked_since(github, issue, comments)
     current = label_names(issue)
     if any(
         login(comment.get("user")) == author and created(comment) > since
@@ -4777,6 +5271,28 @@ def sweep_waiting(
     return []
 
 
+def asked_since(
+    github: GitHub, issue: dict[str, Any], comments: list[dict[str, Any]]
+) -> datetime:
+    """When the issue started to wait for its reporter: the last question of a
+    maintainer or of the assistant, or the last labeling with `needs-info`; without
+    either, its opening."""
+    author = login(issue.get("user"))
+    labeled = [
+        created(event)
+        for event in github.events(issue["number"])
+        if event["event"] == "labeled"
+        and (event.get("label") or {}).get("name") == NEEDS_INFO
+    ]
+    asked = [
+        created(comment)
+        for comment in comments
+        if (is_maintainer(comment) and login(comment.get("user")) != author)
+        or kind_of(comment) in {"analysis", "follow-up"}
+    ]
+    return max(labeled + asked or [created(issue)])
+
+
 def closing_day(reminder: dict[str, Any], lifecycle: Lifecycle) -> date:
     """The day that the reminder named for the closing.
 
@@ -4829,13 +5345,7 @@ def sweep_duplicate(
     number = issue["number"]
     author = login(issue.get("user"))
     comments = github.comments(number)
-    notices = [
-        comment
-        for comment in comments
-        if (found := marker(comment))
-        and found[0] == "analysis"
-        and "duplicate" in found[1]
-    ]
+    notices = [comment for comment in comments if is_duplicate_notice(comment)]
     if not notices:
         return []
     notice = notices[-1]
@@ -5859,8 +6369,14 @@ def fence(text: str) -> str:
 
 
 def summary(
-    title: str, lines: list[str], dry_run: bool, previews: Iterable[str] = ()
+    title: str,
+    lines: list[str],
+    dry_run: bool,
+    previews: Iterable[str] = (),
+    sections: str = "",
 ) -> None:
+    """Print the lines of the run, the comments of a dry run and the sections after
+    them, such as the digest of the sweep, and add them to the summary of the job."""
     text = f"### {title}{' (dry run)' if dry_run else ''}\n\n" + (
         bullets(lines) if lines else "Nothing to do."
     )
@@ -5871,6 +6387,8 @@ def summary(
             "\n\n<details><summary>Comment</summary>\n\n"
             f"{marks}markdown\n{body}\n{marks}\n\n</details>"
         )
+    if sections:
+        text += f"\n\n{sections}"
     # The lines and the comments hold the engine's text, which the runner must not
     # read as workflow commands; it reads them again after the random token. Only a
     # terminal outside a runner, such as a check on one's own computer, shows the
@@ -5990,6 +6508,8 @@ def main(argv: list[str] | None = None) -> int:
     dry_run = os.environ.get("DRY_RUN", "false").lower() == "true" or fixture_name != ""
     github: GitHub | None = None
     title = f"Issue assistant: {arguments.command}"
+    # The sections after the lines of the summary, such as the digest of the sweep.
+    sections = ""
     try:
         # Every other command would work on the real repository.
         if fixture_name and arguments.command not in {"context", "apply"}:
@@ -6107,22 +6627,24 @@ def main(argv: list[str] | None = None) -> int:
         elif arguments.command == "sweep":
             title = "Issue lifecycle"
             now = datetime.now(UTC)
-            counted = os.environ.get("GITHUB_EVENT_NAME", "") in FEEDBACK_EVENTS
+            event = os.environ.get("GITHUB_EVENT_NAME", "")
             try:
                 done = sweep(github, now, config.releases, config.lifecycle)
             except SweepIncomplete as incomplete:
                 command("error", f"{incomplete}; the next sweep tries again.")
+                counted, sections = report(github, config, now, event)
                 summary(
                     title,
                     incomplete.done
                     + [f"Failed: {failure}" for failure in incomplete.failed]
-                    + ([feedback(github, now)] if counted else []),
+                    + counted,
                     dry_run,
                     github.previews,
+                    sections,
                 )
                 return 1
-            if counted:
-                done.append(feedback(github, now))
+            counted, sections = report(github, config, now, event)
+            done += counted
         else:
             title = "Labels"
             done = sync_labels(github, config)
@@ -6146,7 +6668,7 @@ def main(argv: list[str] | None = None) -> int:
             github.previews if github else (),
         )
         return 1
-    summary(title, done, dry_run, github.previews)
+    summary(title, done, dry_run, github.previews, sections)
     return 0
 
 
