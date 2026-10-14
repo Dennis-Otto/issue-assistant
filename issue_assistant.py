@@ -2808,6 +2808,45 @@ def headings(path: Path) -> dict[str, str]:
     return found
 
 
+# The files that GitHub shows rendered instead of as their source: Markdown and the
+# other markup languages that it renders, notebooks and SVG pictures.
+RENDERED = frozenset(
+    {
+        ".md",
+        ".markdown",
+        ".mdown",
+        ".mkdn",
+        ".mkd",
+        ".rst",
+        ".adoc",
+        ".asciidoc",
+        ".asc",
+        ".textile",
+        ".rdoc",
+        ".org",
+        ".creole",
+        ".mediawiki",
+        ".wiki",
+        ".pod",
+        ".ipynb",
+        ".svg",
+    }
+)
+
+
+def code_span(text: str) -> str:
+    """The text as inline code, also when it holds backticks.
+
+    A backslash escapes nothing in code, so the code is set off by one backtick more
+    than its longest run of them, and by a blank inside where it starts or ends with
+    one, which Markdown then leaves out.
+    """
+    longest = max((len(run) for run in re.findall("`+", text)), default=0)
+    marks = "`" * (longest + 1)
+    blank = " " if text[:1] == "`" or text[-1:] == "`" else ""
+    return f"{marks}{blank}{text}{blank}{marks}"
+
+
 def reference_link(
     reference: dict[str, Any],
     tracked: set[str],
@@ -2827,20 +2866,49 @@ def reference_link(
         return None
     # A blank or a bracket in the path would end the address of the link.
     address = quote(path)
+    name = code_span(path)
     line = reference.get("line")
     anchor = (reference.get("anchor") or "").strip().lstrip("#").lower()
     if line:
         if line > len(file.read_text(encoding="utf-8", errors="replace").splitlines()):
             return None
         word = "Zeile" if language == "de" else "line"
-        return f"[`{path}`, {word} {line}]({config.blob}/{sha}/{address}#L{line})"
+        # GitHub shows a rendered file, such as Markdown, without its lines; the
+        # anchor of a line works only in its source.
+        source = "?plain=1" if PurePosixPath(path).suffix.lower() in RENDERED else ""
+        return f"[{name}, {word} {line}]({config.blob}/{sha}/{address}{source}#L{line})"
     if anchor and path.endswith(".md"):
         titles = headings(file)
         if anchor in titles:
             return (
-                f"[{titles[anchor]}]({config.blob}/HEAD/{address}#{anchor}) in `{path}`"
+                f"[{titles[anchor]}]({config.blob}/HEAD/{address}#{anchor}) in {name}"
             )
-    return f"[`{path}`]({config.blob}/HEAD/{address})"
+    return f"[{name}]({config.blob}/HEAD/{address})"
+
+
+# The heading of the notice to reporters that the footers of an analysis and of a
+# follow-up link: the part on what happens with an issue, which the SUPPORT.md of
+# the blueprint has, as the README advises.
+NOTICE_ANCHOR = "what-happens-with-your-issue"
+
+
+def notice_link(config: Config) -> str | None:
+    """Where a comment tells reporters how the assistant works and who decides.
+
+    The first file of `[transparency] files`, at its part on what happens with an
+    issue when it has one; None when the file is missing, which `check` reports.
+    """
+    if not config.notices:
+        return None
+    name = config.notices[0].strip().removeprefix("./")
+    parts = PurePosixPath(name).parts
+    file = config.root / name
+    if not parts or parts[0] == "/" or ".." in parts or not file.is_file():
+        return None
+    address = f"{config.blob}/HEAD/{quote(name)}"
+    if name.lower().endswith(".md") and NOTICE_ANCHOR in headings(file):
+        return f"{address}#{NOTICE_ANCHOR}"
+    return address
 
 
 # Comments of the assistant
@@ -2856,7 +2924,7 @@ TEXT: dict[str, dict[str, str]] = {
         "thanks.feedback": "Thanks for testing and for the feedback, @{author}!",
         "thanks.maintenance": "Thanks for the report, @{author}!",
         "intro": "I'm the issue assistant of this repository and took a first look. "
-        "The maintainer reads every issue as well.",
+        "The maintainers read every issue as well.",
         "summary": "Summary",
         "analysis": "First analysis",
         "next_steps": "Worth trying",
@@ -2864,7 +2932,7 @@ TEXT: dict[str, dict[str, str]] = {
         "missing.intro": "To continue, please add the following, in a comment or by "
         "editing the issue:",
         "missing.outro": "Without an answer, a reminder follows after 15 days and the "
-        "issue closes after 30 days; an answer reopens it.",
+        "issue closes after 30 days. If it closes, an answer reopens it.",
         "duplicate": "Possible duplicate",
         "duplicate.text": "This looks like a duplicate of #{number}: {reason}",
         "duplicate.close": "If that's right, there's nothing to do: the issue closes as "
@@ -2874,6 +2942,7 @@ TEXT: dict[str, dict[str, str]] = {
         "related": "Related",
         "discussion": "discussion",
         "references": "Where to look",
+        "links": "Where to look: {count} links",
         "sensitive.secret": "> [!WARNING]\n> This issue seems to show a secret, such "
         "as a token, a key or a password. Please remove it by editing the post, delete "
         "the earlier version from its edit history, and replace the secret, because "
@@ -2886,26 +2955,31 @@ TEXT: dict[str, dict[str, str]] = {
         "report it privately, as described in the [security policy]({policy}), and "
         "remove the details here.",
         "footer": "<sub>🤖 Automated first analysis by {engine}, based on the code, the "
-        "documentation and earlier issues. It can be wrong; the maintainer "
-        "decides.{labels}</sub>",
+        "documentation and earlier issues. It can be wrong; the maintainers "
+        "decide.{labels} {feedback}</sub>",
         "labels": " Labels: {labels}.",
+        "about": "[How the assistant works]({notice})",
+        "feedback": "A 👍 or 👎 on this comment tells the maintainers whether it helped.",
+        "feedback.duplicate": "A 👍 or 👎 on this comment tells the maintainers "
+        "whether it helped; a 👎 also keeps the issue open.",
         "follow-up.thanks": "Thanks for your answer, @{author}!",
         "follow-up.missing": "Still needed",
         "follow-up.missing.intro": "Please also add:",
         "follow-up.footer": "<sub>🤖 Automated follow-up by {engine}. It can be wrong; "
-        "the maintainer decides.</sub>",
+        "the maintainers decide. {feedback}</sub>",
         "reminder": "@{author}, a friendly reminder: this issue is still waiting for "
-        "your answer to the questions above. Without an answer, it closes automatically "
-        "on {date}. A short comment keeps it open, for example if you need more time.",
+        "your answer to {questions}. Without an answer, it closes automatically on "
+        "{date}. A short comment keeps it open, for example if you need more time.",
+        "reminder.questions": "the questions above",
         "closed-unanswered": "I'm closing this issue because the information asked for "
         "above has been missing for 30 days. @{author}, as soon as you answer here, it "
         "reopens automatically. Thanks for reporting!",
         "closed-duplicate": "Closed as a duplicate of #{number}, as announced three days "
         "ago. Please continue there; a 👍 on #{number} shows that more people are "
-        "affected. If this was a mistake, write a comment and the maintainer will "
+        "affected. If this was a mistake, write a comment and the maintainers will "
         "reopen it.",
         "reopened": "Thanks for your answer, @{author}! I reopened the issue; the "
-        "maintainer will take another look.",
+        "maintainers will take another look.",
         "fixed": "Fixed by #{pull}, which is now on `{branch}`. The fix ships with the "
         "next release; this issue closes then, with a link to it.",
         "released": "🎉 Released in [{tag}]({url}){fixes}. @{author}, please update to "
@@ -2913,7 +2987,8 @@ TEXT: dict[str, dict[str, str]] = {
         "reopens, or open a new issue.",
         "released.fixes": " with the fix from {pulls}",
         "reopened-release": "Thanks for letting us know, @{author}, and sorry that it "
-        "isn't solved yet. I reopened the issue; the maintainer will take another look.",
+        "isn't solved yet. I reopened the issue; the maintainers will take another "
+        "look.",
     },
     "de": {
         "thanks.default": "Danke für dein Issue, @{author}!",
@@ -2925,7 +3000,7 @@ TEXT: dict[str, dict[str, str]] = {
         "thanks.feedback": "Danke fürs Testen und für dein Feedback, @{author}!",
         "thanks.maintenance": "Danke für deine Meldung, @{author}!",
         "intro": "Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst "
-        "angesehen. Der Maintainer liest jedes Issue ebenfalls.",
+        "angesehen. Die Maintainer lesen jedes Issue ebenfalls.",
         "summary": "Zusammenfassung",
         "analysis": "Erste Analyse",
         "next_steps": "Das kannst du ausprobieren",
@@ -2933,7 +3008,8 @@ TEXT: dict[str, dict[str, str]] = {
         "missing.intro": "Damit es weitergehen kann, ergänze bitte Folgendes, als "
         "Kommentar oder indem du das Issue bearbeitest:",
         "missing.outro": "Ohne Antwort folgt nach 15 Tagen eine Erinnerung, nach 30 "
-        "Tagen wird das Issue geschlossen; eine Antwort öffnet es wieder.",
+        "Tagen wird das Issue geschlossen. Ist es geschlossen, öffnet eine Antwort es "
+        "wieder.",
         "duplicate": "Mögliches Duplikat",
         "duplicate.text": "Das sieht nach einem Duplikat von #{number} aus: {reason}",
         "duplicate.close": "Falls das stimmt, musst du nichts tun: Das Issue wird in 3 "
@@ -2944,6 +3020,7 @@ TEXT: dict[str, dict[str, str]] = {
         "related": "Verwandte Themen",
         "discussion": "Diskussion",
         "references": "Zum Nachlesen",
+        "links": "Zum Nachlesen: {count} Links",
         "sensitive.secret": "> [!WARNING]\n> Dieses Issue scheint ein Geheimnis zu "
         "zeigen, etwa ein Token, einen Schlüssel oder ein Passwort. Bitte entferne es, "
         "indem du den Beitrag bearbeitest, lösche die frühere Fassung aus dem "
@@ -2957,27 +3034,33 @@ TEXT: dict[str, dict[str, str]] = {
         "melde so etwas vertraulich, wie in der [Sicherheitsrichtlinie]({policy}) "
         "beschrieben, und entferne die Details hier.",
         "footer": "<sub>🤖 Automatische Erstanalyse von {engine} auf Grundlage des Codes, "
-        "der Dokumentation und früherer Issues. Sie kann falsch sein; der Maintainer "
-        "entscheidet.{labels}</sub>",
+        "der Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer "
+        "entscheiden.{labels} {feedback}</sub>",
         "labels": " Labels: {labels}.",
+        "about": "[So arbeitet der Assistent]({notice})",
+        "feedback": "Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er "
+        "geholfen hat.",
+        "feedback.duplicate": "Ein 👍 oder 👎 auf diesen Kommentar zeigt den "
+        "Maintainern, ob er geholfen hat; ein 👎 hält das Issue außerdem offen.",
         "follow-up.thanks": "Danke für deine Antwort, @{author}!",
         "follow-up.missing": "Noch offen",
         "follow-up.missing.intro": "Bitte ergänze noch:",
         "follow-up.footer": "<sub>🤖 Automatische Rückmeldung von {engine}. Sie kann "
-        "falsch sein; der Maintainer entscheidet.</sub>",
+        "falsch sein; die Maintainer entscheiden. {feedback}</sub>",
         "reminder": "@{author}, eine freundliche Erinnerung: Dieses Issue wartet noch "
-        "auf deine Antwort auf die Fragen oben. Ohne Antwort wird es am {date} "
+        "auf deine Antwort auf {questions}. Ohne Antwort wird es am {date} "
         "automatisch geschlossen. Ein kurzer Kommentar genügt, damit es offen bleibt, "
         "etwa wenn du mehr Zeit brauchst.",
+        "reminder.questions": "die Fragen oben",
         "closed-unanswered": "Ich schließe dieses Issue, weil die erbetenen "
         "Informationen seit 30 Tagen fehlen. @{author}, sobald du hier antwortest, wird "
         "es automatisch wieder geöffnet. Danke für deine Meldung!",
         "closed-duplicate": "Als Duplikat von #{number} geschlossen, wie vor drei Tagen "
         "angekündigt. Bitte mach dort weiter; ein 👍 bei #{number} zeigt, dass mehr "
         "Leute betroffen sind. Falls das ein Irrtum war, schreib einen Kommentar, dann "
-        "öffnet der Maintainer es wieder.",
+        "öffnen die Maintainer es wieder.",
         "reopened": "Danke für deine Antwort, @{author}! Ich habe das Issue wieder "
-        "geöffnet; der Maintainer sieht es sich erneut an.",
+        "geöffnet; die Maintainer sehen es sich erneut an.",
         "fixed": "Behoben durch #{pull}, jetzt auf `{branch}`. Der Fix kommt mit dem "
         "nächsten Release; dann wird dieses Issue mit einem Link darauf geschlossen.",
         "released": "🎉 Veröffentlicht in [{tag}]({url}){fixes}. @{author}, bitte "
@@ -2985,8 +3068,8 @@ TEXT: dict[str, dict[str, str]] = {
         "Kommentar, dann wird das Issue wieder geöffnet, oder eröffne ein neues Issue.",
         "released.fixes": " mit dem Fix aus {pulls}",
         "reopened-release": "Danke für die Rückmeldung, @{author}, und schade, dass es "
-        "noch nicht gelöst ist. Ich habe das Issue wieder geöffnet; der Maintainer sieht "
-        "es sich erneut an.",
+        "noch nicht gelöst ist. Ich habe das Issue wieder geöffnet; die Maintainer "
+        "sehen es sich erneut an.",
     },
 }
 
@@ -3025,6 +3108,38 @@ class Findings:
     related: list[str] = field(default_factory=list)
     references: list[str] = field(default_factory=list)
     numbers: set[int] = field(default_factory=set)
+
+
+# More links than this, to related issues and to files, fold into one line that
+# opens them, so that the questions for the reporter stay in view.
+MAX_OPEN_LINKS = 3
+
+
+def link_sections(language: str, related: list[str], references: list[str]) -> str:
+    """The lists of the related issues and of the files to look at, folded when they
+    hold more than MAX_OPEN_LINKS links; empty without any."""
+    sections = [
+        f"### {say(language, key)}\n\n{bullets(items)}"
+        for key, items in (("related", related), ("references", references))
+        if items
+    ]
+    count = len(related) + len(references)
+    if count <= MAX_OPEN_LINKS:
+        return "\n\n".join(sections)
+    # The blank lines let GitHub read the Markdown inside the HTML.
+    return (
+        f"<details><summary>{say(language, 'links', count=count)}</summary>\n\n"
+        + "\n\n".join(sections)
+        + "\n\n</details>"
+    )
+
+
+def invitation(language: str, config: Config, *, duplicate: bool = False) -> str:
+    """The end of a footer: a link to how the assistant works, and the request for a
+    👍 or 👎, which on a duplicate notice also objects to the closing."""
+    notice = notice_link(config)
+    ask = say(language, "feedback.duplicate" if duplicate else "feedback")
+    return f"{say(language, 'about', notice=notice)} · {ask}" if notice else ask
 
 
 def render_analysis(
@@ -3084,14 +3199,9 @@ def render_analysis(
                 f"### {say(language, 'missing')}\n\n{say(language, 'missing.intro')}\n\n"
                 f"{bullets(clean(ask) for ask in asks)}\n\n{say(language, 'missing.outro')}"
             )
-        if findings.related:
-            parts.append(
-                f"### {say(language, 'related')}\n\n{bullets(findings.related)}"
-            )
-        if findings.references:
-            parts.append(
-                f"### {say(language, 'references')}\n\n{bullets(findings.references)}"
-            )
+        links = link_sections(language, findings.related, findings.references)
+        if links:
+            parts.append(links)
     shown = ", ".join(f"`{name}`" for name in labels)
     parts.append(
         say(
@@ -3099,6 +3209,7 @@ def render_analysis(
             "footer",
             labels=say(language, "labels", labels=shown) if labels else "",
             engine=ENGINES[engine].name,
+            feedback=invitation(language, config, duplicate=bool(findings.duplicate)),
         )
     )
     return "\n\n".join(parts) + "\n"
@@ -3111,7 +3222,10 @@ def render_follow_up(
     asks: list[str],
     config: Config,
     engine: str = DEFAULT_ENGINE,
+    numbers: Collection[int] = (),
 ) -> str:
+    """The follow-up on an answer of the reporter; `numbers` are the issues and
+    discussions that exist, which its text may link."""
     language = answer["language"]
     parts = [
         render_marker(
@@ -3121,27 +3235,41 @@ def render_follow_up(
     ]
     if answer["sensitive_data"] != "none":
         parts.append(say(language, f"sensitive.{answer['sensitive_data']}"))
-    parts.append(sanitize(answer["reply"], config))
+    parts.append(sanitize(answer["reply"], config, numbers))
     if asks:
         parts.append(
             f"### {say(language, 'follow-up.missing')}\n\n"
             f"{say(language, 'follow-up.missing.intro')}\n\n"
-            f"{bullets(sanitize(ask, config) for ask in asks)}\n\n"
+            f"{bullets(sanitize(ask, config, numbers) for ask in asks)}\n\n"
             f"{say(language, 'missing.outro')}"
         )
-    if references:
-        parts.append(f"### {say(language, 'references')}\n\n{bullets(references)}")
-    parts.append(say(language, "follow-up.footer", engine=ENGINES[engine].name))
+    links = link_sections(language, [], references)
+    if links:
+        parts.append(links)
+    parts.append(
+        say(
+            language,
+            "follow-up.footer",
+            engine=ENGINES[engine].name,
+            feedback=invitation(language, config),
+        )
+    )
     return "\n\n".join(parts) + "\n"
 
 
-def render_reminder(author: str, language: str, closes: datetime) -> str:
-    """The reminder, which names the day the issue closes; its marker records the
-    day, so that the sweep closes the issue on it."""
+def render_reminder(
+    author: str, language: str, closes: datetime, questions: str = ""
+) -> str:
+    """The reminder, which names the day the issue closes and links the comment
+    that asked the questions at the address `questions`, when it is known; its
+    marker records the day, so that the sweep closes the issue on it."""
     named = format_date(closes, language)
+    asked = say(language, "reminder.questions")
+    if questions:
+        asked = f"[{asked}]({questions})"
     return (
         f"{render_marker('reminder', closes=closes.date().isoformat())}\n"
-        f"{say(language, 'reminder', author=author, date=named)}\n"
+        f"{say(language, 'reminder', author=author, date=named, questions=asked)}\n"
     )
 
 
@@ -3211,6 +3339,39 @@ def other_issue(github: GitHub, number: int, current: int) -> dict[str, Any] | N
     return None if "pull_request" in issue else issue
 
 
+# How many of the issue numbers that the engine's texts name are looked up, each
+# with a request or two, so that those that exist stay links.
+MAX_NAMED = 10
+# The largest number that GitHub's GraphQL API takes, an Int of 32 bits; no issue
+# has a larger one.
+MAX_NUMBER = 2**31 - 1
+
+
+def named_numbers(
+    github: GitHub, current: int, texts: Iterable[str], known: Collection[int]
+) -> set[int]:
+    """The other issues and discussions that the texts name, as #123 or GH-123, and
+    that exist: of the first MAX_NAMED that the checks didn't find already.
+
+    The cleaning keeps a checked number as a link and turns any other into code, so
+    that a number that the engine made up refers to nothing.
+    """
+    named = dict.fromkeys(
+        int(match[1]) for text in texts for match in ISSUE_REFERENCE.finditer(text)
+    )
+    unknown = [
+        number
+        for number in named
+        if 0 < number <= MAX_NUMBER and number != current and number not in known
+    ]
+    return {
+        number
+        for number in unknown[:MAX_NAMED]
+        if other_issue(github, number, current) is not None
+        or github.discussion_exists(number)
+    }
+
+
 def vouched_for(original: dict[str, Any]) -> bool:
     """Whether a maintainer opened the issue or triaged it, so that another issue may
     close as its duplicate.
@@ -3274,25 +3435,47 @@ def check_findings(
         if exists:
             findings.numbers.add(item["number"])
             related.append((item["number"], item["kind"], item["reason"]))
+    findings.numbers |= named_numbers(
+        github,
+        number,
+        [
+            answer["summary"],
+            answer["analysis"],
+            *answer["next_steps"],
+            *answer["missing_information"],
+            findings.duplicate_reason,
+            *(reason for _, _, reason in related),
+            *(item["reason"] for item in answer["references"]),
+        ],
+        findings.numbers,
+    )
     findings.related = [
         f"#{entry}"
         + (f" ({say(language, 'discussion')})" if kind == "discussion" else "")
         + f": {sanitize(one_line(reason), config, findings.numbers)}"
         for entry, kind, reason in related
     ]
-    findings.references = references(answer["references"], sha, language, config)
+    findings.references = references(
+        answer["references"], sha, language, config, findings.numbers
+    )
     return findings
 
 
 def references(
-    items: list[dict[str, Any]], sha: str, language: str, config: Config
+    items: list[dict[str, Any]],
+    sha: str,
+    language: str,
+    config: Config,
+    numbers: Collection[int] = (),
 ) -> list[str]:
+    """The links to the files to look at, each with its reason, in which the issues
+    and discussions of `numbers`, which exist, stay links."""
     tracked = tracked_files(config.root)
     links: dict[str, str] = {}
     for item in items:
         link = reference_link(item, tracked, sha, language, config)
         if link and link not in links:
-            links[link] = sanitize(one_line(item["reason"]), config)
+            links[link] = sanitize(one_line(item["reason"]), config, numbers)
     return [f"{link}: {reason}" for link, reason in links.items()]
 
 
@@ -3468,13 +3651,24 @@ def apply_answer(
     # one that nobody asked, and close the issue. A run again adds it, as the
     # comment says.
     if mode == "follow-up":
+        numbers = named_numbers(
+            github,
+            number,
+            [
+                answer["reply"],
+                *asks,
+                *(item["reason"] for item in answer["references"]),
+            ],
+            (),
+        )
         body = render_follow_up(
             answer,
             author,
-            references(answer["references"], sha, answer["language"], config),
+            references(answer["references"], sha, answer["language"], config, numbers),
             asks,
             config,
             engine,
+            numbers,
         )
         added = apply_labels(github, issue, answer, config)
         github.comment(number, body)
@@ -3602,6 +3796,48 @@ def sweep(github: GitHub, now: datetime, releases: bool = True) -> list[str]:
     if failed:
         raise SweepIncomplete(done, failed)
     return done
+
+
+# How far back the summary of the sweep counts the 👍 and 👎 that the footers of the
+# analyses and follow-ups ask for.
+FEEDBACK_PERIOD = timedelta(days=30)
+
+# The sweeps whose summary counts the feedback: the morning's, one started by hand
+# and one on a computer, without an event. A merge or a release starts a sweep too,
+# often many a day, and each count lists every comment of the 30 days, which would
+# spend the requests that the token has for the hour.
+FEEDBACK_EVENTS = frozenset({"schedule", "workflow_dispatch", ""})
+
+
+def feedback(github: GitHub, now: datetime) -> str:
+    """The 👍 and 👎 on the analyses and follow-ups of the last 30 days, for the
+    summary of the sweep: numbers only, which tell the maintainers whether the
+    assistant helps.
+
+    GitHub counts the reactions of each comment in its list of the comments, so
+    one list of the comments of the repository since then is enough. Counting is no
+    step of the lifecycle: one that GitHub fails is a warning, and the sweep passes.
+    """
+    since = now - FEEDBACK_PERIOD
+    try:
+        comments = github.comments_since(since)
+    except GitHubError as error:
+        command("warning", f"Counting the feedback: {error}")
+        return "Feedback not counted: GitHub failed."
+    counts = {"analysis": [0, 0, 0], "follow-up": [0, 0, 0]}
+    for comment in comments:
+        tally = counts.get(kind_of(comment) or "")
+        if tally is None or created(comment) < since:
+            continue
+        reactions = comment.get("reactions") or {}
+        tally[0] += 1
+        tally[1] += int(reactions.get("+1") or 0)
+        tally[2] += int(reactions.get("-1") or 0)
+    (analyses, up, down), (follow_ups, up_after, down_after) = counts.values()
+    return (
+        f"Feedback of the last {FEEDBACK_PERIOD.days} days: analyses {analyses}, "
+        f"👍 {up}, 👎 {down}; follow-ups {follow_ups}, 👍 {up_after}, 👎 {down_after}."
+    )
 
 
 def sweep_labeled(
@@ -3890,7 +4126,10 @@ def sweep_waiting(github: GitHub, issue: dict[str, Any], now: datetime) -> list[
         # A new question started a new waiting period.
         github.remove_label(number, STALE)
     if over(since, REMIND_AFTER, now):
-        github.comment(number, render_reminder(author, language, now + WARNING_PERIOD))
+        questions = questions_address(github, issue, comments)
+        github.comment(
+            number, render_reminder(author, language, now + WARNING_PERIOD, questions)
+        )
         github.add_labels(number, [STALE])
         return [f"#{number}: reminded the reporter after {waited} days."]
     return []
@@ -3907,6 +4146,37 @@ def closing_day(reminder: dict[str, Any]) -> date:
         return date.fromisoformat(said.get("closes", ""))
     except ValueError:
         return day_of(created(reminder) + WARNING_PERIOD)
+
+
+def questions_address(
+    github: GitHub, issue: dict[str, Any], comments: list[dict[str, Any]]
+) -> str:
+    """The address of the comment with the questions that the reporter is to answer.
+
+    That is the last comment that asked, of a maintainer or the assistant's analysis
+    or follow-up; empty when that one asked the reporter nothing, or GitHub gave it
+    no address on this issue.
+    """
+    author = login(issue.get("user"))
+    asking = [
+        comment
+        for comment in comments
+        if (is_maintainer(comment) and login(comment.get("user")) != author)
+        or kind_of(comment) in {"analysis", "follow-up"}
+    ]
+    if not asking:
+        return ""
+    found = marker(asking[-1])
+    address = str(asking[-1].get("html_url") or "")
+    expected = (
+        rf"https://github\.com/{re.escape(github.repository)}"
+        rf"/issues/{issue['number']}#issuecomment-\d+"
+    )
+    if (found and found[1].get("questions") != "1") or not re.fullmatch(
+        expected, address, re.IGNORECASE
+    ):
+        return ""
+    return address
 
 
 def sweep_duplicate(github: GitHub, issue: dict[str, Any], now: datetime) -> list[str]:
@@ -4583,18 +4853,23 @@ def main(argv: list[str] | None = None) -> int:
             done += github.writes
         elif arguments.command == "sweep":
             title = "Issue lifecycle"
+            now = datetime.now(UTC)
+            counted = os.environ.get("GITHUB_EVENT_NAME", "") in FEEDBACK_EVENTS
             try:
-                done = sweep(github, datetime.now(UTC), config.releases)
+                done = sweep(github, now, config.releases)
             except SweepIncomplete as incomplete:
                 command("error", f"{incomplete}; the next sweep tries again.")
                 summary(
                     title,
                     incomplete.done
-                    + [f"Failed: {failure}" for failure in incomplete.failed],
+                    + [f"Failed: {failure}" for failure in incomplete.failed]
+                    + ([feedback(github, now)] if counted else []),
                     dry_run,
                     github.previews,
                 )
                 return 1
+            if counted:
+                done.append(feedback(github, now))
         else:
             title = "Labels"
             done = sync_labels(github, config)

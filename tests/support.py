@@ -68,6 +68,8 @@ def at(days_ago: float = 0) -> str:
 
 
 API = f"https://api.github.com/repos/{REPOSITORY}"
+# The repository on GitHub, where the addresses of its comments start.
+WEB = f"https://github.com/{REPOSITORY}"
 
 
 def changed_since(item, query):
@@ -421,7 +423,12 @@ class FakeGitHub(assistant.GitHub):
             if match := re.fullmatch(r"issues/(\d+)", route):
                 return deepcopy(self._issue(int(match[1])))
             if match := re.fullmatch(r"issues/(\d+)/comments", route):
-                return deepcopy(self.comment_store.get(int(match[1]), []))
+                # With the address that GitHub gives each comment.
+                return [
+                    {"html_url": f"{WEB}/issues/{match[1]}#issuecomment-{item['id']}"}
+                    | deepcopy(item)
+                    for item in self.comment_store.get(int(match[1]), [])
+                ]
             if match := re.fullmatch(r"issues/(\d+)/events", route):
                 return deepcopy(self.event_store.get(int(match[1]), []))
             if match := re.fullmatch(r"issues/comments/(\d+)/reactions", route):
@@ -711,8 +718,9 @@ ISSUES = range(1, 21)
 
 def posted_comments(config, mode, answer, sha=REF):
     """What the assistant posts on #12 for the answer, and the issue numbers that it
-    may reference there: those of the duplicates and related issues that exist, as
-    the checks keep them. Nothing for an answer that the checks refuse as a whole.
+    may reference there: the other issues that it looked up and found, as duplicates,
+    related issues or numbers that its texts name. Nothing for an answer that the
+    checks refuse as a whole.
 
     A follow-up answers the reporter, who answered the questions of the analysis.
     """
@@ -730,25 +738,29 @@ def posted_comments(config, mode, answer, sha=REF):
         assistant.apply_answer(github, mode, 12, json.dumps(answer), config, sha)
     except assistant.AssistantError:
         return [], set()
-    numbers = set()
-    if mode == "triage" and not answer["security_report"]:
-        # Only an older issue can be the original of a duplicate.
-        numbers = {
-            item["number"] for item in answer["duplicates"] if item["number"] < 12
-        }
-        numbers |= {
-            item["number"]
-            for item in answer["related"]
-            if item["kind"] == "issue" and item["number"] != 12
-        }
-    return github.posted(12), numbers & set(ISSUES)
+    looked_up = {
+        int(match[1])
+        for method, path, _ in github.calls
+        if method == "GET" and (match := re.fullmatch(r"issues/(\d+)", path))
+    }
+    return github.posted(12), (looked_up & set(ISSUES)) - {12}
+
+
+def own_details(body):
+    """The HTML that folds the links of a comment, as the assistant writes it."""
+    folds = "|".join(
+        re.escape(texts["links"]).replace(r"\{count\}", r"\d+")
+        for texts in assistant.TEXT.values()
+    )
+    opening = re.search(rf"^<details><summary>(?:{folds})</summary>$", body, re.M)
+    return [f"HTML {opening[0]!r}", "HTML '</details>'"] if opening else []
 
 
 def stray_problems(body, numbers, config, author="reporter", *, security=False):
     """What the oracle finds in a comment of the assistant beyond its own words: its
-    marker, the thanks that mention the reporter, the HTML of its footer and, in the
-    comment on a possible security report, the link to the security policy, each
-    once at most."""
+    marker, the thanks that mention the reporter, the HTML of its footer and of the
+    fold of its links and, in the comment on a possible security report, the link to
+    the security policy, each once at most."""
     marker = body.partition("\n")[0]
     own = Counter(
         [
@@ -756,6 +768,7 @@ def stray_problems(body, numbers, config, author="reporter", *, security=False):
             f"mention @{author}",
             "HTML '<sub>'",
             "HTML '</sub>'",
+            *own_details(body),
             *([f"link to {config.policy}"] if security else []),
         ]
     )
@@ -778,6 +791,7 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
         "READY_ENGINES",
         "ISSUE_ASSISTANT_ROOT",
         "ISSUE_ASSISTANT_FIXTURE",
+        "GITHUB_EVENT_NAME",
     ):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():

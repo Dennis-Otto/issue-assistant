@@ -4,8 +4,16 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+### Changed
+
+- Every analysis and follow-up says what it is and asks whether it helped. Its footer links *How the assistant works*, the part *What happens with your issue* of your `SUPPORT.md`, or of the first file of `[transparency] files`, and asks for a 👍 or 👎 on the comment; the summary of the morning sweep, or of one started by hand, counts them for the analyses and follow-ups of the last 30 days, as numbers only. On a duplicate notice, the footer says that a 👎 also keeps the issue open, as before.
+- A long analysis keeps its questions in view: more than three links to related issues and files fold into one line below the questions, such as *Where to look: 5 links*, that opens them. A reminder links the comment with the questions that it reminds of.
+- The comments speak of the maintainers, not of one maintainer, and the information needed says that an answer reopens the issue if it closes, not while it is still open.
+
 ### Fixed
 
+- A link to a line of a Markdown file, or of another file that GitHub shows rendered, such as reStructuredText, AsciiDoc, a notebook or an SVG picture, opens the file's source at that line. Before, it opened the rendered page, where a line has no anchor. A path with a backtick stays one piece of code in its link.
+- Issues and discussions that the AI names as `#123` stay links when they exist, up to ten of them, as the prompt asks it to name them. Before, every number but those of the duplicates and related issues showed as code.
 - An issue that waits for its reporter closes on the day that its reminder names. The morning sweep starts a few minutes later on some days than on others, and when it started later on the day of the reminder than on the day it named, the issue closed a day late. The waiting now counts days of the calendar, in UTC, and the reminder records its day.
 - An answer by an edit of the issue, which the questions offer, ends the waiting also when the event workflow missed it, so the issue no longer closes as unanswered, and a run again of the analysis no longer marks it `needs-info`. A second edit after a follow-up gets its own follow-up, as a second comment does.
 - A new title is no answer. Fixing a typo in it removed `needs-info`, stopped the reminder and started a follow-up of the AI with nothing new to read.
