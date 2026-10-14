@@ -21,12 +21,14 @@ months = [
 ]
 # Words that are frequent in the language and in no other catalog. A reporter
 # writes in the language of whose stopwords their words have the most, in
-# English when no other language has more.
+# English when no other language has more, or fewer than two.
 stopwords = [
   "não", "uma", "mas", "quando", "isso", "tem", "tenho", "também", "depois", "porque",
   "muito", "está", "estou", "eu", "meu", "minha", "ao", "você", "obrigado", "versão",
   "já", "ainda", "aqui", "quero", "deveria", "isto", "nem", "agora",
 ]
+
+sample = "O cartão não mostra nada quando eu lanço um dardo, e isso não é normal."
 
 # The texts of the comments, by the keys that issue_assistant.py uses.
 [text]

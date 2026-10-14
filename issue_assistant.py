@@ -2150,13 +2150,15 @@ def form_labels(issue: dict[str, Any], config: Config) -> list[str]:
 
 def detect_language(text: str) -> str:
     """The language of the catalog whose stopwords the text has the most of; English
-    when no other language has more."""
+    when no other language has more, or fewer than two, so that one stray short word
+    in a log or in code doesn't decide."""
     words = Counter(LETTERS.findall(text.lower()))
     hits = {
         code: sum(words[word] for word in locale.stopwords)
         for code, locale in LOCALES.items()
     }
-    return max(LANGUAGES, key=lambda code: (hits[code], code == "en"))
+    best = max(LANGUAGES, key=lambda code: (hits[code], code == "en"))
+    return best if hits[best] >= 2 and hits[best] > hits["en"] else "en"
 
 
 def issue_language(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str:

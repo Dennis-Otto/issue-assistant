@@ -180,35 +180,27 @@ def test_every_answer_of_a_multiple_choice_area_becomes_a_label(config):
     assert assistant.form_labels(make_issue(body=body), with_comma) == ["area: ui"]
 
 
-# What a reporter writes in each language of the catalogs.
-SENTENCES = {
-    "de": "Die Karte zeigt nichts an, wenn ich einen Dart werfe und das ist komisch.",
-    "en": "The card shows nothing when I throw a dart, and it is not right.",
-    "es": "La tarjeta no muestra nada cuando lanzo un dardo, y esto no es normal.",
-    "fr": "La carte reste vide quand je lance une fléchette, et ce n'est pas normal.",
-    "it": "La scheda non mostra niente quando lancio una freccetta: non è normale.",
-    "nl": "De kaart toont niets als ik een pijl gooi, en dat is niet goed.",
-    "pt": "O cartão não mostra nada quando eu lanço um dardo, e isso não é normal.",
-}
-
-
 @pytest.mark.parametrize(
     ("text", "language"),
     [
-        *((text, language) for language, text in SENTENCES.items()),
         ("", "en"),
         ("404 :-(", "en"),
         # A tie goes to English, and every word counts as often as it stands there.
         ("the und", "en"),
         ("the die die", "de"),
+        # One stray short word of a log or of code doesn't make another language.
+        ("Plot x y axis swapped", "en"),
+        ("Error: ECONNREFUSED 127.0.0.1:8123 (al retry 3)", "en"),
     ],
 )
 def test_the_language_is_guessed_from_the_words(text, language):
     assert assistant.detect_language(text) == language
 
 
-def test_every_language_of_the_catalogs_is_guessed():
-    assert sorted(SENTENCES) == list(assistant.LANGUAGES)
+@pytest.mark.parametrize("code", assistant.LANGUAGES)
+def test_every_language_of_the_catalogs_is_guessed_from_its_sample(code):
+    catalog = tomllib.loads((LOCALES / f"{code}.toml").read_text("utf-8"))
+    assert assistant.detect_language(catalog["sample"]) == code
 
 
 def test_the_language_of_the_last_analysis_wins():
@@ -222,7 +214,9 @@ def test_the_language_of_the_last_analysis_wins():
     for language in assistant.ANSWER_LANGUAGES:
         marker = assistant.render_marker("follow-up", lang=language, questions=0)
         marked = [make_comment(1, "bot", marker, 2)]
-        issue = make_issue(body=SENTENCES["nl"])
+        issue = make_issue(
+            body="De kaart toont niets als ik een pijl gooi, en dat is niet goed."
+        )
         assert assistant.issue_language(issue, marked) == language
     odd = [make_comment(1, "bot", assistant.render_marker("analysis", lang="xx"), 2)]
     assert assistant.issue_language(make_issue(), odd) == "en"
@@ -293,7 +287,15 @@ def fields(template):
 @pytest.mark.parametrize("path", CATALOGS, ids=lambda path: path.stem)
 def test_every_catalog_has_each_text_of_english_with_its_placeholders(path):
     catalog = tomllib.loads(path.read_text("utf-8"))
-    assert set(catalog) == {"name", "address", "date", "months", "stopwords", "text"}
+    assert set(catalog) == {
+        "name",
+        "address",
+        "date",
+        "months",
+        "stopwords",
+        "sample",
+        "text",
+    }
     # The texts in the order of English, so that a review sees each beside it.
     assert list(catalog["text"]) == list(ENGLISH["text"])
     for key, template in catalog["text"].items():
@@ -350,6 +352,19 @@ def test_the_prompt_lists_the_languages_of_the_catalogs(config, root):
     assert '  - `"en"`: English\n' in prompt
     assert '`"de"`: German, addressing the reporter with "du"\n' in prompt
     assert 'set `language` to `"other"`' in prompt
+
+
+@pytest.mark.parametrize(
+    "path",
+    sorted((assistant.TOOL / "prompts").glob("*.md")),
+    ids=lambda path: path.stem,
+)
+def test_no_prompt_hard_wires_english_and_german(path):
+    # The catalogs decide the languages; a task of its own can't narrow them again.
+    text = path.read_text("utf-8")
+    assert '`"de"` when' not in text
+    assert "English and German" not in text
+    assert "German reporters" not in text
 
 
 @pytest.mark.parametrize("language", assistant.ANSWER_LANGUAGES)
@@ -426,7 +441,9 @@ def test_an_answer_in_another_language_keeps_english_around_it(config):
     assert f"### Summary\n\n{summary}" in body
     assert "Thanks for the report, @reporter!" in body
     marked = [make_comment(1, "bot", body, 2)]
-    language = assistant.issue_language(make_issue(body=SENTENCES["de"]), marked)
+    language = assistant.issue_language(
+        make_issue(body="Die Karte zeigt nichts an, wenn ich einen Dart werfe."), marked
+    )
     reminder = assistant.render_reminder(
         "reporter", language, datetime(2026, 11, 2, tzinfo=UTC)
     )
