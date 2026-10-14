@@ -220,6 +220,24 @@ REQUESTS = {
         {"repository": {"discussion": None}},
         False,
     ),
+    "the last edit of an issue": Request(
+        lambda github: github.last_edit(12),
+        {
+            "repository": {
+                "issue": {
+                    "lastEditedAt": "2026-10-06T12:00:00Z",
+                    # Actor is an interface; the type is what GitHub answers.
+                    "editor": {"__typename": "User", "login": "reporter"},
+                }
+            }
+        },
+        ("reporter", datetime(2026, 10, 6, 12, tzinfo=UTC)),
+    ),
+    "an issue that nobody edited": Request(
+        lambda github: github.last_edit(12),
+        {"repository": {"issue": {"lastEditedAt": None, "editor": None}}},
+        None,
+    ),
     "labels with their rationale": Request(
         lambda github: github.add_explained_labels(
             ISSUE, ["bug", "area: cards"], "The card stays empty. " * 20
@@ -331,7 +349,7 @@ def test_every_graphql_document_of_the_script_is_checked(monkeypatch, schema):
         for request in REQUESTS.values()
         for sent in send(monkeypatch, schema, request)[1]
     }
-    assert len(documents) == 7
+    assert len(documents) == 8
     assert documents == checked
 
 

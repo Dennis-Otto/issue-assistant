@@ -293,7 +293,8 @@ def test_follow_ups_are_limited():
 # Events
 
 
-def event(action, issue, sender="reporter", comment=None):
+def event(action, issue, sender="reporter", comment=None, changes=None):
+    """The payload of an event; `changes` are those of an edit, as GitHub sends them."""
     payload = {
         "action": action,
         "issue": issue,
@@ -304,6 +305,8 @@ def event(action, issue, sender="reporter", comment=None):
     }
     if comment:
         payload["comment"] = comment
+    if changes is not None:
+        payload["changes"] = changes
     return payload
 
 
@@ -339,11 +342,15 @@ def test_pull_requests_and_bots_are_ignored(config, kind):
     assert not github.writes_made()
 
 
-def test_an_edit_by_the_reporter_answers_the_assistant_s_questions(config):
-    issue = make_issue(labels=("bug", "needs-info", "stale"))
-    github = FakeGitHub(config, issue)
+@pytest.mark.parametrize("title", [None, "The live card stays empty"])
+def test_an_edit_by_the_reporter_answers_the_assistant_s_questions(config, title):
+    github = FakeGitHub(config, make_issue(labels=("bug", "needs-info", "stale")))
     github.comment_store[12] = [analysis(questions=1)]
-    plan = assistant.handle_event(github, "issues", event("edited", issue), config)
+    edited = {"title": title} if title else {}
+    changes = github.edit(12, "reporter", body=f"{BUG_BODY}\nVersion 1.9.0", **edited)
+    plan = assistant.handle_event(
+        github, "issues", event("edited", github.issue(12), changes=changes), config
+    )
     assert plan.mode == "follow-up"
     assert github.labels_of(12) == {"bug"}
 
@@ -351,14 +358,35 @@ def test_an_edit_by_the_reporter_answers_the_assistant_s_questions(config):
 def test_other_edits_change_nothing(config):
     issue = make_issue(labels=("bug", "needs-info"))
     github = FakeGitHub(config, issue)
+    changes = {"body": {"from": BUG_BODY}}
+    nothing = (12, "none", ["Edit without a pending question."])
     plan = assistant.handle_event(
-        github, "issues", event("edited", issue, "someone"), config
+        github, "issues", event("edited", issue, "someone", changes=changes), config
     )
-    assert plan.mode == "none"
+    assert (plan.issue, plan.mode, plan.notes) == nothing
     plan = assistant.handle_event(
-        github, "issues", event("edited", make_issue()), config
+        github, "issues", event("edited", make_issue(), changes=changes), config
     )
-    assert plan.mode == "none"
+    assert (plan.issue, plan.mode, plan.notes) == nothing
+    assert not github.writes_made()
+
+
+def test_a_new_title_answers_nothing(config):
+    """A reporter who fixes a typo in the title answers no question, and gives the AI
+    nothing new to read; the issue goes on waiting, and the reminder comes."""
+    github = FakeGitHub(config, make_issue(labels=("bug", "needs-info", "stale")))
+    github.comment_store[12] = [analysis(questions=1)]
+    changes = github.edit(12, "reporter", title="The live card stays empty")
+    assert changes == {"title": {"from": "Issue 12"}}
+    plan = assistant.handle_event(
+        github, "issues", event("edited", github.issue(12), changes=changes), config
+    )
+    assert (plan.issue, plan.mode, plan.notes) == (
+        12,
+        "none",
+        ["A new title alone answers nothing."],
+    )
+    assert github.labels_of(12) == {"bug", "needs-info", "stale"}
     assert not github.writes_made()
 
 
@@ -394,7 +422,7 @@ def test_a_comment_without_a_pending_question_changes_nothing(config):
     plan = assistant.handle_event(
         github, "issue_comment", event("created", issue, comment=comment), config
     )
-    assert plan.mode == "none"
+    assert (plan.issue, plan.mode, plan.notes) == (12, "none", [])
     assert not github.writes_made()
 
 
@@ -474,7 +502,13 @@ def test_an_answer_reopens_an_issue_closed_without_one(config):
         event("created", github.issue(12), comment=answer),
         config,
     )
-    assert plan.mode == "follow-up"
+    assert (plan.issue, plan.mode, plan.notes) == (
+        12,
+        "follow-up",
+        ["Reopened after the reporter's answer."],
+    )
+    # The follow-up answers the questions of the analysis.
+    assert plan.answers["id"] == 1
     assert github.store[12]["state"] == "open"
     assert github.labels_of(12) == {"bug", "needs-triage"}
     (reopened,) = github.posted(12)
@@ -497,8 +531,55 @@ def test_a_reopened_issue_without_the_assistant_s_questions_goes_to_the_maintain
     assert github.store[12]["state"] == "open"
 
 
+def test_an_answer_reopens_an_issue_that_the_sweep_closed_while_the_reporter_answered(
+    config, monkeypatch
+):
+    """The sweep reads the comments, the reporter answers, the event job ends the
+    waiting and removes its labels, and then the sweep closes the issue: the next
+    comment of the reporter reopens it all the same, as the closing promises."""
+    github = reminded(config, 30, 15)
+    answer = make_comment(9, "reporter", "Here is the log", 0)
+    read = github.comments
+
+    def comments(number):
+        found = read(number)
+        if answer not in github.comment_store[12]:
+            github.comment_store[12].append(answer)
+            assistant.handle_event(
+                github,
+                "issue_comment",
+                event("created", github.issue(12), comment=answer),
+                config,
+            )
+        return found
+
+    monkeypatch.setattr(github, "comments", comments)
+    assert assistant.sweep(github, NOW) == [
+        "#12: closed after 30 days without an answer."
+    ]
+    assert github.store[12]["state"] == "closed"
+    assert github.labels_of(12) == {"bug"}
+    again = make_comment(10, "reporter", "Did you see the log?", 0)
+    github.comment_store[12].append(again)
+    plan = assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(12), comment=again),
+        config,
+    )
+    assert github.store[12]["state"] == "open"
+    assert "Reopened after the reporter's answer." in plan.notes
+
+
 @pytest.mark.parametrize(
-    "case", ["other person", "closed by a person", "no marker", "no stale"]
+    "case",
+    [
+        "other person",
+        "closed by a person",
+        "no marker",
+        "closed as a duplicate since",
+        "closed by another workflow since",
+    ],
 )
 def test_other_closed_issues_stay_closed(config, case):
     github = closed_unanswered(config)
@@ -507,8 +588,17 @@ def test_other_closed_issues_stay_closed(config, case):
         github.event_store[12][-1]["actor"] = {"login": "maintainer", "type": "User"}
     if case == "no marker":
         github.comment_store[12] = github.comment_store[12][:1]
-    if case == "no stale":
-        github.store[12]["labels"] = [{"name": "bug"}]
+    if case == "closed as a duplicate since":
+        # An answer reopened it, and the duplicate notice that followed closed it.
+        github.comment_store[12].append(
+            make_comment(3, "bot", assistant.render_closed_duplicate(7, "en"), 0.2)
+        )
+    if case == "closed by another workflow since":
+        # An answer reopened it, and a workflow of the repository closed it again.
+        github.event_store[12] += [
+            {"event": "reopened", "actor": BOT_USER, "created_at": at(0.4)},
+            {"event": "closed", "actor": BOT_USER, "created_at": at(0.1)},
+        ]
     comment = make_comment(9, commenter, "Hello", 0)
     plan = assistant.handle_event(
         github,
@@ -516,7 +606,11 @@ def test_other_closed_issues_stay_closed(config, case):
         event("created", github.issue(12), commenter, comment),
         config,
     )
-    assert plan.mode == "none"
+    why = {
+        "other person": "Comment on a closed issue.",
+        "closed by a person": "Closed by a person: stays closed.",
+    }.get(case, "Not closed for a missing answer.")
+    assert (plan.issue, plan.mode, plan.notes) == (12, "none", [why])
     assert github.store[12]["state"] == "closed"
 
 
@@ -1635,7 +1729,10 @@ def test_the_issues_that_the_texts_name_stay_links_when_they_exist(config):
 
 def test_the_reply_of_a_follow_up_links_the_issues_that_exist(config):
     github = FakeGitHub(config, make_issue(3), make_issue())
-    github.comment_store[12] = [analysis(), make_comment(2, "reporter", "Log", 0)]
+    github.comment_store[12] = [
+        analysis(questions=1),
+        make_comment(2, "reporter", "Log", 0),
+    ]
     answer = make_follow_up(
         reply="The same as #3, not #4.", missing_information=["Is it like #3?"]
     )
@@ -1651,7 +1748,10 @@ def test_the_reasons_of_the_files_link_the_issues_that_exist(config, mode):
     files = [{"path": "docs/troubleshooting.md", "reason": "Fixed for #3, not #4."}]
     answer = make_answer(references=files)
     if mode == "follow-up":
-        github.comment_store[12] = [analysis(), make_comment(2, "reporter", "Log", 0)]
+        github.comment_store[12] = [
+            analysis(questions=1),
+            make_comment(2, "reporter", "Log", 0),
+        ]
         answer = make_follow_up(references=files)
     assistant.apply_answer(github, mode, 12, json.dumps(answer), config, "abc")
     (body,) = github.posted(12)
@@ -2245,7 +2345,10 @@ def test_the_footer_explains_the_assistant_and_asks_whether_it_helped(
 
 def test_the_footer_of_a_follow_up_asks_too(config):
     github = FakeGitHub(config, make_issue())
-    github.comment_store[12] = [analysis(), make_comment(2, "reporter", "Log", 0)]
+    github.comment_store[12] = [
+        analysis(questions=1),
+        make_comment(2, "reporter", "Log", 0),
+    ]
     answer = json.dumps(make_follow_up())
     assistant.apply_answer(github, "follow-up", 12, answer, config, "abc")
     (body,) = github.posted(12)
@@ -2451,6 +2554,52 @@ def test_a_candidate_named_twice_is_listed_once(config):
     assert "Worth trying" not in body
 
 
+def test_the_original_after_newer_and_unknown_candidates_gets_the_notice(config):
+    """The engine lists its candidates in any order."""
+    github = FakeGitHub(
+        config, make_issue(7, labels=("bug",)), make_issue(12), make_issue(20)
+    )
+    answer = make_answer(
+        duplicates=[
+            {"number": 20, "confidence": "high", "reason": "Newer issue."},
+            {"number": 99, "confidence": "high", "reason": "Does not exist."},
+            {"number": 7, "confidence": "high", "reason": "Same card."},
+        ]
+    )
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert "duplicate=7" in body.splitlines()[0]
+    assert "possible-duplicate" in github.labels_of(12)
+
+
+def test_every_candidate_counts_whatever_comes_before_it(config):
+    """A candidate named twice, the sure duplicate, and the issue itself among the
+    related ones end no list: the candidates and related issues after them count."""
+    github = FakeGitHub(
+        config,
+        make_issue(3),
+        make_issue(5),
+        make_issue(7, labels=("bug",)),
+        make_issue(12),
+    )
+    answer = make_answer(
+        duplicates=[
+            {"number": 7, "confidence": "high", "reason": "Same card."},
+            {"number": 7, "confidence": "high", "reason": "Again."},
+            {"number": 5, "confidence": "medium", "reason": "Similar."},
+        ],
+        related=[
+            {"kind": "issue", "number": 12, "reason": "Itself."},
+            {"kind": "issue", "number": 3, "reason": "The same card."},
+        ],
+    )
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert "duplicate=7" in body.splitlines()[0]
+    assert "- #5: Similar.\n- #3: The same card." in body
+    assert [item["duplicate"] for item in github.suggestions] == ["I_5"]
+
+
 def test_newer_unknown_and_the_same_issue_are_no_duplicates(config):
     github = FakeGitHub(config, make_issue(12), make_issue(20))
     answer = make_answer(
@@ -2553,7 +2702,10 @@ def test_three_links_stay_open(config):
 
 def test_many_files_of_a_follow_up_fold_in_german(config):
     github = FakeGitHub(config, make_issue())
-    github.comment_store[12] = [analysis(), make_comment(2, "reporter", "Log", 0)]
+    github.comment_store[12] = [
+        analysis(questions=1),
+        make_comment(2, "reporter", "Log", 0),
+    ]
     answer = make_follow_up(language="de", references=FIVE_REFERENCES)
     assistant.apply_answer(github, "follow-up", 12, json.dumps(answer), config, "abc")
     (body,) = github.posted(12)
@@ -2745,7 +2897,7 @@ def test_a_question_that_github_failed_to_post_never_waits_for_an_answer(config,
     github = FakeGitHub(config, make_issue(labels=("bug",)))
     if mode == "follow-up":
         github.comment_store[12] = [
-            analysis(questions=0, days_ago=2),
+            analysis(questions=1, days_ago=2),
             make_comment(2, "reporter", "Log", 1),
         ]
         answer = make_follow_up(missing_information=["Which version?"])
@@ -2819,12 +2971,18 @@ def test_a_run_again_keeps_the_labels_that_someone_changed_since_the_analysis(
     assert not github.writes_made()
 
 
-def test_a_run_again_doesn_t_wait_for_a_reporter_who_answered(config):
+@pytest.mark.parametrize("by", ["comment", "edit"])
+def test_a_run_again_doesn_t_wait_for_a_reporter_who_answered(config, by):
     github = FakeGitHub(config, make_issue(labels=("bug", "needs-triage")))
-    github.comment_store[12] = [
-        analysis(questions=1, days_ago=2),
-        make_comment(2, "reporter", "Version 1.9.0.", 1),
-    ]
+    github.comment_store[12] = [analysis(questions=1, days_ago=2)]
+    github.clock = NOW - timedelta(days=1)
+    if by == "comment":
+        github.comment_store[12].append(
+            make_comment(2, "reporter", "Version 1.9.0.", 1)
+        )
+    else:
+        github.edit(12, "reporter", body=f"{BUG_BODY}\nVersion 1.9.0")
+    github.clock = NOW
     assistant.apply_answer(
         github, "triage", 12, json.dumps(make_answer()), config, "abc"
     )
@@ -2900,6 +3058,77 @@ def test_a_follow_up_without_open_questions_leaves_the_issue_to_the_maintainer(c
     (body,) = github.posted(12)
     assert "Danke für deine Antwort" in body and "Noch offen" not in body
     assert github.labels_of(12) == {"bug"}
+
+
+def test_a_follow_up_waits_for_no_maintainer_who_joined_while_the_engine_wrote(
+    config,
+):
+    """The analyze job takes a minute or two; a maintainer who answers meanwhile
+    has the conversation, and only a follow-up by hand still posts."""
+    github = FakeGitHub(config, make_issue(labels=("bug",)))
+    github.comment_store[12] = [
+        analysis(questions=1, days_ago=2),
+        make_comment(2, "reporter", "Log", 0.002),
+        make_comment(3, "maintainer", "Thanks, I'll look into it.", 0.001, "OWNER"),
+    ]
+    answer = json.dumps(make_follow_up())
+    done = assistant.apply_answer(github, "follow-up", 12, answer, config, "abc")
+    assert done == [
+        "#12 needs no follow-up any more: a maintainer joined the conversation, "
+        "or its questions changed; nothing posted."
+    ]
+    assert not github.writes_made()
+    assistant.apply_answer(github, "follow-up", 12, answer, config, "abc", repeat=True)
+    assert len(github.posted(12)) == 1
+
+
+@pytest.mark.parametrize("by", ["comment", "edit"])
+def test_every_answer_gets_a_follow_up_of_its_own_up_to_the_limit(config, by):
+    """A conversation as it happens: the analysis asks, the reporter answers, a
+    follow-up asks again, the reporter answers again and gets a second follow-up,
+    and a run again of the same event never posts one more."""
+    github = FakeGitHub(config, make_issue(labels=("bug",), days_ago=3))
+    github.clock = NOW - timedelta(days=3)
+    asks = make_answer(missing_information=["Which version?"])
+    assistant.apply_answer(github, "triage", 12, json.dumps(asks), config, "abc")
+
+    def answer(text):
+        github.clock += timedelta(hours=5)
+        if by == "comment":
+            comment = make_comment(500 + len(github.calls), "reporter", text, 0)
+            comment["created_at"] = github.time()
+            github.comment_store[12].append(comment)
+            payload = event("created", github.issue(12), comment=comment)
+            plan = assistant.handle_event(github, "issue_comment", payload, config)
+        else:
+            changes = github.edit(12, "reporter", body=f"{BUG_BODY}\n{text}")
+            payload = event("edited", github.issue(12), changes=changes)
+            plan = assistant.handle_event(github, "issues", payload, config)
+        # The engine writes for two minutes.
+        github.clock += timedelta(minutes=2)
+        return plan.mode
+
+    def follow_up(*missing):
+        reply = json.dumps(make_follow_up(missing_information=list(missing)))
+        return assistant.apply_answer(github, "follow-up", 12, reply, config, "abc")
+
+    assert answer("Version 1.9.0.") == "follow-up"
+    assert follow_up("And the log?") == ["Follow-up on #12; labels added: none."]
+    assert follow_up("And the log?") == [
+        "#12 already has this follow-up; nothing posted."
+    ]
+    assert answer("The log: the event arrives.") == "follow-up"
+    assert follow_up("And the version of Home Assistant?") == [
+        "Follow-up on #12; labels added: none."
+    ]
+    assert follow_up("And the version of Home Assistant?") == [
+        "#12 already has this follow-up; nothing posted."
+    ]
+    assert "needs-info" in github.labels_of(12)
+    # Two follow-ups are the most; the third answer goes to the maintainer.
+    assert answer("2026.10.1") == "none"
+    kinds = [assistant.kind_of(comment) for comment in github.comment_store[12]]
+    assert [kind for kind in kinds if kind] == ["analysis", "follow-up", "follow-up"]
 
 
 def test_a_follow_up_is_posted_once_per_answer(config):
@@ -3026,9 +3255,9 @@ def waiting(config, days, *, labels=("bug", "needs-info"), comments=(), language
 
 
 def reminded(config, days_waiting, days_since_reminder, **options):
-    reminder = make_comment(
-        2, "bot", assistant.render_reminder("reporter", "en", NOW), days_since_reminder
-    )
+    sent = NOW - timedelta(days=days_since_reminder)
+    body = assistant.render_reminder("reporter", "en", sent + assistant.WARNING_PERIOD)
+    reminder = make_comment(2, "bot", body, days_since_reminder)
     return waiting(
         config,
         days_waiting,
@@ -3039,7 +3268,8 @@ def reminded(config, days_waiting, days_since_reminder, **options):
 
 
 def test_nothing_happens_in_the_first_15_days(config):
-    github = waiting(config, 14.9)
+    # Asked at midnight, 14.5 days ago: the 15th day is tomorrow.
+    github = waiting(config, 14.5)
     assert assistant.sweep(github, NOW) == []
     assert not github.writes_made()
 
@@ -3048,9 +3278,16 @@ def test_the_reporter_is_reminded_after_15_days(config):
     github = waiting(config, 15)
     assert assistant.sweep(github, NOW) == ["#12: reminded the reporter after 15 days."]
     (body,) = github.posted(12)
-    assert body.startswith("<!-- issue-assistant:reminder -->")
+    assert body.startswith("<!-- issue-assistant:reminder closes=2026-10-22 -->\n")
     assert "@reporter" in body and "October 22, 2026" in body
     assert "stale" in github.labels_of(12)
+
+
+def test_the_reminder_comes_on_the_15th_day_whatever_its_minute(config):
+    """The waiting counts days of the calendar: the sweep of the 15th day reminds,
+    also when it starts some minutes earlier than the question came."""
+    github = waiting(config, 14.99)
+    assert assistant.sweep(github, NOW) == ["#12: reminded the reporter after 15 days."]
 
 
 def test_a_german_reporter_is_reminded_in_german(config):
@@ -3127,14 +3364,91 @@ def test_the_issue_closes_30_days_after_the_question(config):
     assert issue["rationale"].startswith("No answer to the questions for 30 days")
     (body,) = github.posted(12)
     assert body.startswith("<!-- issue-assistant:closed-unanswered -->")
+    assert "@reporter, as soon as you answer here, it reopens" in body
     # The labels stay, so that an answer can reopen the issue.
     assert {"needs-info", "stale"} <= github.labels_of(12)
+
+
+def test_the_issue_closes_on_the_day_that_the_reminder_named(config):
+    """A minute before 15 whole days after the reminder, the sweep of that day
+    closes the issue, as the reminder promised."""
+    github = reminded(config, 29.99, 14.99)
+    assert assistant.sweep(github, NOW) == [
+        "#12: closed after 30 days without an answer."
+    ]
+    assert github.store[12]["rationale"] == (
+        "No answer to the questions for 30 days; reminded on 2026-09-22."
+    )
+
+
+def test_a_reminder_posted_after_midnight_keeps_the_day_that_it_named(config):
+    """A sweep that starts seconds before midnight names the 15th day after its
+    start, and GitHub dates its comment the next day."""
+    started = datetime(2026, 9, 22, 23, 59, 50, tzinfo=UTC)
+    body = assistant.render_reminder(
+        "reporter", "en", started + assistant.WARNING_PERIOD
+    )
+    reminder = make_comment(2, "bot", body, 0) | {"created_at": "2026-09-23T00:00:10Z"}
+    github = waiting(
+        config, 31, labels=("bug", "needs-info", "stale"), comments=(reminder,)
+    )
+    assert "October 7, 2026" in body
+    assert assistant.sweep(github, NOW) == [
+        "#12: closed after 31 days without an answer."
+    ]
+
+
+def test_a_reminder_of_an_earlier_version_closes_the_issue_15_days_after_it(config):
+    # Its marker doesn't name the day.
+    github = reminded(config, 40, 14.99)
+    github.comment_store[12][-1]["body"] = assistant.render_marker("reminder")
+    assert assistant.sweep(github, NOW) == [
+        "#12: closed after 40 days without an answer."
+    ]
+    github = reminded(config, 40, 14.5)
+    github.comment_store[12][-1]["body"] = assistant.render_marker("reminder")
+    assert assistant.sweep(github, NOW) == []
 
 
 def test_a_late_reminder_still_gives_15_days(config):
     github = reminded(config, 40, 10)
     assert assistant.sweep(github, NOW) == []
     assert github.store[12]["state"] == "open"
+
+
+def test_one_issue_waits_from_the_question_to_the_day_that_the_reminder_named(
+    config,
+):
+    """Every morning the sweep starts at 06:41, often some minutes later, and sees
+    what the sweeps before wrote, its own label `stale` among it."""
+    asked = datetime(2026, 9, 1, 6, 50, tzinfo=UTC)
+    github = FakeGitHub(
+        config, make_issue(labels=("bug",), created_at=assistant.stamp(asked))
+    )
+    github.clock = asked
+    marker = assistant.render_marker("analysis", lang="en", questions=1)
+    github.comment(12, f"{marker}\nWhich version?")
+    github.add_labels(12, ["needs-info"])
+    done = {}
+    for day in range(1, 40):
+        # The morning of the reminder starts late, that of the closing on time.
+        late = {15: 9, 30: 0}.get(day, day % 7)
+        start = datetime.combine(
+            asked.date() + timedelta(days=day), datetime.min.time(), UTC
+        ) + timedelta(hours=6, minutes=41 + late)
+        github.clock = start + timedelta(seconds=20)
+        for line in assistant.sweep(github, start):
+            done[f"{start:%Y-%m-%d %H:%M}"] = line
+    assert done == {
+        "2026-09-16 06:50": "#12: reminded the reporter after 15 days.",
+        "2026-10-01 06:41": "#12: closed after 30 days without an answer.",
+    }
+    reminder = github.comment_store[12][1]["body"]
+    assert "it closes automatically on October 1, 2026." in reminder
+    assert [
+        (event["event"], event.get("label", {}).get("name"))
+        for event in github.event_store[12]
+    ] == [("labeled", "needs-info"), ("labeled", "stale"), ("closed", None)]
 
 
 def test_the_stale_label_is_restored_while_the_reminder_runs(config):
@@ -3166,6 +3480,75 @@ def test_an_answer_before_the_reminder_ends_the_waiting_too(config):
     github = waiting(config, 10, comments=(make_comment(3, "reporter", "Here", 1),))
     assistant.sweep(github, NOW)
     assert github.labels_of(12) == {"bug"}
+
+
+def test_an_edit_of_the_text_that_the_event_missed_ends_the_waiting(config):
+    """The questions ask for an answer in a comment or by an edit of the issue."""
+    github = reminded(config, 20, 5)
+    github.clock = NOW - timedelta(days=1)
+    github.edit(12, "reporter", body=f"{BUG_BODY}\nVersion 1.9.0")
+    github.clock = NOW
+    assert assistant.sweep(github, NOW) == [
+        "#12: the reporter answered; no longer waiting."
+    ]
+    assert github.labels_of(12) == {"bug"}
+
+
+@pytest.mark.parametrize(
+    "case", ["new title", "someone else", "before the question", "with the question"]
+)
+def test_other_edits_leave_the_issue_waiting(config, case):
+    github = waiting(config, 20)
+    github.clock = NOW - timedelta(
+        days={"before the question": 20.5, "with the question": 20}.get(case, 1)
+    )
+    if case == "new title":
+        github.edit(12, "reporter", title="The live card stays empty")
+    else:
+        editor = "maintainer" if case == "someone else" else "reporter"
+        github.edit(12, editor, body=f"{BUG_BODY}\nVersion 1.9.0")
+    github.clock = NOW
+    assert assistant.sweep(github, NOW) == ["#12: reminded the reporter after 20 days."]
+
+
+def test_a_label_set_by_hand_counts_from_the_label(config):
+    # The analysis asked nothing; the maintainer added needs-info 10 days ago.
+    github = waiting(config, 10)
+    github.store[12]["created_at"] = at(30)
+    github.event_store[12][0]["actor"] = {"login": "owner", "type": "User"}
+    github.comment_store[12] = [analysis(questions=0, days_ago=29)]
+    assert assistant.sweep(github, NOW) == []
+    assert not github.writes_made()
+
+
+@pytest.mark.parametrize("asker", ["analysis", "follow-up", "maintainer"])
+def test_the_last_question_starts_the_waiting_whoever_asked_it(config, asker):
+    """The reporter answered the first question while the event job was off, so
+    the label stayed; a new question 10 days ago waits for a new answer."""
+    github = waiting(config, 25)
+    asked = assistant.render_marker(asker, lang="en", questions=1)
+    question = {
+        "analysis": make_comment(4, "bot", asked, 10),
+        "follow-up": make_comment(4, "bot", asked, 10),
+        "maintainer": make_comment(4, "maintainer", "And the log?", 10, "OWNER"),
+    }[asker]
+    github.comment_store[12] += [
+        make_comment(3, "reporter", "Version 1.9.0", 20),
+        question,
+    ]
+    assert assistant.sweep(github, NOW) == []
+    assert github.labels_of(12) == {"bug", "needs-info"}
+
+
+def test_a_reporter_who_maintains_the_repository_answers_too(config):
+    github = waiting(config, 20)
+    github.store[12]["author_association"] = "OWNER"
+    github.comment_store[12].append(
+        make_comment(3, "reporter", "Version 1.9.0", 1, "OWNER")
+    )
+    assert assistant.sweep(github, NOW) == [
+        "#12: the reporter answered; no longer waiting."
+    ]
 
 
 def test_a_label_set_by_hand_counts_from_the_issue(config):
@@ -3276,6 +3659,14 @@ def test_a_comment_after_the_notice_keeps_the_issue_open(config):
     github = possible_duplicate(config, 3, make_comment(51, "someone", "Different", 1))
     assistant.sweep(github, NOW)
     assert github.store[12]["state"] == "open"
+
+
+def test_comments_before_the_notice_and_those_of_bots_object_to_nothing(config):
+    github = possible_duplicate(
+        config, 3, make_comment(51, "renovate[bot]", "Dependency dashboard", 1)
+    )
+    github.comment_store[12].insert(0, make_comment(49, "someone", "Same here", 4))
+    assert assistant.sweep(github, NOW) == ["#12: closed as a duplicate of #7."]
 
 
 def test_a_closed_original_keeps_the_issue_open(config):
@@ -3446,6 +3837,43 @@ def test_a_closing_of_a_duplicate_is_never_posted_twice(config):
     github.failures.clear()
     assert assistant.sweep(github, NOW) == ["#12: closed as a duplicate of #7."]
     assert len(github.posted(12)) == 1
+
+
+def test_one_sweep_marks_a_fix_reminds_and_closes_a_duplicate_at_once(config):
+    """A repository on a morning: #12 waited 30 days, but a pull request fixed it
+    yesterday, #13 waits for its reminder, and #14 is a duplicate of #7."""
+    github = waiting(config, 30, labels=("bug", "needs-info", "stale"))
+    github.comment_store[12].append(
+        make_comment(2, "bot", assistant.render_reminder("reporter", "en", NOW), 15)
+    )
+    github.store[13] = make_issue(
+        13, author="other", labels=("bug", "needs-info"), days_ago=17
+    )
+    github.event_store[13] = [
+        {
+            "event": "labeled",
+            "label": {"name": "needs-info"},
+            "actor": BOT_USER,
+            "created_at": at(16),
+        }
+    ]
+    github.comment_store[13] = [analysis(3, days_ago=16, questions=1)]
+    github.store[7] = make_issue(7, labels=("bug",), days_ago=60)
+    github.store[14] = make_issue(
+        14, author="third", labels=("bug", "needs-triage", "possible-duplicate")
+    )
+    notice = assistant.render_marker("analysis", lang="en", questions=0, duplicate=7)
+    github.comment_store[14] = [make_comment(50, "bot", notice, 3)]
+    github.pull_store = [make_pull()]
+    assert assistant.sweep(github, NOW) == [
+        "#12: fixed by #40; closes with the next release.",
+        "#13: reminded the reporter after 16 days.",
+        "#14: closed as a duplicate of #7.",
+    ]
+    assert github.store[12]["state"] == "open"
+    assert github.labels_of(12) == {"bug", "fixed-in-next-release"}
+    assert github.labels_of(13) == {"bug", "needs-info", "stale"}
+    assert (github.store[14]["state"], github.store[7]["state"]) == ("closed", "open")
 
 
 # Fixed issues close with the release
@@ -4787,6 +5215,8 @@ def test_a_fixture_needs_no_more_than_github_sends(tmp_path):
     github.issue(12)["labels"] = [{"name": "bug"}]
     github.comments(12).append(make_comment(1, "reporter", "Hi", 1))
     assert (github.issue(12), github.comments(12)) == (issue, [])
+    # Nor a history of edits, which GitHub would hold for another issue #12.
+    assert github.last_edit(12) is None
 
 
 def test_the_apply_command_fails_on_a_bad_answer(

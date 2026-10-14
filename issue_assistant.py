@@ -30,7 +30,7 @@ import tomllib
 from collections.abc import Callable, Collection, Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from functools import cache, partial
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -81,9 +81,10 @@ REPOSITORY_NAME = re.compile(r"[\w-]+/(?!\.\.?\Z)[\w.-]+", re.ASCII)
 BOT = "github-actions[bot]"
 MAINTAINERS = {"OWNER", "MEMBER", "COLLABORATOR"}
 
+# The waiting for a reporter counts days of the calendar in UTC, see over().
 REMIND_AFTER = timedelta(days=15)
 CLOSE_AFTER = timedelta(days=30)
-# A reminder always gives this much time before the issue closes, also when the
+# A reminder names the day the issue closes, this much later, also when the
 # reminder came late, for example after the workflow was switched off.
 WARNING_PERIOD = timedelta(days=15)
 DUPLICATE_GRACE = timedelta(days=3)
@@ -1306,6 +1307,29 @@ class GitHub:
             return False
         return bool(data["repository"]["discussion"])
 
+    def last_edit(self, number: int) -> tuple[str, datetime] | None:
+        """Who changed the text of the issue last, and when; None while nobody did.
+
+        GitHub keeps the history of the text alone, so a new title is no edit. The
+        issue of a fixture has no history.
+        """
+        if self.fixture and number == self.fixture.number:
+            return None
+        data = self.graphql(
+            """
+            query($owner: String!, $name: String!, $number: Int!) {
+              repository(owner: $owner, name: $name) {
+                issue(number: $number) { lastEditedAt editor { login } }
+              }
+            }
+            """,
+            {"owner": self.owner, "name": self.name, "number": number},
+        )
+        issue = data["repository"]["issue"]
+        if not issue["lastEditedAt"]:
+            return None
+        return login(issue["editor"]), moment(issue["lastEditedAt"])
+
     # Writes
 
     def comment(self, number: int, body: str) -> None:
@@ -1580,6 +1604,24 @@ def stamp(when: datetime) -> str:
     return when.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def day_of(when: datetime) -> date:
+    return when.astimezone(UTC).date()
+
+
+def over(start: datetime, period: timedelta, now: datetime) -> bool:
+    """Whether the period after the start has ended by the day of `now`.
+
+    The waiting for a reporter counts days of the calendar in UTC, as the reminder
+    names the day the issue closes: the daily sweep starts a few minutes earlier or
+    later each morning, and must keep that day all the same.
+    """
+    return day_of(now) >= day_of(start + period)
+
+
+def days_between(start: datetime, end: datetime) -> int:
+    return (day_of(end) - day_of(start)).days
+
+
 def marker(comment: dict[str, Any]) -> tuple[str, dict[str, str]] | None:
     """The kind and attributes of an assistant comment; None for every other comment."""
     if login(comment.get("user")) != BOT:
@@ -1687,6 +1729,16 @@ def follow_up_due(comments: list[dict[str, Any]], author: str) -> dict[str, Any]
     return last
 
 
+def edited_since(github: GitHub, issue: dict[str, Any], since: datetime) -> bool:
+    """Whether the reporter changed the text of the issue after the moment.
+
+    That answers the assistant's questions as a comment does, since they offer both;
+    a new title answers nothing.
+    """
+    edit = github.last_edit(issue["number"])
+    return edit is not None and edit[0] == login(issue.get("user")) and edit[1] > since
+
+
 def runs_of(comment: dict[str, Any]) -> list[int]:
     """The moments, in seconds since 1970, of the AI runs that answered this comment
     of the assistant, which its marker records; nobody else can change it."""
@@ -1755,6 +1807,8 @@ def handle_event(
             github, Plan(number, "triage"), issue, created(issue), config
         )
     if name == "issues" and action == "edited":
+        if "body" not in (payload.get("changes") or {}):
+            return Plan(number, notes=["A new title alone answers nothing."])
         if (
             issue["state"] == "open"
             and login(payload.get("sender")) == author
@@ -1891,14 +1945,19 @@ def reopen_if_answered(
     author = login(issue.get("user"))
     if login(comment.get("user")) != author:
         return Plan(number, notes=["Comment on a closed issue."])
-    closes = [event for event in github.events(number) if event["event"] == "closed"]
+    events = github.events(number)
+    closes = [event for event in events if event["event"] == "closed"]
     if not closes or login(closes[-1].get("actor")) != BOT:
         return Plan(number, notes=["Closed by a person: stays closed."])
     comments = github.comments(number)
+    # The closing comment of the last closing: one from before a reopening belongs
+    # to an earlier one, and another workflow may have closed the issue since.
+    reopenings = [created(event) for event in events if event["event"] == "reopened"]
     closings = [
         item
         for item in comments
         if kind_of(item) in {"closed-unanswered", "closed-duplicate", "released"}
+        and (not reopenings or created(item) > reopenings[-1])
     ]
     if closings and kind_of(closings[-1]) == "released":
         released = closings[-1]
@@ -1917,9 +1976,9 @@ def reopen_if_answered(
             ["The reporter wrote after the release."],
             answers=released,
         )
-    if STALE not in label_names(issue) or not any(
-        kind_of(item) == "closed-unanswered" for item in closings
-    ):
+    # Whatever its labels say: the reporter's answer can come in while the sweep
+    # closes the issue, end the waiting, and remove them.
+    if not closings or kind_of(closings[-1]) != "closed-unanswered":
         return Plan(number, notes=["Not closed for a missing answer."])
     github.reopen(number)
     for name in (STALE, NEEDS_INFO):
@@ -3201,15 +3260,16 @@ def render_follow_up(
 def render_reminder(
     author: str, language: str, closes: datetime, questions: str = ""
 ) -> str:
-    """The reminder of the questions, which links the comment that asked them at
-    the address `questions`, when it is known."""
-    date = format_date(closes, language)
+    """The reminder, which names the day the issue closes and links the comment
+    that asked the questions at the address `questions`, when it is known; its
+    marker records the day, so that the sweep closes the issue on it."""
+    named = format_date(closes, language)
     asked = say(language, "reminder.questions")
     if questions:
         asked = f"[{asked}]({questions})"
     return (
-        f"{render_marker('reminder')}\n"
-        f"{say(language, 'reminder', author=author, date=date, questions=asked)}\n"
+        f"{render_marker('reminder', closes=closes.date().isoformat())}\n"
+        f"{say(language, 'reminder', author=author, date=named, questions=asked)}\n"
     )
 
 
@@ -3459,19 +3519,28 @@ def apply_labels(
 
 
 def earlier_post(
-    mode: str, comments: list[dict[str, Any]], author: str
+    github: GitHub, issue: dict[str, Any], mode: str, comments: list[dict[str, Any]]
 ) -> dict[str, Any] | None:
-    """The comment of an earlier run of the same event, which a run again repeats."""
+    """The comment of an earlier run of the same event, which a run again repeats.
+
+    A follow-up answers the reporter's comment or edit of the text before it; one
+    after it is a new answer.
+    """
     if mode == "triage":
         analyses = [comment for comment in comments if kind_of(comment) == "analysis"]
         return analyses[-1] if analyses else None
+    author = login(issue.get("user"))
     conversation = [
         comment
         for comment in comments
         if kind_of(comment) in {"analysis", "follow-up"}
         or login(comment.get("user")) == author
     ]
-    if conversation and kind_of(conversation[-1]) == "follow-up":
+    if (
+        conversation
+        and kind_of(conversation[-1]) == "follow-up"
+        and not edited_since(github, issue, created(conversation[-1]))
+    ):
         return conversation[-1]
     return None
 
@@ -3503,14 +3572,18 @@ def complete_labels(
     added = apply_labels(github, issue, answer, config, keep=changed)
     _, said = marker(posted) or ("", {})
     author = login(issue.get("user"))
-    answered = any(
-        login(comment.get("user")) == author and created(comment) > since
-        for comment in comments
+    # The reporter answers in a comment or by an edit of the text.
+    waits = said.get("questions") == "1" and not (
+        any(
+            login(comment.get("user")) == author and created(comment) > since
+            for comment in comments
+        )
+        or edited_since(github, issue, since)
     )
     lifecycle = [
         name
         for name, wanted in (
-            (NEEDS_INFO, said.get("questions") == "1" and not answered),
+            (NEEDS_INFO, waits),
             (POSSIBLE_DUPLICATE, "duplicate" in said),
         )
         if wanted and name not in label_names(issue) and name not in changed
@@ -3545,7 +3618,7 @@ def apply_answer(
         return apply_maintainer_reply(github, issue, answer, config)
     if not repeat:
         comments = github.comments(number)
-        posted = earlier_post(mode, comments, author)
+        posted = earlier_post(github, issue, mode, comments)
         if posted is not None:
             # An earlier run posted the comment: never a second one.
             added = []
@@ -3556,6 +3629,13 @@ def apply_answer(
             return [
                 f"#{number} already has this {mode}; no second comment, "
                 f"labels added: {', '.join(added)}."
+            ]
+        if mode == "follow-up" and follow_up_due(comments, author) is None:
+            # The analyze job takes minutes, in which a maintainer can join the
+            # conversation, and the assistant stays out of it then.
+            return [
+                f"#{number} needs no follow-up any more: a maintainer joined the "
+                "conversation, or its questions changed; nothing posted."
             ]
     if answer["kind"] == "spam":
         github.add_explained_labels(issue, [INVALID], label_rationale(answer, config))
@@ -3989,7 +4069,11 @@ def close_issue_released(
 
 
 def sweep_waiting(github: GitHub, issue: dict[str, Any], now: datetime) -> list[str]:
-    """Remind the reporter after 15 days, close after 30 days without an answer."""
+    """Remind the reporter after 15 days, close after 30 days without an answer.
+
+    An answer is a comment or an edit of the text by the reporter after the last
+    question. The closing comes on the day that the reminder named.
+    """
     number = issue["number"]
     author = login(issue.get("user"))
     comments = github.comments(number)
@@ -4010,45 +4094,58 @@ def sweep_waiting(github: GitHub, issue: dict[str, Any], now: datetime) -> list[
     if any(
         login(comment.get("user")) == author and created(comment) > since
         for comment in comments
-    ):
+    ) or edited_since(github, issue, since):
         # The event workflow missed the answer, for example while it was switched off.
         for name in (NEEDS_INFO, STALE):
             if name in current:
                 github.remove_label(number, name)
         return [f"#{number}: the reporter answered; no longer waiting."]
     reminders = [
-        created(comment)
+        comment
         for comment in comments
         if kind_of(comment) == "reminder" and created(comment) >= since
     ]
     language = issue_language(issue, comments)
+    waited = days_between(since, now)
     if reminders:
-        if now - since >= CLOSE_AFTER and now - reminders[-1] >= WARNING_PERIOD:
-            if not posted_since(comments, "closed-unanswered", reminders[-1]):
+        reminded = created(reminders[-1])
+        if over(since, CLOSE_AFTER, now) and day_of(now) >= closing_day(reminders[-1]):
+            if not posted_since(comments, "closed-unanswered", reminded):
                 github.comment(number, render_closed_unanswered(author, language))
             github.close(
                 issue,
                 "NOT_PLANNED",
-                f"No answer to the questions for {(now - since).days} days; "
-                f"reminded on {reminders[-1]:%Y-%m-%d}.",
+                f"No answer to the questions for {waited} days; "
+                f"reminded on {day_of(reminded)}.",
             )
-            return [
-                f"#{number}: closed after {(now - since).days} days without an answer."
-            ]
+            return [f"#{number}: closed after {waited} days without an answer."]
         if STALE not in current:
             github.add_labels(number, [STALE])
         return []
     if STALE in current:
         # A new question started a new waiting period.
         github.remove_label(number, STALE)
-    if now - since >= REMIND_AFTER:
+    if over(since, REMIND_AFTER, now):
         questions = questions_address(github, issue, comments)
         github.comment(
             number, render_reminder(author, language, now + WARNING_PERIOD, questions)
         )
         github.add_labels(number, [STALE])
-        return [f"#{number}: reminded the reporter after {(now - since).days} days."]
+        return [f"#{number}: reminded the reporter after {waited} days."]
     return []
+
+
+def closing_day(reminder: dict[str, Any]) -> date:
+    """The day that the reminder named for the closing.
+
+    A reminder of an earlier version, which didn't record it, named the day
+    WARNING_PERIOD after it.
+    """
+    _, said = marker(reminder) or ("", {})
+    try:
+        return date.fromisoformat(said.get("closes", ""))
+    except ValueError:
+        return day_of(created(reminder) + WARNING_PERIOD)
 
 
 def questions_address(

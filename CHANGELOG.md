@@ -14,6 +14,11 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 - A link to a line of a Markdown file, or of another file that GitHub shows rendered, such as reStructuredText, AsciiDoc, a notebook or an SVG picture, opens the file's source at that line. Before, it opened the rendered page, where a line has no anchor. A path with a backtick stays one piece of code in its link.
 - Issues and discussions that the AI names as `#123` stay links when they exist, up to ten of them, as the prompt asks it to name them. Before, every number but those of the duplicates and related issues showed as code.
+- An issue that waits for its reporter closes on the day that its reminder names. The morning sweep starts a few minutes later on some days than on others, and when it started later on the day of the reminder than on the day it named, the issue closed a day late. The waiting now counts days of the calendar, in UTC, and the reminder records its day.
+- An answer by an edit of the issue, which the questions offer, ends the waiting also when the event workflow missed it, so the issue no longer closes as unanswered, and a run again of the analysis no longer marks it `needs-info`. A second edit after a follow-up gets its own follow-up, as a second comment does.
+- A new title is no answer. Fixing a typo in it removed `needs-info`, stopped the reminder and started a follow-up of the AI with nothing new to read.
+- A comment of the reporter reopens an issue that closed for a missing answer also when an answer came in while the sweep closed it and took its labels. An issue that closed in another way since its last reopening stays closed.
+- No follow-up is posted once a maintainer joined the conversation while the AI wrote it.
 
 ## [1.4.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.3.1...v1.4.0) (2026-10-14)
 
