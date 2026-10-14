@@ -4,6 +4,8 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.5.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.4.0...v1.5.0) (2026-10-14)
+
 ### Added
 
 - A set-up in four steps, without looking up a hash. `install` takes the commit and the tag of the release from its own clone, so `git clone --depth 1 --branch vX.Y.Z` and `install` are enough; it refuses the object of an annotated tag, which `git ls-remote` lists first, with the commit to use instead, and a commit or tag that isn't its checkout, whose templates it writes. `install --setup` also creates the environment `issue-assistant` on GitHub, for the default branch only, and has the GitHub CLI ask for the engine's secret. `install` now writes everything that `check` asks for: the section *What happens with your issue* in `SUPPORT.md` (in German for a file such as `SUPPORT.de.md`) where it doesn't name the AI yet, the runner of the AI and the ignored `queue` in an existing `.github/actionlint.yaml`, and, together with the starter labels, a bug report form with an *Area* field for a repository without issue forms, whose answers the labels `area: setup` and `area: docs` map. Each step looks first, so running `install` again changes nothing but the workflows. The README's set-up ends with a step that tries the assistant on an existing issue as a dry run, and turning off GitHub's auto-close of issues by merged pull requests is a step of its own.
@@ -36,29 +38,6 @@ All notable changes of the issue assistant. The complete notes of every version,
 - A comment of the reporter reopens an issue that closed for a missing answer also when an answer came in while the sweep closed it and took its labels. An issue that closed in another way since its last reopening stays closed.
 - No follow-up is posted once a maintainer joined the conversation while the AI wrote it.
 - A comment that someone else writes while the AI reads the reporter's comment after a release, such as "still broken for me too", no longer reopens an issue whose reporter just confirmed the fix: the AI judges the comment that started its run, not the newest one, and the issue reopens only for a comment of its reporter. In the same way, only the maintainer's comment that started the run can mark an issue as waiting for its reporter.
-
-## [1.5.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.4.0...v1.5.0) (2026-10-14)
-
-
-### Features
-
-* /assistant commands for maintainers and reporters ([#118](https://github.com/Dennis-Otto/issue-assistant/issues/118)) ([bbb22ae](https://github.com/Dennis-Otto/issue-assistant/commit/bbb22aee60404a3410b73c657a940355333b28ce))
-* a maintainer digest and monthly quality numbers in the daily sweep ([#120](https://github.com/Dennis-Otto/issue-assistant/issues/120)) ([ebae9ab](https://github.com/Dennis-Otto/issue-assistant/commit/ebae9abfe7e6aa69c7a49b9d4f2ce5cbc9a8c11c))
-* answer reporters in their language, with the texts in locale files ([#124](https://github.com/Dennis-Otto/issue-assistant/issues/124)) ([70d4321](https://github.com/Dennis-Otto/issue-assistant/commit/70d4321f6248652f888ea71821e34b4694c80f4a))
-* comments that explain themselves, take feedback and link every file correctly ([#110](https://github.com/Dennis-Otto/issue-assistant/issues/110)) ([0f068b3](https://github.com/Dennis-Otto/issue-assistant/commit/0f068b334c062e3cfebe4f23185f03f51e68377f))
-* **lifecycle:** configurable waiting periods, exemptions and locking of old threads ([#116](https://github.com/Dennis-Otto/issue-assistant/issues/116)) ([0ada1dc](https://github.com/Dennis-Otto/issue-assistant/commit/0ada1dc1e8ac596f94d4d20a92af2fc336641eb6))
-* per-task model, turns and budget, the rules as system prompt, and the cost of every run in the summary ([#126](https://github.com/Dennis-Otto/issue-assistant/issues/126)) ([f5bc6b2](https://github.com/Dennis-Otto/issue-assistant/commit/f5bc6b27464679fab272fd20dcb73844d0c67110))
-* **setup:** install without looking up hashes, set up the environment in one command, and try it right away ([#108](https://github.com/Dennis-Otto/issue-assistant/issues/108)) ([970c1b7](https://github.com/Dennis-Otto/issue-assistant/commit/970c1b7b9c400463a2f9fe865f2a652c75f71df6))
-
-
-### Bug fixes
-
-* **lifecycle:** keep the reminder, reopen and follow-up promises ([#103](https://github.com/Dennis-Otto/issue-assistant/issues/103)) ([3bdd0d9](https://github.com/Dennis-Otto/issue-assistant/commit/3bdd0d997cfde9ea823e3793399ec6fee65b6b54))
-
-
-### Performance
-
-* build the engine's context from a capped GraphQL window and only what each task needs ([#114](https://github.com/Dennis-Otto/issue-assistant/issues/114)) ([3bd4cf9](https://github.com/Dennis-Otto/issue-assistant/commit/3bd4cf9d4fbb4f6e01151c443ba91c8c0fdeebcb))
 
 ## [1.4.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.3.1...v1.4.0) (2026-10-14)
 
