@@ -8,8 +8,16 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 - Try the assistant on an issue that exists nowhere: name a JSON file with the issue and its comments, as GitHub's REST API gives them, in the environment variable `ISSUE_ASSISTANT_FIXTURE`, and `context` and `apply` read that issue instead of one on GitHub and write nothing, as in a dry run. The project's own Canary analyzes such an issue every week with the engine, on the firewall runner, so that an update of the engine's action, a host that the firewall blocks or an expired secret shows before a release instead of as issues without an answer.
 
+### Changed
+
+- Every analysis and follow-up says what it is and asks whether it helped. Its footer links *How the assistant works*, the part *What happens with your issue* of your `SUPPORT.md`, or of the first file of `[transparency] files`, and asks for a 👍 or 👎 on the comment; the summary of the morning sweep counts them for the analyses and follow-ups of the last 30 days, as numbers only. On a duplicate notice, the footer says that a 👎 also keeps the issue open, as before.
+- A long analysis keeps its questions in view: more than three links to related issues and files fold into one line below the questions, such as *Where to look: 5 links*, that opens them. A reminder links the comment with the questions that it reminds of.
+- The comments speak of the maintainers, not of one maintainer, and the information needed says that an answer reopens the issue if it closes, not while it is still open.
+
 ### Fixed
 
+- A link to a line of a Markdown file, or of another file that GitHub shows rendered, such as reStructuredText, AsciiDoc, a notebook or an SVG picture, opens the file's source at that line. Before, it opened the rendered page, where a line has no anchor. A path with a backtick stays one piece of code in its link.
+- Issues and discussions that the AI names as `#123` stay links when they exist, up to ten of them, as the prompt asks it to name them. Before, every number but those of the duplicates and related issues showed as code.
 - A fix that the morning sweep finds at the very end of the 14 days that it looks back closes its issue with the release that shipped it, as every other fix does. Before, the sweep labeled the issue but no longer counted the fix by the time of the label, so the issue waited for the next release, and its comment didn't name the fix. The sweep also no longer reads the issues that a recent merge names and that are closed already, most of them, so a busy repository spends far fewer of the 1,000 requests an hour that its token has, which its other workflows need too.
 
 ### Security

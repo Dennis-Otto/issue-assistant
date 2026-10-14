@@ -337,11 +337,14 @@ REPORTER = "alex-demo"
 DEMO_SHA = "4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c"
 CHART = "src/plant_monitor/chart.py"
 TROUBLESHOOTING = "docs/troubleshooting.md"
-# The files of the demo project that the comments link to, which git tracks there.
+# The files of the demo project that the comments link to, which git tracks there:
+# its notice to reporters, which the footers link, too.
 DEMO_FILES = {
     CHART: "".join(f"# line {number}\n" for number in range(1, 61)),
     TROUBLESHOOTING: "# Troubleshooting\n\n## The chart stays empty\n\nCollect the "
     "log of the hub with `log_level: debug`.\n",
+    "SUPPORT.md": "# Support\n\n## What happens with your issue\n\nThe issue "
+    "assistant, which uses Claude, an AI by Anthropic, takes a first look.\n",
 }
 # What the AI writes in the examples; everything else is the assistant's own text.
 WORDS: dict[str, dict[str, Any]] = {
@@ -445,7 +448,10 @@ KINDS = {
         "A new issue of a reporter, not of a maintainer, gets a first analysis: what "
         "the AI understood, the likely cause with links to the lines of code, what "
         "the reporter can try, the information still missing, and related issues and "
-        "discussions. Its questions add the label `needs-info`.",
+        "discussions. Its questions add the label `needs-info`. More than "
+        "{open_links} links to issues and files fold into one line, and the footer "
+        "links the notice to reporters and asks for a 👍 or 👎, which the summary of "
+        "the daily sweep counts.",
     ),
     "duplicate": (
         "A sure duplicate",
@@ -480,7 +486,8 @@ KINDS = {
     "reminder": (
         "A reminder",
         "{remind_after} days after a question of the assistant or of the maintainer, an issue "
-        "without an answer gets the label `stale` and a reminder. No AI writes this "
+        "without an answer gets the label `stale` and a reminder, which links the "
+        "comment with the questions. No AI writes this "
         "comment or any of those below.",
     ),
     "closed-unanswered": (
@@ -520,6 +527,12 @@ REGION = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 PLACEHOLDER = re.compile(r"<p>(ia-comment-[a-z-]+-(?:en|de))</p>")
+# The fold that the assistant puts around many links.
+FOLD = re.compile(
+    r"^<details><summary>(?P<summary>[^<\n]*)</summary>\n\n(?P<body>.*?)\n\n"
+    r"</details>$",
+    re.MULTILINE | re.DOTALL,
+)
 MARKER = re.compile(r"^<!-- issue-assistant:[^\n]*-->\n?", re.MULTILINE)
 ALERT = re.compile(
     r"^> \[!(?P<kind>[A-Z]+)\]\n(?P<body>(?:>.*(?:\n|$))+)", re.MULTILINE
@@ -682,7 +695,12 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
             words["still_missing"],
             config,
         ),
-        "reminder": ia.render_reminder(REPORTER, language, datetime(2026, 11, 2)),
+        "reminder": ia.render_reminder(
+            REPORTER,
+            language,
+            datetime(2026, 11, 2),
+            f"https://github.com/{DEMO}/issues/42#issuecomment-1",
+        ),
         "closed-unanswered": ia.render_closed_unanswered(REPORTER, language),
         "reopened": ia.render_reopened(REPORTER, language),
         "closed-duplicate": ia.render_closed_duplicate(23, language),
@@ -718,6 +736,7 @@ def timings(ia: ModuleType) -> dict[str, Any]:
         "remind_after": ia.REMIND_AFTER.days,
         "close_after": ia.CLOSE_AFTER.days,
         "duplicate_grace": ia.DUPLICATE_GRACE.days,
+        "open_links": ia.MAX_OPEN_LINKS,
         "reopen_after_release": ia.REOPEN_AFTER_RELEASE.days,
         "follow_ups": {1: "once", 2: "twice"}.get(
             ia.MAX_FOLLOW_UPS, f"{ia.MAX_FOLLOW_UPS} times"
@@ -785,12 +804,25 @@ def comment_html(text: str, convert: Callable[[str], str]) -> str:
     both stay text.
     """
     markdown = NO_HEADING.sub(r"\g<start>\\#", admonitions(MARKER.sub("", text)))
+    markdown = folded(markdown, convert)
     body = DEMO_LINK.sub(r'<span class="ia-link">\g<text></span>', convert(markdown))
     parts = re.split(r"(<code>.*?</code>)", body, flags=re.S)
     for index in range(0, len(parts), 2):
         text = MENTION.sub(r'<span class="ia-mention">@\g<login></span>', parts[index])
         parts[index] = REFERENCE.sub(r'<span class="ia-link">#\g<number></span>', text)
     return CARD.format(body="".join(parts))
+
+
+def folded(markdown: str, convert: Callable[[str], str]) -> str:
+    """The Markdown with the fold of its links as HTML around the HTML of the links:
+    GitHub reads the Markdown inside the fold, Python-Markdown leaves it as it is."""
+    return FOLD.sub(
+        lambda match: (
+            f"<details><summary>{match['summary']}</summary>\n"
+            f"{convert(match['body'])}\n</details>"
+        ),
+        markdown,
+    )
 
 
 def markdown_html(text: str) -> str:

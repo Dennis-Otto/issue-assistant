@@ -1,0 +1,19 @@
+flowchart TB
+  accTitle: What a comment links and how its feedback is counted
+  accDescr: The apply job looks up the issue numbers that the AI names, up to ten: an issue or a discussion that exists stays a link, any other number becomes code. More than three links to related issues and files fold into one line below the questions, which opens them. The footer of every analysis and follow-up links the notice to reporters and asks for a thumbs up or down, and the morning sweep counts those of the last 30 days in its summary. Questions that stay unanswered for 15 days get a reminder that links the comment with them.
+  answer["the answer of the AI"] --> named{"a #35;123 of an issue or<br>discussion that exists?"}
+  named -- "yes, up to ten" --> link["a link"]
+  named -- "no" --> code["code"]
+  answer --> many{"more than three links<br>to issues and files?"}
+  many -- "yes" --> fold["one line below the<br>questions that opens them"]
+  many -- "no" --> lists["the lists below<br>the questions"]
+  answer --> footer["`the footer: **How the<br>assistant works** and a<br>request for a 👍 or 👎`"]
+  footer --> sweep["the morning sweep counts<br>the 👍 and 👎 of 30 days<br>in its summary"]
+  answer --> questions["questions for the reporter"]
+  questions -- "no answer in 15 days" --> reminder["a reminder that links<br>the comment with them"]
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class named,many question
+  class answer,footer,questions,sweep,reminder job
+  class link,code,fold,lists safe

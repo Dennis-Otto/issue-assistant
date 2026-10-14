@@ -141,6 +141,14 @@ TROUBLESHOOTING = """# Troubleshooting
 Collect the log of the hub with `log_level: debug` and attach it to the issue.
 """
 
+# The notice to reporters, which the footer of an analysis links.
+SUPPORT = """# Support
+
+## What happens with your issue
+
+The issue assistant, which uses Claude, an AI by Anthropic, takes a first look.
+"""
+
 FINDINGS = """[[accept]]
 tool = "Scorecard"
 rule = "CodeReviewID"
@@ -180,6 +188,7 @@ FILES = {
     ".github/findings.toml": FINDINGS,
     "src/plant_monitor/chart.py": CHART,
     "docs/troubleshooting.md": TROUBLESHOOTING,
+    "SUPPORT.md": SUPPORT,
 }
 EARLY_RETURN = CHART.splitlines().index("        if self.subscribed:") + 1
 
