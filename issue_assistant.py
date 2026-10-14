@@ -25,9 +25,10 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import tomllib
-from collections.abc import Callable, Collection, Iterable
+from collections.abc import Callable, Collection, Iterable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -60,7 +61,25 @@ STARTERS = (
     SETTINGS / "config.toml",
     FINDINGS_FILE,
 )
+# The issue forms and templates of a repository, and the form that install writes
+# into a repository that has none.
+FORMS = PurePosixPath(".github/ISSUE_TEMPLATE")
+FORM_STARTER = FORMS / "bug_report.yml"
+# The section that tells reporters what happens with their issue, which install adds
+# to each file of [transparency] that doesn't name the engine yet, in English or, for
+# a file such as SUPPORT.de.md, in German.
+NOTICE = PurePosixPath("SUPPORT-notice.md")
+NOTICE_DE = PurePosixPath("SUPPORT-notice.de.md")
 FIREWALL_RUNNER = "ubuntu-24.04-firewall"
+# actionlint 1.7.12, the newest release, doesn't know the queue of a concurrency
+# group yet, which issue-assistant.yml has; install lets it ignore that message.
+QUEUE_MESSAGE = 'unexpected key "queue" for "concurrency" section'
+# The environment that holds the engine's secret, limited to the default branch.
+ENVIRONMENT = "issue-assistant"
+# The version of this checkout, which the release bot writes.
+VERSION_FILE = TOOL / "version.txt"
+# The tags of the releases, such as v1.2.3, as git's --match takes them.
+RELEASE_TAGS = "v[0-9]*.[0-9]*.[0-9]*"
 # The workflows of the templates: install copies them, with the commit hash of the
 # release in the pin of the action, and check compares a repository's workflows
 # with them.
@@ -74,6 +93,8 @@ TEMPLATE_WORKFLOWS = (
 DISMISS_REASONS = ("false positive", "won't fix", "used in tests")
 ACTION = "Dennis-Otto/issue-assistant"
 ACTION_PIN = re.compile(rf"{re.escape(ACTION)}@[0-9a-f]{{40}} # \S+")
+# A checkout of a release, from which install writes the templates of that release.
+CLONE = f"git clone --depth 1 --branch vX.Y.Z https://github.com/{ACTION}"
 # A repository as owner/name, in the characters GitHub allows; "." and ".." are no
 # names.
 REPOSITORY_NAME = re.compile(r"[\w-]+/(?!\.\.?\Z)[\w.-]+", re.ASCII)
@@ -455,11 +476,21 @@ class Engine:
     name: str
     vendor: str
     model: str
+    # The secrets of the environment issue-assistant that the engine's step reads,
+    # the one that `install --setup` asks for first.
+    secrets: tuple[str, ...]
 
 
 # The engines the workflow template has a step for; .github/issue-assistant/config.toml
 # of a repository chooses one. README.md#engines describes how to add one.
-ENGINES = {"claude": Engine("Claude", "Anthropic", "claude-opus-5-5")}
+ENGINES = {
+    "claude": Engine(
+        "Claude",
+        "Anthropic",
+        "claude-opus-5-5",
+        ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"),
+    )
+}
 DEFAULT_ENGINE = "claude"
 # The workflow passes the model to the engine's command line without quotes. The
 # names and IDs of models fit, also with a version after @ or :, a path or a suffix
@@ -1035,6 +1066,11 @@ class GitHub:
         if pages:
             return [item for page in response for item in page]
         return response
+
+    def default_branch(self) -> str:
+        """The default branch of the repository, which `install --setup` reads."""
+        repository = self._gh(["api", f"repos/{self.repository}"])
+        return str(repository["default_branch"])
 
     def graphql(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
         response = self._gh(
@@ -4040,7 +4076,7 @@ def check_forms(config: Config) -> list[str]:
     problems = []
     defined = {label.name for label in config.labels}
     options: list[str] = []
-    for path in sorted((config.root / ".github/ISSUE_TEMPLATE").glob("*.y*ml")):
+    for path in sorted((config.root / FORMS).glob("*.y*ml")):
         if path.stem == "config":
             continue
         where = path.relative_to(config.root).as_posix()
@@ -4090,18 +4126,18 @@ def check_workflows(config: Config) -> list[str]:
         path = config.root / WORKFLOWS / name
         where = str(WORKFLOWS / name)
         if not path.is_file():
-            problems.append(f"{where} is missing; run the install command")
+            problems.append(f"{where} is missing; {reinstall()}")
             continue
         expected = normalized(load_yaml(template), [], template.name)
         actual = normalized(load_yaml(path, where), problems, where)
         if actual != expected:
             problems.append(
-                f"{where} differs from the template of the issue assistant; "
-                "only the refs of its actions may differ"
+                f"{where} differs from the template of the issue assistant, and "
+                f"only the refs of its actions may differ; {reinstall()}"
             )
     firewall = config.root / FIREWALL
     if not firewall.is_file():
-        problems.append(f"{FIREWALL} is missing; run the install command")
+        problems.append(f"{FIREWALL} is missing; {reinstall()}")
     else:
         policy = load_yaml(firewall, str(FIREWALL))
         needed = set(load_yaml(TEMPLATES / FIREWALL)["allow"])
@@ -4218,10 +4254,320 @@ def check(config: Config) -> list[str]:
 # Setting up a repository
 
 
+def git_says(folder: Path, *args: str) -> str | None:
+    """What git prints for `args` in `folder`; None when git fails or is missing."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(folder), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def release_of(tool: Path, ref: str | None, version: str | None) -> tuple[str, str]:
+    """The commit and the tag of the release whose templates install writes.
+
+    They are those of the git checkout in `tool`, which a clone of a release tag
+    names on its own. A --ref that is given must be the commit of the checkout, not
+    the object of an annotated tag, which `git ls-remote` lists first; a --version
+    that the checkout has as a tag must point to it. Without a checkout of its own,
+    such as an unpacked package of a release, install takes both as they are given.
+    """
+    if ref is not None and not SHA.fullmatch(ref):
+        raise AssistantError(
+            f"--ref takes the full commit hash of the release, not {ref!r}; leave it "
+            "out to take the commit of the checkout."
+        )
+    top = git_says(tool, "rev-parse", "--show-toplevel")
+    # A folder in the checkout of another repository is no checkout of its own.
+    own = top is not None and Path(top).resolve() == tool.resolve()
+    head = git_says(tool, "rev-parse", "HEAD^{commit}") if own else None
+    if head is None:
+        if ref is None or version is None:
+            raise AssistantError(
+                f"{tool.as_posix()} is no git checkout, so give --ref and --version, "
+                f"or run install from a checkout of a release: {CLONE}"
+            )
+        return ref, version
+    if ref is not None and ref != head:
+        if git_says(tool, "cat-file", "-t", ref) == "tag":
+            raise AssistantError(
+                f"{ref} is the object of a tag, not the commit of a release; use "
+                f"{git_says(tool, 'rev-parse', ref + '^{commit}')}, or leave out --ref."
+            )
+        raise AssistantError(
+            f"The checkout in {tool.as_posix()} is at the commit {head}, not {ref}, "
+            "and install writes its templates; leave out --ref, or check out the "
+            "release of that commit."
+        )
+    if version is None:
+        tag = git_says(
+            tool, "describe", "--tags", "--exact-match", "--match", RELEASE_TAGS
+        )
+        if not tag:
+            raise AssistantError(
+                f"The checkout in {tool.as_posix()} is at no release; check out the "
+                f"tag of one, or clone it: {CLONE}"
+            )
+        return head, tag
+    tagged = git_says(
+        tool, "rev-parse", "--verify", "--quiet", f"refs/tags/{version}^{{commit}}"
+    )
+    if tagged is not None and tagged != head:
+        raise AssistantError(
+            f"The tag {version} is the commit {tagged}, not {head} of the checkout in "
+            f"{tool.as_posix()}; leave out --version, or check out {version}."
+        )
+    return head, version
+
+
+def reinstall() -> str:
+    """The commands that write the templates of this release anew, for `check`."""
+    version = VERSION_FILE.read_text(encoding="utf-8").strip()
+    return (
+        "write the templates of this release anew with: "
+        f'dir="$(mktemp -d)" && git clone --quiet --depth 1 --branch v{version} '
+        f'https://github.com/{ACTION} "$dir" && python3 "$dir/issue_assistant.py" '
+        "install"
+    )
+
+
+# Editing actionlint's settings, which are YAML
+
+
+def yaml_of(text: str) -> Any:
+    """YAML text as data, read as load_yaml reads a file; None if it isn't YAML."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "settings.yaml"
+        path.write_text(text, encoding="utf-8")
+        try:
+            return load_yaml(path)
+        except SettingsError:
+            return None
+
+
+def items_at(data: Any, keys: tuple[str, ...]) -> list[Any]:
+    """The list that the mappings of YAML data hold at `keys`; empty if none."""
+    for key in keys:
+        data = data.get(key) if isinstance(data, dict) else None
+    return data if isinstance(data, list) else []
+
+
+def with_listed(data: Any, keys: tuple[str, ...], item: str) -> Any:
+    """YAML data with `item` first in the list at `keys`, which is added if missing;
+    None where something else than a mapping or a list is in the way."""
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        return None
+    data = deepcopy(data)
+    node = data
+    for key in keys[:-1]:
+        if node.get(key) is None:
+            node[key] = {}
+        node = node[key]
+        if not isinstance(node, dict):
+            return None
+    items = node.get(keys[-1])
+    if items is not None and not isinstance(items, list):
+        return None
+    node[keys[-1]] = [item, *(items or [])]
+    return data
+
+
+def indentation(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def content_lines(lines: list[str], block: range) -> list[int]:
+    """The lines of `block` that hold more than blanks or a comment."""
+    return [
+        number
+        for number in block
+        if lines[number].strip() and not lines[number].lstrip().startswith("#")
+    ]
+
+
+def with_item(text: str, keys: tuple[str, ...], item: str) -> str | None:
+    """YAML text with `item` first in the list at `keys`, adding the keys it lacks.
+
+    The edit adds lines below the deepest of the keys that the text has, or puts the
+    item into the brackets of a list such as `labels: []`, so that every comment and
+    the order of the keys stay. Its result is read back: None when that isn't the
+    data with the item added, for YAML that the edit doesn't fit, such as a list
+    whose items aren't indented below its key.
+    """
+    expected = with_listed(yaml_of(text), keys, item)
+    if expected is None:
+        return None
+    lines = text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    # The key found last, its line and its match, and the lines of its block, which
+    # are indented more deeply; at first the whole text, the block of the top level.
+    found, line, match = 0, -1, None
+    block = range(len(lines))
+    for key in keys:
+        content = content_lines(lines, block)
+        if not content:
+            break
+        inner = indentation(lines[content[0]])
+        name = re.escape(key)
+        pattern = re.compile(
+            rf" *(?:{name}|'{name}'|\"{name}\"):[ \t]*(?P<flow>\[[^\]]*\])?"
+            r"[ \t]*(?:#.*)?\n"
+        )
+        hit = next(
+            (
+                (number, matched)
+                for number in content
+                if indentation(lines[number]) == inner
+                and (matched := pattern.fullmatch(lines[number]))
+            ),
+            None,
+        )
+        if hit is None:
+            break
+        (line, match), found = hit, found + 1
+        end = line + 1
+        while end < len(lines) and (
+            not lines[end].strip()
+            or lines[end].lstrip().startswith("#")
+            or indentation(lines[end]) > inner
+        ):
+            end += 1
+        block = range(line + 1, end)
+    scalar = (
+        item if re.fullmatch(r"[\w.-]+", item) else "'" + item.replace("'", "''") + "'"
+    )
+    if found == len(keys) and match and match["flow"]:
+        inside = match["flow"][1:-1].strip()
+        start, stop = match.span("flow")
+        lines[line] = (
+            lines[line][:start]
+            + f"[{scalar}{', ' + inside if inside else ''}]"
+            + lines[line][stop:]
+        )
+    else:
+        content = content_lines(lines, block)
+        if line < 0:
+            indent, position = 0, len(lines)
+        else:
+            indent = (
+                indentation(lines[content[0]])
+                if content
+                else indentation(lines[line]) + 2
+            )
+            position = line + 1
+        added = [
+            " " * (indent + 2 * step) + f"{key}:\n"
+            for step, key in enumerate(keys[found:])
+        ]
+        added.append(" " * (indent + 2 * len(added)) + f"- {scalar}\n")
+        lines[position:position] = added
+    result = "".join(lines)
+    return result if yaml_of(result) == expected else None
+
+
+def add_to_actionlint(root: Path) -> list[str]:
+    """Let actionlint, where a repository runs it with settings, know the runner of
+    the AI and ignore the queue of issue-assistant.yml, which it doesn't know yet."""
+    path = root / ACTIONLINT
+    if not path.is_file():
+        return []
+    done = []
+    for keys, item, what in (
+        (
+            ("self-hosted-runner", "labels"),
+            FIREWALL_RUNNER,
+            f"listed the runner {FIREWALL_RUNNER}",
+        ),
+        (
+            ("paths", str(WORKFLOWS / "issue-assistant.yml"), "ignore"),
+            QUEUE_MESSAGE,
+            "let actionlint ignore the queue of issue-assistant.yml",
+        ),
+    ):
+        text = path.read_text(encoding="utf-8")
+        if item in items_at(load_yaml(path, str(ACTIONLINT)), keys):
+            continue
+        edited = with_item(text, keys, item)
+        if edited is None:
+            done.append(
+                f"{ACTIONLINT}: add {item!r} to the list {' > '.join(keys)}; its YAML "
+                "is too unusual to edit safely"
+            )
+            continue
+        path.write_text(edited, encoding="utf-8", newline="\n")
+        done.append(f"{what} in {ACTIONLINT}")
+    return done
+
+
+# The files of a set-up
+
+
+def add_form(root: Path) -> list[str]:
+    """A bug report form for a repository without issue forms or templates."""
+    forms = root / FORMS
+    if forms.is_dir() and any(
+        path.is_file() and path.stem != "config" for path in forms.iterdir()
+    ):
+        return []
+    forms.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(TEMPLATES / FORM_STARTER, root / FORM_STARTER)
+    return [f"wrote {FORM_STARTER}; adapt it"]
+
+
+def add_notices(root: Path) -> list[str]:
+    """Tell reporters what happens with their issue, and which AI reads it, in each
+    file of [transparency] that doesn't name the engine yet, as `check` asks."""
+    config = load_config(root, "", lenient=True)
+    engine = ENGINES.get(config.engine)
+    if engine is None:
+        # check names the engine that the assistant doesn't know.
+        return []
+    done = []
+    for name in config.notices:
+        path = root / name
+        if not path.resolve().is_relative_to(root.resolve()):
+            done.append(f"kept {name}, which is outside the repository")
+            continue
+        text = path.read_text(encoding="utf-8") if path.is_file() else "# Support\n"
+        if engine.name in text and engine.vendor in text:
+            continue
+        german = name.casefold().endswith(".de.md")
+        lines = [
+            line
+            for line in (TEMPLATES / (NOTICE_DE if german else NOTICE))
+            .read_text(encoding="utf-8")
+            .splitlines(keepends=True)
+            # Without releases, GitHub closes a fixed issue with the merge.
+            if config.releases or FIXED not in line
+        ]
+        notice = "".join(lines).replace("{engine}", engine.name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"{text.rstrip()}\n\n{notice.replace('{vendor}', engine.vendor)}",
+            encoding="utf-8",
+            newline="\n",
+        )
+        done.append(f"added what happens with an issue to {name}; adapt it")
+    return done
+
+
 def install(root: Path, ref: str, version: str) -> list[str]:
     """Write the workflows and the firewall policy of the templates into a repository.
 
-    Labels, project.md and config.toml are only written when they are missing.
+    The starters are only written when they are missing: labels, project.md,
+    config.toml, findings.toml, and a bug report form in a repository without issue
+    forms. The notice to reporters, the entry of .gitignore and what actionlint
+    needs are added where they are missing, so that running it again changes
+    nothing but the workflows.
     """
     if not SHA.fullmatch(ref):
         raise AssistantError("Give the commit hash of the issue assistant's release.")
@@ -4247,6 +4593,7 @@ def install(root: Path, ref: str, version: str) -> list[str]:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(TEMPLATES / starter, target)
             done.append(f"wrote {starter}; adapt it")
+    done += add_form(root)
     ignore = root / ".gitignore"
     entry = f"/{CONTEXT}/"
     lines = ignore.read_text(encoding="utf-8").splitlines() if ignore.is_file() else []
@@ -4255,7 +4602,109 @@ def install(root: Path, ref: str, version: str) -> list[str]:
             "\n".join([*lines, entry]) + "\n", encoding="utf-8", newline="\n"
         )
         done.append(f"added {entry} to .gitignore")
-    return done
+    return done + add_to_actionlint(root) + add_notices(root)
+
+
+# Setting up GitHub
+
+
+def repository_of_checkout(root: Path) -> str:
+    """The repository on GitHub of the checkout in `root`, as gh finds it."""
+    result = subprocess.run(
+        ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    name = result.stdout.strip()
+    if result.returncode or not REPOSITORY_NAME.fullmatch(name):
+        raise AssistantError(
+            f"gh finds no repository on GitHub for {root.as_posix()} "
+            f"({result.stderr.strip() or name or 'no remote'}); name it with "
+            "GH_REPO=owner/name."
+        )
+    return name
+
+
+def set_up_github(github: GitHub, config: Config, *, ask: bool) -> Iterator[str]:
+    """Set up on GitHub what the workflows need, and say what is left to do.
+
+    The engine's secret belongs to the environment issue-assistant, which only the
+    default branch may use, so that no other branch's workflow can read it. Each
+    step looks first, so that running it again changes nothing; in a terminal, gh
+    asks for the secret, which never passes through this script.
+    """
+    branch = github.default_branch()
+    path = f"environments/{ENVIRONMENT}"
+    try:
+        environment = github.rest(path)
+    except GitHubError as error:
+        if not error.missing():
+            raise
+        environment = github.rest(
+            path,
+            method="PUT",
+            data={
+                "deployment_branch_policy": {
+                    "protected_branches": False,
+                    "custom_branch_policies": True,
+                }
+            },
+        )
+        yield f"created the environment {ENVIRONMENT}"
+    policy = environment.get("deployment_branch_policy") or {}
+    if not policy.get("custom_branch_policies"):
+        # A maintainer's choice, such as protected branches, which may also be
+        # meant for reviewers or a wait timer; only a person changes it.
+        yield (
+            f"kept the environment {ENVIRONMENT}, which "
+            + ("protected branches" if policy else "every branch")
+            + f" may use; limit it to {branch} under Settings > Environments"
+        )
+    else:
+        policies = github.rest(f"{path}/deployment-branch-policies?per_page=100")
+        if any(
+            item.get("name") == branch and item.get("type", "branch") == "branch"
+            for item in policies.get("branch_policies") or []
+        ):
+            yield f"kept the environment {ENVIRONMENT}, for the branch {branch}"
+        else:
+            github.rest(
+                f"{path}/deployment-branch-policies",
+                method="POST",
+                data={"name": branch, "type": "branch"},
+            )
+            yield f"let the branch {branch} use the environment {ENVIRONMENT}"
+    engine = ENGINES[engine_named(config.engine)]
+    secrets = github.rest(f"{path}/secrets?per_page=100")
+    present = {item.get("name") for item in secrets.get("secrets") or []}
+    command_line = (
+        f"gh secret set {engine.secrets[0]} --env {ENVIRONMENT} "
+        f"--repo {github.repository}"
+    )
+    others = ", ".join(engine.secrets[1:])
+    if present & set(engine.secrets):
+        yield f"kept the secret of {engine.name} in the environment {ENVIRONMENT}"
+    elif not ask:
+        yield f"left for you: {command_line}, or set {others} instead"
+    else:
+        yield f"{command_line}: paste the secret of {engine.name}, or {others} later"
+        asked = subprocess.run(
+            ["gh", "secret", "set", engine.secrets[0], "--env", ENVIRONMENT]
+            + ["--repo", github.repository],
+            check=False,
+        )
+        if asked.returncode:
+            raise AssistantError(f"gh set no secret; run {command_line}")
+        yield f"set the secret {engine.secrets[0]} of the environment {ENVIRONMENT}"
+    if config.releases:
+        yield (
+            "left for you: clear Settings > General > Issues > Auto-close issues with "
+            f"merged linked pull requests on https://github.com/{github.repository}"
+            "/settings, so that a fixed issue stays open until its release"
+        )
 
 
 # Command line
@@ -4368,9 +4817,21 @@ def main(argv: list[str] | None = None) -> int:
         "are open",
     )
     commands.add_parser("check", help="check the repository's set-up")
-    setup = commands.add_parser("install", help="write the workflows into a repository")
-    setup.add_argument("--ref", required=True, help="commit hash of the release")
-    setup.add_argument("--version", required=True, help="release tag, such as v1.0.0")
+    setup = commands.add_parser(
+        "install", help="write the workflows and the starters into a repository"
+    )
+    setup.add_argument(
+        "--ref", help="commit hash of the release; by default the checkout's"
+    )
+    setup.add_argument(
+        "--version", help="release tag, such as v1.0.0; by default the checkout's"
+    )
+    setup.add_argument(
+        "--setup",
+        action="store_true",
+        help="also create the environment issue-assistant on GitHub and set the "
+        "engine's secret",
+    )
     arguments = parser.parse_args(argv)
 
     # ISSUE_ASSISTANT_ROOT points the script at another checkout, as in the action's
@@ -4394,8 +4855,28 @@ def main(argv: list[str] | None = None) -> int:
                 f"unset it for {arguments.command}."
             )
         if arguments.command == "install":
-            for line in install(root, arguments.ref, arguments.version):
+            ref, version = release_of(TOOL, arguments.ref, arguments.version)
+            for line in install(root, ref, version):
                 print(line)
+            if arguments.setup:
+                if shutil.which("gh") is None:
+                    raise AssistantError(
+                        "--setup needs the GitHub CLI, gh: https://cli.github.com"
+                    )
+                repository = repository_of_run(needed=False) or (
+                    repository_of_checkout(root)
+                )
+                print(f"set up {repository} on GitHub:")
+                # It writes, as install writes the files, also in a dry run.
+                github = GitHub(repository, dry_run=False)
+                config = load_config(root, repository, lenient=True)
+                for line in set_up_github(github, config, ask=sys.stdin.isatty()):
+                    print(line)
+            print(
+                f"next: describe the project in {SETTINGS / 'project.md'}, run "
+                f"python3 {(TOOL / 'issue_assistant.py').as_posix()} check, commit, "
+                "push, and try it under Actions > Issue assistant > Run workflow"
+            )
             return 0
         # check and engine read only the checkout, so they run anywhere, also on a
         # computer without GH_REPO; the other commands call GitHub.

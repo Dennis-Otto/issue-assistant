@@ -1,32 +1,33 @@
 flowchart TB
   accTitle: What install writes, what you edit and what you set on GitHub
-  accDescr: install of a release, run in the root of the repository, writes the four workflows, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore, and starters of project.md, config.toml, labels.toml and findings.toml when they are missing. Then you edit the starters, to describe the project, its labels, its settings and the accepted findings, tell reporters in SUPPORT.md which AI reads their issues, and add a step with check to the CI. Then you set on GitHub the environment issue-assistant, limited to the default branch, with the engine's secret, and turn off the auto-close of issues by merged pull requests. Then check passes, and the next new issue gets its analysis.
-  install(["`**install** of a release,<br>in the root of the repository`"]) --> written
+  accDescr: install of a release, run in the root of the repository, writes the four workflows, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore; adds the notice to reporters to SUPPORT.md and the runner of the AI to actionlint's settings where they are missing; and writes starters of project.md, config.toml, labels.toml, findings.toml and a bug report form when they are missing. With --setup, it also creates the environment issue-assistant on GitHub, limited to the default branch, and asks for the engine's secret. Then you describe the project in project.md, adapt the starters, and turn off the auto-close of issues by merged pull requests. Then check passes, and a run by hand shows the first analysis as a dry run.
+  install(["`**install --setup** of a release,<br>in the root of the repository`"]) --> written
   subgraph written ["install writes"]
     direction TB
-    workflows["the four<br>workflows"]
-    firewall["the firewall policy,<br>a line in .gitignore"]
-    starters["starters, when missing:<br>project.md, config.toml,<br>labels.toml, findings.toml"]
+    workflows["the four workflows,<br>the firewall policy,<br>a line in .gitignore"]
+    notices["where missing: the notice<br>to reporters in SUPPORT.md,<br>the runner for actionlint"]
+    starters["starters, when missing:<br>project.md, config.toml,<br>labels.toml, findings.toml,<br>a bug report form"]
   end
-  written -- "then" --> edited
-  subgraph edited ["you edit"]
+  written -- "with --setup" --> github
+  subgraph github ["install sets up on GitHub"]
     direction TB
-    describe["the starters: the project,<br>the labels, the settings,<br>accepted findings"]
-    support["SUPPORT.md: which<br>AI reads the issues"]
-    ci["`the CI: a step<br>with **check**`"]
+    environment["the environment<br>issue-assistant, for the<br>default branch only"]
+    secret["the engine's secret,<br>which gh asks for"]
+    environment ~~~ secret
   end
-  edited -- "then" --> settings
-  subgraph settings ["you set on GitHub"]
+  github -- "then" --> edited
+  subgraph edited ["you edit and set"]
     direction TB
-    environment["the environment<br>issue-assistant: the default<br>branch, the engine's secret"]
-    autoclose["no auto-close of issues<br>by merged pull requests"]
+    describe["project.md: what the<br>project is; the starters:<br>labels, forms, settings"]
+    autoclose["on GitHub: no auto-close<br>of issues by merged<br>pull requests"]
+    describe ~~~ autoclose
   end
-  settings --> check(["`**check** passes, and the next<br>new issue gets its analysis`"])
+  edited --> check(["`**check** passes, and a run<br>by hand shows the first<br>analysis as a dry run`"])
   classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
   classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
   classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
   classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class install trigger
-  class workflows,firewall,starters job
-  class describe,support,ci,environment,autoclose person
+  class workflows,notices,starters,environment,secret job
+  class describe,autoclose person
   class check safe

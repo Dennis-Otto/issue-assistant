@@ -1,0 +1,63 @@
+# A starter of the issue assistant: https://github.com/Dennis-Otto/issue-assistant
+# Each answer of the field Area chooses the label whose form_options in
+# .github/labels.toml name it; "Other" chooses none, as unmapped_options in
+# .github/issue-assistant/config.toml says. Add the parts of your project to both.
+name: Bug report
+description: Something doesn't work as it should.
+labels:
+  - bug
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. Within a few minutes, an AI issue assistant posts a first analysis and may ask questions; the maintainers read every issue as well. SUPPORT.md in this repository says what happens with your issue.
+
+        **Never post** tokens, keys, passwords or other personal data. Report a vulnerability privately, as the security policy of this repository describes.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installation, configuration or update
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The version where it happens, such as 1.2.0.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines
+      description: The relevant lines of the log, without tokens or personal data.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing issues and did not find this problem.
+          required: true
+        - label: I removed tokens, keys and personal data from everything I posted.
+          required: true
