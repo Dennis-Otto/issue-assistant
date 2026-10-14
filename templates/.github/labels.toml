@@ -106,3 +106,9 @@ name = "wontfix"
 color = "ffffff"
 description = "This will not be worked on"
 group = "decision"
+
+[[label]]
+name = "assistant-muted"
+color = "ededed"
+description = "The assistant starts no AI run on this issue; /assistant unmute ends it"
+group = "decision"

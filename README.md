@@ -47,6 +47,7 @@ A GitHub Action that looks after the issues of a repository:
 - **Unanswered questions:** questions of the assistant or the maintainer mark an issue `needs-info`; after 15 days the reporter gets a reminder that names the day the issue closes, and after 30 days it closes on that day. An answer, in a comment or by an edit of the issue, ends the waiting, and a comment reopens a closed issue.
 - **Your own lifecycle:** `[lifecycle]` in `config.toml` sets each of these periods, exempts issues by label, assignee or 👍, and can lock threads closed long ago; the comments and `check` follow the settings.
 - **From the fix to the release:** a merged pull request that fixes an issue (`Fixes #12`) marks it `fixed-in-next-release`, and the issue stays open until a release ships the fix. Then it closes with a link to the release. If the reporter writes that the problem persists, it reopens.
+- **Slash commands:** a maintainer steers the assistant from the issue with a comment such as `/assistant again`, `/assistant ask <question>`, `/assistant duplicate #12` or `/assistant mute`, and the reporter can ask once for a new analysis; see [Slash commands](#slash-commands).
 - **Labels as code** in `.github/labels.toml`.
 - **Findings of code scanning:** the findings that `.github/findings.toml` accepts are dismissed with their reason; any other open finding fails a daily run, without a public issue.
 
@@ -77,21 +78,21 @@ Four workflows run in the repository. Only the violet job runs an AI, and it can
 
 | Workflow | When | What |
 | --- | --- | --- |
-| `issue-assistant.yml` | new issues, edits of their reporters, new comments, by hand | labels from the form, the first analysis, follow-ups when the reporter answers, whether a maintainer's comment waits for the reporter, and whether a comment after the release reopens the issue |
+| `issue-assistant.yml` | new issues, edits of their reporters, new comments, by hand | labels from the form, the first analysis, follow-ups when the reporter answers, whether a maintainer's comment waits for the reporter, whether a comment after the release reopens the issue, and the [slash commands](#slash-commands) of maintainers and reporters |
 | `issue-lifecycle.yml` | every morning, merged pull requests, published releases, the end of a workflow named Release or Release integration that no schedule started | reminders after 15 days, closing after 30 days, closing duplicates 3 days after the notice, or the days of `[lifecycle]`, marking fixed issues and closing them with the release, and locking issues closed long ago when `lock_closed_after_days` is set |
 | `labels.yml` | when `.github/labels.toml` changes on main | creates and updates the labels; never deletes one |
 | `findings.yml` | every morning, after each scan of CodeQL, OpenSSF Scorecard, Workflow security and OSV-Scanner on main, when `.github/findings.toml` changes | dismisses the accepted findings of code scanning and fails while others are open |
 
 Every job runs on `ubuntu-24.04`, the AI's on GitHub's egress-firewall runner of the same version. The events of one issue wait for each other, first in, first out, so a comment written while an analysis runs is handled after it, never dropped. A run of the lifecycle or the findings whose job has nothing to do, such as after the hourly scheduled run of a release workflow, takes no runner and never takes the place of one that waits.
 
-Every task of the AI is one of four: `triage` for a new issue, `follow-up` when the reporter answered the assistant's questions (at most twice, and never once the maintainer joined the conversation), `maintainer-reply` to decide whether a maintainer's comment waits for the reporter, and `release-reply` to decide whether the reporter of an issue that a release closed says that the problem persists. Which one an event of an issue gives it:
+Every task of the AI is one of five: `triage` for a new issue, `follow-up` when the reporter answered the assistant's questions (at most twice, and never once the maintainer joined the conversation), `maintainer-reply` to decide whether a maintainer's comment waits for the reporter, `release-reply` to decide whether the reporter of an issue that a release closed says that the problem persists, and `maintainer-question` to answer the question of a maintainer's [`/assistant ask`](#slash-commands). Which one an event of an issue gives it:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/which-task-an-event-of-an-issue-gives-the-ai.dark.svg">
-  <img src="docs/images/diagrams/which-task-an-event-of-an-issue-gives-the-ai.svg" alt="Which task an event of an issue gives the AI: An event of a bot, on a pull request, or a new issue that a maintainer opened gives the AI no task. Otherwise, a new issue gives it triage. An answer of the reporter to the assistant's questions gives it follow-up, at most twice and only while no maintainer joined the conversation since the questions. A comment of a maintainer on a reporter's issue that waits for nobody gives it maintainer-reply. A comment of the reporter within 30 days after a release closed the issue gives it release-reply. Any other event, such as a comment of someone else, gives it no task. A task runs only while the AI is on and its secret is set; otherwise no analysis comes, and labels, reminders and closing go on.">
+  <img src="docs/images/diagrams/which-task-an-event-of-an-issue-gives-the-ai.svg" alt="Which task an event of an issue gives the AI: An event of a bot, on a pull request, or a new issue that a maintainer opened gives the AI no task. Otherwise, a new issue, or the command /assistant again, gives it triage. An answer of the reporter to the assistant's questions gives it follow-up, at most twice and only while no maintainer joined the conversation since the questions. A comment of a maintainer on a reporter's issue that waits for nobody gives it maintainer-reply. A comment of the reporter within 30 days after a release closed the issue gives it release-reply. A maintainer's command /assistant ask gives it maintainer-question. Any other event, such as a comment of someone else, gives it no task. On an issue with the label assistant-muted, only a command of a maintainer starts a task. A task runs only while the AI is on and its secret is set; otherwise no analysis comes, and labels, reminders and closing go on.">
 </picture>
 
-Every other event, such as a comment of someone else, gives it none. A run by hand, under *Actions → Issue assistant → Run workflow*, gives it the task chosen there, `triage` by default. The AI is off while the repository variable `ISSUE_ASSISTANT_AI` is `off`, and pauses while the engine's secret is missing.
+Every other event, such as a comment of someone else, gives it none, and on an issue with the label `assistant-muted`, only a maintainer's command does. A run by hand, under *Actions → Issue assistant → Run workflow*, gives it the task chosen there, `triage` by default. The AI is off while the repository variable `ISSUE_ASSISTANT_AI` is `off`, and pauses while the engine's secret is missing.
 
 A first analysis looks like this, here on an issue of a demo project:
 
@@ -152,6 +153,31 @@ A sure duplicate closes only when nobody objects. The AI must be sure, and the o
 
 The closing comment asks the reporter to go on in the original, where a 👍 shows that more people are affected. The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md#how-the-text-of-an-issue-reaches-the-ai) says why only an original that a maintainer vouches for closes another issue.
 
+### Slash commands
+
+Maintainers steer the assistant from the issue, and its reporter can ask for a new analysis: a comment whose first line starts with `/assistant` gives a command.
+
+| Command | Who | What it does |
+| --- | --- | --- |
+| `/assistant again` | maintainers; the reporter once | A new first analysis, also when the issue has one, which decides anew whether the issue is a duplicate. The reporter may ask once per issue, while it has `needs-triage` and after its first analysis, within the [limits of the AI runs](#limits-of-the-ai-runs). |
+| `/assistant ask <question>` | maintainers | The AI answers the question from the code, the documentation and the issue, in a reply that links the files it rests on. The question may go on over more lines. |
+| `/assistant duplicate #12` | maintainers | The notice that the issue duplicates the open issue #12, and `possible-duplicate`: it closes as a duplicate after `duplicate_grace_days` (3 by default) unless someone objects, as after a duplicate that the AI found. |
+| `/assistant not-duplicate` | maintainers, the reporter | Removes `possible-duplicate`, so that the issue stays open. |
+| `/assistant waiting` | maintainers | Adds `needs-info`: the issue waits for its reporter, with the reminder and the closing. |
+| `/assistant mute`, `/assistant unmute` | maintainers | Adds or removes `assistant-muted`; the only commands that work on a closed issue too. On a muted issue, the AI starts nothing on its own: no analysis, follow-up, check of a maintainer's comment or reading of a comment after a release. A maintainer's `again` and `ask` still run, and labels, reminders and closing go on. |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-a-command-on-an-issue-does.dark.svg">
+  <img src="docs/images/diagrams/what-a-command-on-an-issue-does.svg" alt="What a command on an issue does: A comment whose first line starts with /assistant is a command when a maintainer or the reporter of the issue wrote it; from anyone else, it is an ordinary comment. A maintainer may give every command. The reporter may give not-duplicate, and again once, while the issue has needs-triage, after its first analysis, while it isn't muted and within the limits of the day. A command that is carried out gets the reaction eyes: again starts a new analysis and ask an answer of the AI; duplicate, not-duplicate, waiting, mute and unmute set labels and post a notice without the AI. A command that is refused gets the reaction confused, and the summary of the run says why. A command answers, asks and objects to nothing.">
+</picture>
+
+- **Only maintainers and the reporter give commands.** Maintainers are the owner, the members of the organization and the collaborators, as everywhere in the assistant. The same line from anyone else is an ordinary comment, which steers nothing.
+- **A reaction tells what happened.** 👀 on the comment: the command is carried out, or its task of the AI starts. 😕: it was refused, as an unknown command or one that only maintainers may give, and the summary of the run says why, without repeating the comment. A refused line is still an ordinary comment, so a mistyped command still answers a question or objects to a duplicate notice.
+- **A command is no part of the conversation.** It answers no question of the assistant and asks the reporter none, so the waiting for an answer and its reminder go on, and it objects to no duplicate notice; `/assistant not-duplicate` does that.
+- **The event job runs no AI.** It carries out the commands that need none itself, and hands `again` and `ask` to the AI through the analyze job, as every other task. `apply` checks an answer to a question as every text of the AI and posts one answer to each question; a run by hand with the task `maintainer-question` answers the newest question again.
+- **A maintainer vouches for the original.** A duplicate that the AI finds closes only an issue whose original a maintainer opened or triaged; one that a maintainer names with `/assistant duplicate` needs no triage of the original. The original must be open, as after a notice of the AI.
+- **The label of a muted issue** is `assistant-muted`, in the group `decision` of the starter `labels.toml`. Where `labels.toml` doesn't define it, the first `/assistant mute` creates it, and a maintainer can also add or remove it by hand.
+
 ### From the fix to the release
 
 Apps and integrations reach their users with a release, not with a merge. So an issue stays open until the fix is released:
@@ -181,11 +207,11 @@ Each task reads what it needs and no more, from the files that the `context` ste
 - **Every task reads the issue** with all its comments, in `issue.md`.
 - **A first analysis and a follow-up read a window of the repository:** every open issue and the 1,000 closed ones that changed last, each with an excerpt of 400 characters in `issues.jsonl` and its whole text in `issues/<number>.md`, the 1,000 discussions that changed last and the labels. GitHub's GraphQL API lists a hundred issues a page and no pull request, so a repository with 50,000 issues and pull requests costs a few calls instead of five hundred, and the context keeps its size. `[context]` in `config.toml` sets both numbers.
 - **A first analysis also searches.** Up to 30 older issues that GitHub's search finds for the names of errors in the new issue, such as `TypeError` or `ECONNREFUSED`, and the words of its title join the window, so that an old duplicate is found beyond it. A search that fails leaves the window, with a warning.
-- **A reply judges the comment of its event.** `maintainer-reply` and `release-reply` read the issue and `comment.md`, the comment whose event started the run, and nothing of the rest of the repository. A run can wait behind others for minutes, and a "still broken for me too" of someone else that comes in meanwhile never reopens an issue whose reporter just confirmed the fix. The `apply` job reads that comment again and acts only when it is the reporter's, after a release, or a maintainer's. A run by hand judges the newest such comment.
+- **A reply judges the comment of its event.** `maintainer-reply`, `release-reply` and `maintainer-question` read the issue and `comment.md`, the comment whose event started the run, and nothing of the rest of the repository. A run can wait behind others for minutes, and a "still broken for me too" of someone else that comes in meanwhile never reopens an issue whose reporter just confirmed the fix. The `apply` job reads that comment again and acts only when it is the reporter's, after a release, or a maintainer's, and for an answer a maintainer's `/assistant ask`. A run by hand judges the newest such comment.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-the-ai-reads-for-each-task.dark.svg">
-  <img src="docs/images/diagrams/what-the-ai-reads-for-each-task.svg" alt="What the AI reads for each task: Every task reads issue.md, the issue with all its comments. A first analysis and a follow-up also read the labels, every open issue, the closed issues that changed last up to max_issues and the discussions that changed last up to max_discussions, from GitHub's GraphQL API, which lists no pull request; each issue has an excerpt in issues.jsonl and its whole text in issues/. A first analysis adds up to 30 older issues that a search for the names of errors and the words of the title finds. A reply, maintainer-reply or release-reply, reads comment.md instead: the comment whose event started the run, not a newer one that came in while the run waited. The apply job acts only when that comment is the reporter's or a maintainer's.">
+  <img src="docs/images/diagrams/what-the-ai-reads-for-each-task.svg" alt="What the AI reads for each task: Every task reads issue.md, the issue with all its comments. A first analysis and a follow-up also read the labels, every open issue, the closed issues that changed last up to max_issues and the discussions that changed last up to max_discussions, from GitHub's GraphQL API, which lists no pull request; each issue has an excerpt in issues.jsonl and its whole text in issues/. A first analysis adds up to 30 older issues that a search for the names of errors and the words of the title finds. A reply, maintainer-reply, release-reply or maintainer-question, reads comment.md instead: the comment whose event started the run, not a newer one that came in while the run waited. The apply job acts only when that comment is the reporter's or a maintainer's, or a maintainer's question.">
 </picture>
 
 ### Limits of the AI runs
@@ -194,7 +220,7 @@ Anyone can open an issue, and every run of the AI costs money or counts toward t
 
 | Setting | Default | What it limits |
 | --- | --- | --- |
-| `max_per_day` | 20 | analyses of new issues, follow-ups and replies after a release together, in the 24 hours before an event |
+| `max_per_day` | 20 | analyses of new issues, follow-ups, replies after a release and new analyses that reporters ask for with `/assistant again` together, in the 24 hours before an event |
 | `max_per_author_per_day` | 3 | analyses of the new issues of one reporter, in the same 24 hours |
 | `release_replies` | 2 | comments of the reporter after a release closed their issue that the AI reads, again after each release |
 
@@ -204,7 +230,7 @@ Anyone can open an issue, and every run of the AI costs money or counts toward t
 </picture>
 
 - **Every new issue counts,** also one that a limit kept from the AI, and each counts only the issues opened before it. So a flood of issues at once, or issues made to keep the AI from answering, start no more runs than the limit, even while the first analyses still run. Issues and comments of maintainers and bots and runs by hand never count and are never limited.
-- **A follow-up and a reply after a release count as they start.** The event job records the run in the hidden marker of the assistant's own comment that the run answers: the questions of the analysis, or the note about the release. Only the assistant can change its comments, so a reporter who deletes their comments gets no more runs, and an edit notifies nobody. Answers that come in within the same few seconds can still pass the count together.
+- **A follow-up, a reply after a release and a reporter's `/assistant again` count as they start.** The event job records the run in the hidden marker of the assistant's own comment that the run answers: the questions of the analysis, the note about the release, or the analysis that the new one repeats. Only the assistant can change its comments, so a reporter who deletes their comments gets no more runs, and an edit notifies nobody. Answers that come in within the same few seconds can still pass the count together.
 - **Over a limit, nothing is lost.** A new issue gets the labels of its form and `needs-triage`, as a maintainer's own issue does, and an answer of the reporter still ends the waiting. The run notes the limit and its setting, such as *Daily limit of AI runs reached (max_per_day = 20)*; to get an analysis anyway, run the workflow by hand.
 - **The day moves on with every event.** A repository that usually gets more new issues a day than `max_per_day` gets analyses again only when fewer came in during the 24 hours before, so set it above the usual number. `0` lets only maintainers start the AI, by hand.
 
@@ -513,9 +539,9 @@ The action runs `issue_assistant.py` with one command:
 
 | Command | Job | What |
 | --- | --- | --- |
-| `event` | event | handles the event, sets labels and names the AI's next task, within the limits of the AI runs |
+| `event` | event | handles the event and the slash command of a comment, sets labels and names the AI's next task, within the limits of the AI runs |
 | `engine` | analyze | names the engine of `config.toml`, its model, and whether its secret exists |
-| `context` | analyze | writes what the task reads into `.issue-assistant/`: the issue; for an analysis or a follow-up the other issues, the discussions and the labels; for a reply the comment of its event; then the prompt and the schema |
+| `context` | analyze | writes what the task reads into `.issue-assistant/`: the issue; for an analysis or a follow-up the other issues, the discussions and the labels; for a reply or a question the comment of its event; then the prompt and the schema |
 | `apply` | apply | checks the AI's answer and posts it |
 | `sweep` | lifecycle | reminds, closes unanswered issues and duplicates, marks fixed issues and closes them with the release |
 | `sync-labels` | labels | creates and updates the labels, and renames those that the repository has in another case |
@@ -586,7 +612,7 @@ Yes, with three differences. The runners' minutes count toward the plan of the a
 
 ### Why didn't my own issue get an analysis?
 
-Issues that a maintainer opens, that is the owner, a member of the organization or a collaborator, get the labels of their form and `needs-triage`, but no analysis: the assistant writes for reporters who don't know the code. For an analysis anyway, run the workflow by hand under *Actions → Issue assistant → Run workflow* with the number of the issue, the task `triage` and the dry run turned off.
+Issues that a maintainer opens, that is the owner, a member of the organization or a collaborator, get the labels of their form and `needs-triage`, but no analysis: the assistant writes for reporters who don't know the code. For an analysis anyway, write `/assistant again` in a comment, or run the workflow by hand under *Actions → Issue assistant → Run workflow* with the number of the issue, the task `triage` and the dry run turned off.
 
 ### What happens to spam?
 
@@ -602,7 +628,7 @@ The comment only asks the reporter to report it privately, as the security polic
 
 ### How do I turn it off?
 
-Set the repository variable `ISSUE_ASSISTANT_AI` to `off`, for example with `gh variable set ISSUE_ASSISTANT_AI --body off`, and the AI stays off while labels, reminders and closing keep working; removing the engine's secret does the same. To turn off everything, disable or delete the four workflows.
+Set the repository variable `ISSUE_ASSISTANT_AI` to `off`, for example with `gh variable set ISSUE_ASSISTANT_AI --body off`, and the AI stays off while labels, reminders and closing keep working; removing the engine's secret does the same. For one issue, a comment `/assistant mute` keeps the AI from starting on its own there. To turn off everything, disable or delete the four workflows.
 
 ### Why must the workflows equal the templates?
 

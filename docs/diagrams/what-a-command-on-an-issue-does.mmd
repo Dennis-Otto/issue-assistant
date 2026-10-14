@@ -1,0 +1,20 @@
+flowchart TB
+  accTitle: What a command on an issue does
+  accDescr: A comment whose first line starts with /assistant is a command when a maintainer or the reporter of the issue wrote it; from anyone else, it is an ordinary comment. A maintainer may give every command. The reporter may give not-duplicate, and again once, while the issue has needs-triage, after its first analysis, while it isn't muted and within the limits of the day. A command that is carried out gets the reaction eyes: again starts a new analysis and ask an answer of the AI; duplicate, not-duplicate, waiting, mute and unmute set labels and post a notice without the AI. A command that is refused gets the reaction confused, and the summary of the run says why. A command answers, asks and objects to nothing.
+  comment(["a comment whose first<br>line starts with<br>/assistant"]) --> who{"who wrote it?"}
+  who -- "anyone else" --> ordinary["an ordinary<br>comment"]
+  who -- "a maintainer" --> every["every command"]
+  who -- "the reporter" --> reporter["not-duplicate; again<br>once, with needs-triage,<br>after the analysis,<br>unmuted, within the<br>limits of the day"]
+  every & reporter --> carried{"carried out?"}
+  carried -- "yes" --> eyes["reaction eyes"]
+  carried -- "no" --> confused["reaction confused;<br>the summary of the<br>run says why"]
+  eyes --> ai["`**again**, **ask**<br>a task of the AI`"]
+  eyes --> labels["duplicate, not-duplicate,<br>waiting, mute, unmute:<br>labels and a notice,<br>without the AI"]
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  class comment trigger
+  class who,carried question
+  class ai ai
+  class ordinary,every,reporter,eyes,confused,labels job

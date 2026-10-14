@@ -334,6 +334,7 @@ def action_tables_of(markdown: str) -> str:
 LANGUAGES = {"en": "English", "de": "Deutsch"}
 DEMO = "demo-org/plant-monitor"
 REPORTER = "alex-demo"
+MAINTAINER = "sam-demo"
 # The days after the closing that the example of a locked issue names; the default
 # of lock_closed_after_days, 0, locks none.
 LOCK_EXAMPLE = 90
@@ -394,6 +395,11 @@ WORDS: dict[str, dict[str, Any]] = {
         "reconnect, which confirms the cause above. A fix would end the subscription "
         "in `on_disconnect()`, so that `start()` subscribes again.",
         "still_missing": ["The version of the dashboard app, under Settings → About."],
+        "answer": "Only the chart. `ChartFeed.start()` subscribes once and returns "
+        "early while `subscribed` is set, and nothing clears it after a reconnect. The "
+        "current value subscribes in `ValueFeed`, which starts anew each time, so it "
+        "recovers. A fix would clear `subscribed` in `on_disconnect()`; no test covers "
+        "a reconnect yet.",
     },
     "de": {
         "summary": "Nachdem sich der Sensor wieder verbunden hat, bleibt das "
@@ -441,6 +447,11 @@ WORDS: dict[str, dict[str, Any]] = {
         "Wiederverbinden, was die Ursache oben bestätigt. Ein Fix würde das Abonnement "
         "in `on_disconnect()` beenden, damit `start()` neu abonniert.",
         "still_missing": ["Die Version der Dashboard-App, unter Einstellungen → Über."],
+        "answer": "Nur das Diagramm. `ChartFeed.start()` abonniert einmal und kehrt "
+        "früh zurück, solange `subscribed` gesetzt ist, und nach dem Wiederverbinden "
+        "setzt es nichts zurück. Der aktuelle Wert abonniert in `ValueFeed`, das jedes "
+        "Mal neu startet, und erholt sich deshalb. Ein Fix würde `subscribed` in "
+        "`on_disconnect()` zurücksetzen; noch prüft kein Test ein Wiederverbinden.",
     },
 }
 # Each comment of the page: its heading, and when the assistant posts it. The
@@ -461,6 +472,13 @@ KINDS = {
         "When the AI is sure that an open, older issue reports the same, the analysis "
         "says so first. The issue gets the label `possible-duplicate` and closes "
         "{duplicate_grace} days later, unless someone writes a comment or reacts with 👎.",
+    ),
+    "named-duplicate": (
+        "A duplicate that a maintainer named",
+        "A maintainer who starts a comment with `/assistant duplicate #23` sets off the "
+        "same: the issue gets the label `possible-duplicate` and this notice, and "
+        "closes {duplicate_grace} days later, unless someone writes a comment or reacts "
+        "with 👎. No AI writes this comment.",
     ),
     "secret": (
         "A secret in the issue",
@@ -486,6 +504,13 @@ KINDS = {
         "edit of the issue, the AI reads the answer and replies, with what is still "
         "missing. It follows up at most {follow_ups}, and never once the maintainer has "
         "joined the conversation, also when they join while the AI writes.",
+    ),
+    "answer": (
+        "An answer to a maintainer's question",
+        "A maintainer who starts a comment with `/assistant ask` and a question gets "
+        "the answer of the AI, from the code, the documentation and the issue, with "
+        "the files it rests on. Its text is checked and cleaned as every text of the "
+        "AI, and each question gets one answer.",
     ),
     "reminder": (
         "A reminder",
@@ -676,6 +701,7 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
             ["area: dashboard"],
             config,
         ),
+        "named-duplicate": ia.render_duplicate(23, REPORTER, language, config),
         "secret": ia.render_analysis(
             answer("question", *words["secret"], sensitive_data="secret"),
             REPORTER,
@@ -705,6 +731,14 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
             REPORTER,
             references([line]),
             words["still_missing"],
+            config,
+        ),
+        "answer": ia.render_answer(
+            {"language": language, "answer": words["answer"]},
+            MAINTAINER,
+            42,
+            2,
+            references([line]),
             config,
         ),
         "reminder": ia.render_reminder(

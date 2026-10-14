@@ -1,15 +1,15 @@
 flowchart TB
   accTitle: What the AI reads for each task
-  accDescr: Every task reads issue.md, the issue with all its comments. A first analysis and a follow-up also read the labels, every open issue, the closed issues that changed last up to max_issues and the discussions that changed last up to max_discussions, from GitHub's GraphQL API, which lists no pull request; each issue has an excerpt in issues.jsonl and its whole text in issues/. A first analysis adds up to 30 older issues that a search for the names of errors and the words of the title finds. A reply, maintainer-reply or release-reply, reads comment.md instead: the comment whose event started the run, not a newer one that came in while the run waited. The apply job acts only when that comment is the reporter's or a maintainer's.
+  accDescr: Every task reads issue.md, the issue with all its comments. A first analysis and a follow-up also read the labels, every open issue, the closed issues that changed last up to max_issues and the discussions that changed last up to max_discussions, from GitHub's GraphQL API, which lists no pull request; each issue has an excerpt in issues.jsonl and its whole text in issues/. A first analysis adds up to 30 older issues that a search for the names of errors and the words of the title finds. A reply, maintainer-reply, release-reply or maintainer-question, reads comment.md instead: the comment whose event started the run, not a newer one that came in while the run waited. The apply job acts only when that comment is the reporter's or a maintainer's, or a maintainer's question.
   task(["a task of the AI"]) --> issue[("issue.md:<br>the issue and<br>its comments")]
   task --> which{"which<br>task?"}
   which -- "triage,<br>follow-up" --> window["`**a window**<br>every open<br>issue, and<br>those closed<br>issues and<br>discussions<br>that changed<br>last, up to<br>max_issues and<br>max_discussions`"]
   which -- "triage" --> search["`**a search**<br>for errors<br>and words<br>of the title:<br>up to 30<br>older issues`"]
-  which -- "maintainer-reply,<br>release-reply" --> judged["`**the comment<br>of the event**,<br>not a newer<br>one that came<br>in meanwhile`"]
+  which -- "maintainer-reply,<br>release-reply,<br>maintainer-question" --> judged["`**the comment<br>of the event**,<br>not a newer<br>one that came<br>in meanwhile`"]
   window --> files[("issues.jsonl,<br>issues/,<br>discussions.jsonl,<br>labels.md")]
   search --> files
   judged --> comment[("comment.md")]
-  comment -.-> apply["apply acts<br>only on the<br>reporter's or<br>a maintainer's<br>comment"]
+  comment -.-> apply["apply acts<br>only on the<br>reporter's or<br>a maintainer's<br>comment or<br>question"]
   classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
   classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
   classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
