@@ -421,6 +421,24 @@ def test_install_takes_the_commit_and_the_tag_of_its_checkout(tmp_path):
     assert assistant.release_of(tool, commit, "smoke-test") == (commit, "smoke-test")
 
 
+def test_install_refuses_the_version_of_another_release(tmp_path):
+    # A clone of a release has no tag of another one, which the pin's comment would
+    # name, and Dependabot would take for the version installed.
+    tool = tmp_path / "issue-assistant"
+    commit, _ = release_checkout(tool)
+    for ref in (None, commit):
+        with pytest.raises(assistant.AssistantError) as refused:
+            assistant.release_of(tool, ref, "v1.0.0")
+        assert str(refused.value) == (
+            f"The checkout in {tool.as_posix()} is the release v9.8.7, not v1.0.0; "
+            "leave out --version, or check out v1.0.0."
+        )
+    # Off a release, a version of one is taken as it is given.
+    run_git(tool, "commit", "-q", "--allow-empty", "-m", "after the release")
+    head = run_git(tool, "rev-parse", "HEAD")
+    assert assistant.release_of(tool, None, "v1.0.0") == (head, "v1.0.0")
+
+
 def test_install_refuses_the_object_of_a_tag_for_the_commit(tmp_path):
     tool = tmp_path / "issue-assistant"
     commit, tag_object = release_checkout(tool)
@@ -487,21 +505,42 @@ def test_install_without_a_checkout_of_its_own_takes_what_it_is_given(
 def test_install_writes_a_bug_report_form_only_without_forms(tmp_path):
     starter = assistant.TEMPLATES / assistant.FORM_STARTER
     form = tmp_path / ".github/ISSUE_TEMPLATE/bug_report.yml"
-    assert assistant.add_form(tmp_path) == [
+    assert assistant.add_form(tmp_path, starter_labels=True) == [
         "wrote .github/ISSUE_TEMPLATE/bug_report.yml; adapt it"
     ]
     assert form.read_bytes() == starter.read_bytes()
-    assert assistant.add_form(tmp_path) == []
+    assert assistant.add_form(tmp_path, starter_labels=True) == []
     # The settings of the chooser are no form; a template in Markdown is one.
     form.unlink()
     (tmp_path / ".github/ISSUE_TEMPLATE/config.yml").write_text(
         "blank_issues_enabled: false\n", encoding="utf-8"
     )
-    assert assistant.add_form(tmp_path) != []
+    assert assistant.add_form(tmp_path, starter_labels=True) != []
     form.unlink()
     (tmp_path / ".github/ISSUE_TEMPLATE/bug.md").write_text("A bug\n", "utf-8")
-    assert assistant.add_form(tmp_path) == []
+    assert assistant.add_form(tmp_path, starter_labels=True) == []
     assert not form.exists()
+
+
+def test_install_writes_the_form_only_with_the_starter_labels(tmp_path):
+    # The labels of a repository may not map the form's label and areas, and a form
+    # would override the templates of its owner's .github repository.
+    labels = tmp_path / ".github/labels.toml"
+    labels.parent.mkdir(parents=True)
+    labels.write_text('[[label]]\nname = "defect"\ncolor = "d73a4a"\n', "utf-8")
+    done = assistant.install(tmp_path, REF, "v1.0.0")
+    starter = (assistant.TEMPLATES / assistant.FORM_STARTER).as_posix()
+    assert (
+        "wrote no issue form for your own .github/labels.toml; the starter "
+        f"{starter} needs its labels and areas there"
+    ) in done
+    assert not (tmp_path / ".github/ISSUE_TEMPLATE").exists()
+    assert labels.read_text("utf-8").startswith('[[label]]\nname = "defect"')
+    # A fresh set-up writes both.
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    done = assistant.install(fresh, REF, "v1.0.0")
+    assert "wrote .github/ISSUE_TEMPLATE/bug_report.yml; adapt it" in done
 
 
 def test_the_starter_form_chooses_the_starter_area_labels():
@@ -635,6 +674,16 @@ ACTIONLINT_EDITS = [
         "# Settings\nconfig-variables: null\nself-hosted-runner:\n  labels:\n"
         "    - ubuntu-24.04-firewall\n",
     ),
+    # Items at the indentation of their key, as many formatters write them.
+    (
+        "self-hosted-runner:\n  labels:\n  # The preview.\n  - a\nother: 1\n",
+        "self-hosted-runner:\n  labels:\n  - ubuntu-24.04-firewall\n"
+        "  # The preview.\n  - a\nother: 1\n",
+    ),
+    (
+        "self-hosted-runner:\nlabels:\n- a\n",
+        "self-hosted-runner:\n  labels:\n    - ubuntu-24.04-firewall\nlabels:\n- a\n",
+    ),
 ]
 
 
@@ -647,8 +696,7 @@ def test_install_lists_the_runner_in_actionlint_s_settings(text, edited):
 @pytest.mark.parametrize(
     "text",
     [
-        # Items at the indentation of their key, and a list of the top level.
-        "self-hosted-runner:\n  labels:\n  - a\n",
+        # A list of the top level.
         "- a\n",
         # Something else where a mapping or a list belongs.
         "self-hosted-runner: 3\n",
@@ -692,6 +740,39 @@ def test_install_lets_actionlint_know_the_runner_and_the_queue(root):
         "its YAML is too unusual to edit safely",
     ]
     assert path.read_text("utf-8") == "[a]\n"
+
+
+def test_install_writes_the_rest_without_reading_actionlint_s_settings(
+    monkeypatch, root
+):
+    # Settings that are no YAML, which check reports.
+    path = root / assistant.ACTIONLINT
+    path.write_text("self-hosted-runner: [a\n", encoding="utf-8")
+    done = assistant.add_to_actionlint(root)
+    assert len(done) == 2
+    assert done[0].startswith(
+        ".github/actionlint.yaml: add 'ubuntu-24.04-firewall' to the list "
+        "self-hosted-runner > labels; .github/actionlint.yaml is no valid YAML: "
+    )
+    # A computer with neither PyYAML nor yq.
+    path.write_text("self-hosted-runner:\n  labels: []\n", encoding="utf-8")
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    real_run = subprocess.run
+
+    def without_yq(command, *args, **kwargs):
+        if command[0] == "yq":
+            raise FileNotFoundError("yq")
+        return real_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(assistant.subprocess, "run", without_yq)
+    done = assistant.install(root, REF, "v1.0.0")
+    assert (
+        ".github/actionlint.yaml: add 'ubuntu-24.04-firewall' to the list "
+        "self-hosted-runner > labels; Reading the workflows needs PyYAML or yq; "
+        "install one of them, for example with: pip install pyyaml"
+    ) in done
+    assert "wrote .github/workflows/issue-assistant.yml" in done
+    assert path.read_text("utf-8") == "self-hosted-runner:\n  labels: []\n"
 
 
 # Setting up GitHub

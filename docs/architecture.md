@@ -21,7 +21,7 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 | Labels | `sync_labels` | Create and update the labels of `labels.toml`, never delete one |
 | Findings | `watch_findings` | Dismiss the findings of code scanning that `findings.toml` accepts and fail while others are open |
 | Fixture | `read_fixture`, `GitHub.use_fixture` | An issue and its comments from a JSON file in place of GitHub's, for [the canary](#the-canary) and for trying a prompt; `context` and `apply` then write nothing |
-| Set-up | `install`, `check` | Write the four workflows, the firewall policy and the starter files of `templates/` into a repository, and check that its set-up still fits the templates; both need only the checkout and name its files with slashes on every system |
+| Set-up | `install`, `set_up_github`, `check` | Write the four workflows, the firewall policy and the starter files of `templates/` into a repository, add the notice to reporters and actionlint's runner and ignored `queue` where they are missing, with `--setup` also create the environment `issue-assistant` and have gh ask for the engine's secret, and check that the set-up still fits the templates; only `check` needs nothing but the checkout, and both name its files with slashes on every system |
 
 ## The workflows of a repository
 

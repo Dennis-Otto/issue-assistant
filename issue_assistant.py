@@ -32,6 +32,7 @@ from collections.abc import Callable, Collection, Iterable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from fnmatch import fnmatchcase
 from functools import cache, partial
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -4334,6 +4335,17 @@ def release_of(tool: Path, ref: str | None, version: str | None) -> tuple[str, s
             f"The tag {version} is the commit {tagged}, not {head} of the checkout in "
             f"{tool.as_posix()}; leave out --version, or check out {version}."
         )
+    if tagged is None and fnmatchcase(version, RELEASE_TAGS):
+        # A clone of one release has no tag of another, and Dependabot would read
+        # the version in the pin's comment as the one installed.
+        tag = git_says(
+            tool, "describe", "--tags", "--exact-match", "--match", RELEASE_TAGS
+        )
+        if tag:
+            raise AssistantError(
+                f"The checkout in {tool.as_posix()} is the release {tag}, not "
+                f"{version}; leave out --version, or check out {version}."
+            )
     return head, version
 
 
@@ -4410,8 +4422,8 @@ def with_item(text: str, keys: tuple[str, ...], item: str) -> str | None:
     The edit adds lines below the deepest of the keys that the text has, or puts the
     item into the brackets of a list such as `labels: []`, so that every comment and
     the order of the keys stay. Its result is read back: None when that isn't the
-    data with the item added, for YAML that the edit doesn't fit, such as a list
-    whose items aren't indented below its key.
+    data with the item added, for YAML that the edit doesn't fit, such as a list of
+    the top level or a mapping in braces.
     """
     expected = with_listed(yaml_of(text), keys, item)
     if expected is None:
@@ -4466,15 +4478,22 @@ def with_item(text: str, keys: tuple[str, ...], item: str) -> str | None:
         )
     else:
         content = content_lines(lines, block)
+        after = content_lines(lines, range(block.stop, len(lines)))
         if line < 0:
             indent, position = 0, len(lines)
+        elif content:
+            indent, position = indentation(lines[content[0]]), line + 1
+        elif (
+            found == len(keys)
+            and after
+            and indentation(lines[after[0]]) == indentation(lines[line])
+            and lines[after[0]].lstrip().startswith("- ")
+        ):
+            # The items of a list at the indentation of its key, as many
+            # formatters write them.
+            indent, position = indentation(lines[line]), line + 1
         else:
-            indent = (
-                indentation(lines[content[0]])
-                if content
-                else indentation(lines[line]) + 2
-            )
-            position = line + 1
+            indent, position = indentation(lines[line]) + 2, line + 1
         added = [
             " " * (indent + 2 * step) + f"{key}:\n"
             for step, key in enumerate(keys[found:])
@@ -4505,13 +4524,18 @@ def add_to_actionlint(root: Path) -> list[str]:
         ),
     ):
         text = path.read_text(encoding="utf-8")
-        if item in items_at(load_yaml(path, str(ACTIONLINT)), keys):
-            continue
-        edited = with_item(text, keys, item)
+        reason = "its YAML is too unusual to edit safely"
+        try:
+            if item in items_at(load_yaml(path, str(ACTIONLINT)), keys):
+                continue
+            edited = with_item(text, keys, item)
+        except AssistantError as error:
+            # Without PyYAML or yq, or with settings that are no YAML, install
+            # writes the rest of the set-up and says what is left to do here.
+            edited, reason = None, str(error)
         if edited is None:
             done.append(
-                f"{ACTIONLINT}: add {item!r} to the list {' > '.join(keys)}; its YAML "
-                "is too unusual to edit safely"
+                f"{ACTIONLINT}: add {item!r} to the list {' > '.join(keys)}; {reason}"
             )
             continue
         path.write_text(edited, encoding="utf-8", newline="\n")
@@ -4522,13 +4546,23 @@ def add_to_actionlint(root: Path) -> list[str]:
 # The files of a set-up
 
 
-def add_form(root: Path) -> list[str]:
-    """A bug report form for a repository without issue forms or templates."""
+def add_form(root: Path, *, starter_labels: bool) -> list[str]:
+    """A bug report form for a repository without issue forms or templates.
+
+    Its label bug and the answers of its field Area are those of the starter labels,
+    so install writes it only together with them; labels of the repository's own
+    may not map them, and a form overrides the templates of its owner's .github.
+    """
     forms = root / FORMS
     if forms.is_dir() and any(
         path.is_file() and path.stem != "config" for path in forms.iterdir()
     ):
         return []
+    if not starter_labels:
+        return [
+            f"wrote no issue form for your own {LABELS_FILE}; the starter "
+            f"{(TEMPLATES / FORM_STARTER).as_posix()} needs its labels and areas there"
+        ]
     forms.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(TEMPLATES / FORM_STARTER, root / FORM_STARTER)
     return [f"wrote {FORM_STARTER}; adapt it"]
@@ -4575,8 +4609,8 @@ def install(root: Path, ref: str, version: str) -> list[str]:
     """Write the workflows and the firewall policy of the templates into a repository.
 
     The starters are only written when they are missing: labels, project.md,
-    config.toml, findings.toml, and a bug report form in a repository without issue
-    forms. The notice to reporters, the entry of .gitignore and what actionlint
+    config.toml, findings.toml, and, with the starter labels, a bug report form in a
+    repository without issue forms. The notice to reporters, the entry of .gitignore and what actionlint
     needs are added where they are missing, so that running it again changes
     nothing but the workflows.
     """
@@ -4598,13 +4632,14 @@ def install(root: Path, ref: str, version: str) -> list[str]:
     else:
         shutil.copyfile(TEMPLATES / FIREWALL, firewall)
         done.append(f"wrote {FIREWALL}")
+    starter_labels = not (root / LABELS_FILE).is_file()
     for starter in STARTERS:
         target = root / starter
         if not target.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(TEMPLATES / starter, target)
             done.append(f"wrote {starter}; adapt it")
-    done += add_form(root)
+    done += add_form(root, starter_labels=starter_labels)
     ignore = root / ".gitignore"
     entry = f"/{CONTEXT}/"
     lines = ignore.read_text(encoding="utf-8").splitlines() if ignore.is_file() else []

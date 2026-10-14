@@ -225,7 +225,7 @@ The [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/d
 - **A repository on GitHub.com with issues turned on,** public or private. Issue forms are optional; their answers choose labels when the repository has them.
 - **GitHub-hosted runners.** The jobs without AI run on `ubuntu-24.04`, the AI on `ubuntu-24.04-firewall`, the runner with GitHub's [native egress firewall](https://github.com/github-early-access/actions-native-egress-firewall). That runner is a **technical preview**: it exists for Linux only, and GitHub expects a workflow on it to take roughly 15 to 20 % longer. The analysis runs only on this runner, so that the AI reaches no host but those of `.github/egress-firewall.yaml`.
 - **An engine and its secret.** For Claude, the default engine: a token of a Claude subscription, which `claude setup-token` creates, as `CLAUDE_CODE_OAUTH_TOKEN`, or an API key as `ANTHROPIC_API_KEY`, in the environment `issue-assistant`. Without the secret, everything that needs the AI pauses: the first analysis, the follow-ups, and deciding whether a comment waits for the reporter or says that a fix didn't help. Labels from the forms, reminders, closing and the closing of fixed issues with the release keep working, and each run notes that no credentials are configured.
-- **For the set-up:** Python 3.12 or newer, git and the GitHub CLI on your computer, and the right to manage environments and secrets of the repository.
+- **For the set-up:** Python 3.12 or newer with PyYAML (`pip install pyyaml`) or `yq`, git and the GitHub CLI on your computer, and the right to manage environments and secrets of the repository.
 
 <!-- --8<-- [end:requirements] -->
 <!-- --8<-- [start:set-up] -->
@@ -241,7 +241,7 @@ A set-up has three parts: what `install` writes, what you edit, and what you set
 
 <!-- --8<-- [start:quick-start] -->
 
-1. **Install the latest release** in the root of your repository, with Python 3.12 or newer, git and the [GitHub CLI](https://cli.github.com):
+1. **Install the latest release** in the root of your repository, with Python 3.12 or newer, PyYAML (`pip install pyyaml`) or [`yq`](https://github.com/mikefarah/yq) to read YAML, git and the [GitHub CLI](https://cli.github.com):
 
     ```sh
     tag="$(gh release view --repo Dennis-Otto/issue-assistant --json tagName --jq .tagName)"
