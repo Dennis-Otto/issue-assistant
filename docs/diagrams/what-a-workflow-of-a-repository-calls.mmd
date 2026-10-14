@@ -1,0 +1,24 @@
+flowchart TB
+  accTitle: What a workflow of a repository calls
+  accDescr: A workflow of the repository, such as issue-assistant.yml, holds what starts it, the most permissions that its jobs get, and one pin, of a release of the issue assistant. It calls the reusable workflow of that release, whose jobs run in the repository, with its events, variables, environment issue-assistant and firewall policy, and each job runs the issue assistant of the same commit. A new release reaches the repository as a pull request of Dependabot or Renovate that moves the pin; install runs again only when a release changes a template.
+  subgraph repository ["your repository"]
+    direction TB
+    caller["`**.github/workflows/issue-assistant.yml**<br>what starts it, the most permissions,<br>one pin of a release`"]
+    own(["its events, variables,<br>environment issue-assistant<br>and firewall policy"])
+  end
+  subgraph release ["Dennis-Otto/issue-assistant at the pinned commit"]
+    direction TB
+    jobs["`**reusable-issue-assistant.yml**<br>the jobs event, analyze and apply`"]
+    tool["the issue assistant<br>of the same commit"]
+  end
+  update(["a new release:<br>Dependabot or Renovate<br>moves the pin"])
+  update --> caller
+  caller -- "calls at the commit" --> jobs
+  own -. "the jobs run with them" .-> jobs
+  jobs -- "each job runs" --> tool
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef release fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
+  class caller,own job
+  class jobs,tool release
+  class update trigger
