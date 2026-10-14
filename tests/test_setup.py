@@ -627,6 +627,21 @@ def test_install_writes_no_notice_outside_the_repository_or_for_an_unknown_engin
     assert assistant.add_notices(root) == []
 
 
+def test_install_writes_no_notice_with_periods_that_the_sweep_cannot_keep(tmp_path):
+    root = tmp_path / "project"
+    assistant.install(root, REF, "v1.0.0")
+    (root / "SUPPORT.md").unlink(missing_ok=True)
+    settings = root / assistant.SETTINGS / "config.toml"
+    settings.write_text(
+        settings.read_text("utf-8").replace(
+            "lock_closed_after_days = 0", "lock_closed_after_days = 5"
+        ),
+        encoding="utf-8",
+    )
+    assert assistant.add_notices(root) == []
+    assert not (root / "SUPPORT.md").exists()
+
+
 @pytest.mark.parametrize(
     ("language", "phrases", "lock"),
     [
@@ -1300,15 +1315,16 @@ def test_the_lifecycle_labels_name_the_configured_days_or_none(config):
     ]
 
 
-def test_a_lifecycle_that_the_sweep_cannot_use_stops_it(
-    monkeypatch, tmp_path, root, config, capsys
+@pytest.mark.parametrize("command_", ["sweep", "event"])
+def test_a_lifecycle_that_the_sweep_cannot_use_stops_every_command(
+    monkeypatch, tmp_path, root, config, capsys, command_
 ):
     settings = root / assistant.SETTINGS / "config.toml"
     settings.write_text(
         settings.read_text("utf-8") + "\n[lifecycle]\nremind_after_days = 0\n",
         encoding="utf-8",
     )
-    code, _, _ = run_main(monkeypatch, tmp_path, root, FakeGitHub(config), "sweep")
+    code, _, _ = run_main(monkeypatch, tmp_path, root, FakeGitHub(config), command_)
     assert code == 1
     assert (
         f"::error::{LIFECYCLE_WHERE} remind_after_days must be 1 to 3650"

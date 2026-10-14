@@ -4011,6 +4011,31 @@ def test_a_sweep_locks_at_most_25_issues(config):
     assert not github.store[1]["locked"]
 
 
+def test_more_than_a_page_of_skipped_issues_hides_none_after_them(config):
+    issues = [closed_long_ago(number) for number in range(1, 103)]
+    github = FakeGitHub(config, *issues)
+    for number in range(1, 102):
+        github.event_store[number] = [{"event": "unlocked", "created_at": at(5)}]
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == [
+        "#102: locked, closed for more than 90 days."
+    ]
+    searches = [call for call in github.calls if call[0] == "SEARCH"]
+    assert len(searches) == 2
+
+
+def test_the_search_stops_at_the_1000_results_that_github_returns(monkeypatch):
+    github = assistant.GitHub(REPOSITORY)
+    pages = []
+
+    def full_page(args):
+        pages.append(args[1])
+        return {"items": [{"number": len(pages)}] * 100}
+
+    monkeypatch.setattr(github, "_gh", full_page)
+    assert len(list(github.search_issues("is:closed"))) == 1000
+    assert pages[-1].endswith("&per_page=100&page=10") and len(pages) == 10
+
+
 # A sweep that GitHub fails in part
 
 

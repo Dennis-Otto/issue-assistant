@@ -111,6 +111,8 @@ MAX_DAYS = 3650
 # that turning locking on in a repository with many old issues stays within the
 # limits of GitHub for writes.
 LOCKS_PER_SWEEP = 25
+# GitHub's search returns at most 1000 results, 10 pages of 100.
+SEARCH_PAGES = 10
 # Pull requests merged this long ago still mark the issues they fix, in case the
 # event of the merge was missed.
 MERGE_LOOKBACK = timedelta(days=14)
@@ -650,15 +652,6 @@ def lifecycle_problems(lifecycle: Lifecycle) -> list[str]:
     return problems
 
 
-def lifecycle_of(config: Config) -> Lifecycle:
-    """The lifecycle of the repository; a value that it can't use stops the sweep,
-    and `check` names it before."""
-    problems = lifecycle_problems(config.lifecycle)
-    if problems:
-        raise SettingsError(problems)
-    return config.lifecycle
-
-
 @dataclass(frozen=True)
 class Config:
     """What the assistant knows about the repository it looks after."""
@@ -943,8 +936,13 @@ def load_config(root: Path, repository: str, *, lenient: bool = False) -> Config
         for name in CONFIG_KEYS["lifecycle"]
         if f"lifecycle.{name}" in values
     }
+    lifecycle = Lifecycle(**periods)
+    # Comments, notices and the sweep all name these periods, so a period that the
+    # sweep can't keep stops every command, not only the sweep.
+    if not lenient and (wrong := lifecycle_problems(lifecycle)):
+        raise SettingsError(wrong)
     return Config(
-        lifecycle=Lifecycle(**periods),
+        lifecycle=lifecycle,
         root=root,
         repository=repository,
         labels=labels,
@@ -1266,20 +1264,28 @@ class GitHub:
         )
         return [item for item in items if "pull_request" not in item]
 
-    def search_issues(self, qualifiers: str) -> list[dict[str, Any]]:
-        """The first 100 issues of the repository, no pull requests, that GitHub's
-        search finds with the qualifiers, such as is:closed, the oldest first."""
+    def search_issues(self, qualifiers: str) -> Iterator[dict[str, Any]]:
+        """The issues of the repository, no pull requests, that GitHub's search
+        finds with the qualifiers, such as is:closed, the oldest first.
+
+        The pages come one by one as the caller reads on, up to the 1000 results
+        that the search returns at most: issues that the caller skips, such as
+        those that someone unlocked, never hide the ones after them.
+        """
         query = f"repo:{self.repository} is:issue {qualifiers}"
-        found = self._gh(
-            [
-                "api",
-                "search/issues?"
-                + urlencode({"q": query, "sort": "created", "order": "asc"})
-                + "&per_page=100",
-            ]
-        )
-        issues: list[dict[str, Any]] = found["items"]
-        return issues
+        for page in range(1, SEARCH_PAGES + 1):
+            found = self._gh(
+                [
+                    "api",
+                    "search/issues?"
+                    + urlencode({"q": query, "sort": "created", "order": "asc"})
+                    + f"&per_page=100&page={page}",
+                ]
+            )
+            items: list[dict[str, Any]] = found["items"]
+            yield from items
+            if len(items) < 100:
+                return
 
     def all_issues(self) -> list[dict[str, Any]]:
         items = self.rest("issues?state=all&per_page=100", pages=True)
@@ -5279,8 +5285,9 @@ def add_notices(root: Path) -> list[str]:
     file of [transparency] that doesn't name the engine yet, as `check` asks."""
     config = load_config(root, "", lenient=True)
     engine = ENGINES.get(config.engine)
-    if engine is None:
-        # check names the engine that the assistant doesn't know.
+    if engine is None or lifecycle_problems(config.lifecycle):
+        # check names the engine that the assistant doesn't know, and the periods
+        # that the sweep can't keep; a notice would promise them.
         return []
     done = []
     for name in config.notices:
@@ -5702,7 +5709,7 @@ def main(argv: list[str] | None = None) -> int:
             now = datetime.now(UTC)
             counted = os.environ.get("GITHUB_EVENT_NAME", "") in FEEDBACK_EVENTS
             try:
-                done = sweep(github, now, config.releases, lifecycle_of(config))
+                done = sweep(github, now, config.releases, config.lifecycle)
             except SweepIncomplete as incomplete:
                 command("error", f"{incomplete}; the next sweep tries again.")
                 summary(

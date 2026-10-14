@@ -449,7 +449,11 @@ class FakeGitHub(assistant.GitHub):
                     }
             if fits:
                 found.append(deepcopy(issue))
-        return {"total_count": len(found), "items": found[:100]}
+        page = int(query["page"][0])
+        return {
+            "total_count": len(found),
+            "items": found[(page - 1) * 100 : page * 100],
+        }
 
     def rest(self, path, *, method="GET", data=None, pages=False):
         self.calls.append((method, path, deepcopy(data)))
