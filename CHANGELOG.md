@@ -4,6 +4,17 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+### Changed
+
+- Every analysis and follow-up says what it is and asks whether it helped. Its footer links *How the assistant works*, the part *What happens with your issue* of your `SUPPORT.md`, or of the first file of `[transparency] files`, and asks for a 👍 or 👎 on the comment; the summary of the morning sweep, or of one started by hand, counts them for the analyses and follow-ups of the last 30 days, as numbers only. On a duplicate notice, the footer says that a 👎 also keeps the issue open, as before.
+- A long analysis keeps its questions in view: more than three links to related issues and files fold into one line below the questions, such as *Where to look: 5 links*, that opens them. A reminder links the comment with the questions that it reminds of.
+- The comments speak of the maintainers, not of one maintainer, and the information needed says that an answer reopens the issue if it closes, not while it is still open.
+
+### Fixed
+
+- A link to a line of a Markdown file, or of another file that GitHub shows rendered, such as reStructuredText, AsciiDoc, a notebook or an SVG picture, opens the file's source at that line. Before, it opened the rendered page, where a line has no anchor. A path with a backtick stays one piece of code in its link.
+- Issues and discussions that the AI names as `#123` stay links when they exist, up to ten of them, as the prompt asks it to name them. Before, every number but those of the duplicates and related issues showed as code.
+
 ## [1.4.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.3.1...v1.4.0) (2026-10-14)
 
 ### Added
