@@ -479,21 +479,23 @@ KINDS = {
     ),
     "follow-up": (
         "A follow-up",
-        "When the reporter answers the questions of an analysis, the AI reads the "
-        "answer and replies, with what is still missing. It follows up at most {follow_ups}, "
-        "and never once the maintainer has joined the conversation.",
+        "When the reporter answers the questions of an analysis, in a comment or by an "
+        "edit of the issue, the AI reads the answer and replies, with what is still "
+        "missing. It follows up at most {follow_ups}, and never once the maintainer has "
+        "joined the conversation, also when they join while the AI writes.",
     ),
     "reminder": (
         "A reminder",
         "{remind_after} days after a question of the assistant or of the maintainer, an issue "
-        "without an answer gets the label `stale` and a reminder, which links the "
+        "without an answer, in a comment or by an edit of its text, gets the label "
+        "`stale` and a reminder, which names the day it closes and links the "
         "comment with the questions. No AI writes this "
         "comment or any of those below.",
     ),
     "closed-unanswered": (
         "Closed without an answer",
-        "{close_after} days after the question, an issue still without an answer closes as not "
-        "planned.",
+        "{close_after} days after the question, on the day that the reminder named, an issue "
+        "still without an answer closes as not planned.",
     ),
     "reopened": (
         "Reopened by an answer",

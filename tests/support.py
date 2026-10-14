@@ -351,6 +351,29 @@ class FakeGitHub(assistant.GitHub):
         self.graphql_error: str | None = None
         # Patterns of the calls that fail, such as "^GET issues/7$", with their error.
         self.failures: list[tuple[str, assistant.GitHubError]] = []
+        # Who changed the text of an issue last, and when, by its number, as
+        # GitHub's lastEditedAt and editor.
+        self.edit_store: dict[int, dict] = {}
+        # What the fake writes happens at this moment, which a test can move on.
+        self.clock = NOW
+
+    def time(self):
+        """The moment of the clock, as GitHub writes it."""
+        return self.clock.isoformat().replace("+00:00", "Z")
+
+    def edit(self, number, editor, **changes):
+        """Change the title or the text of an issue, now, as `editor`, and return the
+        `changes` of GitHub's `edited` event. GitHub keeps the history of the text
+        alone: a new title is no edit."""
+        issue = self._issue(number)
+        found = {key: {"from": issue[key]} for key in changes}
+        issue.update(changes, updated_at=self.time())
+        if "body" in changes:
+            self.edit_store[number] = {
+                "lastEditedAt": self.time(),
+                "editor": {"login": editor},
+            }
+        return found
 
     def fail(self, pattern, error=None):
         """Let every call whose method and path or query match the pattern fail."""
@@ -387,7 +410,7 @@ class FakeGitHub(assistant.GitHub):
                         "event": "labeled",
                         "label": {"name": name},
                         "actor": BOT_USER,
-                        "created_at": at(),
+                        "created_at": self.time(),
                     }
                 )
 
@@ -470,6 +493,7 @@ class FakeGitHub(assistant.GitHub):
         if method == "POST":
             if match := re.fullmatch(r"issues/(\d+)/comments", route):
                 comment = make_comment(1000 + len(self.calls), "bot", data["body"], 0)
+                comment["created_at"] = self.time()
                 self.comment_store.setdefault(int(match[1]), []).append(comment)
                 return comment
             if match := re.fullmatch(r"issues/(\d+)/labels", route):
@@ -510,7 +534,11 @@ class FakeGitHub(assistant.GitHub):
                 if data.get("state") == "open":
                     issue["state_reason"] = "reopened"
                     self.event_store.setdefault(int(match[1]), []).append(
-                        {"event": "reopened", "actor": BOT_USER, "created_at": at()}
+                        {
+                            "event": "reopened",
+                            "actor": BOT_USER,
+                            "created_at": self.time(),
+                        }
                     )
                 return issue
             if match := re.fullmatch(r"issues/comments/(\d+)", route):
@@ -520,7 +548,7 @@ class FakeGitHub(assistant.GitHub):
                     for item in comments
                     if item["id"] == int(match[1])
                 )
-                comment.update(data, updated_at=at())
+                comment.update(data, updated_at=self.time())
                 return comment
             if match := re.fullmatch(r"code-scanning/alerts/(\d+)", route):
                 alert = next(
@@ -632,6 +660,12 @@ class FakeGitHub(assistant.GitHub):
                     "issue": {"closedByPullRequestsReferences": {"nodes": nodes}},
                 }
             }
+        if "lastEditedAt" in query:
+            self._issue(variables["number"])
+            edit = self.edit_store.get(
+                variables["number"], {"lastEditedAt": None, "editor": None}
+            )
+            return {"repository": {"issue": deepcopy(edit)}}
         number = int(variables["issue"].removeprefix("I_"))
         if "addLabelsToLabelable" in query:
             names = [item["labelId"].removeprefix("L_") for item in variables["labels"]]
@@ -651,7 +685,7 @@ class FakeGitHub(assistant.GitHub):
             issue["duplicate_of"] = variables["duplicate"]
             issue["rationale"] = variables["rationale"]
             self.event_store.setdefault(number, []).append(
-                {"event": "closed", "actor": BOT_USER, "created_at": at()}
+                {"event": "closed", "actor": BOT_USER, "created_at": self.time()}
             )
             return {"closeIssue": {"issue": {"number": number}}}
         raise AssertionError(f"unexpected query {query}")
@@ -665,7 +699,7 @@ class FakeGitHub(assistant.GitHub):
         return [
             comment["body"]
             for comment in self.comment_store.get(number, [])
-            if comment["user"] == BOT_USER and comment["created_at"] == at()
+            if comment["user"] == BOT_USER and comment["created_at"] == self.time()
         ]
 
     def writes_made(self):
@@ -686,12 +720,20 @@ def posted_comments(config, mode, answer, sha=REF):
     """What the assistant posts on #12 for the answer, and the issue numbers that it
     may reference there: the other issues that it looked up and found, as duplicates,
     related issues or numbers that its texts name. Nothing for an answer that the
-    checks refuse as a whole."""
+    checks refuse as a whole.
+
+    A follow-up answers the reporter, who answered the questions of the analysis.
+    """
     github = FakeGitHub(
         config,
         *(make_issue(number, labels=("bug",)) for number in ISSUES if number != 12),
         make_issue(),
     )
+    if mode == "follow-up":
+        github.comment_store[12] = [
+            analysis(questions=1, days_ago=1),
+            make_comment(2, "reporter", "Version 1.9.0.", 0.5),
+        ]
     try:
         assistant.apply_answer(github, mode, 12, json.dumps(answer), config, sha)
     except assistant.AssistantError:

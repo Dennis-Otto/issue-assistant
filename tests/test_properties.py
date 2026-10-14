@@ -29,6 +29,7 @@ from support import (
     earlier_form_fields,
     make_answer,
     make_comment,
+    make_follow_up,
     make_issue,
     posted_comments,
     stray_problems,
@@ -223,6 +224,13 @@ def test_a_whole_comment_mentions_nobody_and_links_only_allowed_places(
     for body in bodies:
         found = stray_problems(body, numbers, sample_config, security=security)
         assert found == [], body
+
+
+def test_the_whole_comments_include_follow_ups():
+    """The reporter answered the analysis's questions, so the follow-ups that the
+    property test above and the fuzzer judge are posted, and are not nothing."""
+    (body,), _ = posted_comments(CONFIG, "follow-up", make_follow_up())
+    assert body.startswith("<!-- issue-assistant:follow-up lang=en questions=0")
 
 
 def test_only_the_comment_on_a_security_report_may_link_to_the_policy():
