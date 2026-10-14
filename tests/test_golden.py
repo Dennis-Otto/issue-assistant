@@ -28,6 +28,7 @@ from support import (
     event,
     files_of,
     golden_files,
+    make_alert,
     make_answer,
     make_comment,
     make_issue,
@@ -295,6 +296,22 @@ def stopped_by_github(config):
     return github
 
 
+def sweep_stopped_by_github(config):
+    github = waiting_since(config, 16)
+    github.fail("^POST issues/12/comments", assistant.GitHubError("gh api: HTTP 502"))
+    return github
+
+
+def open_alert(config):
+    github = FakeGitHub(config)
+    github.alert_store = [make_alert(4, "CodeQL", "js/xss", "x.js")]
+    return github
+
+
+def without_gitignore(root):
+    (root / ".gitignore").unlink()
+
+
 ANSWER = json.dumps(make_answer(missing_information=["Which version do you run?"]))
 SUMMARIES = {
     "event": (
@@ -319,15 +336,23 @@ SUMMARIES = {
         ["apply", "--issue", "12", "--mode", "triage"],
         {"RESULT": ANSWER, "ENGINE": "claude", "GITHUB_SHA": "abc"},
     ),
+    "sweep-incomplete": (sweep_stopped_by_github, ["sweep"], {}),
+    "findings": (open_alert, ["findings"], {}),
+    "check": (lambda config: None, ["check"], {}),
 }
+# The cases that change the files of the repository, in a copy of their own.
+CHANGED_ROOTS = {"check": without_gitignore}
 
 
 @pytest.mark.parametrize("case", SUMMARIES)
 def test_each_job_summary_reads_as_its_golden_file(
-    monkeypatch, tmp_path, sample_root, config, case
+    request, monkeypatch, tmp_path, sample_root, config, case
 ):
     build, argv, env = SUMMARIES[case]
     github = build(config)
+    if case in CHANGED_ROOTS:
+        sample_root = request.getfixturevalue("root")
+        CHANGED_ROOTS[case](sample_root)
     if case == "event":
         path = tmp_path / "event.json"
         path.write_text(json.dumps(event("opened", github.issue(12))), "utf-8")

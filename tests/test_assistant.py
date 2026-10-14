@@ -6039,7 +6039,14 @@ def test_rest_calls_build_the_gh_command(monkeypatch, tmp_path):
     ]
 
 
-def test_a_write_sends_its_text_as_json_in_utf_8(monkeypatch, tmp_path):
+def test_gh_is_read_in_utf_8(monkeypatch, tmp_path):
+    # gh writes UTF-8 whatever the code page of the computer, unescaped.
+    reply = {"title": "Grüße 👋"}
+    gh_answers(monkeypatch, tmp_path, Completed(json.dumps(reply, ensure_ascii=False)))
+    assert assistant.GitHub(REPOSITORY).rest("issues/1") == reply
+
+
+def test_a_write_sends_its_text_as_json(monkeypatch, tmp_path):
     reply = {"id": 7, "body": "Grüße 👋"}
     calls, _ = gh_answers(monkeypatch, tmp_path, Completed(json.dumps(reply)))
     github = assistant.GitHub(REPOSITORY)
