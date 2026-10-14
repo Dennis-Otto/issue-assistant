@@ -749,6 +749,7 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
         "READY_ENGINES",
         "ISSUE_ASSISTANT_ROOT",
         "ISSUE_ASSISTANT_FIXTURE",
+        "GITHUB_EVENT_NAME",
     ):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():

@@ -1644,6 +1644,22 @@ def test_the_reply_of_a_follow_up_links_the_issues_that_exist(config):
     assert "The same as #3, not `#4`." in body and "- Is it like #3?" in body
 
 
+@pytest.mark.parametrize("mode", ["triage", "follow-up"])
+def test_the_reasons_of_the_files_link_the_issues_that_exist(config, mode):
+    """Why a file matters may name an issue too, as the summary may."""
+    github = FakeGitHub(config, make_issue(3), make_issue())
+    files = [{"path": "docs/troubleshooting.md", "reason": "Fixed for #3, not #4."}]
+    answer = make_answer(references=files)
+    if mode == "follow-up":
+        github.comment_store[12] = [analysis(), make_comment(2, "reporter", "Log", 0)]
+        answer = make_follow_up(references=files)
+    assistant.apply_answer(github, mode, 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert "docs/troubleshooting.md`](" in body
+    assert "): Fixed for #3, not `#4`.\n" in body
+    assert stray_problems(body, {3}, config) == []
+
+
 def test_only_ten_named_numbers_are_looked_up(config):
     github = FakeGitHub(config, *(make_issue(number) for number in range(1, 30)))
     named = " ".join(f"#{number}" for number in range(13, 29))
@@ -4923,6 +4939,35 @@ def test_a_failed_count_of_the_feedback_leaves_the_sweep_green(
     )
     assert "- #12: reminded the reporter after" in summary
     assert "- Feedback not counted: GitHub failed." in summary
+
+
+@pytest.mark.parametrize(
+    ("event", "counted"),
+    [
+        ("schedule", True),
+        ("workflow_dispatch", True),
+        ("pull_request_target", False),
+        ("release", False),
+        ("workflow_run", False),
+    ],
+)
+@pytest.mark.parametrize("failed", [False, True])
+def test_only_the_morning_and_a_sweep_by_hand_count_the_feedback(
+    monkeypatch, tmp_path, sample_root, config, event, counted, failed
+):
+    """Merges and releases start a sweep too, often many a day; counting lists every
+    comment of 30 days, which would spend the requests of the token for nothing."""
+    github = two_waiting(config)
+    if failed:
+        github.fail("^GET issues/13/comments")
+    code, _, summary = run_main(
+        monkeypatch, tmp_path, sample_root, github, "sweep", GITHUB_EVENT_NAME=event
+    )
+    assert code == (1 if failed else 0)
+    assert "- #12: reminded the reporter after" in summary
+    assert ("- Feedback of the last 30 days: " in summary) == counted
+    listed = [path for _, path, _ in github.calls if path.startswith("issues/comments")]
+    assert bool(listed) == counted
 
 
 def test_a_repository_without_settings_is_told_what_to_add(

@@ -3385,6 +3385,7 @@ def check_findings(
             *answer["missing_information"],
             findings.duplicate_reason,
             *(reason for _, _, reason in related),
+            *(item["reason"] for item in answer["references"]),
         ],
         findings.numbers,
     )
@@ -3394,19 +3395,27 @@ def check_findings(
         + f": {sanitize(one_line(reason), config, findings.numbers)}"
         for entry, kind, reason in related
     ]
-    findings.references = references(answer["references"], sha, language, config)
+    findings.references = references(
+        answer["references"], sha, language, config, findings.numbers
+    )
     return findings
 
 
 def references(
-    items: list[dict[str, Any]], sha: str, language: str, config: Config
+    items: list[dict[str, Any]],
+    sha: str,
+    language: str,
+    config: Config,
+    numbers: Collection[int] = (),
 ) -> list[str]:
+    """The links to the files to look at, each with its reason, in which the issues
+    and discussions of `numbers`, which exist, stay links."""
     tracked = tracked_files(config.root)
     links: dict[str, str] = {}
     for item in items:
         link = reference_link(item, tracked, sha, language, config)
         if link and link not in links:
-            links[link] = sanitize(one_line(item["reason"]), config)
+            links[link] = sanitize(one_line(item["reason"]), config, numbers)
     return [f"{link}: {reason}" for link, reason in links.items()]
 
 
@@ -3562,14 +3571,24 @@ def apply_answer(
     # one that nobody asked, and close the issue. A run again adds it, as the
     # comment says.
     if mode == "follow-up":
+        numbers = named_numbers(
+            github,
+            number,
+            [
+                answer["reply"],
+                *asks,
+                *(item["reason"] for item in answer["references"]),
+            ],
+            (),
+        )
         body = render_follow_up(
             answer,
             author,
-            references(answer["references"], sha, answer["language"], config),
+            references(answer["references"], sha, answer["language"], config, numbers),
             asks,
             config,
             engine,
-            named_numbers(github, number, [answer["reply"], *asks], ()),
+            numbers,
         )
         added = apply_labels(github, issue, answer, config)
         github.comment(number, body)
@@ -3702,6 +3721,12 @@ def sweep(github: GitHub, now: datetime, releases: bool = True) -> list[str]:
 # How far back the summary of the sweep counts the 👍 and 👎 that the footers of the
 # analyses and follow-ups ask for.
 FEEDBACK_PERIOD = timedelta(days=30)
+
+# The sweeps whose summary counts the feedback: the morning's, one started by hand
+# and one on a computer, without an event. A merge or a release starts a sweep too,
+# often many a day, and each count lists every comment of the 30 days, which would
+# spend the requests that the token has for the hour.
+FEEDBACK_EVENTS = frozenset({"schedule", "workflow_dispatch", ""})
 
 
 def feedback(github: GitHub, now: datetime) -> str:
@@ -4732,6 +4757,7 @@ def main(argv: list[str] | None = None) -> int:
         elif arguments.command == "sweep":
             title = "Issue lifecycle"
             now = datetime.now(UTC)
+            counted = os.environ.get("GITHUB_EVENT_NAME", "") in FEEDBACK_EVENTS
             try:
                 done = sweep(github, now, config.releases)
             except SweepIncomplete as incomplete:
@@ -4740,12 +4766,13 @@ def main(argv: list[str] | None = None) -> int:
                     title,
                     incomplete.done
                     + [f"Failed: {failure}" for failure in incomplete.failed]
-                    + [feedback(github, now)],
+                    + ([feedback(github, now)] if counted else []),
                     dry_run,
                     github.previews,
                 )
                 return 1
-            done.append(feedback(github, now))
+            if counted:
+                done.append(feedback(github, now))
         else:
             title = "Labels"
             done = sync_labels(github, config)
