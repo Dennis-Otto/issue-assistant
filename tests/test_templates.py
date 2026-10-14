@@ -21,11 +21,13 @@ import yaml
 import issue_assistant as assistant
 
 ROOT = Path(assistant.__file__).parent
-# The workflows that install writes into a repository.
+# The workflows that install writes into a repository: the triggers, the permissions
+# and the pin of a reusable workflow of this repository, which has the jobs.
 TEMPLATES = assistant.TEMPLATES / assistant.WORKFLOWS
 # This repository's own workflows. The blueprint brings them, the four of the issue
 # assistant too, which are the templates of the release that it pins; no test
-# compares those with the templates of this commit.
+# compares those with the templates of this commit. The reusable workflows are this
+# repository's own.
 OWN = ROOT / assistant.WORKFLOWS
 NAMES = assistant.TEMPLATE_WORKFLOWS
 
@@ -35,13 +37,27 @@ def load(path):
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def reusable(name):
+    """The reusable workflow that the template `name` calls."""
+    return OWN / f"{assistant.REUSABLE_PREFIX}{name}"
+
+
 ASSISTANT = load(TEMPLATES / "issue-assistant.yml")
-JOBS = ASSISTANT["jobs"]
+JOBS = load(reusable("issue-assistant.yml"))["jobs"]
 ANALYZE = JOBS["analyze"]
 STEPS = {step.get("id"): step for step in ANALYZE["steps"]}
 ACTION = load(ROOT / "action.yml")
 LIFECYCLE = load(TEMPLATES / "issue-lifecycle.yml")
 FINDINGS = load(TEMPLATES / "findings.yml")
+# The issue assistant in a job of a reusable workflow: the checkout of the commit of
+# that workflow, in the context folder, which .gitignore keeps out of git's files.
+TOOL = f"./{assistant.CONTEXT}/action"
+TOOL_CHECKOUT = {
+    "repository": "${{ fromJSON(toJSON(job)).workflow_repository }}",
+    "ref": "${{ fromJSON(toJSON(job)).workflow_sha }}",
+    "path": TOOL.removeprefix("./"),
+    "persist-credentials": False,
+}
 
 # The runner of every job without the AI: a fixed version of Ubuntu, so that a new
 # image behind ubuntu-latest never reaches the repositories untested.
@@ -134,11 +150,54 @@ def test_the_templates_are_the_workflows_that_install_writes():
     assert sorted(path.name for path in TEMPLATES.iterdir()) == sorted(NAMES)
     # This repository looks after its own issues with them as well.
     assert set(NAMES) <= {path.name for path in OWN.glob("*.yml")}
+    # Each one calls a reusable workflow of this repository, which nothing else
+    # starts.
+    assert sorted(OWN.glob(f"{assistant.REUSABLE_PREFIX}*.yml")) == sorted(
+        reusable(name) for name in NAMES
+    )
+    for name in NAMES:
+        assert list(load(reusable(name))[True]) == ["workflow_call"], name
+
+
+LEVELS = ("none", "read", "write")
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_each_template_calls_its_reusable_workflow_with_what_its_jobs_need(name):
+    """A template is the triggers and one job that calls the reusable workflow at
+    the commit of a release, with the permissions that its jobs need, and no more:
+    a called job gets at most the permissions of the job that calls it."""
+    workflow = load(TEMPLATES / name)
+    assert workflow["permissions"] == {}
+    ((job_name, job),) = workflow["jobs"].items()
+    path = f"{assistant.ACTION}/{assistant.WORKFLOWS}/{reusable(name).name}"
+    uses, _, ref = job["uses"].partition("@")
+    assert uses == path and assistant.SHA.fullmatch(ref), job_name
+    pin = assistant.ACTION_PIN.search((TEMPLATES / name).read_text(encoding="utf-8"))
+    assert pin and pin["uses"] == path
+    needed: dict[str, str] = {}
+    for called in load(reusable(name))["jobs"].values():
+        for scope, level in called["permissions"].items():
+            if LEVELS.index(level) > LEVELS.index(needed.get(scope, "none")):
+                needed[scope] = level
+    assert job["permissions"] == needed
+    # A manual run may be a dry run; every other event runs for real.
+    assert job["with"] == {"dry_run": "${{ inputs.dry_run || false }}"}
+    dry_run = workflow[True]["workflow_dispatch"]["inputs"]["dry_run"]
+    assert load(reusable(name))[True]["workflow_call"]["inputs"] == {
+        "dry_run": {
+            "description": dry_run["description"],
+            "type": "boolean",
+            "default": False,
+        }
+    }
+    # The jobs of the issue assistant decide whether they run, not the template.
+    assert set(job) <= {"name", "permissions", "uses", "with", "secrets"}
 
 
 @pytest.mark.parametrize("name", NAMES)
 def test_templates_start_without_permissions_and_not_in_forks(name):
-    workflow = load(TEMPLATES / name)
+    workflow = load(reusable(name))
     assert workflow["permissions"] == {}
     for job_name, job in workflow["jobs"].items():
         assert "permissions" in job, job_name
@@ -149,11 +208,51 @@ def test_templates_start_without_permissions_and_not_in_forks(name):
     assert "!github.event.repository.fork" in first["if"]
 
 
+def test_only_the_job_of_the_ai_gets_the_engine_s_secrets():
+    """The template passes each engine's secrets by name; the job analyze, in the
+    environment issue-assistant, gets their values, and no other job names them."""
+    (job,) = ASSISTANT["jobs"].values()
+    declared = load(reusable("issue-assistant.yml"))[True]["workflow_call"]["secrets"]
+    secrets = [secret for rules in ENGINE_RULES.values() for secret in rules["secrets"]]
+    assert job["secrets"] == {
+        secret: f"${{{{ secrets.{secret} }}}}" for secret in secrets
+    }
+    assert list(declared) == secrets
+    assert all(declared[secret]["required"] is False for secret in secrets)
+    for name in NAMES:
+        if name != "issue-assistant.yml":
+            (other,) = load(TEMPLATES / name)["jobs"].values()
+            assert "secrets" not in other, name
+            assert "secrets" not in load(reusable(name))[True]["workflow_call"]
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_job_runs_the_issue_assistant_of_its_workflow_s_commit(name):
+    """A reusable workflow can't pin the commit that it is part of, so each job
+    checks out the issue assistant of the commit of its workflow, which the caller
+    pins, and runs the action from there: the templates and the action of one
+    release, always."""
+    assert f"{assistant.ACTION}@" not in reusable(name).read_text(encoding="utf-8")
+    for job_name, job in load(reusable(name))["jobs"].items():
+        uses = [step.get("uses", "") for step in job["steps"]]
+        tool = [index for index, step in enumerate(uses) if step == TOOL]
+        (checkout,) = [
+            index
+            for index, step in enumerate(job["steps"])
+            if step.get("with") == TOOL_CHECKOUT
+        ]
+        assert uses[checkout].startswith("actions/checkout@"), job_name
+        # After the repository's checkout, which would remove it, and before the
+        # first step that runs it.
+        assert uses[checkout - 1].startswith("actions/checkout@"), job_name
+        assert tool and checkout < tool[0], job_name
+
+
 # Every job of the templates, as (workflow, job name, job).
 TEMPLATE_JOBS = [
     (name, job_name, job)
     for name in NAMES
-    for job_name, job in load(TEMPLATES / name)["jobs"].items()
+    for job_name, job in load(reusable(name))["jobs"].items()
 ]
 WITHOUT_AI = [item for item in TEMPLATE_JOBS if item[1] != "analyze"]
 
@@ -348,7 +447,7 @@ def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
         "action.yml",
         "issue_assistant.py",
         "prompts/**",
-        f"templates/{assistant.WORKFLOWS}/issue-assistant.yml",
+        f"{assistant.WORKFLOWS}/{assistant.REUSABLE_PREFIX}issue-assistant.yml",
         f"templates/{assistant.FIREWALL}",
         f"{assistant.WORKFLOWS}/canary.yml",
         CANARY_ISSUE,
@@ -468,22 +567,34 @@ def test_actions_are_pinned_and_checkouts_keep_no_credentials(path):
         if "uses" not in step:
             continue
         uses = step["uses"]
-        if uses == "./" or uses.startswith("docker://"):
+        if uses.startswith(("./", "docker://")):
             continue
         assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", uses), uses
         if uses.startswith("actions/checkout@"):
             assert step["with"]["persist-credentials"] is False, job_name
-            if privileged:
-                assert "ref" not in step["with"], (
+            # The jobs of a reusable workflow run for the events of the templates;
+            # their only other checkout is the issue assistant of their workflow.
+            if privileged or path.name.startswith(assistant.REUSABLE_PREFIX):
+                assert "ref" not in step["with"] or step["with"] == TOOL_CHECKOUT, (
                     "issue events must run the default branch"
                 )
+    for job_name, job in load(path)["jobs"].items():
+        # A called workflow of another repository, at a commit too.
+        if "uses" in job and not job["uses"].startswith("./"):
+            assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", job["uses"]), job_name
 
 
 def test_install_finds_every_pin_of_the_action():
     for name in NAMES:
         text = (TEMPLATES / name).read_text(encoding="utf-8")
-        uses = re.findall(r"uses: (Dennis-Otto/issue-assistant@.*)", text)
+        uses = re.findall(r"uses: (Dennis-Otto/issue-assistant[@/].*)", text)
         assert uses and all(assistant.ACTION_PIN.fullmatch(pin) for pin in uses)
+    # A pin of the action itself, as the templates before the reusable workflows
+    # had them.
+    pin = f"{assistant.ACTION}@{'a' * 40} # v1.5.0"
+    assert assistant.pinned(pin, "b" * 40, "v1.6.0") == (
+        f"{assistant.ACTION}@{'b' * 40} # v1.6.0"
+    )
 
 
 @pytest.mark.parametrize("path", WORKFLOWS, ids=workflow_id)
@@ -570,7 +681,7 @@ def test_the_cost_of_every_run_reaches_the_summary_of_the_job():
     """After the engine's step, also when it failed, such as at its turns or its
     dollars, the usage command reports the numbers of its execution file."""
     usage = STEPS["usage"]
-    assert usage["uses"].startswith("Dennis-Otto/issue-assistant@")
+    assert usage["uses"] == TOOL
     assert usage["if"] == "always() && steps.claude.outputs.execution_file != ''"
     assert usage["with"] == {
         "command": "usage",
@@ -594,11 +705,7 @@ def test_the_answer_reaches_github_only_through_the_checks():
         "engine": "${{ steps.engine.outputs.engine }}",
         "answer": f"${{{{ {answers} }}}}",
     }
-    (apply_step,) = [
-        step
-        for step in JOBS["apply"]["steps"]
-        if step["uses"].startswith("Dennis-Otto/issue-assistant@")
-    ]
+    (apply_step,) = [step for step in JOBS["apply"]["steps"] if step["uses"] == TOOL]
     assert apply_step["with"]["command"] == "apply"
     assert apply_step["with"]["answer"] == "${{ needs.analyze.outputs.answer }}"
     assert apply_step["with"]["engine"] == "${{ needs.analyze.outputs.engine }}"
@@ -643,13 +750,10 @@ def test_the_events_of_an_issue_wait_their_turn_instead_of_being_dropped():
 
 
 @pytest.mark.parametrize(
-    ("workflow", "group"),
-    [(LIFECYCLE, "issue-lifecycle"), (FINDINGS, "findings")],
-    ids=["issue-lifecycle.yml", "findings.yml"],
+    ("name", "group"),
+    [("issue-lifecycle.yml", "issue-lifecycle"), ("findings.yml", "findings")],
 )
-def test_a_run_that_skips_its_job_never_takes_the_place_of_a_waiting_one(
-    workflow, group
-):
+def test_a_run_that_skips_its_job_never_takes_the_place_of_a_waiting_one(name, group):
     """The job, not the run, waits for the group.
 
     A whole run waits for a group of the workflow before its job checks its
@@ -659,6 +763,10 @@ def test_a_run_that_skips_its_job_never_takes_the_place_of_a_waiting_one(
     run whose jobs were all skipped left a job waiting in their group alone
     (2026-10-13).
     """
+    template = load(TEMPLATES / name)
+    (caller,) = template["jobs"].values()
+    assert "concurrency" not in template and "concurrency" not in caller
+    workflow = load(reusable(name))
     assert "concurrency" not in workflow
     (job,) = workflow["jobs"].values()
     assert job["concurrency"] == {"group": group, "cancel-in-progress": False}
@@ -674,7 +782,7 @@ def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_co
         "types": ["completed"],
     }
     assert "pull_request" not in triggers
-    (job,) = LIFECYCLE["jobs"].values()
+    (job,) = load(reusable("issue-lifecycle.yml"))["jobs"].values()
     condition = " ".join(job["if"].split())
     assert "github.event.pull_request.merged" in condition
     assert "github.event.pull_request.user.login != 'dependabot[bot]'" in condition
@@ -690,9 +798,10 @@ def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_co
         "issues": "write",
         "pull-requests": "read",
     }
-    _, checkout, step = job["steps"]
+    _, checkout, tool, step = job["steps"]
     # The default branch: no ref of the pull request, no credentials left behind.
     assert checkout["with"] == {"persist-credentials": False}
+    assert tool["with"] == TOOL_CHECKOUT and step["uses"] == TOOL
     assert step["with"]["command"] == "sweep"
 
 
@@ -715,14 +824,15 @@ def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
         "types": ["completed"],
     }
     assert triggers["workflow_dispatch"]["inputs"]["dry_run"]["default"] is True
-    (job,) = FINDINGS["jobs"].values()
+    (job,) = load(reusable("findings.yml"))["jobs"].values()
     assert job["permissions"] == {"contents": "read", "security-events": "write"}
     condition = " ".join(job["if"].split())
     # Only code scanning of the default branch of this repository, never of a fork.
     assert "head_repository.full_name == github.repository" in condition
     assert "head_branch == github.event.repository.default_branch" in condition
-    _, checkout, step = job["steps"]
+    _, checkout, tool, step = job["steps"]
     assert checkout["with"] == {"persist-credentials": False}
+    assert tool["with"] == TOOL_CHECKOUT and step["uses"] == TOOL
     assert step["with"]["command"] == "findings"
     assert "environment" not in job
 
@@ -884,6 +994,8 @@ def test_a_change_of_what_install_writes_is_labeled_setup():
         assistant.NOTICE_DE,
     ]
     globs = area_globs("area: setup")
-    for path in [*(f"{templates}/{path}" for path in written), "action.yml"]:
+    # And the jobs that the workflows call, which every repository runs.
+    jobs = [reusable(name).relative_to(ROOT).as_posix() for name in NAMES]
+    for path in [*(f"{templates}/{path}" for path in written), *jobs, "action.yml"]:
         assert (ROOT / path).is_file(), path
         assert any(matches(glob, path) for glob in globs), path

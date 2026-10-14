@@ -73,6 +73,7 @@ FORM_STARTER = FORMS / "bug_report.yml"
 # a file such as SUPPORT.de.md, in German.
 NOTICE = PurePosixPath("SUPPORT-notice.md")
 NOTICE_DE = PurePosixPath("SUPPORT-notice.de.md")
+# The runner of the job analyze, in the reusable workflow of issue-assistant.yml.
 FIREWALL_RUNNER = "ubuntu-24.04-firewall"
 # actionlint 1.7.12, the newest release, doesn't know the queue of a concurrency
 # group yet, which issue-assistant.yml has; install lets it ignore that message.
@@ -84,8 +85,10 @@ VERSION_FILE = TOOL / "version.txt"
 # The tags of the releases, such as v1.2.3, as git's --match takes them.
 RELEASE_TAGS = "v[0-9]*.[0-9]*.[0-9]*"
 # The workflows of the templates: install copies them, with the commit hash of the
-# release in the pin of the action, and check compares a repository's workflows
-# with them.
+# release in the pins of the issue assistant, and check compares a repository's
+# workflows with them. Each one calls the reusable workflow of this repository whose
+# name is that of the template after "reusable-", which has its jobs; so a release
+# that changes no template reaches a repository as a move of the pins alone.
 TEMPLATE_WORKFLOWS = (
     "issue-assistant.yml",
     "issue-lifecycle.yml",
@@ -95,7 +98,13 @@ TEMPLATE_WORKFLOWS = (
 # The reasons GitHub accepts for dismissing a code scanning alert.
 DISMISS_REASONS = ("false positive", "won't fix", "used in tests")
 ACTION = "Dennis-Otto/issue-assistant"
-ACTION_PIN = re.compile(rf"{re.escape(ACTION)}@[0-9a-f]{{40}} # \S+")
+REUSABLE_PREFIX = "reusable-"
+# A pin of the issue assistant in a template: of one of its reusable workflows, or
+# of the action itself.
+ACTION_PIN = re.compile(
+    rf"(?P<uses>{re.escape(ACTION)}(?:/{re.escape(str(WORKFLOWS))}/"
+    rf"{REUSABLE_PREFIX}[\w-]+\.yml)?)@[0-9a-f]{{40}} # \S+"
+)
 # A checkout of a release, from which install writes the templates of that release.
 CLONE = f"git clone --depth 1 --branch vX.Y.Z https://github.com/{ACTION}"
 # A repository as owner/name, in the characters GitHub allows; "." and ".." are no
@@ -6227,14 +6236,6 @@ def check_workflows(config: Config) -> list[str]:
         for host in sorted(hosts):
             if "*" in host or "/" in host:
                 problems.append(f"{FIREWALL}: name the host {host} in full")
-    actionlint = config.root / ACTIONLINT
-    if actionlint.is_file():
-        labels = (
-            (load_yaml(actionlint, str(ACTIONLINT)) or {}).get("self-hosted-runner")
-            or {}
-        ).get("labels") or []
-        if FIREWALL_RUNNER not in labels:
-            problems.append(f"{ACTIONLINT}: list the runner {FIREWALL_RUNNER}")
     ignore = config.root / ".gitignore"
     if not ignore.is_file() or f"/{CONTEXT}/" not in ignore.read_text("utf-8"):
         problems.append(f".gitignore: add /{CONTEXT}/")
@@ -6601,18 +6602,14 @@ def with_item(text: str, keys: tuple[str, ...], item: str) -> str | None:
 
 
 def add_to_actionlint(root: Path) -> list[str]:
-    """Let actionlint, where a repository runs it with settings, know the runner of
-    the AI and ignore the queue of issue-assistant.yml, which it doesn't know yet."""
+    """Let actionlint, where a repository runs it with settings, ignore the queue of
+    issue-assistant.yml, which it doesn't know yet. The runner of the AI is in the
+    reusable workflow, which actionlint doesn't read in a repository that calls it."""
     path = root / ACTIONLINT
     if not path.is_file():
         return []
     done = []
     for keys, item, what in (
-        (
-            ("self-hosted-runner", "labels"),
-            FIREWALL_RUNNER,
-            f"listed the runner {FIREWALL_RUNNER}",
-        ),
         (
             ("paths", str(WORKFLOWS / "issue-assistant.yml"), "ignore"),
             QUEUE_MESSAGE,
@@ -6713,6 +6710,11 @@ def add_notices(root: Path) -> list[str]:
     return done
 
 
+def pinned(template: str, ref: str, version: str) -> str:
+    """A template with every pin of the issue assistant at the commit of a release."""
+    return ACTION_PIN.sub(lambda pin: f"{pin['uses']}@{ref} # {version}", template)
+
+
 def install(root: Path, ref: str, version: str) -> list[str]:
     """Write the workflows and the firewall policy of the templates into a repository.
 
@@ -6728,9 +6730,8 @@ def install(root: Path, ref: str, version: str) -> list[str]:
     for name in TEMPLATE_WORKFLOWS:
         target = root / WORKFLOWS / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        content = ACTION_PIN.sub(
-            f"{ACTION}@{ref} # {version}",
-            (TEMPLATES / WORKFLOWS / name).read_text(encoding="utf-8"),
+        content = pinned(
+            (TEMPLATES / WORKFLOWS / name).read_text(encoding="utf-8"), ref, version
         )
         target.write_text(content, encoding="utf-8", newline="\n")
         done.append(f"wrote {WORKFLOWS / name}")

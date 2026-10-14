@@ -1,7 +1,7 @@
 name: Canary
 
-# The path of an issue through the AI, end to end, as the template
-# templates/.github/workflows/issue-assistant.yml runs it in every repository that
+# The path of an issue through the AI, end to end, as the reusable workflow
+# .github/workflows/reusable-issue-assistant.yml runs it in every repository that
 # uses the action: the engine on GitHub's egress-firewall runner with the secret of
 # the environment issue-assistant, its structured answer, and apply, which checks
 # that answer. The tests and the Action test reach neither the engine, the outputs
@@ -29,7 +29,7 @@ on:
       - issue_assistant.py
       - prompts/**
       - locales/**
-      - templates/.github/workflows/issue-assistant.yml
+      - .github/workflows/reusable-issue-assistant.yml
       - templates/.github/egress-firewall.yaml
       # The settings that this repository's analyses use, and the firewall policy
       # that the runner enforces here.
@@ -92,10 +92,11 @@ jobs:
               ;;
           esac
 
-  # The job analyze of the template; a test keeps its runner, environment,
-  # permissions, outputs and engine steps equal to the template's. The steps of the
-  # issue assistant run the action of this commit, as ./: actionlint doesn't know
-  # the self-repository syntax $/ yet, which zizmor asks for.
+  # The job analyze of the reusable workflow; a test keeps its runner, environment,
+  # permissions, outputs and engine steps equal to those of the reusable workflow.
+  # The steps of the issue assistant run the action of this commit, as ./:
+  # actionlint doesn't know the self-repository syntax $/ yet, which zizmor asks
+  # for.
   analyze:
     name: Analyze the canary's issue with the AI engine
     if: github.event_name != 'push'

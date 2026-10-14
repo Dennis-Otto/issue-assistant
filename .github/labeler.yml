@@ -9,4 +9,4 @@
 # in .github/ are the blueprint's and change with its updates.
 "area: setup":
   - changed-files:
-      - any-glob-to-any-file: ["templates/**", "action.yml", "tests/test_setup.py", "tests/test_templates.py"]
+      - any-glob-to-any-file: ["templates/**", ".github/workflows/reusable-*.yml", "action.yml", "tests/test_setup.py", "tests/test_templates.py"]
