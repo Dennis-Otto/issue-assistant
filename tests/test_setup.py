@@ -1480,8 +1480,10 @@ def test_yaml_is_read_with_pyyaml(tmp_path):
 def test_the_tool_files_are_where_the_action_expects_them():
     tool = Path(assistant.__file__).parent
     assert tool == assistant.TOOL
-    for name in ("rules.md", "triage.md", "follow-up.md", "maintainer-reply.md"):
-        assert (assistant.PROMPTS / name).is_file()
+    # The rules of every task, and a prompt for each, which write_context reads.
+    assert sorted(path.name for path in assistant.PROMPTS.iterdir()) == sorted(
+        f"{name}.md" for name in ("rules", *assistant.MODES)
+    )
     assert tool / "templates" == assistant.TEMPLATES
     for starter in assistant.STARTERS:
         assert (assistant.TEMPLATES / starter).is_file()

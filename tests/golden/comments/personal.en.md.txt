@@ -1,0 +1,17 @@
+<!-- issue-assistant:analysis lang=en questions=0 engine=claude -->
+
+Thanks for the note on the documentation, @alex-demo! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
+
+> [!NOTE]
+> This issue seems to show personal data, such as an e-mail address, a public IP address or the address of a private server. If you'd rather not show it, edit the post and delete the earlier version from its edit history.
+
+### Summary
+
+The installation guide still names version 1.2 of the hub.
+
+### First analysis
+
+The current release is 1.4, and its first step changed: the hub now asks for the network on its own screen.
+
+<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `documentation`. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+

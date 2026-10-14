@@ -1,0 +1,21 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "none",
+    "notes": [
+      "A comment stopped the duplicate closing."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [
+    "remove possible-duplicate from #12"
+  ],
+  "requests": [
+    [
+      "DELETE",
+      "issues/12/labels/possible-duplicate",
+      null
+    ]
+  ]
+}

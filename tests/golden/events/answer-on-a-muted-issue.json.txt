@@ -1,0 +1,22 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "none",
+    "notes": [
+      "The reporter answered.",
+      "The assistant is muted on #12 (assistant-muted): no AI run; /assistant unmute ends it."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [
+    "remove needs-info from #12"
+  ],
+  "requests": [
+    [
+      "DELETE",
+      "issues/12/labels/needs-info",
+      null
+    ]
+  ]
+}

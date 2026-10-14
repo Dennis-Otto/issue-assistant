@@ -1,0 +1,13 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "none",
+    "notes": [
+      "Event issues.labeled is not handled."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [],
+  "requests": []
+}

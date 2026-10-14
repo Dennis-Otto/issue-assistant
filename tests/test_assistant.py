@@ -27,9 +27,13 @@ from support import (
     analysis,
     at,
     earlier_form_fields,
+    event,
+    fake_gh,
     follow_up,
+    make_alert,
     make_answer,
     make_comment,
+    make_comments,
     make_follow_up,
     make_issue,
     make_pull,
@@ -295,23 +299,6 @@ def test_follow_ups_are_limited():
 # Events
 
 
-def event(action, issue, sender="reporter", comment=None, changes=None):
-    """The payload of an event; `changes` are those of an edit, as GitHub sends them."""
-    payload = {
-        "action": action,
-        "issue": issue,
-        "sender": {
-            "login": sender,
-            "type": "Bot" if sender.endswith("[bot]") else "User",
-        },
-    }
-    if comment:
-        payload["comment"] = comment
-    if changes is not None:
-        payload["changes"] = changes
-    return payload
-
-
 def test_a_new_issue_gets_its_area_and_an_analysis(config):
     issue = make_issue(labels=("bug",))
     github = FakeGitHub(config, issue)
@@ -458,24 +445,30 @@ def test_a_maintainer_s_comment_on_a_waiting_or_own_issue_is_not_checked(config)
         make_issue(author="maintainer", association="OWNER"),
     ):
         github = FakeGitHub(config, issue)
+        # The questions of the analysis, which only the reporter's answer takes up.
+        github.comment_store[12] = [analysis(questions=1), comment]
         plan = assistant.handle_event(
             github,
             "issue_comment",
             event("created", issue, "maintainer", comment),
             config,
         )
-        assert plan.mode == "none"
+        assert (plan.issue, plan.mode, plan.notes) == (12, "none", [])
+        assert not github.writes_made()
 
 
 def test_other_people_s_comments_change_nothing(config):
     issue = make_issue(labels=("bug", "needs-info"))
     github = FakeGitHub(config, issue)
     comment = make_comment(5, "someone", "Same here", 0)
+    # The questions of the analysis, which only the reporter's answer takes up.
+    github.comment_store[12] = [analysis(questions=1), comment]
     plan = assistant.handle_event(
         github, "issue_comment", event("created", issue, "someone", comment), config
     )
-    assert plan.mode == "none"
+    assert (plan.issue, plan.mode, plan.notes) == (12, "none", [])
     assert github.labels_of(12) == {"bug", "needs-info"}
+    assert not github.writes_made()
 
 
 def closed_unanswered(config, questions=1):
@@ -4618,8 +4611,16 @@ def test_a_label_without_a_notice_is_left_to_the_maintainer(config):
     github.comment_store[12] = []
     assert assistant.sweep(github, NOW) == []
     assert "possible-duplicate" in github.labels_of(12)
+
+
+def test_a_locked_possible_duplicate_stays_open(config):
+    # Its notice is three days old, which closes an unlocked one.
+    github = possible_duplicate(config)
     github.store[12]["locked"] = True
     assert assistant.sweep(github, NOW) == []
+    assert github.store[12]["state"] == "open"
+    assert "possible-duplicate" in github.labels_of(12)
+    assert not github.writes_made()
 
 
 # The periods, exemptions and locking of [lifecycle]
@@ -4965,6 +4966,149 @@ def test_the_search_stops_at_the_1000_results_that_github_returns(monkeypatch):
     monkeypatch.setattr(github, "_gh", full_page)
     assert len(list(github.search_issues_where("is:closed"))) == 1000
     assert pages[-1].endswith("&per_page=100&page=10") and len(pages) == 10
+
+
+# Long lists, which GitHub gives in pages of at most 100
+
+
+def test_the_fake_gives_a_reader_that_does_not_page_one_page(config):
+    github = FakeGitHub(config)
+    github.comment_store[12] = make_comments(150)
+    assert len(github.rest("issues/12/comments")) == 30
+    second = github.rest("issues/12/comments?per_page=100&page=2")
+    assert [comment["id"] for comment in second] == list(range(101, 151))
+    assert len(github.rest("issues/12/comments?per_page=100", pages=True)) == 150
+
+
+def long_lists(github):
+    """Each reader of a list of the REST API, and its 150 items, which take two
+    pages of 100: a reader that read only the first would miss 50."""
+    numbers = range(1, 151)
+    github.comment_store[12] = make_comments(150)
+    github.event_store[12] = [
+        {"event": "mentioned", "actor": BOT_USER, "created_at": at(1)} for _ in numbers
+    ]
+    github.reaction_store[1] = [
+        {"content": "+1", "user": {"login": f"fan{number}"}} for number in numbers
+    ]
+    for number in numbers:
+        github.store[number] = make_issue(number, labels=("stale",))
+    github.label_store = [
+        {"name": f"topic {number}", "color": "ededed", "node_id": f"L_{number}"}
+        for number in numbers
+    ]
+    github.alert_store = [make_alert(number) for number in numbers]
+    since = NOW - timedelta(days=30)
+    return {
+        "comments": lambda: github.comments(12),
+        "events": lambda: github.events(12),
+        "reactions": lambda: github.reactions(1),
+        "open issues": lambda: github.open_issues("stale"),
+        "issues since": lambda: github.issues_since(since),
+        # Those of #12 and those of the issue that the reactions are on.
+        "comments since": lambda: github.comments_since(since),
+        "labels": github.labels,
+        "alerts": github.open_alerts,
+    }
+
+
+@pytest.mark.parametrize(
+    "reader",
+    [
+        "comments",
+        "events",
+        "reactions",
+        "open issues",
+        "issues since",
+        "comments since",
+        "labels",
+        "alerts",
+    ],
+)
+def test_every_list_is_read_to_its_last_page(config, reader):
+    github = FakeGitHub(config)
+    assert len(long_lists(github)[reader]()) == 150
+
+
+def test_the_milestone_is_found_on_any_page(config):
+    github = FakeGitHub(config, make_issue())
+    github.milestone_store = [
+        {"number": number, "title": f"v1.{number}.0", "state": "closed"}
+        for number in range(1, 151)
+    ]
+    github.set_milestone(12, "v1.140.0", "2026-10-07T00:00:00Z")
+    assert github.store[12]["milestone"] == 140
+    assert len(github.milestone_store) == 150
+
+
+def long_thread(config):
+    """An issue that waits for its reporter, with 150 comments, more than a page
+    holds: the analysis with its question is comment 120, the reporter answered in
+    comment 140, five days ago, and others wrote the rest."""
+    github = waiting(config, 20)
+    github.store[12]["created_at"] = at(41)
+    github.comment_store[12] = [
+        *make_comments(119, oldest=40, newest=21),
+        analysis(120, 20, questions=1),
+        *make_comments(19, first=121, oldest=19, newest=6),
+        make_comment(140, "reporter", "Version 1.9.0", 5),
+        *make_comments(10, first=141, oldest=4, newest=0.5),
+    ]
+    return github
+
+
+def test_the_sweep_reads_the_answer_on_the_second_page_of_comments(config):
+    github = long_thread(config)
+    assert assistant.sweep(github, NOW) == [
+        "#12: the reporter answered; no longer waiting."
+    ]
+    assert github.labels_of(12) == {"bug"}
+
+
+def test_an_answer_on_the_second_page_of_comments_gets_its_follow_up(config):
+    github = long_thread(config)
+    answer = github.comment_store[12][139]
+    plan = assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(12), comment=answer),
+        config,
+    )
+    assert (plan.issue, plan.mode, plan.answers["id"]) == (12, "follow-up", 120)
+
+
+def test_the_sweep_finds_the_label_after_a_page_of_other_events(config):
+    # A busy issue: the label that the waiting counts from comes after 120 other
+    # events, ten days ago; the issue is 60 days old.
+    github = FakeGitHub(config, make_issue(labels=("bug", "needs-info"), days_ago=60))
+    github.event_store[12] = [
+        {
+            "event": "mentioned",
+            "actor": {"login": "someone", "type": "User"},
+            "created_at": at(60 - index * 0.4),
+        }
+        for index in range(120)
+    ] + [
+        {
+            "event": "labeled",
+            "label": {"name": "needs-info"},
+            "actor": BOT_USER,
+            "created_at": at(10),
+        }
+    ]
+    assert assistant.sweep(github, NOW) == []
+    assert not github.writes_made()
+
+
+def test_an_objection_after_a_page_of_other_reactions_counts(config):
+    github = possible_duplicate(config)
+    github.reaction_store[50] = [
+        {"content": "+1", "user": {"login": f"fan{number}"}} for number in range(120)
+    ] + [{"content": "-1", "user": {"login": "reporter"}}]
+    assert assistant.sweep(github, NOW) == [
+        "#12: stays open, the duplicate notice was objected to or is outdated."
+    ]
+    assert github.store[12]["state"] == "open"
 
 
 # A sweep that GitHub fails in part
@@ -5389,11 +5533,11 @@ def test_the_releases_are_read_once_and_only_to_mark_an_issue(config):
     github = merged(config, make_pull(fixes=(12, 13)), labels=("bug",))
     github.store[13] = make_issue(13, labels=("bug",))
     assistant.mark_fixed(github, NOW)
-    reads = [call for call in github.calls if call[1] == "releases?per_page=100"]
-    assert len(reads) == 1
+    reads = [call for call in github.calls if call[1].startswith("releases")]
+    assert reads == [("GET", "releases?per_page=100", None)]
     github.calls.clear()
     assert assistant.mark_fixed(github, NOW) == []
-    assert not any(call[1] == "releases?per_page=100" for call in github.calls)
+    assert not any(call[1].startswith("releases") for call in github.calls)
 
 
 def released(config, *, contained=True, labeled_days_ago=2, pulls=None, releases=None):
@@ -5734,7 +5878,7 @@ def test_a_fix_merged_before_the_report_closes_it_with_its_release(config):
 def test_without_fixed_issues_the_releases_are_not_read(config):
     github = FakeGitHub(config, make_issue())
     assert assistant.close_released(github) == []
-    assert not any(call[1] == "releases?per_page=100" for call in github.calls)
+    assert not any(call[1].startswith("releases") for call in github.calls)
 
 
 def test_an_unknown_tag_contains_nothing(config):
@@ -5830,78 +5974,176 @@ def test_a_label_that_differs_only_in_case_is_renamed(config, capsys):
     assert "Label Bug" not in out
 
 
-# The gh calls
+# The gh calls: the real subprocess.run starts tests/fake_gh.py in place of gh
 
 
 class Completed:
+    """What gh gives back: its output, its errors and its exit status."""
+
     def __init__(self, stdout="", stderr="", returncode=0):
         self.stdout, self.stderr, self.returncode = stdout, stderr, returncode
 
 
-def test_rest_calls_build_the_gh_command(monkeypatch):
-    calls = []
+def gh_answers(monkeypatch, folder, *results):
+    """Let gh give the results in turn; the calls, each as the command and the text
+    that gh read, and the waits are recorded."""
+    waits = []
+    calls = fake_gh(
+        monkeypatch,
+        folder,
+        *(
+            {"stdout": item.stdout, "stderr": item.stderr, "status": item.returncode}
+            for item in results
+        ),
+    )
+    monkeypatch.setattr(assistant.time, "sleep", waits.append)
+    return calls, waits
 
-    def run(command, **options):
-        calls.append((command, options))
-        return Completed(json.dumps([[{"number": 1}], [{"number": 2}]]))
 
-    monkeypatch.setattr(assistant.subprocess, "run", run)
+def test_rest_calls_build_the_gh_command(monkeypatch, tmp_path):
+    calls, _ = gh_answers(
+        monkeypatch,
+        tmp_path,
+        Completed(json.dumps([[{"number": 1}], [{"number": 2}]])),
+        Completed(""),
+    )
     github = assistant.GitHub(REPOSITORY)
     assert github.rest("issues?state=all", pages=True) == [{"number": 1}, {"number": 2}]
-    command, options = calls[0]
+    assert (
+        github.rest("issues/1/labels", method="POST", data={"labels": ["bug"]}) is None
+    )
+    assert calls == [
+        (
+            [
+                "gh",
+                "api",
+                f"repos/{REPOSITORY}/issues?state=all",
+                "--paginate",
+                "--slurp",
+            ],
+            None,
+        ),
+        (
+            [
+                "gh",
+                "api",
+                f"repos/{REPOSITORY}/issues/1/labels",
+                "--method",
+                "POST",
+                "--input",
+                "-",
+            ],
+            '{"labels": ["bug"]}',
+        ),
+    ]
+
+
+def test_a_write_sends_its_text_as_json_in_utf_8(monkeypatch, tmp_path):
+    reply = {"id": 7, "body": "Grüße 👋"}
+    calls, _ = gh_answers(monkeypatch, tmp_path, Completed(json.dumps(reply)))
+    github = assistant.GitHub(REPOSITORY)
+    github.comment(12, "Grüße 👋\n```\ncode\n```")
+    command, text = calls[0]
     assert command == [
         "gh",
         "api",
-        f"repos/{REPOSITORY}/issues?state=all",
-        "--paginate",
-        "--slurp",
+        f"repos/{REPOSITORY}/issues/12/comments",
+        "--method",
+        "POST",
+        "--input",
+        "-",
     ]
-    assert options["encoding"] == "utf-8" and options["input"] is None
-    github.rest("issues/1/labels", method="POST", data={"labels": ["bug"]})
-    command, options = calls[1]
-    assert command[-4:] == ["--method", "POST", "--input", "-"]
-    assert json.loads(options["input"]) == {"labels": ["bug"]}
+    assert json.loads(text) == {"body": "Grüße 👋\n```\ncode\n```"}
+    assert github.writes == ["comment on #12"]
 
 
-def test_the_search_for_issues_builds_the_gh_command(monkeypatch):
-    calls = []
+def test_graphql_sends_the_query_and_its_variables(monkeypatch, tmp_path):
+    calls, _ = gh_answers(
+        monkeypatch, tmp_path, Completed(json.dumps({"data": {"viewer": {}}}))
+    )
+    query = "query($login: String!) { user(login: $login) { name } }"
+    data = assistant.GitHub(REPOSITORY).graphql(query, {"login": "José"})
+    assert data == {"viewer": {}}
+    assert calls == [
+        (
+            ["gh", "api", "graphql", "--input", "-"],
+            json.dumps({"query": query, "variables": {"login": "José"}}),
+        )
+    ]
 
-    def run(command, **options):
-        calls.append(command)
-        own = f"https://api.github.com/repos/{REPOSITORY}"
-        items = [
-            {"number": 3, "repository_url": own},
-            {"number": 4, "repository_url": own, "pull_request": {"url": "x"}},
-            {"number": 5, "repository_url": "https://api.github.com/repos/a/b"},
-            {"number": 6},
-        ]
-        return Completed(json.dumps({"total_count": 4, "items": items}))
 
-    monkeypatch.setattr(assistant.subprocess, "run", run)
+def test_the_default_branch_comes_from_the_repository(monkeypatch, tmp_path):
+    calls, _ = gh_answers(
+        monkeypatch, tmp_path, Completed(json.dumps({"default_branch": "trunk"}))
+    )
+    assert assistant.GitHub(REPOSITORY).default_branch() == "trunk"
+    assert calls == [(["gh", "api", f"repos/{REPOSITORY}"], None)]
+
+
+def test_the_search_for_issues_builds_the_gh_command(monkeypatch, tmp_path):
+    own = f"https://api.github.com/repos/{REPOSITORY}"
+    items = [
+        {"number": 3, "repository_url": own},
+        {"number": 4, "repository_url": own, "pull_request": {"url": "x"}},
+        {"number": 5, "repository_url": "https://api.github.com/repos/a/b"},
+        {"number": 6},
+    ]
+    calls, _ = gh_answers(
+        monkeypatch,
+        tmp_path,
+        Completed(json.dumps({"total_count": 4, "items": items})),
+    )
     github = assistant.GitHub(REPOSITORY)
     found = github.search_issues(["live", "card"])
     assert [item["number"] for item in found] == [3]
     assert calls == [
-        [
-            "gh",
-            "api",
-            "--method",
-            "GET",
-            "search/issues",
-            "-f",
-            f"q=repo:{REPOSITORY} is:issue (live OR card)",
-            "-F",
-            "per_page=30",
-        ]
+        (
+            [
+                "gh",
+                "api",
+                "--method",
+                "GET",
+                "search/issues",
+                "-f",
+                f"q=repo:{REPOSITORY} is:issue (live OR card)",
+                "-F",
+                "per_page=30",
+            ],
+            None,
+        )
     ]
 
 
-def test_failed_gh_calls_raise(monkeypatch):
-    monkeypatch.setattr(
-        assistant.subprocess,
-        "run",
-        lambda *args, **options: Completed(stderr="HTTP 404", returncode=1),
+def test_the_search_with_qualifiers_reads_page_after_page(monkeypatch, tmp_path):
+    # A full page of 100, and a last one that has fewer.
+    first = [{"number": number} for number in range(100)]
+    last = [{"number": number} for number in range(100, 199)]
+    calls, _ = gh_answers(
+        monkeypatch,
+        tmp_path,
+        Completed(json.dumps({"total_count": 199, "items": first})),
+        Completed(json.dumps({"total_count": 199, "items": last})),
     )
+    found = assistant.GitHub(REPOSITORY).search_issues_where("is:closed no:assignee")
+    assert [item["number"] for item in found] == list(range(199))
+    query = "q=repo%3Aowner%2Fproject+is%3Aissue+is%3Aclosed+no%3Aassignee"
+    assert calls == [
+        (
+            [
+                "gh",
+                "api",
+                f"search/issues?{query}&sort=created&order=asc&per_page=100&page={page}",
+            ],
+            None,
+        )
+        for page in (1, 2)
+    ]
+
+
+def test_failed_gh_calls_raise(monkeypatch, tmp_path):
+    # A GitHubError that the callers handle, never the CalledProcessError of a
+    # check that subprocess.run would make.
+    gh_answers(monkeypatch, tmp_path, Completed(stderr="gh: HTTP 404", returncode=1))
     github = assistant.GitHub(REPOSITORY)
     with pytest.raises(assistant.GitHubError, match="HTTP 404"):
         github.issue(1)
@@ -5910,18 +6152,15 @@ def test_failed_gh_calls_raise(monkeypatch):
     assert github.discussions(100) == []
 
 
-def test_graphql_errors_raise(monkeypatch):
-    responses = iter(
-        [
-            Completed(
-                json.dumps({"errors": [{"message": "Bad field", "type": "INVALID"}]})
-            ),
-            Completed(json.dumps({"data": {"ok": True}})),
-            Completed(""),
-        ]
-    )
-    monkeypatch.setattr(
-        assistant.subprocess, "run", lambda *args, **options: next(responses)
+def test_graphql_errors_raise(monkeypatch, tmp_path):
+    calls, _ = gh_answers(
+        monkeypatch,
+        tmp_path,
+        Completed(
+            json.dumps({"errors": [{"message": "Bad field", "type": "INVALID"}]})
+        ),
+        Completed(json.dumps({"data": {"ok": True}})),
+        Completed(""),
     )
     github = assistant.GitHub(REPOSITORY)
     with pytest.raises(assistant.GitHubError, match="Bad field") as caught:
@@ -5929,20 +6168,10 @@ def test_graphql_errors_raise(monkeypatch):
     assert caught.value.types == {"INVALID"} and not caught.value.missing()
     assert github.graphql("query", {}) == {"ok": True}
     assert github.rest("issues/1", method="DELETE") is None
-
-
-def gh_answers(monkeypatch, *results):
-    """Let gh give the results in turn; the commands and the waits are recorded."""
-    commands, waits = [], []
-    answers = iter(results)
-
-    def run(command, **options):
-        commands.append(command)
-        return next(answers)
-
-    monkeypatch.setattr(assistant.subprocess, "run", run)
-    monkeypatch.setattr(assistant.time, "sleep", waits.append)
-    return commands, waits
+    assert calls[-1] == (
+        ["gh", "api", f"repos/{REPOSITORY}/issues/1", "--method", "DELETE"],
+        None,
+    )
 
 
 NOT_FOUND = Completed(
@@ -6005,9 +6234,9 @@ DONE = Completed(json.dumps({"number": 1}))
     ],
 )
 def test_a_gh_error_knows_github_s_status_and_error_types(
-    monkeypatch, result, status, types, missing
+    monkeypatch, tmp_path, result, status, types, missing
 ):
-    gh_answers(monkeypatch, result)
+    gh_answers(monkeypatch, tmp_path, result)
     with pytest.raises(assistant.GitHubError) as caught:
         # A write, which runs once whatever the error.
         assistant.GitHub(REPOSITORY).rest("issues/1", method="PATCH", data={})
@@ -6017,46 +6246,50 @@ def test_a_gh_error_knows_github_s_status_and_error_types(
 
 
 def test_a_read_that_github_failed_runs_again_after_2_4_and_8_seconds(
-    monkeypatch, capsys
+    monkeypatch, tmp_path, capsys
 ):
-    commands, waits = gh_answers(monkeypatch, BAD_GATEWAY, RESET, DONE)
+    commands, waits = gh_answers(monkeypatch, tmp_path, BAD_GATEWAY, RESET, DONE)
     assert assistant.GitHub(REPOSITORY).issue(1) == {"number": 1}
     assert len(commands) == 3 and waits == [2, 4]
     assert (
         "::notice::gh repos/owner/project/issues/1: gh: HTTP 502; trying again in 2 s"
         in (capsys.readouterr().out)
     )
-    commands, waits = gh_answers(monkeypatch, *[BAD_GATEWAY] * 4)
+    commands, waits = gh_answers(monkeypatch, tmp_path, *[BAD_GATEWAY] * 4)
     with pytest.raises(assistant.GitHubError, match="HTTP 502"):
         assistant.GitHub(REPOSITORY).graphql("query { viewer { login } }", {})
     assert len(commands) == 4 and waits == [2, 4, 8]
 
 
-def test_a_write_runs_again_only_when_github_refused_it(monkeypatch):
+def test_a_write_runs_again_only_when_github_refused_it(monkeypatch, tmp_path):
     github = assistant.GitHub(REPOSITORY)
     # After a server error, GitHub may have posted the comment all the same.
     for write in (
         lambda: github.comment(12, "Hello"),
         lambda: github.graphql("mutation { addLabelsToLabelable }", {}),
     ):
-        commands, waits = gh_answers(monkeypatch, BAD_GATEWAY)
+        commands, waits = gh_answers(monkeypatch, tmp_path, BAD_GATEWAY)
         with pytest.raises(assistant.GitHubError, match="HTTP 502"):
             write()
         assert len(commands) == 1 and waits == []
     # A secondary rate limit refused it, so it runs again after a minute.
     too_many = Completed("", "gh: Too Many Requests (HTTP 429)", 1)
-    commands, waits = gh_answers(monkeypatch, SECONDARY_RATE_LIMIT, too_many, DONE)
+    commands, waits = gh_answers(
+        monkeypatch, tmp_path, SECONDARY_RATE_LIMIT, too_many, DONE
+    )
     github.comment(12, "Hello")
     assert len(commands) == 3 and waits == [60, 60]
-    commands, waits = gh_answers(monkeypatch, *[SECONDARY_RATE_LIMIT] * 4)
+    commands, waits = gh_answers(monkeypatch, tmp_path, *[SECONDARY_RATE_LIMIT] * 4)
     with pytest.raises(assistant.GitHubError, match="secondary rate limit"):
         github.comment(12, "Hello")
     assert len(commands) == 4 and waits == [60, 60, 60]
 
 
 @pytest.mark.parametrize("result", [RATE_LIMIT, NOT_FOUND, NO_DISCUSSION])
-def test_a_rate_limit_of_the_hour_or_a_missing_thing_runs_once(monkeypatch, result):
-    commands, waits = gh_answers(monkeypatch, result)
+def test_a_rate_limit_of_the_hour_or_a_missing_thing_runs_once(
+    monkeypatch, tmp_path, result
+):
+    commands, waits = gh_answers(monkeypatch, tmp_path, result)
     with pytest.raises(assistant.GitHubError):
         assistant.GitHub(REPOSITORY).graphql("query { viewer { login } }", {})
     assert len(commands) == 1 and waits == []

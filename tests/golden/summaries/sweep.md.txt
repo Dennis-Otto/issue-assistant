@@ -1,0 +1,5 @@
+### Issue lifecycle
+
+- #12: reminded the reporter after 16 days.
+- Feedback of the last 30 days: analyses 1, 👍 0, 👎 0; follow-ups 0, 👍 0, 👎 0.
+

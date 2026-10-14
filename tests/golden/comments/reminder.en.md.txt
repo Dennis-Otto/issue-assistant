@@ -1,0 +1,3 @@
+<!-- issue-assistant:reminder closes=2026-11-02 -->
+@alex-demo, a friendly reminder: this issue is still waiting for your answer to [the questions above](https://github.com/demo-org/plant-monitor/issues/42#issuecomment-1). Without an answer, it closes automatically on November 2, 2026. A short comment keeps it open, for example if you need more time.
+

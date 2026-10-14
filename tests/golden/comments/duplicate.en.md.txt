@@ -1,0 +1,20 @@
+<!-- issue-assistant:analysis lang=en questions=0 engine=claude duplicate=23 -->
+
+Thanks for the suggestion, @alex-demo! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
+
+### Possible duplicate
+
+This looks like a duplicate of #23: Asks for the same export of the history as a CSV file.
+
+If that's right, there's nothing to do: the issue closes as a duplicate of #23 in 3 days, so the conversation stays in one place. A 👍 on #23 shows that more people are affected. If it's something different, write a comment or react to this comment with 👎, and it stays open.
+
+### Summary
+
+A button that exports the moisture history of a plant as a CSV file.
+
+### First analysis
+
+The dashboard has no export yet. `ChartFeed.history()` returns the points that the chart shows, which an export could write.
+
+<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `area: dashboard`. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped; a 👎 also keeps the issue open.</sub>
+

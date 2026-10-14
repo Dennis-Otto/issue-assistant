@@ -1,0 +1,5 @@
+<!-- issue-assistant:duplicate lang=de duplicate=23 -->
+@alex-demo, ein Maintainer hat dieses Issue als Duplikat von #23 markiert. Falls das stimmt, musst du nichts tun: Das Issue wird in 3 Tagen als Duplikat von #23 geschlossen, damit alles an einer Stelle bleibt. Ein 👍 bei #23 zeigt, dass mehr Leute betroffen sind. Geht es um etwas anderes, schreib einen Kommentar oder reagiere auf diesen Kommentar mit 👎, dann bleibt es offen.
+
+<sub>[So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue)</sub>
+

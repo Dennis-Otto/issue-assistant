@@ -1,0 +1,3 @@
+<!-- issue-assistant:reopened -->
+Danke für die Rückmeldung, @alex-demo, und schade, dass es noch nicht gelöst ist. Ich habe das Issue wieder geöffnet; die Maintainer sehen es sich erneut an.
+

@@ -1,0 +1,13 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "none",
+    "notes": [
+      "Pull request or bot: nothing to do."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [],
+  "requests": []
+}

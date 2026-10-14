@@ -1,0 +1,17 @@
+<!-- issue-assistant:analysis lang=de questions=0 engine=claude -->
+
+Danke für deinen Hinweis zur Dokumentation, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
+
+> [!NOTE]
+> Dieses Issue scheint persönliche Daten zu zeigen, etwa eine E-Mail-Adresse, eine öffentliche IP-Adresse oder die Adresse eines privaten Servers. Wenn du sie lieber nicht zeigen willst, bearbeite den Beitrag und lösche die frühere Fassung aus dem Bearbeitungsverlauf.
+
+### Zusammenfassung
+
+Die Installationsanleitung nennt noch Version 1.2 des Hubs.
+
+### Erste Analyse
+
+Das aktuelle Release ist 1.4, und sein erster Schritt hat sich geändert: Der Hub fragt jetzt auf seinem eigenen Bildschirm nach dem Netz.
+
+<sub>🤖 Automatische Erstanalyse von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer entscheiden. Labels: `documentation`. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+
