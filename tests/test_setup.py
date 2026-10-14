@@ -1491,6 +1491,8 @@ def test_the_tool_files_are_where_the_action_expects_them():
     for name in assistant.TEMPLATE_WORKFLOWS:
         assert (assistant.TEMPLATES / assistant.WORKFLOWS / name).is_file()
     assert (assistant.TEMPLATES / assistant.FIREWALL).is_file()
+    # The catalog of every language of the comments, English first of all.
+    assert (tool / "locales" / "en.toml").is_file()
     for name in (assistant.FORM_STARTER, assistant.NOTICE, assistant.NOTICE_DE):
         assert (assistant.TEMPLATES / name).is_file()
     # The version of the release, for the command that check names.

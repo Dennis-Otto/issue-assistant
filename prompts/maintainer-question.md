@@ -8,4 +8,4 @@ Write the answer:
 
 - `answer`: the answer to the question, for the maintainer, who knows the project: precise and complete, at most about 300 words. Say what you checked and how sure you are. When the repository doesn't settle the question, say so, and what would. Don't address the reporter, and don't repeat the issue.
 - `references`: the files that the answer rests on, at most six. `path` is relative to the repository root. Give `line` for code (the line that matters) or `anchor` for a heading of a Markdown file (GitHub's anchor, such as `no-realtime-updates`), and a short `reason`.
-- `language`: `"de"` when the question is written in German, otherwise `"en"`. The answer uses that language, whatever the language of the issue.
+- `language`: the code of the language the question is written in, from the list of the rules, or `"other"` for one the list doesn't have. The answer uses that language, whatever the language of the issue.

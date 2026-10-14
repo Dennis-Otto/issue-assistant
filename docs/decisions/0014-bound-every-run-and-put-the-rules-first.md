@@ -19,7 +19,7 @@ The engine's action writes the numbers of every run into an execution file, its 
 
 ## Decision
 
-Option 3. The tasks differ in what they read, not in how they are set up: a follow-up reads the reporter's answers to known questions and needs about half the turns of an analysis, a reply to one comment reads two files and needs a tenth. So `max_turns` alone moves all of them, and `light_model` lets the yes-or-no replies run on a cheaper model without touching the analyses. `max_budget_usd` makes the cost of one run a number that the maintainer sets, whatever an issue says. Each value reaches the engine's command line without quotes, so `check` and the engine command refuse anything that is no model name, no whole number of turns from 1 to 200, no number of dollars above 0 and up to 100, or no level of effort.
+Option 3. The tasks differ in what they read, not in how they are set up: a follow-up reads the reporter's answers to known questions and needs about half the turns of an analysis, a reply to one comment reads two files and needs a tenth, but at least 4 turns, three of which a measured reply used. So `max_turns` alone moves all of them, and `light_model` lets the yes-or-no replies run on a cheaper model without touching the analyses. `max_budget_usd` makes the cost of one run a number that the maintainer sets, whatever an issue says. Each value reaches the engine's command line without quotes, so `check` and the engine command refuse anything that is no model name, no whole number of turns from 1 to 200, no number of dollars above 0 and up to 100, or no level of effort.
 
 The rules move into `.issue-assistant/rules.md`, which the engine takes as its system prompt; its prompt carries only the task. The output `prompt` of `context` keeps rules and task together, so a repository whose workflow is from an earlier release still runs with its rules until it installs again.
 
@@ -27,7 +27,7 @@ A step `usage` after the engine's step, also after a failure, reads the result o
 
 ## Consequences
 
-- A run costs at most `max_budget_usd`, $1.00 by default, and a run that stops at its turns or its dollars posts nothing; the summary says so and names the setting to raise.
+- A run stops once it has spent `max_budget_usd`, $1.00 by default, so it costs at most that sum and its last turn, and a run that stops at its turns or its dollars posts nothing; the summary says so and names the setting to raise.
 - The defaults keep the analyses as they were. A repository with many issues halves the price per token with `model = "claude-sonnet-5-5"`, and saves on the replies with `light_model`.
 - A new engine must pass the rules as its system prompt, honour the turns and the budget of the task, and give `usage` the numbers of its run.
 - Repositories install the workflows again to get the system prompt, the limits of each task and the line of cost; until then, they run as before.

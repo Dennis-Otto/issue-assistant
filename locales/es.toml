@@ -1,0 +1,136 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in Spanish.
+# A machine draft: native speakers are welcome to improve it.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "Spanish"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "tú"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{day} de {month} de {year}"
+months = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+  "septiembre", "octubre", "noviembre", "diciembre",
+]
+# Words that are frequent in the language and in no other catalog. A reporter
+# writes in the language of whose stopwords their words have the most, in
+# English when no other language has more, or fewer than two.
+stopwords = [
+  "el", "los", "las", "no", "y", "pero", "cuando", "esto", "tiene", "tengo", "también",
+  "muy", "hay", "sin", "como", "después", "puedo", "sigue", "ya", "estoy", "hace",
+  "ahora", "hola", "gracias", "aunque", "siempre", "versión", "pasa",
+]
+
+sample = "La tarjeta no muestra nada cuando lanzo un dardo, y esto no es normal."
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "¡Gracias por abrir esta incidencia, @{author}!"
+"thanks.bug" = "¡Gracias por el informe, @{author}!"
+"thanks.enhancement" = "¡Gracias por la sugerencia, @{author}!"
+"thanks.question" = "¡Gracias por la pregunta, @{author}!"
+"thanks.documentation" = "¡Gracias por el aviso sobre la documentación, @{author}!"
+"thanks.compatibility" = "¡Gracias por el informe de compatibilidad, @{author}!"
+"thanks.feedback" = "¡Gracias por probarlo y por tus comentarios, @{author}!"
+"thanks.maintenance" = "¡Gracias por el informe, @{author}!"
+intro = """\
+  Soy el asistente de incidencias de este repositorio y le he echado un primer \
+  vistazo. Los mantenedores también leen cada incidencia."""
+summary = "Resumen"
+analysis = "Primer análisis"
+next_steps = "Qué puedes probar"
+missing = "Información necesaria"
+"missing.intro" = """\
+  Para continuar, añade lo siguiente, en un comentario o editando la incidencia:"""
+"missing.outro" = """\
+  Sin respuesta, llegará un recordatorio después de {remind_days} y la incidencia se \
+  cerrará después de {close_days}. Si se cierra, una respuesta la vuelve a abrir."""
+duplicate = "Posible duplicado"
+"duplicate.text" = "Parece un duplicado de #{number}: {reason}"
+"duplicate.close" = """\
+  Si es así, no tienes que hacer nada: la incidencia se cerrará como duplicado de \
+  #{number} en {grace_days}, para que la conversación siga en un solo lugar. Un 👍 en \
+  #{number} muestra que hay más personas afectadas. Si se trata de otra cosa, escribe \
+  un comentario o reacciona a este comentario con 👎, y seguirá abierta."""
+"duplicate.named" = """\
+  @{author}, un mantenedor marcó esta incidencia como duplicado de #{number}."""
+related = "Relacionado"
+discussion = "discusión"
+references = "Dónde mirar"
+links = "Dónde mirar: {count} enlaces"
+"sensitive.secret" = """\
+  > [!WARNING]\n> Esta incidencia parece mostrar un secreto, como un token, una clave \
+  o una contraseña. Quítalo editando la publicación, borra la versión anterior de su \
+  historial de ediciones y cambia el secreto, porque otras personas pueden haberlo \
+  visto."""
+"sensitive.personal" = """\
+  > [!NOTE]\n> Esta incidencia parece mostrar datos personales, como una dirección de \
+  correo electrónico, una dirección IP pública o la dirección de un servidor privado. \
+  Si prefieres no mostrarlos, edita la publicación y borra la versión anterior de su \
+  historial de ediciones."""
+security = """\
+  > [!CAUTION]\n> Esto podría describir una vulnerabilidad de seguridad. Infórmala de \
+  forma privada, como se describe en la [política de seguridad]({policy}), y quita \
+  aquí los detalles."""
+footer = """\
+  <sub>🤖 Primer análisis automático de {engine}, basado en el código, la documentación \
+  e incidencias anteriores. Puede equivocarse; los mantenedores deciden.{labels} \
+  {feedback}</sub>"""
+labels = " Etiquetas: {labels}."
+about = "[Cómo funciona el asistente]({notice})"
+feedback = "Un 👍 o un 👎 en este comentario indica a los mantenedores si ha sido útil."
+"feedback.duplicate" = """\
+  Un 👍 o un 👎 en este comentario indica a los mantenedores si ha sido útil; un 👎 \
+  además mantiene abierta la incidencia."""
+"follow-up.thanks" = "¡Gracias por tu respuesta, @{author}!"
+"follow-up.missing" = "Todavía falta"
+"follow-up.missing.intro" = "Añade también:"
+"follow-up.footer" = """\
+  <sub>🤖 Seguimiento automático de {engine}. Puede equivocarse; los mantenedores \
+  deciden. {feedback}</sub>"""
+"answer.intro" = "@{asker}, esta es mi respuesta a [tu pregunta]({question}):"
+"answer.footer" = """\
+  <sub>🤖 Respuesta automática de {engine}, basada en el código, la documentación y \
+  esta incidencia. Puede equivocarse; compruébala antes de fiarte de ella. \
+  {feedback}</sub>"""
+reminder = """\
+  @{author}, un recordatorio amable: esta incidencia sigue esperando tu respuesta a \
+  {questions}. Sin respuesta, se cerrará automáticamente el {date}. Basta un \
+  comentario breve para que siga abierta, por ejemplo si necesitas más tiempo."""
+"reminder.questions" = "las preguntas de arriba"
+"closed-unanswered" = """\
+  Cierro esta incidencia porque la información pedida arriba falta desde hace \
+  {close_days}. @{author}, en cuanto respondas aquí, se volverá a abrir \
+  automáticamente. ¡Gracias por el informe!"""
+"closed-duplicate" = """\
+  Cerrada como duplicado de #{number}, como se anunció hace {grace_days}. Sigue allí; \
+  un 👍 en #{number} muestra que hay más personas afectadas. Si ha sido un error, \
+  escribe un comentario y los mantenedores la volverán a abrir."""
+reopened = """\
+  ¡Gracias por tu respuesta, @{author}! He vuelto a abrir la incidencia; los \
+  mantenedores la revisarán de nuevo."""
+fixed = """\
+  Corregido por #{pull}, que ya está en `{branch}`. La corrección llegará con la \
+  próxima versión; entonces esta incidencia se cerrará, con un enlace a ella."""
+released = """\
+  🎉 Publicado en [{tag}]({url}){fixes}. @{author}, actualiza a esta versión. Si el \
+  problema persiste, escribe un comentario aquí y la incidencia se volverá a abrir, o \
+  abre una incidencia nueva."""
+"released.fixes" = " con la corrección de {pulls}"
+"reopened-release" = """\
+  Gracias por avisarnos, @{author}, y lamento que aún no esté resuelto. He vuelto a \
+  abrir la incidencia; los mantenedores la revisarán de nuevo."""
+locked = """\
+  Esta incidencia lleva cerrada más de {lock_days}, así que la he bloqueado. Si \
+  todavía ves el problema, o algo parecido, abre una incidencia nueva y enlaza esta."""
+"days.one" = "{count} día"
+"days.other" = "{count} días"
+line = "{file}, línea {line}"
+heading = "{heading} en {file}"

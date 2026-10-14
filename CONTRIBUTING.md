@@ -13,7 +13,7 @@ All changes reach the protected `main` branch through pull requests that pass ev
 - Name the issue that a pull request fixes with `Fixes #123` in its description. The issue stays open until a release ships the fix and then closes with a link to the release.
 - The script and the hooks of the website in `scripts/mkdocs_hooks.py` keep 100 % line and branch coverage; `tests/test_templates.py` pins the security rules of the templates, and every rule that keeps the AI read-only or checks its answer has a test.
 - The action runs on the Python 3.12 of GitHub's runners with the standard library alone. Use no third-party packages in `issue_assistant.py`.
-- The prompts in `prompts/` and the comment texts in `TEXT` name no AI vendor; only `ENGINES` does. A test checks this.
+- The prompts in `prompts/` and the comment texts in the catalogs of `locales/` name no AI vendor; only `ENGINES` does. A test checks this. A new text goes into every catalog, with the same placeholders; the tests check that too.
 - A change of a template is a change for every repository that uses the action: say in the pull request what repositories must do, such as run `install` again.
 
 ## Tests
@@ -86,7 +86,7 @@ Each page of the website has one topic. It includes the parts of the README that
   <img src="docs/images/diagrams/where-the-pages-of-the-website-come-from.svg" alt="Where the pages of the website come from: The parts of the README become the pages Get started, How it works, Configuration, Reference, Help and the quick start of the home page. The hook of the website makes every comment of What reporters see from the functions and texts of issue_assistant.py, and the tables of the inputs and outputs on the Reference from action.yml. Every page gets a description of its own, from its front matter or its first paragraph.">
 </picture>
 
-- **What reporters see** shows every comment that the assistant posts, in English and in German. The hook makes them with every build, by the functions and with the texts of `issue_assistant.py`, for the demo project of the pictures, in place of the part of `docs/comments.md` between `<!-- comments of issue_assistant.py -->` and `<!-- end of the comments -->`. A new text in `TEXT` or a new kind of comment needs an example in the hook; a test fails without one.
+- **What reporters see** shows every comment that the assistant posts, in English and in German. The hook makes them with every build, by the functions and with the texts of `issue_assistant.py`, for the demo project of the pictures, in place of the part of `docs/comments.md` between `<!-- comments of issue_assistant.py -->` and `<!-- end of the comments -->`. A new text of the catalogs in `locales/` or a new kind of comment needs an example in the hook; a test fails without one.
 - **The reference** has a table of the inputs or the outputs of `action.yml` where a page has the line `<!-- action.yml: inputs -->` or `<!-- action.yml: outputs -->`. The tables of the keys of the settings on the page *Configuration* are written by hand, and tests compare them with the code: every key, its default and the values that `check` accepts.
 - **Every page has a description of its own** for search engines and the cards of shared links: the `description` of its front matter, or else its first paragraph.
 - **Links from before keep working.** The guide was one page; a link to one of its anchors, such as `guide.html#settings`, leads to the page that has the anchor now, by a script that the hook adds to the overview of the guide.

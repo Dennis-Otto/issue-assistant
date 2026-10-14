@@ -12,7 +12,7 @@
 [![Sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Dennis-Otto)
 
 - **Prompt injection can't write.** The AI runs with Read, Grep and Glob alone, behind a firewall and with a read-only token. Its answer reaches GitHub only through a job without AI that checks it against a schema, your labels and your issues.
-- **Answers worth reading.** The likely cause with links to the lines of code, what the reporter can try, the information still missing, duplicates and labels, in English or German.
+- **Answers worth reading.** The likely cause with links to the lines of code, what the reporter can try, the information still missing, duplicates and labels, in the reporter's language.
 - **The whole life of an issue.** Reminders and closing for unanswered issues, duplicates that close after three days, and fixed issues that close with the release that ships the fix, all without AI.
 
 In the root of your repository, these commands install the workflows of the latest release, from a fresh copy each time, and set up the environment of the AI's secret on GitHub:
@@ -41,7 +41,7 @@ Then describe the project, clear one setting and try it on an issue, as [Set up 
 
 A GitHub Action that looks after the issues of a repository:
 
-- **A first analysis of every new issue** by an AI that only reads: a summary, the likely cause with links to the lines of code and the documentation involved, what the reporter can try, the information still missing, and related issues and discussions, in English or German. Its footer explains the assistant and asks for a 👍 or 👎, which the daily sweep counts.
+- **A first analysis of every new issue** by an AI that only reads: a summary, the likely cause with links to the lines of code and the documentation involved, what the reporter can try, the information still missing, and related issues and discussions, in the reporter's language: English, German, French, Spanish, Portuguese, Italian, Dutch or, around the AI's own words, English for any other. Its footer explains the assistant and asks for a 👍 or 👎, which the daily sweep counts.
 - **Labels** from the issue forms and from the analysis, each with its reason.
 - **Duplicates:** a sure duplicate of an issue that a maintainer opened or triaged gets a notice and closes, linked to the original, three days later unless someone objects; other ones become suggestions for the maintainer.
 - **Unanswered questions:** questions of the assistant or the maintainer mark an issue `needs-info`; after 15 days the reporter gets a reminder that names the day the issue closes, and after 30 days it closes on that day. An answer, in a comment or by an edit of the issue, ends the waiting, and a comment reopens a closed issue.
@@ -132,7 +132,7 @@ An issue that waits for its reporter keeps what the comments of the assistant pr
 
 ### Waiting periods, exemptions and old threads
 
-The days above are the defaults of `[lifecycle]` in `config.toml`, and a repository with slow reporters or a busy queue sets its own: the reminder after `remind_after_days`, the closing after `close_after_days`, a duplicate after `duplicate_grace_days`, and the window of `reopen_after_release_days` in which the reporter's comment after a release reopens the issue. The comments name the days that the repository set, in English and German, and `check` fails when the description of `needs-info`, `stale` or `possible-duplicate` in `labels.toml` names other days.
+The days above are the defaults of `[lifecycle]` in `config.toml`, and a repository with slow reporters or a busy queue sets its own: the reminder after `remind_after_days`, the closing after `close_after_days`, a duplicate after `duplicate_grace_days`, and the window of `reopen_after_release_days` in which the reporter's comment after a release reopens the issue. The comments name the days that the repository set, in each of their languages, and `check` fails when the description of `needs-info`, `stale` or `possible-duplicate` in `labels.toml` names other days.
 
 - **Exempt issues** are left to the maintainers: those with a label of `exempt_labels`, `pinned` and `security` by default, those assigned to someone when `exempt_assignees` is `true`, and those with at least `exempt_upvotes` 👍. They get no reminder and never close on their own, also not as a duplicate; one that becomes exempt after its reminder loses `stale`.
 - **Old threads lock** when `lock_closed_after_days` is more than 0: an issue closed for longer, and at least `reopen_after_release_days`, gets one line that points to a new issue and is locked as resolved, the oldest first and 25 in a sweep. An exempt issue stays unlocked, and so does one that someone unlocked.
@@ -214,6 +214,31 @@ Each task reads what it needs and no more, from the files that the `context` ste
   <img src="docs/images/diagrams/what-the-ai-reads-for-each-task.svg" alt="What the AI reads for each task: Every task reads issue.md, the issue with all its comments. A first analysis and a follow-up also read the labels, every open issue, the closed issues that changed last up to max_issues and the discussions that changed last up to max_discussions, from GitHub's GraphQL API, which lists no pull request; each issue has an excerpt in issues.jsonl and its whole text in issues/. A first analysis adds up to 30 older issues that a search for the names of errors and the words of the title finds. A reply, maintainer-reply, release-reply or maintainer-question, reads comment.md instead: the comment whose event started the run, not a newer one that came in while the run waited. The apply job acts only when that comment is the reporter's or a maintainer's, or a maintainer's question.">
 </picture>
 
+### Languages
+
+The assistant answers every reporter in their language. Its own words, from the thanks and the headings to the footer, the reminders and the notes of a release, come from a catalog for each language in [`locales/`](https://github.com/Dennis-Otto/issue-assistant/tree/main/locales), which has seven:
+
+| Code | Language | Addresses a reporter with | A day |
+| --- | --- | --- | --- |
+| `de` | German | du | 2. November 2026 |
+| `en` | English | you | November 2, 2026 |
+| `es` | Spanish | tú | 2 de noviembre de 2026 |
+| `fr` | French | vous | 2 novembre 2026 |
+| `it` | Italian | tu | 2 novembre 2026 |
+| `nl` | Dutch | je | 2 november 2026 |
+| `pt` | Portuguese | você | 2 de novembro de 2026 |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/how-the-assistant-chooses-the-language-of-a-comment.dark.svg">
+  <img src="docs/images/diagrams/how-the-assistant-chooses-the-language-of-a-comment.svg" alt="How the assistant chooses the language of a comment: The AI answers in the reporter's language and names its code. A code of a catalog in locales/, such as fr, gives the assistant's own words and days from that catalog; other, for a language without a catalog, gives English words around the AI's text and days in ISO 8601. The hidden marker of the comment keeps the code. A comment without AI, such as a reminder, a closing or the note of a release, takes the code from the marker of the last analysis or follow-up; without one, from the reporter's own words, the language whose stopwords they use most, English on a tie.">
+</picture>
+
+- **The AI names the language of its answer.** The prompt lists the codes of the catalogs, and the schema of the answer takes them and `other`. For a language without a catalog, such as Japanese, the AI answers with `other` and writes in Japanese, and the assistant's own words around its text are English, with days in ISO 8601, such as 2026-11-02.
+- **The comments without AI keep it.** The hidden marker of an analysis or a follow-up records the language, such as `lang=fr`, and the reminder, the closing, the closing of a duplicate and the comment of a release read it there. Before the first analysis, such as on an issue that a maintainer marks as a duplicate, the reporter's own words decide: the language of the catalog whose stopwords they use most, English on a tie or when no other language has at least two.
+- **Each catalog is complete.** The tests hold every catalog to English: the same texts, the same placeholders in braces, twelve months and stopwords that no other catalog has. A text that a catalog still lacks comes from English, so that a comment never fails for want of one. The English and German texts are written by hand; the French, Spanish, Portuguese, Italian and Dutch ones are machine drafts, which native speakers are welcome to improve. The section *What happens with your issue* that `install` writes comes in English and German.
+
+**To add a language,** copy `locales/en.toml` to `locales/<code>.toml`, named after the code of the language in ISO 639-1, such as `pl.toml`. Translate each text and keep its placeholders, such as `{author}`, and set the name of the language in English, how it addresses a reporter, how it writes a day, its twelve months and at least twenty stopwords: frequent words of the language that no other catalog has. Nothing else changes: the prompt, the schema of the answer and the guess of a reporter's language take the new file. `bash scripts/check.sh` runs the tests that check it.
+
 ### Limits of the AI runs
 
 Anyone can open an issue, and every run of the AI costs money or counts toward the usage limits of a subscription. So the runs that people who don't maintain the repository start have limits, which `[engine]` in `config.toml` sets:
@@ -245,14 +270,14 @@ The limits above count the runs; `[engine]` in `config.toml` also bounds each on
 | A first analysis, `triage` | `model` | 40, all of `max_turns` | the issue, the other issues, the discussions and the repository |
 | A follow-up | `model` | 20, half of `max_turns` | the same, with the reporter's answers to the questions |
 | A maintainer's question, `/assistant ask` | `model` | 40, all of `max_turns` | the issue, the question and the repository |
-| A reply to a maintainer's comment or after a release | `light_model`, else `model` | 4, a tenth of `max_turns` | the issue and the one comment that it judges, yes or no |
+| A reply to a maintainer's comment or after a release | `light_model`, else `model` | 4, a tenth of `max_turns`, but never fewer than 4 | the issue and the one comment that it judges, yes or no |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-bounds-one-run-of-the-ai.dark.svg">
   <img src="docs/images/diagrams/what-bounds-one-run-of-the-ai.svg" alt="What bounds one run of the AI: The event job names the task of the run. The engine command chooses from [engine] in config.toml what the run may use: the model, or light_model for a reply to one comment; the turns, all of max_turns for an analysis or a maintainer's question, half for a follow-up and a tenth for a reply; the dollars of max_budget_usd and the effort. The context command writes the rules into rules.md and the task into prompt.md. The engine takes the rules as its system prompt and the task as its prompt, reads the checkout and stops at its turns or its dollars; its answer goes to the job apply. The usage command reads the numbers of the run, also after a failure, and writes one line into the summary of the job: the turns, the time, the cost and the tokens. When the run stopped at a limit, a warning names the setting.">
 </picture>
 
-- **Every run stops at `max_budget_usd`,** $1.00 unless you set another sum, as the engine counts it at the prices of its API. An issue written to make the AI read on gets no further than the turns and the dollars of its task, and a run that stops there posts nothing.
+- **Every run stops once it has spent `max_budget_usd`,** $1.00 unless you set another sum, as the engine counts it at the prices of its API. The engine checks the sum between its calls to the API, so a run can go past it by the cost of its last turn. An issue written to make the AI read on gets no further than the turns and the dollars of its task, and a run that stops there posts nothing.
 - **`effort`** sets how much a model that takes it thinks, from `low`, the cheapest, to `max`; without it, the model's default runs.
 - **The rules come first.** `context` writes them into `.issue-assistant/rules.md`, and the engine takes them as its system prompt, apart from its task in the prompt and from the texts of GitHub that it reads in the folder.
 - **What each run cost is one line in the summary of its job,** numbers only, also after a failure: the model, how the run ended, its turns and time, its cost against `max_budget_usd` and its tokens, such as *claude-opus-5-5 answered after 15 of 40 turns and 52 s, $0.202 of $1.00, 412,345 tokens in (398,000 of them from the cache) and 3,210 out*. A run that stopped at its turns or its dollars also gets a warning that names the setting to raise.
@@ -374,7 +399,7 @@ A set-up has three parts: what `install` writes, what you edit, and what you set
 
     `install` pins the workflows to the commit and the tag of its checkout, and writes the settings and the starters that the repository lacks. `--setup` creates the environment `issue-assistant`, which only the default branch may use, and asks for the engine's secret. For Claude, `claude setup-token` creates the token of a Claude subscription, `CLAUDE_CODE_OAUTH_TOKEN`; an API key goes into `ANTHROPIC_API_KEY` instead. Each step looks first, so running it again changes nothing but the workflows.
 
-2. **Describe the project** in `.github/issue-assistant/project.md`: what it does, where the code, documentation, troubleshooting guide and changelog are, which versions and logs matter in a bug report, and how to address German reporters. The AI reads it before every task. Then adapt the starters to the project, its labels and its issue forms, until the check passes:
+2. **Describe the project** in `.github/issue-assistant/project.md`: what it does, where the code, documentation, troubleshooting guide and changelog are, which versions and logs matter in a bug report, and how to address reporters if not as the [catalogs of the languages](https://github.com/Dennis-Otto/issue-assistant#languages) do, such as with *Sie* in German. The AI reads it before every task. Then adapt the starters to the project, its labels and its issue forms, until the check passes:
 
     ```sh
     python3 "$dir/issue_assistant.py" check
@@ -473,7 +498,7 @@ name = "claude"                 # the engine of ENGINES
 # model = "claude-opus-5-5"     # the engine's default model if left out; a letter or digit, then letters, digits and ._:@/[]- only
 # light_model = "claude-sonnet-5-5"  # the replies to one comment, yes or no; model if left out
 # effort = "medium"             # low, medium, high, xhigh or max, for the models that take it; their default if left out
-max_turns = 40                  # turns of an analysis and a question; a follow-up gets half, a reply a tenth; 1 to 200
+max_turns = 40                  # turns of an analysis and a question; a follow-up gets half, a reply a tenth, each at least 4; 1 to 200
 max_budget_usd = 1.00           # the dollars at which one run stops; more than 0, at most 100
 max_per_day = 20                # analyses, follow-ups and replies after a release in 24 hours; 0: only maintainers, by hand
 max_per_author_per_day = 3      # analyses of one reporter's new issues in 24 hours
@@ -621,7 +646,7 @@ With the token of a Claude subscription instead of an API key, an analysis count
 | --- | --- | --- | --- |
 | Claude Opus 5.5, `claude-opus-5-5` | $4.00 | $20.00 | the default: the most careful analyses |
 | Claude Sonnet 5.5, `claude-sonnet-5-5` | $2.00 | $10.00 | repositories with many issues: half the price per token |
-| Claude Haiku 5.5, `claude-haiku-5-5` | $0.10 | $0.50 | the replies to one comment, at the least cost |
+| Claude Haiku 5.5, `claude-haiku-5-5` | $0.10, up to 100K tokens per prompt; $0.50 beyond | $0.50, up to 100K tokens per prompt; $2.50 beyond | the replies to one comment, at the least cost |
 
 For a repository with many issues, `model = "claude-sonnet-5-5"` halves the price of every token, and `light_model` lets the replies to one comment, which only say yes or no, run on a cheaper model than the analyses. These are the prices of Anthropic's API in October 2026; [its page of prices](https://platform.claude.com/docs/en/about-claude/pricing) has today's.
 
@@ -634,6 +659,10 @@ Yes, with `model` under `[engine]` in `.github/issue-assistant/config.toml`, suc
 ### Can I change when issues are reminded, closed or locked?
 
 Yes, with `[lifecycle]` in `.github/issue-assistant/config.toml`: the days until the reminder, the closing and the closing of a duplicate, the window after a release, the follow-ups of the AI, the issues that are exempt by label, assignee or 👍, and the locking of issues closed long ago, which is off by default. The comments name the days that you set. Say the same days in the descriptions of `needs-info`, `stale` and `possible-duplicate` in `labels.toml`, or none, and in your `SUPPORT.md`; `check` fails on a label that names other days.
+
+### Which languages does it answer in?
+
+Every language. English, German, French, Spanish, Portuguese, Italian and Dutch have a catalog of the assistant's own words, and in any other language the AI writes its part in the reporter's language between headings and a footer in English. One more file in `locales/` adds a language, as [Languages](https://github.com/Dennis-Otto/issue-assistant#languages) describes.
 
 ### How do I know whether the assistant does well?
 
