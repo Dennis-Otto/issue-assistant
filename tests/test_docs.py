@@ -567,17 +567,25 @@ def test_the_readme_says_what_why_and_how_before_the_animation():
     assert tagline(top).startswith("Safe AI issue triage")
     assert len(re.findall(r"^- \*\*", top, re.MULTILINE)) == 3
     (commands,) = re.findall(r"^```sh\n(.*?)^```$", top, re.MULTILINE | re.DOTALL)
-    # The commands install the latest release with its commit hash and its tag.
-    assert '--branch "$tag"' in commands and '--version "$tag"' in commands
+    # The commands clone the latest release at its tag, whose commit and tag install
+    # takes from the clone, so that nobody looks up a hash, and set up GitHub too.
+    assert '--branch "$tag"' in commands and "--ref" not in commands
     # They clone into a new folder, and install only once that clone has succeeded: a
     # folder left from an earlier run would install its old templates under the new
     # tag, and without a tag the clone fails.
     assert 'dir="$(mktemp -d)"' in commands and "/tmp/" not in commands
     assert re.search(
-        r'git clone [^\n]* "\$dir" &&\n\s+python3 "\$dir/issue_assistant\.py" install --ref',
+        r'git clone [^\n]* "\$dir" &&\n\s+python3 "\$dir/issue_assistant\.py" '
+        r"install --setup\n\Z",
         commands,
     )
     assert "(#set-up-a-repository)" in top
+    # They are the first step of the set-up, which has four.
+    steps = readme_part("quick-start")
+    assert textwrap.indent(commands, "    ") in steps
+    assert re.findall(r"^(\d+)\. \*\*", steps, re.MULTILINE) == ["1", "2", "3", "4"]
+    for needed in ("Auto-close issues with merged linked pull requests", "Try it"):
+        assert needed in steps
 
 
 def test_the_website_and_the_repository_describe_the_project_alike(settings):

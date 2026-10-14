@@ -39,6 +39,22 @@ color = "0075ca"
 description = "Improvements or additions to documentation"
 group = "type"
 
+# The parts of the project, one label each, with the answers of the field Area of
+# the issue forms that choose it; add your own and their answers to the forms.
+[[label]]
+name = "area: setup"
+color = "c5def5"
+description = "Installing, configuring or updating"
+group = "area"
+form_options = ["Installation, configuration or update"]
+
+[[label]]
+name = "area: docs"
+color = "c5def5"
+description = "The documentation"
+group = "area"
+form_options = ["Documentation"]
+
 [[label]]
 name = "needs-triage"
 color = "fbca04"

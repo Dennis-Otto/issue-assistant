@@ -491,6 +491,8 @@ def test_every_engine_has_rules_a_step_and_credentials():
             f"steps.engine.outputs.engine == '{engine}'"
         )
         secrets = " || ".join(f"secrets.{secret} != ''" for secret in rules["secrets"])
+        # install --setup asks for the first of them.
+        assert assistant.ENGINES[engine].credentials == rules["secrets"]
         assert f"({secrets}) && '{engine}'" in ready
 
 
@@ -745,10 +747,13 @@ def test_this_repository_s_own_settings_fit(tmp_path):
         shutil.copyfile(ROOT / name, own / name)
     (own / assistant.FIREWALL).unlink()
     done = assistant.install(own, "0" * 40, "v1.0.0")
-    # The starter files and the entry of .gitignore are all there already.
-    assert done == [f"wrote {assistant.WORKFLOWS / name}" for name in NAMES] + [
-        f"wrote {assistant.FIREWALL}"
-    ]
+    # The starter files, the forms, the notice to reporters, the entry of .gitignore
+    # and the runner in actionlint's settings are all there already; the settings
+    # of the blueprint may not ignore the queue of issue-assistant.yml yet.
+    queue = f"let actionlint ignore the queue of issue-assistant.yml in {assistant.ACTIONLINT}"
+    assert [line for line in done if line != queue] == [
+        f"wrote {assistant.WORKFLOWS / name}" for name in NAMES
+    ] + [f"wrote {assistant.FIREWALL}"]
     assert assistant.check(dataclasses.replace(config, root=own)) == []
     defined = {label.name for label in config.labels}
     # The labels that the release bot, the branch bot and Dependabot set.
@@ -808,6 +813,9 @@ def test_a_change_of_what_install_writes_is_labeled_setup():
         *(assistant.WORKFLOWS / name for name in NAMES),
         assistant.FIREWALL,
         *assistant.STARTERS,
+        assistant.FORM_STARTER,
+        assistant.NOTICE,
+        assistant.NOTICE_DE,
     ]
     globs = area_globs("area: setup")
     for path in [*(f"{templates}/{path}" for path in written), "action.yml"]:

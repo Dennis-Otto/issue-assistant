@@ -1,8 +1,11 @@
 """Setting up a repository: its settings, install and the check of its set-up."""
 
 import dataclasses
+import io
 import json
 import shutil
+import subprocess
+import sys
 import tomllib
 from pathlib import Path, PurePath, PurePosixPath
 
@@ -12,6 +15,14 @@ import issue_assistant as assistant
 from support import REF, REPOSITORY, FakeGitHub, make_alert, run_main
 
 SAMPLE = Path(__file__).parent / "sample"
+# What check says to do about a workflow or a firewall policy that doesn't fit.
+REINSTALL = (
+    "write the templates of this release anew with: "
+    'dir="$(mktemp -d)" && git clone --quiet --depth 1 --branch '
+    f"v{assistant.VERSION_FILE.read_text('utf-8').strip()} "
+    'https://github.com/Dennis-Otto/issue-assistant "$dir" && '
+    'python3 "$dir/issue_assistant.py" install'
+)
 
 
 def test_the_settings_are_read_with_defaults(config, root):
@@ -338,10 +349,9 @@ def test_install_needs_a_commit_hash(tmp_path):
 
 
 def test_the_starter_files_make_a_valid_set_up(tmp_path):
-    assistant.install(tmp_path, REF, "v1.0.0")
-    (tmp_path / "SUPPORT.md").write_text(
-        "Claude, an AI by Anthropic.", encoding="utf-8"
-    )
+    done = assistant.install(tmp_path, REF, "v1.0.0")
+    assert "wrote .github/ISSUE_TEMPLATE/bug_report.yml; adapt it" in done
+    assert "added what happens with an issue to SUPPORT.md; adapt it" in done
     project = tmp_path / assistant.SETTINGS / "project.md"
     config = assistant.load_config(tmp_path, REPOSITORY, lenient=True)
     # The one thing to write by hand: what the project is.
@@ -359,6 +369,588 @@ def test_the_starter_files_make_a_valid_set_up(tmp_path):
     )
     config = assistant.load_config(tmp_path, REPOSITORY, lenient=True)
     assert assistant.check(config) == []
+
+
+# The release that install writes
+
+
+def run_git(folder, *args):
+    """git in `folder`, with an author and without signing, whatever the computer's
+    settings say."""
+    result = subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "tag.gpgsign=false",
+            *args,
+        ],
+        cwd=folder,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def release_checkout(folder):
+    """A clone of the release v9.8.7, at its annotated tag: the commit and the
+    object of the tag, which `git ls-remote` lists first."""
+    folder.mkdir(parents=True)
+    run_git(folder, "init", "-q", "--template=", "-b", "main")
+    run_git(folder, "commit", "-q", "--allow-empty", "-m", "the release")
+    run_git(folder, "tag", "-a", "v9.8.7", "-m", "v9.8.7")
+    # The major tag, which each release moves, names no version of its own.
+    run_git(folder, "tag", "v9")
+    return run_git(folder, "rev-parse", "HEAD"), run_git(folder, "rev-parse", "v9.8.7")
+
+
+def test_install_takes_the_commit_and_the_tag_of_its_checkout(tmp_path):
+    tool = tmp_path / "issue-assistant"
+    commit, tag_object = release_checkout(tool)
+    assert commit != tag_object
+    assert assistant.release_of(tool, None, None) == (commit, "v9.8.7")
+    assert assistant.release_of(tool, commit, None) == (commit, "v9.8.7")
+    assert assistant.release_of(tool, None, "v9.8.7") == (commit, "v9.8.7")
+    # A version that is no tag of the checkout, as in the action's smoke test.
+    assert assistant.release_of(tool, commit, "smoke-test") == (commit, "smoke-test")
+
+
+def test_install_refuses_the_version_of_another_release(tmp_path):
+    # A clone of a release has no tag of another one, which the pin's comment would
+    # name, and Dependabot would take for the version installed.
+    tool = tmp_path / "issue-assistant"
+    commit, _ = release_checkout(tool)
+    for ref in (None, commit):
+        with pytest.raises(assistant.AssistantError) as refused:
+            assistant.release_of(tool, ref, "v1.0.0")
+        assert str(refused.value) == (
+            f"The checkout in {tool.as_posix()} is the release v9.8.7, not v1.0.0; "
+            "leave out --version, or check out v1.0.0."
+        )
+    # Off a release, a version of one is taken as it is given.
+    run_git(tool, "commit", "-q", "--allow-empty", "-m", "after the release")
+    head = run_git(tool, "rev-parse", "HEAD")
+    assert assistant.release_of(tool, None, "v1.0.0") == (head, "v1.0.0")
+
+
+def test_install_refuses_the_object_of_a_tag_for_the_commit(tmp_path):
+    tool = tmp_path / "issue-assistant"
+    commit, tag_object = release_checkout(tool)
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.release_of(tool, tag_object, "v9.8.7")
+    assert str(refused.value) == (
+        f"{tag_object} is the object of a tag, not the commit of a release; use "
+        f"{commit}, or leave out --ref."
+    )
+
+
+def test_install_refuses_a_commit_or_a_tag_that_isn_t_its_checkout(tmp_path):
+    tool = tmp_path / "issue-assistant"
+    released, _ = release_checkout(tool)
+    run_git(tool, "commit", "-q", "--allow-empty", "-m", "after the release")
+    head = run_git(tool, "rev-parse", "HEAD")
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.release_of(tool, released, None)
+    assert str(refused.value) == (
+        f"The checkout in {tool.as_posix()} is at the commit {head}, not {released}, "
+        "and install writes its templates; leave out --ref, or check out the "
+        "release of that commit."
+    )
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.release_of(tool, None, None)
+    assert str(refused.value) == (
+        f"The checkout in {tool.as_posix()} is at no release; check out the tag of "
+        "one, or clone it: git clone --depth 1 --branch vX.Y.Z "
+        "https://github.com/Dennis-Otto/issue-assistant"
+    )
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.release_of(tool, None, "v9.8.7")
+    assert str(refused.value) == (
+        f"The tag v9.8.7 is the commit {released}, not {head} of the checkout in "
+        f"{tool.as_posix()}; leave out --version, or check out v9.8.7."
+    )
+
+
+def test_install_without_a_checkout_of_its_own_takes_what_it_is_given(
+    monkeypatch, tmp_path
+):
+    # A folder in the checkout of another repository, such as a copy of the tool
+    # in a project, is no checkout of the tool.
+    project = tmp_path / "project"
+    release_checkout(project)
+    tool = project / "tools" / "issue-assistant"
+    tool.mkdir(parents=True)
+    assert assistant.release_of(tool, REF, "v1.0.0") == (REF, "v1.0.0")
+    with pytest.raises(assistant.AssistantError, match="is no git checkout"):
+        assistant.release_of(tool, REF, None)
+    # Neither is any folder on a computer without git.
+
+    def no_git(*args, **kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(assistant.subprocess, "run", no_git)
+    with pytest.raises(assistant.AssistantError, match="is no git checkout"):
+        assistant.release_of(project, None, "v9.8.7")
+
+
+# The starters of a set-up
+
+
+def test_install_writes_a_bug_report_form_only_without_forms(tmp_path):
+    starter = assistant.TEMPLATES / assistant.FORM_STARTER
+    form = tmp_path / ".github/ISSUE_TEMPLATE/bug_report.yml"
+    assert assistant.add_form(tmp_path, starter_labels=True) == [
+        "wrote .github/ISSUE_TEMPLATE/bug_report.yml; adapt it"
+    ]
+    assert form.read_bytes() == starter.read_bytes()
+    assert assistant.add_form(tmp_path, starter_labels=True) == []
+    # The settings of the chooser are no form; a template in Markdown is one.
+    form.unlink()
+    (tmp_path / ".github/ISSUE_TEMPLATE/config.yml").write_text(
+        "blank_issues_enabled: false\n", encoding="utf-8"
+    )
+    assert assistant.add_form(tmp_path, starter_labels=True) != []
+    form.unlink()
+    (tmp_path / ".github/ISSUE_TEMPLATE/bug.md").write_text("A bug\n", "utf-8")
+    assert assistant.add_form(tmp_path, starter_labels=True) == []
+    assert not form.exists()
+
+
+def test_install_writes_the_form_only_with_the_starter_labels(tmp_path):
+    # The labels of a repository may not map the form's label and areas, and a form
+    # would override the templates of its owner's .github repository.
+    labels = tmp_path / ".github/labels.toml"
+    labels.parent.mkdir(parents=True)
+    labels.write_text('[[label]]\nname = "defect"\ncolor = "d73a4a"\n', "utf-8")
+    done = assistant.install(tmp_path, REF, "v1.0.0")
+    starter = (assistant.TEMPLATES / assistant.FORM_STARTER).as_posix()
+    assert (
+        "wrote no issue form for your own .github/labels.toml; the starter "
+        f"{starter} needs its labels and areas there"
+    ) in done
+    assert not (tmp_path / ".github/ISSUE_TEMPLATE").exists()
+    assert labels.read_text("utf-8").startswith('[[label]]\nname = "defect"')
+    # A fresh set-up writes both.
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    done = assistant.install(fresh, REF, "v1.0.0")
+    assert "wrote .github/ISSUE_TEMPLATE/bug_report.yml; adapt it" in done
+
+
+def test_the_starter_form_chooses_the_starter_area_labels():
+    form = assistant.load_yaml(assistant.TEMPLATES / assistant.FORM_STARTER)
+    labels = assistant.load_labels(
+        assistant.TEMPLATES / assistant.LABELS_FILE, assistant.Problems()
+    )
+    (area,) = [item for item in form["body"] if item.get("id") == "area"]
+    assert area["attributes"]["label"] == assistant.Config.area_field
+    chosen = {option for label in labels for option in label.form_options}
+    options = set(area["attributes"]["options"])
+    assert options == chosen | set(assistant.Config.unmapped_options)
+    assert set(form["labels"]) <= {label.name for label in labels}
+    # It tells reporters that an AI answers first, and where they read more.
+    intro = form["body"][0]["attributes"]["value"]
+    assert "AI issue assistant" in intro and "SUPPORT.md" in intro
+
+
+def test_install_tells_reporters_what_happens_with_their_issue(tmp_path, root):
+    # Without SUPPORT.md, install writes one.
+    assistant.install(tmp_path, REF, "v1.0.0")
+    support = (tmp_path / "SUPPORT.md").read_text("utf-8")
+    assert support.startswith("# Support\n\n## What happens with your issue\n\n")
+    assert "Claude, an AI by Anthropic" in support
+    assert "fixed-in-next-release" in support and "{" not in support
+    assert assistant.check_config(assistant.load_config(tmp_path, REPOSITORY)) == []
+    # A file that names the engine stays as it is; one that doesn't gets the section
+    # below its text, in German for a German file.
+    assert assistant.add_notices(tmp_path) == []
+    settings = root / assistant.SETTINGS / "config.toml"
+    settings.write_text(
+        settings.read_text("utf-8").replace(
+            'files = ["SUPPORT.md"]',
+            'files = ["SUPPORT.md", "docs/help.md", "SUPPORT.de.md"]\n\n'
+            "[releases]\nclose_with_release = false",
+        ),
+        encoding="utf-8",
+    )
+    (root / "docs/help.md").write_text("# Help\n\nAsk away.\n\n\n", encoding="utf-8")
+    kept = (root / "SUPPORT.md").read_text("utf-8")
+    assert assistant.add_notices(root) == [
+        "added what happens with an issue to docs/help.md; adapt it",
+        "added what happens with an issue to SUPPORT.de.md; adapt it",
+    ]
+    assert (root / "SUPPORT.md").read_text("utf-8") == kept
+    help_page = (root / "docs/help.md").read_text("utf-8")
+    assert help_page.startswith(
+        "# Help\n\nAsk away.\n\n## What happens with your issue"
+    )
+    # Without releases, GitHub closes a fixed issue with the merge.
+    assert "fixed-in-next-release" not in help_page
+    german = (root / "SUPPORT.de.md").read_text("utf-8")
+    assert "## Was mit deinem Issue geschieht" in german
+    assert "Claude, eine KI von Anthropic" in german
+    assert assistant.check_config(assistant.load_config(root, REPOSITORY)) == []
+
+
+def test_install_writes_no_notice_outside_the_repository_or_for_an_unknown_engine(
+    tmp_path,
+):
+    root = tmp_path / "project"
+    assistant.install(root, REF, "v1.0.0")
+    settings = root / assistant.SETTINGS / "config.toml"
+    settings.write_text(
+        settings.read_text("utf-8").replace(
+            'files = ["SUPPORT.md"]', 'files = ["../SUPPORT.md"]'
+        ),
+        encoding="utf-8",
+    )
+    assert assistant.add_notices(root) == [
+        "kept ../SUPPORT.md, which is outside the repository"
+    ]
+    assert not (tmp_path / "SUPPORT.md").exists()
+    settings.write_text(
+        settings.read_text("utf-8").replace('name = "claude"', 'name = "unknown"'),
+        encoding="utf-8",
+    )
+    assert assistant.add_notices(root) == []
+
+
+@pytest.mark.parametrize(
+    ("name", "phrases"),
+    [
+        ("SUPPORT-notice.md", ("after {} days", "after {} days", "{} days later")),
+        ("SUPPORT-notice.de.md", ("nach {} Tagen", "nach {} Tagen", "{} Tage später")),
+    ],
+)
+def test_the_notice_says_when_the_assistant_acts(name, phrases):
+    text = (assistant.TEMPLATES / name).read_text("utf-8")
+    periods = (assistant.REMIND_AFTER, assistant.CLOSE_AFTER, assistant.DUPLICATE_GRACE)
+    for phrase, period in zip(phrases, periods, strict=True):
+        assert phrase.format(period.days) in text
+    # The reporter's comment after the release, on the line of the fix.
+    assert f" {assistant.REOPEN_AFTER_RELEASE.days} " in text.splitlines()[-1]
+    # The engine and its vendor come from ENGINES; the fix of an issue is one line,
+    # which a repository without releases leaves out.
+    assert "{engine}" in text and "{vendor}" in text
+    assert sum(assistant.FIXED in line for line in text.splitlines()) == 1
+
+
+# actionlint's settings
+
+
+ACTIONLINT_EDITS = [
+    # The settings of this repository's blueprint, with a comment.
+    (
+        "self-hosted-runner:\n  labels:\n    # The preview.\n    - other\n",
+        "self-hosted-runner:\n  labels:\n    - ubuntu-24.04-firewall\n"
+        "    # The preview.\n    - other\n",
+    ),
+    (
+        "self-hosted-runner:\n  labels: []\n",
+        "self-hosted-runner:\n  labels: [ubuntu-24.04-firewall]\n",
+    ),
+    (
+        "self-hosted-runner:\n  labels: [a, b] # two\n",
+        "self-hosted-runner:\n  labels: [ubuntu-24.04-firewall, a, b] # two\n",
+    ),
+    (
+        "self-hosted-runner:\n",
+        "self-hosted-runner:\n  labels:\n    - ubuntu-24.04-firewall\n",
+    ),
+    (
+        "'self-hosted-runner':\n    labels:\n        - a",
+        "'self-hosted-runner':\n    labels:\n        - ubuntu-24.04-firewall\n"
+        "        - a\n",
+    ),
+    ("", "self-hosted-runner:\n  labels:\n    - ubuntu-24.04-firewall\n"),
+    (
+        "# Settings\nconfig-variables: null\n",
+        "# Settings\nconfig-variables: null\nself-hosted-runner:\n  labels:\n"
+        "    - ubuntu-24.04-firewall\n",
+    ),
+    # Items at the indentation of their key, as many formatters write them.
+    (
+        "self-hosted-runner:\n  labels:\n  # The preview.\n  - a\nother: 1\n",
+        "self-hosted-runner:\n  labels:\n  - ubuntu-24.04-firewall\n"
+        "  # The preview.\n  - a\nother: 1\n",
+    ),
+    (
+        "self-hosted-runner:\nlabels:\n- a\n",
+        "self-hosted-runner:\n  labels:\n    - ubuntu-24.04-firewall\nlabels:\n- a\n",
+    ),
+]
+
+
+@pytest.mark.parametrize(("text", "edited"), ACTIONLINT_EDITS)
+def test_install_lists_the_runner_in_actionlint_s_settings(text, edited):
+    keys = ("self-hosted-runner", "labels")
+    assert assistant.with_item(text, keys, assistant.FIREWALL_RUNNER) == edited
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # A list of the top level.
+        "- a\n",
+        # Something else where a mapping or a list belongs.
+        "self-hosted-runner: 3\n",
+        "self-hosted-runner:\n  labels: a\n",
+        "self-hosted-runner: {labels: [a]}\n",
+    ],
+)
+def test_install_leaves_actionlint_settings_that_it_can_t_edit_safely(text):
+    keys = ("self-hosted-runner", "labels")
+    assert assistant.with_item(text, keys, assistant.FIREWALL_RUNNER) is None
+
+
+def test_install_lets_actionlint_know_the_runner_and_the_queue(root):
+    path = root / assistant.ACTIONLINT
+    assert assistant.add_to_actionlint(root) == []
+    path.write_text(
+        "paths:\n  .github/workflows/ci.yml:\n    ignore:\n      - 'x'\n",
+        encoding="utf-8",
+    )
+    assert assistant.add_to_actionlint(root) == [
+        "listed the runner ubuntu-24.04-firewall in .github/actionlint.yaml",
+        "let actionlint ignore the queue of issue-assistant.yml in "
+        ".github/actionlint.yaml",
+    ]
+    assert path.read_text("utf-8") == (
+        "paths:\n"
+        "  .github/workflows/issue-assistant.yml:\n"
+        "    ignore:\n"
+        '      - \'unexpected key "queue" for "concurrency" section\'\n'
+        "  .github/workflows/ci.yml:\n    ignore:\n      - 'x'\n"
+        "self-hosted-runner:\n  labels:\n    - ubuntu-24.04-firewall\n"
+    )
+    assert assistant.add_to_actionlint(root) == []
+    assert assistant.check_workflows(assistant.load_config(root, REPOSITORY)) == []
+    path.write_text("[a]\n", encoding="utf-8")
+    assert assistant.add_to_actionlint(root) == [
+        ".github/actionlint.yaml: add 'ubuntu-24.04-firewall' to the list "
+        "self-hosted-runner > labels; its YAML is too unusual to edit safely",
+        '.github/actionlint.yaml: add \'unexpected key "queue" for "concurrency" '
+        "section' to the list paths > .github/workflows/issue-assistant.yml > ignore; "
+        "its YAML is too unusual to edit safely",
+    ]
+    assert path.read_text("utf-8") == "[a]\n"
+
+
+def test_install_writes_the_rest_without_reading_actionlint_s_settings(
+    monkeypatch, root
+):
+    # Settings that are no YAML, which check reports.
+    path = root / assistant.ACTIONLINT
+    path.write_text("self-hosted-runner: [a\n", encoding="utf-8")
+    done = assistant.add_to_actionlint(root)
+    assert len(done) == 2
+    assert done[0].startswith(
+        ".github/actionlint.yaml: add 'ubuntu-24.04-firewall' to the list "
+        "self-hosted-runner > labels; .github/actionlint.yaml is no valid YAML: "
+    )
+    # A computer with neither PyYAML nor yq.
+    path.write_text("self-hosted-runner:\n  labels: []\n", encoding="utf-8")
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    real_run = subprocess.run
+
+    def without_yq(command, *args, **kwargs):
+        if command[0] == "yq":
+            raise FileNotFoundError("yq")
+        return real_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(assistant.subprocess, "run", without_yq)
+    done = assistant.install(root, REF, "v1.0.0")
+    assert (
+        ".github/actionlint.yaml: add 'ubuntu-24.04-firewall' to the list "
+        "self-hosted-runner > labels; Reading the workflows needs PyYAML or yq; "
+        "install one of them, for example with: pip install pyyaml"
+    ) in done
+    assert "wrote .github/workflows/issue-assistant.yml" in done
+    assert path.read_text("utf-8") == "self-hosted-runner:\n  labels: []\n"
+
+
+# Setting up GitHub
+
+
+class FakeEnvironments(assistant.GitHub):
+    """The calls of `install --setup` to GitHub, in memory."""
+
+    def __init__(self, environment=None, policies=(), secrets=()):
+        super().__init__(REPOSITORY)
+        self.environment = environment
+        self.policies = [{"name": name, "type": "branch"} for name in policies]
+        self.secrets = [{"name": name} for name in secrets]
+        self.calls = []
+        self.error = None
+
+    def _gh(self, args, data=None, *, read=True):
+        method = args[args.index("--method") + 1] if "--method" in args else "GET"
+        path = args[1].removeprefix(f"repos/{REPOSITORY}")
+        self.calls.append((method, path, data))
+        environment = "/environments/issue-assistant"
+        if path == "":
+            return {"default_branch": "trunk"}
+        if (method, path) == ("PUT", environment):
+            self.environment = {"name": "issue-assistant", **data}
+            return self.environment
+        if path == environment:
+            if self.error:
+                raise self.error
+            if self.environment is None:
+                raise assistant.GitHubError("gh api: HTTP 404: Not Found", status=404)
+            return self.environment
+        if path == f"{environment}/deployment-branch-policies?per_page=100":
+            return {"total_count": len(self.policies), "branch_policies": self.policies}
+        if (method, path) == ("POST", f"{environment}/deployment-branch-policies"):
+            self.policies.append(data)
+            return data
+        assert path == f"{environment}/secrets?per_page=100"
+        return {"total_count": len(self.secrets), "secrets": self.secrets}
+
+
+AUTO_CLOSE = (
+    "left for you: clear Settings > General > Issues > Auto-close issues with "
+    "merged linked pull requests on https://github.com/owner/project/settings, so "
+    "that a fixed issue stays open until its release"
+)
+
+
+def test_setup_creates_the_environment_for_the_default_branch_only(config):
+    github = FakeEnvironments()
+    assert list(assistant.set_up_github(github, config, ask=False)) == [
+        "created the environment issue-assistant",
+        "let the branch trunk use the environment issue-assistant",
+        "left for you: gh secret set CLAUDE_CODE_OAUTH_TOKEN --env issue-assistant "
+        "--repo owner/project, or set ANTHROPIC_API_KEY instead",
+        AUTO_CLOSE,
+    ]
+    assert github.calls[2] == (
+        "PUT",
+        "/environments/issue-assistant",
+        {
+            "deployment_branch_policy": {
+                "protected_branches": False,
+                "custom_branch_policies": True,
+            }
+        },
+    )
+    assert github.policies == [{"name": "trunk", "type": "branch"}]
+    # Run again, it changes nothing, and finds the secret that was set meanwhile.
+    github.secrets = [{"name": "ANTHROPIC_API_KEY"}]
+    github.calls = []
+    without_releases = dataclasses.replace(config, releases=False)
+    assert list(assistant.set_up_github(github, without_releases, ask=False)) == [
+        "kept the environment issue-assistant, for the branch trunk",
+        "kept the secret of Claude in the environment issue-assistant",
+    ]
+    assert [call[0] for call in github.calls] == ["GET"] * 4
+
+
+@pytest.mark.parametrize(
+    ("policy", "who"),
+    [
+        (None, "every branch"),
+        (
+            {"protected_branches": True, "custom_branch_policies": False},
+            "protected branches",
+        ),
+    ],
+)
+def test_setup_keeps_an_environment_that_a_maintainer_set_up_otherwise(
+    config, policy, who
+):
+    github = FakeEnvironments({"deployment_branch_policy": policy}, secrets=["X"])
+    lines = list(assistant.set_up_github(github, config, ask=False))
+    assert lines[0] == (
+        f"kept the environment issue-assistant, which {who} may use; limit it to "
+        "trunk under Settings > Environments"
+    )
+    assert not [call for call in github.calls if call[0] != "GET"]
+
+
+def test_setup_asks_for_the_secret_in_a_terminal(monkeypatch, config):
+    asked = []
+
+    def gh(args, **kwargs):
+        asked.append(args)
+        return subprocess.CompletedProcess(args, len(asked) - 1)
+
+    monkeypatch.setattr(assistant.subprocess, "run", gh)
+    environment = {"deployment_branch_policy": {"custom_branch_policies": True}}
+    github = FakeEnvironments(environment, policies=["trunk"])
+    lines = list(assistant.set_up_github(github, config, ask=True))
+    command = (
+        "gh secret set CLAUDE_CODE_OAUTH_TOKEN --env issue-assistant "
+        "--repo owner/project"
+    )
+    assert lines[1:3] == [
+        f"{command}: paste the secret of Claude, or ANTHROPIC_API_KEY later",
+        "set the secret CLAUDE_CODE_OAUTH_TOKEN of the environment issue-assistant",
+    ]
+    # gh reads the secret from the terminal; it never passes through the script.
+    assert asked == [command.split()]
+    with pytest.raises(assistant.AssistantError) as refused:
+        list(assistant.set_up_github(github, config, ask=True))
+    assert str(refused.value) == f"gh set no secret; run {command}"
+
+
+def test_setup_stops_when_github_fails(config):
+    github = FakeEnvironments()
+    github.error = assistant.GitHubError("gh api: HTTP 403: Forbidden", status=403)
+    with pytest.raises(assistant.GitHubError):
+        list(assistant.set_up_github(github, config, ask=False))
+    assert [call[0] for call in github.calls] == ["GET", "GET"]
+
+
+def test_the_install_command_sets_up_github(monkeypatch, tmp_path, capsys):
+    package = tmp_path / "package"
+    package.mkdir()
+    monkeypatch.setattr(assistant, "TOOL", package)
+    monkeypatch.setattr(assistant.shutil, "which", lambda name: f"/bin/{name}")
+    # No terminal: gh can't ask for the secret, and install says how to set it.
+    monkeypatch.setattr(sys, "stdin", io.StringIO())
+    github = FakeEnvironments()
+    target = tmp_path / "target"
+    target.mkdir()
+    argv = ("install", "--ref", REF, "--version", "v1.2.3", "--setup")
+    code, _, _ = run_main(monkeypatch, tmp_path, target, github, *argv)
+    out = capsys.readouterr().out.splitlines()
+    assert code == 0, out
+    assert out[out.index("set up owner/project on GitHub:") + 1] == (
+        "created the environment issue-assistant"
+    )
+    assert out[-2] == AUTO_CLOSE
+    # Without gh, nothing happens on GitHub.
+    monkeypatch.setattr(assistant.shutil, "which", lambda name: None)
+    code, _, _ = run_main(monkeypatch, tmp_path, target, github, *argv)
+    assert code == 1
+    assert capsys.readouterr().out.splitlines()[-1] == (
+        "::error::--setup needs the GitHub CLI, gh: https://cli.github.com"
+    )
+
+
+def test_setup_finds_the_repository_of_the_checkout(monkeypatch, tmp_path):
+    answers = iter([("owner/project\n", "", 0), ("", "no git remotes found", 1)])
+
+    def gh(args, **kwargs):
+        assert args[:3] == ["gh", "repo", "view"] and kwargs["cwd"] == tmp_path
+        stdout, stderr, code = next(answers)
+        return subprocess.CompletedProcess(args, code, stdout, stderr)
+
+    monkeypatch.setattr(assistant.subprocess, "run", gh)
+    assert assistant.repository_of_checkout(tmp_path) == "owner/project"
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.repository_of_checkout(tmp_path)
+    assert str(refused.value) == (
+        f"gh finds no repository on GitHub for {tmp_path.as_posix()} (no git remotes "
+        "found); name it with GH_REPO=owner/name."
+    )
 
 
 # check
@@ -526,12 +1118,11 @@ def test_a_changed_workflow_is_found(config, root):
     )
     (root / ".github/workflows/labels.yml").unlink()
     problems = assistant.check_workflows(config)
-    assert (
-        ".github/workflows/issue-assistant.yml differs from the template" in problems[0]
-    )
-    assert (
-        ".github/workflows/labels.yml is missing; run the install command" in problems
-    )
+    assert problems == [
+        ".github/workflows/issue-assistant.yml differs from the template of the issue "
+        f"assistant, and only the refs of its actions may differ; {REINSTALL}",
+        f".github/workflows/labels.yml is missing; {REINSTALL}",
+    ]
 
 
 def test_actions_must_be_pinned_to_a_commit(config, root):
@@ -573,7 +1164,7 @@ def test_firewall_problems_are_found(config, root):
         ".github/egress-firewall.yaml: name the host *.example.com in full" in problems
     )
     path.unlink()
-    assert ".github/egress-firewall.yaml is missing; run the install command" in (
+    assert f".github/egress-firewall.yaml is missing; {REINSTALL}" in (
         assistant.check_workflows(config)
     )
 
@@ -654,6 +1245,11 @@ def test_a_model_that_would_add_arguments_fails_the_check_and_the_engine(
 
 
 def test_the_install_command_writes_into_the_workspace(monkeypatch, tmp_path, capsys):
+    # The folder of an unpacked package of a release: no git checkout, so the
+    # commit and the tag are given.
+    package = tmp_path / "package"
+    package.mkdir()
+    monkeypatch.setattr(assistant, "TOOL", package)
     target = tmp_path / "target"
     target.mkdir()
     code, _, _ = run_main(
@@ -668,7 +1264,14 @@ def test_the_install_command_writes_into_the_workspace(monkeypatch, tmp_path, ca
         "v1.2.3",
     )
     assert code == 0
-    assert "wrote .github/workflows/issue-assistant.yml" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "wrote .github/workflows/issue-assistant.yml" in out
+    # What is left to do, with the command of the check of this checkout.
+    assert out.splitlines()[-1] == (
+        "next: describe the project in .github/issue-assistant/project.md, run "
+        f"python3 {package.as_posix()}/issue_assistant.py check, commit, push, and "
+        "try it under Actions > Issue assistant > Run workflow"
+    )
     assert "# v1.2.3" in (target / ".github/workflows/labels.yml").read_text("utf-8")
     code, _, _ = run_main(
         monkeypatch,
@@ -682,6 +1285,29 @@ def test_the_install_command_writes_into_the_workspace(monkeypatch, tmp_path, ca
         "x",
     )
     assert code == 1
+    assert capsys.readouterr().out == (
+        "::error::--ref takes the full commit hash of the release, not 'main'; leave "
+        "it out to take the commit of the checkout.\n"
+    )
+    code, _, _ = run_main(monkeypatch, tmp_path, target, None, "install")
+    assert code == 1
+    assert capsys.readouterr().out == (
+        f"::error::{package.as_posix()} is no git checkout, so give --ref and "
+        "--version, or run install from a checkout of a release: git clone --depth 1 "
+        "--branch vX.Y.Z https://github.com/Dennis-Otto/issue-assistant\n"
+    )
+
+
+def test_install_takes_the_release_of_its_checkout(monkeypatch, tmp_path, capsys):
+    tool = tmp_path / "issue-assistant"
+    commit, _ = release_checkout(tool)
+    monkeypatch.setattr(assistant, "TOOL", tool)
+    target = tmp_path / "target"
+    target.mkdir()
+    code, _, _ = run_main(monkeypatch, tmp_path, target, None, "install")
+    assert code == 0, capsys.readouterr().out
+    workflow = (target / ".github/workflows/labels.yml").read_text("utf-8")
+    assert f"Dennis-Otto/issue-assistant@{commit} # v9.8.7" in workflow
 
 
 def test_yaml_is_read_with_pyyaml(tmp_path):
@@ -712,6 +1338,11 @@ def test_the_tool_files_are_where_the_action_expects_them():
     for name in assistant.TEMPLATE_WORKFLOWS:
         assert (assistant.TEMPLATES / assistant.WORKFLOWS / name).is_file()
     assert (assistant.TEMPLATES / assistant.FIREWALL).is_file()
+    for name in (assistant.FORM_STARTER, assistant.NOTICE, assistant.NOTICE_DE):
+        assert (assistant.TEMPLATES / name).is_file()
+    # The version of the release, for the command that check names.
+    assert tool / "version.txt" == assistant.VERSION_FILE
+    assert assistant.VERSION_FILE.is_file()
 
 
 def test_another_checkout_can_be_checked(monkeypatch, tmp_path, sample_root):
