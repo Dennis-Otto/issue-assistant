@@ -9,6 +9,10 @@ name: Canary
 # few issues, so a broken path would show first as issues without an answer in
 # every repository that uses the action.
 #
+# Its copy of analyze reads the secret of the environment directly. How a caller
+# passes the secret through workflow_call and the variables of its repository into
+# the called job rests on GitHub's documentation, not on this run (decision 0015).
+#
 # The issue is tests/fixtures/canary-issue.json, which exists nowhere on GitHub:
 # ISSUE_ASSISTANT_FIXTURE gives it to context and apply in place of a real one, and
 # makes apply a dry run, whose summary shows the comment it would post. Nothing is

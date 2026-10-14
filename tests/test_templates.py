@@ -56,6 +56,18 @@ TOOL_CHECKOUT = {
     "repository": "${{ fromJSON(toJSON(job)).workflow_repository }}",
     "ref": "${{ fromJSON(toJSON(job)).workflow_sha }}",
     "path": TOOL.removeprefix("./"),
+    "sparse-checkout": "".join(
+        f"/{path}\n"
+        for path in (
+            "action.yml",
+            "issue_assistant.py",
+            "version.txt",
+            "prompts/",
+            "locales/",
+            "templates/",
+        )
+    ),
+    "sparse-checkout-cone-mode": False,
     "persist-credentials": False,
 }
 
@@ -246,6 +258,23 @@ def test_every_job_runs_the_issue_assistant_of_its_workflow_s_commit(name):
         # first step that runs it.
         assert uses[checkout - 1].startswith("actions/checkout@"), job_name
         assert tool and checkout < tool[0], job_name
+
+
+def test_the_tool_checkout_holds_what_the_action_reads_and_nothing_more():
+    """The checkout lies in the context folder, which the engine reads, so it holds
+    only what the action runs: never the docs and tests of the issue assistant,
+    whose texts would only mislead the engine."""
+    checked_out = TOOL_CHECKOUT["sparse-checkout"].splitlines()
+    source = (ROOT / "issue_assistant.py").read_text(encoding="utf-8")
+    read = {"/action.yml"} | {
+        f"/{path}" for path in re.findall(r"""TOOL / ["']([^"']+)["']""", source)
+    }
+    action = (ROOT / "action.yml").read_text(encoding="utf-8")
+    read |= {
+        f"/{path}" for path in re.findall(r"\$GITHUB_ACTION_PATH/(\S+?)\"", action)
+    }
+    assert {path.rstrip("/") for path in checked_out} == read
+    assert all((ROOT / path.strip("/")).exists() for path in checked_out)
 
 
 # Every job of the templates, as (workflow, job name, job).

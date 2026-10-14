@@ -76,6 +76,16 @@ jobs:
           repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
           ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
           path: .issue-assistant/action
+          # Only what the action runs: the engine reads the context folder, and the
+          # docs and tests of the issue assistant would only mislead it there.
+          sparse-checkout: |
+            /action.yml
+            /issue_assistant.py
+            /version.txt
+            /prompts/
+            /locales/
+            /templates/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Set labels and choose the next task
         id: event
@@ -117,6 +127,16 @@ jobs:
           repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
           ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
           path: .issue-assistant/action
+          # Only what the action runs: the engine reads the context folder, and the
+          # docs and tests of the issue assistant would only mislead it there.
+          sparse-checkout: |
+            /action.yml
+            /issue_assistant.py
+            /version.txt
+            /prompts/
+            /locales/
+            /templates/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       # The engine and what a run of the task may use: its model, turns, dollars and
       # effort, from config.toml.
@@ -211,6 +231,16 @@ jobs:
           repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
           ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
           path: .issue-assistant/action
+          # Only what the action runs: the engine reads the context folder, and the
+          # docs and tests of the issue assistant would only mislead it there.
+          sparse-checkout: |
+            /action.yml
+            /issue_assistant.py
+            /version.txt
+            /prompts/
+            /locales/
+            /templates/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Check the engine's answer and post it
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
