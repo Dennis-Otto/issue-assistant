@@ -9,7 +9,8 @@ import re
 import sys
 import textwrap
 import tomllib
-from datetime import date, timedelta
+from datetime import date
+from operator import attrgetter
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1001,7 +1002,7 @@ def test_every_text_of_the_assistant_is_on_the_comments_page():
     for language in hooks.LANGUAGES:
         shown = all_texts(language)
         for key, template in assistant.TEXT[language].items():
-            for fragment in re.split(r"\{[a-z]+\}", template):
+            for fragment in re.split(r"\{[a-z_]+\}", template):
                 assert fragment.strip() in shown, (language, key, fragment)
 
 
@@ -1024,7 +1025,7 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
 
         monkeypatch.setattr(assistant, name, record)
     shown = hooks.examples()
-    assert called == set(writers) and len(writers) == 9
+    assert called == set(writers) and len(writers) == 10
     assert [example.kind for example in shown] == list(hooks.KINDS)
     for example in shown:
         for language in hooks.LANGUAGES:
@@ -1077,14 +1078,17 @@ def test_the_comments_page_takes_its_timing_rules_from_the_assistant(monkeypatch
     assert when["closed-duplicate"].startswith("3 days after the notice")
     assert "at most twice," in when["follow-up"]
     assert "within 30 days of the release" in when["reopened-release"]
+    assert "here to 90 days" in when["locked"]
     # Other rules change the page, with no text of its own to keep current.
-    monkeypatch.setattr(assistant, "REMIND_AFTER", timedelta(days=10))
-    monkeypatch.setattr(assistant, "CLOSE_AFTER", timedelta(days=20))
-    monkeypatch.setattr(assistant, "DUPLICATE_GRACE", timedelta(days=5))
-    monkeypatch.setattr(assistant, "REOPEN_AFTER_RELEASE", timedelta(days=60))
     for follow_ups, words in ((1, "once"), (3, "3 times")):
-        monkeypatch.setattr(assistant, "MAX_FOLLOW_UPS", follow_ups)
-        rules = hooks.timings(assistant)
+        lifecycle = assistant.Lifecycle(
+            remind_after_days=10,
+            close_after_days=20,
+            duplicate_grace_days=5,
+            reopen_after_release_days=60,
+            max_follow_ups=follow_ups,
+        )
+        rules = hooks.timings(assistant, lifecycle)
         assert rules["follow_ups"] == words
     when = {kind: text.format(**rules) for kind, (_, text) in hooks.KINDS.items()}
     assert when["reminder"].startswith("10 days after a question")
@@ -1093,6 +1097,7 @@ def test_the_comments_page_takes_its_timing_rules_from_the_assistant(monkeypatch
     assert when["closed-duplicate"].startswith("5 days after the notice")
     assert "at most 3 times," in when["follow-up"]
     assert "within 60 days of the release" in when["reopened-release"]
+    assert "at least the 60 days after a release" in when["locked"]
 
 
 def test_a_comment_looks_as_github_shows_it():
@@ -1267,6 +1272,18 @@ SETTINGS = {
     "[forms] unmapped_options": ("unmapped_options", ["None"]),
     "[transparency] files": ("notices", ["README.md"]),
     "[releases] close_with_release": ("releases", False),
+    "[lifecycle] remind_after_days": ("lifecycle.remind_after_days", 20),
+    "[lifecycle] close_after_days": ("lifecycle.close_after_days", 45),
+    "[lifecycle] duplicate_grace_days": ("lifecycle.duplicate_grace_days", 7),
+    "[lifecycle] reopen_after_release_days": (
+        "lifecycle.reopen_after_release_days",
+        60,
+    ),
+    "[lifecycle] max_follow_ups": ("lifecycle.max_follow_ups", 1),
+    "[lifecycle] exempt_labels": ("lifecycle.exempt_labels", ["keep"]),
+    "[lifecycle] exempt_assignees": ("lifecycle.exempt_assignees", True),
+    "[lifecycle] exempt_upvotes": ("lifecycle.exempt_upvotes", 10),
+    "[lifecycle] lock_closed_after_days": ("lifecycle.lock_closed_after_days", 365),
 }
 
 
@@ -1284,7 +1301,7 @@ def test_the_reference_of_config_toml_has_every_key_with_its_default(root: Path)
     settings.unlink()
     defaults = assistant.load_config(root, "owner/name")
     for key, row in rows.items():
-        assert default(row["Default"]) == plain(getattr(defaults, SETTINGS[key][0]))
+        assert default(row["Default"]) == plain(attrgetter(SETTINGS[key][0])(defaults))
     # Each key changes what the assistant reads.
     sections: dict[str, dict[str, object]] = {}
     for key, (_, value) in SETTINGS.items():
@@ -1310,7 +1327,7 @@ def test_the_reference_of_config_toml_has_every_key_with_its_default(root: Path)
     )
     loaded = assistant.load_config(root, "owner/name")
     for key, (attribute, value) in SETTINGS.items():
-        assert plain(getattr(loaded, attribute)) == value, key
+        assert plain(attrgetter(attribute)(loaded)) == value, key
     # And the assistant knows no key that the reference leaves out.
     assert {
         f"[{section}] {name}": (key.attribute, key.kind)

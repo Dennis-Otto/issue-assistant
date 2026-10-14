@@ -314,7 +314,7 @@ class Lifecycle(RuleBasedStateMachine):
             if assistant.kind_of(comment) in {"analysis", "follow-up"}
         ]
         follow_ups = [assistant.created(item) for item in self.of_kind("follow-up")]
-        assert len(follow_ups) <= assistant.MAX_FOLLOW_UPS
+        assert len(follow_ups) <= assistant.DEFAULT_LIFECYCLE.max_follow_ups
         maintainers = [
             assistant.created(comment)
             for comment in self.comments

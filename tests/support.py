@@ -450,6 +450,47 @@ class FakeGitHub(assistant.GitHub):
                     }
                 )
 
+    def _gh(self, args, data=None, *, read=True):
+        """GitHub's search of issues, the one call that the script sends to gh
+        outside the repository: is:issue, is:closed, is:unlocked, closed:<DAY,
+        -label:"NAME" and no:assignee, the oldest first."""
+        parts = urlsplit(args[1])
+        assert parts.path == "search/issues", args
+        query = parse_qs(parts.query)
+        assert (query["sort"], query["order"]) == (["created"], ["asc"])
+        self.calls.append(("SEARCH", query["q"][0], None))
+        self._failing(f"SEARCH {query['q'][0]}")
+        words = re.findall(r'(?:[^\s"]+|"[^"]*")+', query["q"][0])
+        assert words[:2] == [f"repo:{REPOSITORY}", "is:issue"], words
+        found = []
+        for issue in sorted(self.store.values(), key=lambda item: item["number"]):
+            fits = True
+            for word in words[2:]:
+                if word == "is:closed":
+                    fits &= issue["state"] == "closed"
+                elif word == "is:unlocked":
+                    fits &= not issue["locked"]
+                elif word == "no:assignee":
+                    fits &= not issue.get("assignees")
+                elif word.startswith("closed:<"):
+                    day = datetime.fromisoformat(word.removeprefix("closed:<"))
+                    fits &= bool(issue["closed_at"]) and assistant.moment(
+                        issue["closed_at"]
+                    ) < day.replace(tzinfo=UTC)
+                else:
+                    name = re.fullmatch(r'-label:"(.+)"', word)
+                    assert name, word
+                    fits &= name[1].casefold() not in {
+                        label.casefold() for label in assistant.label_names(issue)
+                    }
+            if fits:
+                found.append(deepcopy(issue))
+        page = int(query["page"][0])
+        return {
+            "total_count": len(found),
+            "items": found[(page - 1) * 100 : page * 100],
+        }
+
     def rest(self, path, *, method="GET", data=None, pages=False):
         self.calls.append((method, path, deepcopy(data)))
         self._failing(f"{method} {path}")
@@ -548,6 +589,14 @@ class FakeGitHub(assistant.GitHub):
                 milestone = {**data, "number": len(self.milestone_store) + 1}
                 self.milestone_store.append(milestone)
                 return milestone
+        if method == "PUT" and (match := re.fullmatch(r"issues/(\d+)/lock", route)):
+            issue = self._issue(int(match[1]))
+            assert data == {"lock_reason": "resolved"}
+            issue.update(locked=True, active_lock_reason="resolved")
+            self.event_store.setdefault(int(match[1]), []).append(
+                {"event": "locked", "actor": BOT_USER, "created_at": self.time()}
+            )
+            return None
         if method == "DELETE" and (
             match := re.fullmatch(r"issues/(\d+)/labels/(.+)", route)
         ):
@@ -567,6 +616,8 @@ class FakeGitHub(assistant.GitHub):
             if match := re.fullmatch(r"issues/(\d+)", route):
                 issue = self._issue(int(match[1]))
                 issue.update(data)
+                if data.get("state") == "closed":
+                    issue["closed_at"] = self.time()
                 if data.get("state") == "open":
                     issue["state_reason"] = "reopened"
                     self.event_store.setdefault(int(match[1]), []).append(
@@ -738,6 +789,7 @@ class FakeGitHub(assistant.GitHub):
             assert variables["reason"] in {"COMPLETED", "NOT_PLANNED", "DUPLICATE"}
             issue = self._issue(number)
             issue["state"] = "closed"
+            issue["closed_at"] = self.time()
             issue["state_reason"] = variables["reason"].lower()
             issue["duplicate_of"] = variables["duplicate"]
             issue["rationale"] = variables["rationale"]
@@ -779,7 +831,7 @@ class FakeGitHub(assistant.GitHub):
         return [
             call
             for call in self.calls
-            if call[0] != "GET"
+            if call[0] not in {"GET", "SEARCH"}
             and not (call[0] == "GRAPHQL" and "mutation" not in call[1])
         ]
 

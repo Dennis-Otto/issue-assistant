@@ -44,3 +44,25 @@ files = ["SUPPORT.md"]
 # issue closes with a link to the first release that ships the fix. Set to false
 # for a repository without releases.
 close_with_release = true
+
+[lifecycle]
+# The days of the lifecycle: a reminder after the last question without an answer,
+# the closing on the day that the reminder names, the closing of a sure duplicate
+# after its notice, and the window after a release in which the reporter's comment
+# reopens the issue. The descriptions of needs-info, stale and possible-duplicate in
+# labels.toml name the same days, which the check command makes sure of.
+remind_after_days = 15
+close_after_days = 30
+duplicate_grace_days = 3
+reopen_after_release_days = 30
+# How often the AI follows up on the reporter's answers to its questions.
+max_follow_ups = 2
+# Issues that the sweep never reminds, closes or locks: with one of these labels,
+# assigned to someone when exempt_assignees is true, or with at least exempt_upvotes
+# thumbs up; 0 exempts none for their thumbs up.
+exempt_labels = ["pinned", "security"]
+exempt_assignees = false
+exempt_upvotes = 0
+# Lock issues closed for more than this many days, at least the window after a
+# release, with one line that points to a new issue; 0 locks none.
+lock_closed_after_days = 0

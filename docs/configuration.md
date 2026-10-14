@@ -47,6 +47,15 @@ The group `lifecycle` needs the seven labels that the assistant sets: `needs-tri
 | `[forms] unmapped_options` | list of strings | `["Other"]` | Answers of that dropdown that choose no label | A list of strings |
 | `[transparency] files` | list of strings | `["SUPPORT.md"]` | The files that tell reporters which AI reads their issue; the footer of every analysis and follow-up links the first, at its heading *What happens with your issue* when it has one | Each exists and names the engine and its vendor: Claude and Anthropic |
 | `[releases] close_with_release` | boolean | `true` | Whether a fixed issue stays open until a release ships the fix; `false` for a repository without releases | It is `true` or `false` |
+| `[lifecycle] remind_after_days` | integer | `15` | The days after the last question without an answer until the reminder, which names the day the issue closes | 1 to 3650, and the descriptions of `needs-info` and `stale` in `labels.toml` name no other days |
+| `[lifecycle] close_after_days` | integer | `30` | The days after the last question until an issue without an answer closes as not planned, on the day that the reminder named | More than `remind_after_days`, up to 3650 |
+| `[lifecycle] duplicate_grace_days` | integer | `3` | The days after the notice of a sure duplicate until it closes, unless someone objects | 1 to 3650, and the description of `possible-duplicate` names no other days |
+| `[lifecycle] reopen_after_release_days` | integer | `30` | The days after a release closed an issue in which a comment of its reporter that the problem persists reopens it | 1 to 3650 |
+| `[lifecycle] max_follow_ups` | integer | `2` | How often the AI follows up on the reporter's answers to its questions; `0` for never | 0 to 3650 |
+| `[lifecycle] exempt_labels` | list of strings | `["pinned", "security"]` | Issues with one of these labels, in any case, are never reminded, closed as unanswered or as a duplicate, or locked | A list of strings |
+| `[lifecycle] exempt_assignees` | boolean | `false` | Whether issues assigned to someone are exempt as well | It is `true` or `false` |
+| `[lifecycle] exempt_upvotes` | integer | `0` | Issues with at least this many 👍 are exempt as well; `0` exempts none for their 👍 | 0 to 3650 |
+| `[lifecycle] lock_closed_after_days` | integer | `0` | The sweep locks issues closed for more than this many days as resolved, with one line that points to a new issue, at most 25 in a sweep; `0` locks none | 0, or at least `reopen_after_release_days` and up to 3650 |
 
 ### findings.toml
 
