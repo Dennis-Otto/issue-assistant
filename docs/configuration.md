@@ -37,6 +37,10 @@ The group `lifecycle` needs the seven labels that the assistant sets: `needs-tri
 | --- | --- | --- | --- | --- |
 | `[engine] name` | string | `"claude"` | The AI engine that writes the analysis | An engine of the assistant: `claude` |
 | `[engine] model` | string | `""` | The model; empty for the engine's default, `claude-opus-5-5` for Claude | A model name: a letter or a digit, then letters, digits and `._:@/[]-` |
+| `[engine] light_model` | string | `""` | The model of the [replies to one comment](how-it-works.md#what-one-run-may-cost), which only judge it, yes or no: whether a maintainer's comment waits for the reporter, and whether a problem persists after the release; empty for `model` | A model name, as for `model` |
+| `[engine] effort` | string | `""` | How much the model thinks, for the models that take it; empty for the model's default | `low`, `medium`, `high`, `xhigh` or `max` |
+| `[engine] max_turns` | integer | `40` | The most turns of a first analysis and of a maintainer's question; a follow-up gets half of them, and a reply to one comment a tenth, each rounded up and at least 4 (or `max_turns` when it is fewer), which a reply needs | A whole number, 1 to 200 |
+| `[engine] max_budget_usd` | number | `1.00` | The most dollars that one run of the engine may cost, as the engine counts them at the prices of its API; once a run has spent this sum it stops without an answer, so a run can go past it by the cost of its last turn, and the summary of the job says so | A number, more than 0 and at most 100 |
 | `[engine] max_per_day` | integer | `20` | The most [AI runs](how-it-works.md#limits-of-the-ai-runs) that people who don't maintain the repository start in 24 hours: analyses of new issues, follow-ups and replies after a release; `0` lets only maintainers start the AI, by hand | A whole number, 0 or more |
 | `[engine] max_per_author_per_day` | integer | `3` | The most analyses of one reporter's new issues in 24 hours | A whole number, 0 or more |
 | `[engine] release_replies` | integer | `2` | How many comments of the reporter the AI reads after each release that closed their issue | A whole number, 0 or more |

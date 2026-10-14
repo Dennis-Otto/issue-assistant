@@ -10,14 +10,14 @@ branding:
 
 inputs:
   command:
-    description: event, engine, context, apply, sweep, sync-labels, findings or check
+    description: event, engine, context, apply, usage, sweep, sync-labels, findings or check
     required: true
   issue:
-    description: Number of the issue, for context and apply
+    description: Number of the issue, for context, apply and usage
     required: false
     default: ""
   mode:
-    description: Task of the engine (triage, follow-up, maintainer-reply, release-reply or maintainer-question), for context and apply
+    description: Task of the engine (triage, follow-up, maintainer-reply, release-reply or maintainer-question), for engine, context, apply and usage
     required: false
     default: ""
   answer:
@@ -30,6 +30,10 @@ inputs:
     default: ""
   ready-engines:
     description: Engines whose secret exists, separated by commas, for engine
+    required: false
+    default: ""
+  execution-file:
+    description: The execution file of the engine's action, whose numbers usage reports
     required: false
     default: ""
   dry-run:
@@ -55,10 +59,22 @@ outputs:
     description: Whether the engine's secret exists
     value: ${{ steps.run.outputs.ready }}
   model:
-    description: The engine's model
+    description: The engine's model for the task
     value: ${{ steps.run.outputs.model }}
+  turns:
+    description: The most turns of the engine for the task
+    value: ${{ steps.run.outputs.turns }}
+  budget:
+    description: The most dollars that the engine's run may cost
+    value: ${{ steps.run.outputs.budget }}
+  effort:
+    description: The engine's effort, or empty for its default
+    value: ${{ steps.run.outputs.effort }}
+  task:
+    description: The task for the engine, which the rules in .issue-assistant/rules.md precede as its system prompt
+    value: ${{ steps.run.outputs.task }}
   prompt:
-    description: The prompt for the engine
+    description: The rules and the task in one prompt, for templates before the rules became a system prompt
     value: ${{ steps.run.outputs.prompt }}
   schema:
     description: The JSON schema of the engine's answer
@@ -76,6 +92,7 @@ runs:
         RESULT: ${{ inputs.answer }}
         ENGINE: ${{ inputs.engine }}
         READY_ENGINES: ${{ inputs.ready-engines }}
+        EXECUTION_FILE: ${{ inputs.execution-file }}
         DRY_RUN: ${{ inputs.dry-run }}
         GH_TOKEN: ${{ inputs.github-token }}
         GH_REPO: ${{ github.repository }}

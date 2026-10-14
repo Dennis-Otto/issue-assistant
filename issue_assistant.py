@@ -132,6 +132,31 @@ MAX_PER_DAY = 20
 MAX_PER_AUTHOR_PER_DAY = 3
 RELEASE_REPLIES = 2
 LIMITS = ("max_per_day", "max_per_author_per_day", "release_replies")
+# What one run of the engine may spend, unless [engine] in config.toml sets more or
+# less: the turns of a first analysis and of a maintainer's question, of which the
+# other tasks take a part, and the dollars of one run, at which the engine stops.
+# More turns than MOST_TURNS or dollars than MOST_BUDGET_USD are a typo, not a limit.
+MAX_TURNS = 40
+MOST_TURNS = 200
+MAX_BUDGET_USD = 1.0
+MOST_BUDGET_USD = 100.0
+# The part of max_turns that each task takes, rounded up: all of them, half for a
+# follow-up, which reads the reporter's answers to known questions, and a tenth for
+# a reply to one comment, which reads two files.
+TURN_DIVISORS = {
+    "triage": 1,
+    "follow-up": 2,
+    "maintainer-reply": 10,
+    "release-reply": 10,
+    "maintainer-question": 1,
+}
+# The fewest turns of any task, unless max_turns itself is fewer: a reply reads two
+# files and then answers, three turns in a measured run, and one more to spare.
+MIN_TASK_TURNS = 4
+# The tasks that only judge one comment, yes or no; light_model runs them.
+LIGHT = ("maintainer-reply", "release-reply")
+# The levels of thinking that the engine takes as effort; empty keeps its default.
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
 # GitHub keeps at most this many characters of the text of an issue or a comment;
 # the assistant reads no more of any text.
 MAX_TEXT = 65_536
@@ -614,10 +639,78 @@ def is_model_name(model: object) -> bool:
     return isinstance(model, str) and bool(MODEL_NAME.fullmatch(model))
 
 
-def model_problem(model: object) -> str:
+def model_problem(model: object, key: str = "model") -> str:
     return (
-        f"{SETTINGS / 'config.toml'}: the model {model!r} is no model name, "
+        f"{SETTINGS / 'config.toml'}: the {key} {model!r} is no model name, "
         f"such as {ENGINES[DEFAULT_ENGINE].model}"
+    )
+
+
+@dataclass(frozen=True)
+class Run:
+    """What one run of the engine for a task may use, from [engine] in config.toml.
+
+    The workflow passes each value to the engine's command line without quotes, so
+    each has been checked: a model name, a whole number of turns, a number of
+    dollars and a level of effort, or empty for the engine's own.
+    """
+
+    model: str
+    turns: int
+    budget: str
+    effort: str
+
+
+def engine_problems(config: Config) -> list[str]:
+    """The values of [engine] that the engine can't run with; `check` names them,
+    and the engine command stops on them."""
+    where = SETTINGS / "config.toml"
+    problems = [
+        model_problem(model, key)
+        for key in ("model", "light_model")
+        if (model := getattr(config, key)) and not is_model_name(model)
+    ]
+    turns = config.max_turns
+    if not fits(turns, int) or not 1 <= turns <= MOST_TURNS:
+        problems.append(f"{where}: max_turns must be a whole number, 1 to {MOST_TURNS}")
+    budget = config.max_budget_usd
+    # TOML has nan and inf, which no comparison lets through.
+    if not fits(budget, float) or not 0 < budget <= MOST_BUDGET_USD:
+        problems.append(
+            f"{where}: max_budget_usd must be a number of dollars, more than 0 and "
+            f"at most {MOST_BUDGET_USD:g}"
+        )
+    if config.effort and config.effort not in EFFORTS:
+        problems.append(
+            did_you_mean(
+                f"{where}: unknown effort {config.effort!r}",
+                str(config.effort),
+                EFFORTS,
+            )
+        )
+    return problems
+
+
+def task_run(config: Config, mode: str | None) -> Run:
+    """The model, turns, budget and effort of the engine for a task.
+
+    A reply to one comment runs light_model when it is set, and every task takes its
+    part of max_turns, but no fewer than MIN_TASK_TURNS. Without a task, as from a template before the tasks had
+    their own limits, it is the run of a first analysis.
+    """
+    problems = engine_problems(config)
+    if problems:
+        raise SettingsError(problems)
+    task = mode or "triage"
+    model = (task in LIGHT and config.light_model) or config.model
+    divisor = TURN_DIVISORS[task]
+    return Run(
+        model=model or ENGINES[engine_named(config.engine)].model,
+        turns=max(
+            min(MIN_TASK_TURNS, config.max_turns), -(-config.max_turns // divisor)
+        ),
+        budget=f"{float(config.max_budget_usd):g}",
+        effort=config.effort,
     )
 
 
@@ -762,7 +855,12 @@ class Config:
     labels: tuple[Label, ...]
     project: str
     engine: str = DEFAULT_ENGINE
+    # What a run of the engine may use; see Run and task_run.
     model: str = ""
+    light_model: str = ""
+    effort: str = ""
+    max_turns: int = MAX_TURNS
+    max_budget_usd: float = MAX_BUDGET_USD
     hosts: frozenset[str] = frozenset()
     area_field: str = "Area"
     unmapped_options: tuple[str, ...] = ("Other",)
@@ -805,7 +903,8 @@ class Key:
     lifecycle.max_follow_ups for one of Config.lifecycle, and its type."""
 
     attribute: str
-    # str, bool, int for a whole number, or list for a list of strings.
+    # str, bool, int for a whole number, float for any number, or list for a list
+    # of strings.
     kind: type
     # The value of the attribute, from the value in the file.
     convert: Callable[[Any], Any] = lambda value: value
@@ -817,6 +916,10 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
     "engine": {
         "name": Key("engine", str),
         "model": Key("model", str),
+        "light_model": Key("light_model", str),
+        "effort": Key("effort", str),
+        "max_turns": Key("max_turns", int),
+        "max_budget_usd": Key("max_budget_usd", float, float),
         "max_per_day": Key("max_per_day", int),
         "max_per_author_per_day": Key("max_per_author_per_day", int),
         "release_replies": Key("release_replies", int),
@@ -861,6 +964,7 @@ KINDS = {
     str: "a string",
     bool: "true or false",
     int: "a whole number",
+    float: "a number",
     list: "a list of strings",
 }
 
@@ -869,8 +973,10 @@ def fits(value: object, kind: type) -> bool:
     """Whether a value of a settings file has the type of its key."""
     if kind is list:
         return isinstance(value, list) and all(isinstance(item, str) for item in value)
+    # A number may be whole, such as 2 for 2.0.
+    kinds = (int, float) if kind is float else kind
     # Python's True is an int, but TOML's true is no whole number.
-    return isinstance(value, kind) and (kind is bool or not isinstance(value, bool))
+    return isinstance(value, kinds) and (kind is bool or not isinstance(value, bool))
 
 
 def did_you_mean(
@@ -2992,8 +3098,8 @@ def write_lines(path: Path, items: Iterable[dict[str, Any]]) -> None:
     )
 
 
-# What a context writes besides issue.md, prompt.md and schema.json, each only for
-# the tasks that need it. A run in the same checkout removes what an earlier one
+# What a context writes besides issue.md, rules.md, prompt.md and schema.json, each
+# only for the tasks that need it. A run in the same checkout removes what an earlier one
 # wrote, so that a reply task never reads the other issues of an analysis.
 CONTEXT_FILES = ("comment.md", "labels.md", "issues.jsonl", "discussions.jsonl")
 
@@ -3019,8 +3125,9 @@ def write_context(
     config: Config,
     comment_id: int | None = None,
 ) -> dict[str, str]:
-    """Write the files that the task of the engine reads and return the prompt and
-    the schema.
+    """Write the files that the task of the engine reads and return the prompts and
+    the schema: the task, which the rules of rules.md precede as the engine's system
+    prompt, and both in one prompt for a template that passes no system prompt.
 
     Every task reads the issue with its comments. A reply task judges one comment,
     `comment_id`, the one whose event started the run, and reads nothing else; the
@@ -3067,21 +3174,25 @@ def write_context(
         "max_discussions": str(config.max_discussions),
         "languages": language_list(),
     }
-    prompt = "\n\n".join(
-        (PROMPTS / name).read_text(encoding="utf-8")
-        for name in ("rules.md", f"{mode}.md")
-    )
-    for key, value in values.items():
-        prompt = prompt.replace("{" + key + "}", value)
-    if "{release}" in prompt:
-        # Only the tasks that weigh what a release changed ask GitHub for it.
-        prompt = prompt.replace("{release}", github.latest_release() or "none yet")
-    # Last, so that braces in the project's own text stay as they are.
-    prompt = prompt.replace("{project}", config.project)
+
+    def render(name: str) -> str:
+        text = (PROMPTS / name).read_text(encoding="utf-8")
+        for key, value in values.items():
+            text = text.replace("{" + key + "}", value)
+        if "{release}" in text:
+            # Only the tasks that weigh what a release changed ask GitHub for it.
+            text = text.replace("{release}", github.latest_release() or "none yet")
+        # Last, so that braces in the project's own text stay as they are.
+        return text.replace("{project}", config.project)
+
+    rules, task = render("rules.md"), render(f"{mode}.md")
     schema = schema_json(mode, config)
-    (folder / "prompt.md").write_text(prompt, encoding="utf-8")
+    # The rules come before everything else as the engine's system prompt, apart
+    # from its task and from the texts of GitHub that it reads in the folder.
+    (folder / "rules.md").write_text(rules, encoding="utf-8")
+    (folder / "prompt.md").write_text(task, encoding="utf-8")
     (folder / "schema.json").write_text(schema, encoding="utf-8")
-    return {"prompt": prompt, "schema": schema}
+    return {"prompt": f"{rules}\n\n{task}", "task": task, "schema": schema}
 
 
 def write_related(
@@ -6140,8 +6251,7 @@ def check_config(config: Config) -> list[str]:
     for host in sorted(config.hosts):
         if not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", host):
             problems.append(f"{SETTINGS / 'config.toml'}: {host} is no host name")
-    if config.model and not is_model_name(config.model):
-        problems.append(model_problem(config.model))
+    problems += engine_problems(config)
     for key in (*LIMITS, *CONTEXT_LIMITS):
         try:
             limit(config, key)
@@ -6810,15 +6920,12 @@ def summary(
             handle.write(text + "\n")
 
 
-def choose_engine(config: Config, ready: str) -> tuple[str, bool, str]:
-    """The engine of config.toml, whether its secret exists, and its model.
+def choose_engine(config: Config, ready: str) -> tuple[str, bool]:
+    """The engine of config.toml and whether its secret exists.
 
     `ready` lists the engines whose secret the workflow found, separated by commas.
     """
     key = engine_named(config.engine)
-    model = config.model or ENGINES[key].model
-    if not is_model_name(model):
-        raise AssistantError(model_problem(model))
     available = key in {item.strip() for item in ready.split(",") if item.strip()}
     if not available:
         command(
@@ -6826,7 +6933,107 @@ def choose_engine(config: Config, ready: str) -> tuple[str, bool, str]:
             f"No credentials for {ENGINES[key].name} are configured; "
             "the issue assistant only sets labels and keeps the lifecycle.",
         )
-    return key, available, model
+    return key, available
+
+
+# How a run of the engine ended, by the subtype of the result in its execution file;
+# any other subtype, or an error, is a failure.
+OUTCOMES = {
+    "success": "answered",
+    "error_max_turns": "stopped at max_turns",
+    "error_max_budget_usd": "stopped at max_budget_usd",
+}
+
+
+def engine_result(path: str) -> dict[str, Any] | None:
+    """The result of the engine's run: the last message of the type result in the
+    execution file of its action, a JSON list of the messages of the run; None
+    without the file or such a message."""
+    try:
+        messages = json.loads(Path(path).read_text("utf-8")) if path else None
+    except (OSError, ValueError):
+        return None
+    results = [
+        message
+        for message in (messages if isinstance(messages, list) else [])
+        if isinstance(message, dict) and message.get("type") == "result"
+    ]
+    return results[-1] if results else None
+
+
+def number_of(value: object) -> float | None:
+    """A number of the result, 0 or more; None for anything else."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    # Neither nan nor inf is a count.
+    return float(value) if 0 <= value < float("inf") else None
+
+
+def usage_line(result: dict[str, Any], run: Run) -> str:
+    """What the engine's run took, in one line of numbers: its turns, time, cost and
+    tokens, against the limits of the task.
+
+    The execution file holds the whole run, with the texts of the issue; nothing but
+    these numbers and fixed words leaves it.
+    """
+    subtype = str(result.get("subtype"))
+    # A run that stopped at a limit is an error too; a success with one is none.
+    failed = subtype == "success" and result.get("is_error") is True
+    outcome = "failed" if failed else OUTCOMES.get(subtype, "failed")
+    spent = []
+    turns = number_of(result.get("num_turns"))
+    if turns is not None:
+        spent.append(f"{turns:.0f} of {run.turns} turns")
+    milliseconds = number_of(result.get("duration_ms"))
+    if milliseconds is not None:
+        minutes, seconds = divmod(round(milliseconds / 1000), 60)
+        spent.append(f"{minutes} min {seconds} s" if minutes else f"{seconds} s")
+    line = f"{run.model} {outcome}" + (f" after {' and '.join(spent)}" if spent else "")
+    cost = number_of(result.get("total_cost_usd"))
+    if cost is not None:
+        line += f", ${cost:.3f} of ${float(run.budget):.2f}"
+    usage = result.get("usage")
+    tokens = usage if isinstance(usage, dict) else {}
+    counts = {
+        name: number_of(tokens.get(f"{name}_tokens")) or 0.0
+        for name in ("input", "cache_creation_input", "cache_read_input", "output")
+    }
+    read = counts["input"] + counts["cache_creation_input"] + counts["cache_read_input"]
+    if read or counts["output"]:
+        line += (
+            f", {read:,.0f} tokens in ({counts['cache_read_input']:,.0f} of them from "
+            f"the cache) and {counts['output']:,.0f} out"
+        )
+    return line
+
+
+def report_usage(path: str, run: Run, mode: str | None) -> list[str]:
+    """The line of usage_line for the summary of the job, and a warning that names
+    the setting when the run stopped at a limit before it answered."""
+    result = engine_result(path)
+    if result is None:
+        command(
+            "notice",
+            "The engine left no result in its execution file, so what its run cost "
+            "is unknown.",
+        )
+        return ["No result of the engine; what its run cost is unknown."]
+    task = f"the task {mode}" if mode else "the analysis"
+    where = SETTINGS / "config.toml"
+    stopped = {
+        "error_max_turns": (
+            f"The engine stopped after the {run.turns} turns of {task}, before it "
+            f"answered; max_turns under [engine] in {where} gives it more."
+        ),
+        "error_max_budget_usd": (
+            f"The engine stopped at max_budget_usd = {run.budget} dollars, before it "
+            f"answered; raise it under [engine] in {where}, or choose a cheaper "
+            "model or effort there."
+        ),
+    }.get(str(result.get("subtype")))
+    if stopped:
+        command("warning", stopped)
+    return [usage_line(result, run)]
 
 
 def event_comment(number: int) -> int | None:
@@ -6878,10 +7085,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("event", help="handle the GitHub event of this run")
-    commands.add_parser("engine", help="name the engine and whether it can run")
     for name, text_ in (
+        (
+            "engine",
+            "name the engine, whether it can run, and the model, turns, budget and "
+            "effort of the task",
+        ),
         ("context", "write the files the engine reads"),
         ("apply", "check the engine's answer in RESULT and apply it"),
+        (
+            "usage",
+            "report the turns, time, cost and tokens of the engine's run in "
+            "EXECUTION_FILE",
+        ),
     ):
         task = commands.add_parser(name, help=text_)
         task.add_argument("--issue", type=int, default=os.environ.get("ISSUE") or None)
@@ -6963,10 +7179,10 @@ def main(argv: list[str] | None = None) -> int:
                 "push, and try it under Actions > Issue assistant > Run workflow"
             )
             return 0
-        # check and engine read only the checkout, so they run anywhere, also on a
-        # computer without GH_REPO; the other commands call GitHub.
+        # check, engine and usage read only the checkout, so they run anywhere, also
+        # on a computer without GH_REPO; the other commands call GitHub.
         repository = repository_of_run(
-            needed=arguments.command not in {"check", "engine"}
+            needed=arguments.command not in {"check", "engine", "usage"}
         )
         if arguments.command == "check":
             problems = check(load_config(root, repository, lenient=True))
@@ -6975,12 +7191,24 @@ def main(argv: list[str] | None = None) -> int:
             summary("Issue assistant set-up", problems or ["Everything fits."], False)
             return 1 if problems else 0
         if arguments.command == "engine":
-            key, available, model = choose_engine(
-                load_config(root, repository), os.environ.get("READY_ENGINES", "")
-            )
+            config = load_config(root, repository)
+            key, available = choose_engine(config, os.environ.get("READY_ENGINES", ""))
+            run = task_run(config, arguments.mode)
             output("engine", key)
             output("ready", str(available).lower())
-            output("model", model)
+            output("model", run.model)
+            output("turns", str(run.turns))
+            output("budget", run.budget)
+            output("effort", run.effort)
+            return 0
+        if arguments.command == "usage":
+            run = task_run(load_config(root, repository), arguments.mode)
+            lines = report_usage(
+                os.environ.get("EXECUTION_FILE", ""), run, arguments.mode
+            )
+            of = f" of #{arguments.issue}" if arguments.issue else ""
+            task_name = arguments.mode or "analysis"
+            summary(f"Issue assistant: cost of the {task_name}{of}", lines, False)
             return 0
         github = GitHub(repository, dry_run=dry_run)
         if arguments.command == "findings":
@@ -7021,6 +7249,7 @@ def main(argv: list[str] | None = None) -> int:
                 event_comment(arguments.issue),
             )
             output("prompt", written["prompt"])
+            output("task", written["task"])
             output("schema", written["schema"])
             return 0
         if arguments.command == "event":

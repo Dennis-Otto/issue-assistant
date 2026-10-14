@@ -7,3 +7,4 @@ Dosu
 PromptPwnd
 Pwnd
 WCAG
+xhigh

@@ -105,7 +105,11 @@ def test_the_context_of_each_task_reads_as_its_golden_file(config, mode):
     judged = {"maintainer-reply": 2, "release-reply": 3, "maintainer-question": 4}
     written = assistant.write_context(github, 12, mode, config, judged.get(mode))
     folder = config.root / assistant.CONTEXT
-    assert (folder / "prompt.md").read_text("utf-8") == written["prompt"]
+    # The rules, the engine's system prompt, and its task; a template from before
+    # the system prompt gets both in one prompt.
+    rules = (folder / "rules.md").read_text("utf-8")
+    assert (folder / "prompt.md").read_text("utf-8") == written["task"]
+    assert written["prompt"] == f"{rules}\n\n{written['task']}"
     assert (folder / "schema.json").read_text("utf-8") == written["schema"]
     assert_golden(f"context/{mode}.txt", files_of(folder))
 

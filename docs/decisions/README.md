@@ -19,3 +19,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0011](0011-install-pins-its-own-checkout.md) | `install` pins the commit of its own checkout, the release whose templates it writes | accepted |
 | [0012](0012-commands-from-the-issue.md) | Maintainers and the reporter steer the assistant with commands that are no part of the conversation | accepted |
 | [0013](0013-a-catalog-for-each-language.md) | A catalog for each language of the comments, and English around any other | accepted |
+| [0014](0014-bound-every-run-and-put-the-rules-first.md) | Bound every run of the AI by its task, put the rules in the system prompt, and show what each run cost | accepted |

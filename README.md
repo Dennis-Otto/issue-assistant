@@ -261,6 +261,27 @@ Anyone can open an issue, and every run of the AI costs money or counts toward t
 
 With the defaults, strangers can start about 20 runs a day, about $4 at the prices of the API for first analyses.
 
+### What one run may cost
+
+The limits above count the runs; `[engine]` in `config.toml` also bounds each one. For the task of a run, the step `engine` chooses the model, the turns and the dollars at which the engine stops, and the step of the engine passes them to its command line:
+
+| Task | Model | Turns by default | What it reads |
+| --- | --- | --- | --- |
+| A first analysis, `triage` | `model` | 40, all of `max_turns` | the issue, the other issues, the discussions and the repository |
+| A follow-up | `model` | 20, half of `max_turns` | the same, with the reporter's answers to the questions |
+| A maintainer's question, `/assistant ask` | `model` | 40, all of `max_turns` | the issue, the question and the repository |
+| A reply to a maintainer's comment or after a release | `light_model`, else `model` | 4, a tenth of `max_turns`, but never fewer than 4 | the issue and the one comment that it judges, yes or no |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-bounds-one-run-of-the-ai.dark.svg">
+  <img src="docs/images/diagrams/what-bounds-one-run-of-the-ai.svg" alt="What bounds one run of the AI: The event job names the task of the run. The engine command chooses from [engine] in config.toml what the run may use: the model, or light_model for a reply to one comment; the turns, all of max_turns for an analysis or a maintainer's question, half for a follow-up and a tenth for a reply; the dollars of max_budget_usd and the effort. The context command writes the rules into rules.md and the task into prompt.md. The engine takes the rules as its system prompt and the task as its prompt, reads the checkout and stops at its turns or its dollars; its answer goes to the job apply. The usage command reads the numbers of the run, also after a failure, and writes one line into the summary of the job: the turns, the time, the cost and the tokens. When the run stopped at a limit, a warning names the setting.">
+</picture>
+
+- **Every run stops once it has spent `max_budget_usd`,** $1.00 unless you set another sum, as the engine counts it at the prices of its API. The engine checks the sum between its calls to the API, so a run can go past it by the cost of its last turn. An issue written to make the AI read on gets no further than the turns and the dollars of its task, and a run that stops there posts nothing.
+- **`effort`** sets how much a model that takes it thinks, from `low`, the cheapest, to `max`; without it, the model's default runs.
+- **The rules come first.** `context` writes them into `.issue-assistant/rules.md`, and the engine takes them as its system prompt, apart from its task in the prompt and from the texts of GitHub that it reads in the folder.
+- **What each run cost is one line in the summary of its job,** numbers only, also after a failure: the model, how the run ended, its turns and time, its cost against `max_budget_usd` and its tokens, such as *claude-opus-5-5 answered after 15 of 40 turns and 52 s, $0.202 of $1.00, 412,345 tokens in (398,000 of them from the cache) and 3,210 out*. A run that stopped at its turns or its dollars also gets a warning that names the setting to raise.
+
 ### What the sweep tells the maintainers
 
 The summary of the morning sweep, on the page of its run in the Actions tab, says what waits on whom, and once a month how well the assistant did. A sweep started by hand has both:
@@ -475,6 +496,10 @@ ask = false                               # never ask reporters of this kind for
 [engine]
 name = "claude"                 # the engine of ENGINES
 # model = "claude-opus-5-5"     # the engine's default model if left out; a letter or digit, then letters, digits and ._:@/[]- only
+# light_model = "claude-sonnet-5-5"  # the replies to one comment, yes or no; model if left out
+# effort = "medium"             # low, medium, high, xhigh or max, for the models that take it; their default if left out
+max_turns = 40                  # turns of an analysis and a question; a follow-up gets half, a reply a tenth, each at least 4; 1 to 200
+max_budget_usd = 1.00           # the dollars at which one run stops; more than 0, at most 100
 max_per_day = 20                # analyses, follow-ups and replies after a release in 24 hours; 0: only maintainers, by hand
 max_per_author_per_day = 3      # analyses of one reporter's new issues in 24 hours
 release_replies = 2             # comments of the reporter after each release that the AI reads
@@ -547,13 +572,13 @@ A daily run with one accepted and one open finding, in a demo project:
 
 ## Engines
 
-Everything except one step of the `analyze` job is independent of the AI: the context, the prompts in `prompts/`, the checks and every write. An engine gets the read-only checkout with the context in `.issue-assistant/`, the prompt and the JSON schema of its answer (as files and as outputs of the context step), and returns the JSON answer. `apply` validates it whether or not the engine could enforce the schema, and also accepts it in a code fence.
+Everything except one step of the `analyze` job is independent of the AI: the context, the prompts in `prompts/`, the checks and every write. An engine gets the read-only checkout with the context in `.issue-assistant/`, the rules as its system prompt, the task and the JSON schema of its answer (as files and as outputs of the context step), and the model, turns, dollars and effort of the task from the step `engine`, and returns the JSON answer. `apply` validates it whether or not the engine could enforce the schema, and also accepts it in a code fence.
 
 | Engine | Step | Secret | Restrictions |
 | --- | --- | --- | --- |
-| `claude` (default) | `anthropics/claude-code-action` | `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` | `--restricted --tools "Read,Grep,Glob"`, schema with `--json-schema` |
+| `claude` (default) | `anthropics/claude-code-action` | `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` | `--restricted --tools "Read,Grep,Glob"`, the rules with `--append-system-prompt-file`, `--max-turns` and `--max-budget-usd`, schema with `--json-schema` |
 
-To add one, for example OpenAI Codex with `openai/codex-action` (`prompt-file`, `output-schema-file` and a read-only sandbox) or the GitHub Copilot CLI in programmatic mode (only reading tools, the JSON asked for in the prompt): add it to `ENGINES` in `issue_assistant.py` with its secrets, the one that `install --setup` asks for first, give it a step with its key as `id` in `templates/.github/workflows/issue-assistant.yml` with the same condition as the Claude step, add its secret to `ready-engines` and its answer to the job output `answer`, add its hosts to `templates/.github/egress-firewall.yaml` in a block of its own, and its rules to `ENGINE_RULES` in `tests/test_templates.py`, which keeps it read-only.
+To add one, for example OpenAI Codex with `openai/codex-action` (`prompt-file`, `output-schema-file` and a read-only sandbox) or the GitHub Copilot CLI in programmatic mode (only reading tools, the JSON asked for in the prompt): add it to `ENGINES` in `issue_assistant.py` with its secrets, the one that `install --setup` asks for first, give it a step with its key as `id` in `templates/.github/workflows/issue-assistant.yml` with the same condition as the Claude step, add its secret to `ready-engines` and its answer to the job output `answer`, pass it the rules, the turns and the dollars of the task, give `usage` the numbers of its run, add its hosts to `templates/.github/egress-firewall.yaml` in a block of its own, and its rules to `ENGINE_RULES` in `tests/test_templates.py`, which keeps it read-only.
 
 <!-- --8<-- [end:engines] -->
 <!-- --8<-- [start:commands] -->
@@ -565,15 +590,16 @@ The action runs `issue_assistant.py` with one command:
 | Command | Job | What |
 | --- | --- | --- |
 | `event` | event | handles the event and the slash command of a comment, sets labels and names the AI's next task, within the limits of the AI runs |
-| `engine` | analyze | names the engine of `config.toml`, its model, and whether its secret exists |
-| `context` | analyze | writes what the task reads into `.issue-assistant/`: the issue; for an analysis or a follow-up the other issues, the discussions and the labels; for a reply or a question the comment of its event; then the prompt and the schema |
+| `engine` | analyze | names the engine of `config.toml` and whether its secret exists, and the model, turns, dollars and effort of the task |
+| `context` | analyze | writes what the task reads into `.issue-assistant/`: the issue; for an analysis or a follow-up the other issues, the discussions and the labels; for a reply or a question the comment of its event; then the rules, the task and the schema |
+| `usage` | analyze | writes the turns, time, cost and tokens of the engine's run into the summary of the job, numbers only, and a warning when the run stopped at its turns or its dollars |
 | `apply` | apply | checks the AI's answer and posts it |
 | `sweep` | lifecycle | reminds, closes unanswered issues and duplicates, marks fixed issues and closes them with the release |
 | `sync-labels` | labels | creates and updates the labels, and renames those that the repository has in another case |
 | `findings` | findings | dismisses the accepted findings of code scanning and fails while others are open; needs no other settings |
 | `check` | your CI | checks labels, issue forms, workflows, firewall, settings, the description of the project and the notice to reporters, and names every key it doesn't know |
 
-`install` runs from a git checkout of a release, as [Set up a repository](https://github.com/Dennis-Otto/issue-assistant#set-up-a-repository) shows, and pins its commit and tag; `--ref` and `--version` name them for another checkout. `install --setup` also creates the environment `issue-assistant` for the default branch and has the GitHub CLI ask for the engine's secret. `install`, `check` and `engine` read only the checkout, and `install --setup` the environment too; the other commands call GitHub, for the repository that `GH_REPO` names as `owner/name`, or else the workflow's `GITHUB_REPOSITORY`. Every command but `install` and `check` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment, as the last step of the set-up shows.
+`install` runs from a git checkout of a release, as [Set up a repository](https://github.com/Dennis-Otto/issue-assistant#set-up-a-repository) shows, and pins its commit and tag; `--ref` and `--version` name them for another checkout. `install --setup` also creates the environment `issue-assistant` for the default branch and has the GitHub CLI ask for the engine's secret. `install`, `check`, `engine` and `usage` read only the checkout, and `install --setup` the environment too; the other commands call GitHub, for the repository that `GH_REPO` names as `owner/name`, or else the workflow's `GITHUB_REPOSITORY`. Every command but `install` and `check` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment, as the last step of the set-up shows.
 
 <!-- --8<-- [end:commands] -->
 <!-- --8<-- [start:try-a-prompt] -->
@@ -584,6 +610,7 @@ The action runs `issue_assistant.py` with one command:
 export GH_REPO=OWNER/REPO DRY_RUN=true
 python3 issue_assistant.py context --issue 12 --mode triage    # in the repository's checkout
 claude -p "$(cat .issue-assistant/prompt.md)" --restricted --tools "Read,Grep,Glob" \
+  --append-system-prompt-file .issue-assistant/rules.md --max-turns 40 --max-budget-usd 1 \
   --json-schema "$(cat .issue-assistant/schema.json)" --output-format json > answer.json
 RESULT="$(jq -c .structured_output answer.json)" python3 issue_assistant.py apply --issue 12 --mode triage
 ```
@@ -611,13 +638,23 @@ The action is free and open source. A repository pays for its engine and, when i
 | Time on runners | 78 s: 5 s `event`, 65 s `analyze`, 8 s `apply`; the rest was the wait for a firewall runner |
 | The AI | Claude Opus 5.5, 15 turns, $0.20 at the prices of the API |
 
-With the token of a Claude subscription instead of an API key, an analysis counts toward the usage limits of the subscription instead of being billed by the token. A smaller model costs less, as the next answer shows, and follow-ups and the other tasks read less than a first analysis.
+A reply to a maintainer's comment, which only judges whether the issue now waits for its reporter, took Claude Opus 5.5 3 turns, 4.4 s and $0.08. The summary of every run's job shows what it cost, [in one line](https://github.com/Dennis-Otto/issue-assistant#what-one-run-may-cost).
+
+With the token of a Claude subscription instead of an API key, an analysis counts toward the usage limits of the subscription instead of being billed by the token. A smaller model costs less per token, and follow-ups and the other tasks read less than a first analysis:
+
+| Model | Input, per million tokens | Output, per million tokens | For |
+| --- | --- | --- | --- |
+| Claude Opus 5.5, `claude-opus-5-5` | $4.00 | $20.00 | the default: the most careful analyses |
+| Claude Sonnet 5.5, `claude-sonnet-5-5` | $2.00 | $10.00 | repositories with many issues: half the price per token |
+| Claude Haiku 5.5, `claude-haiku-5-5` | $0.10, up to 100K tokens per prompt; $0.50 beyond | $0.50, up to 100K tokens per prompt; $2.50 beyond | the replies to one comment, at the least cost |
+
+For a repository with many issues, `model = "claude-sonnet-5-5"` halves the price of every token, and `light_model` lets the replies to one comment, which only say yes or no, run on a cheaper model than the analyses. These are the prices of Anthropic's API in October 2026; [its page of prices](https://platform.claude.com/docs/en/about-claude/pricing) has today's.
 
 What strangers can spend has [limits](https://github.com/Dennis-Otto/issue-assistant#limits-of-the-ai-runs): by default 20 analyses, follow-ups and replies after a release a day, about $4 at the prices of the API. An engine secret of the repository's own caps the rest: an API key of a workspace with a monthly spend limit, rather than the token of a subscription that other repositories or people use too, so that a flood in one repository never stops the others.
 
 ### Can I change the model?
 
-Yes, with `model` under `[engine]` in `.github/issue-assistant/config.toml`, such as `model = "sonnet"` for a faster and cheaper one. Without it, the engine's default runs, `claude-opus-5-5` for Claude. `check` refuses a name that could add arguments to the command line of the engine.
+Yes, with `model` under `[engine]` in `.github/issue-assistant/config.toml`, such as `model = "sonnet"` for a faster and cheaper one. Without it, the engine's default runs, `claude-opus-5-5` for Claude. `light_model` runs the replies to one comment, which only say yes or no, and `effort` sets how much a model thinks; `max_turns` and `max_budget_usd` bound each run, as [What one run may cost](https://github.com/Dennis-Otto/issue-assistant#what-one-run-may-cost) shows. `check` refuses a name that could add arguments to the command line of the engine.
 
 ### Can I change when issues are reminded, closed or locked?
 

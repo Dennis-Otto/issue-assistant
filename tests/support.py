@@ -1031,6 +1031,7 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
         "RESULT",
         "ENGINE",
         "READY_ENGINES",
+        "EXECUTION_FILE",
         "ISSUE_ASSISTANT_ROOT",
         "ISSUE_ASSISTANT_FIXTURE",
         "GITHUB_EVENT_NAME",

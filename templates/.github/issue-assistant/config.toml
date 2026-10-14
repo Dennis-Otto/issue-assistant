@@ -2,9 +2,19 @@
 
 [engine]
 # The AI engine that writes the analysis; its secret belongs to the environment
-# issue-assistant. Leave out model for the engine's default.
+# issue-assistant. Leave out model for the engine's default. light_model runs the
+# replies to one comment, which only judge it, yes or no; without it, model does.
+# effort sets how much the model thinks, for the models that take it: low, medium,
+# high, xhigh or max; without it, the model's default.
 name = "claude"
 # model = "claude-opus-5-5"
+# light_model = "claude-sonnet-5-5"
+# effort = "medium"
+# What one run may use: the turns of an analysis and of a maintainer's question, of
+# which a follow-up takes half and a reply to one comment a tenth, and the dollars
+# at which the engine stops, as it counts them at the prices of its API.
+max_turns = 40
+max_budget_usd = 1.00
 # The most AI runs that people who don't maintain the repository start: analyses
 # of new issues, follow-ups and replies after a release in 24 hours, analyses of
 # one reporter's new issues in 24 hours, and comments of a reporter after a release

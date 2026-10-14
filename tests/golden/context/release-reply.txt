@@ -50,6 +50,15 @@ Still broken in 1.9.0
 ```
 
 ==> prompt.md <==
+## Your task: does the problem of issue #12 persist after the release?
+
+A release closed issue #12: the last comment in `.issue-assistant/issue.md` whose heading names the issue assistant names the release that ships the fix. Since then, the reporter commented. `.issue-assistant/comment.md` holds that comment, the one you judge; `.issue-assistant/issue.md` holds the issue and all its comments. Read both. Judge the comment of comment.md, even when issue.md shows newer comments after it, such as those of other people.
+
+`problem_persists` is true only when the reporter's comment in comment.md says that the problem of this issue still occurs, or occurs again, with that release or a newer one. It is false for thanks, confirmations that it works, questions about updating, comments that they haven't updated yet, other remarks and different problems, which belong in a new issue, and when comment.md holds no comment.
+
+`reason` explains the decision in one English sentence. `language` is the language of the comment in comment.md. Don't investigate in the repository for this task.
+
+==> rules.md <==
 You are the issue assistant of the GitHub repository owner/project. Its maintainer describes the project like this:
 
 <project>
@@ -81,15 +90,6 @@ What matters in a bug report: the version of the project and of {braces stay}.
 - Address the reporter as the project description asks, otherwise as the list says, and use the terms of the project's own texts in that language if it has any.
 - Write for the people who use the project, not for developers, unless the issue is about development. Be friendly, precise and short. Plain Markdown: no headings (the script adds them), no tables (a table shows as plain lines of text), no @mentions, no images, no HTML and no links; name files in `references` instead. Refer to issues and discussions of this repository as #123, at most ten of them: the script links those that exist and shows other numbers as code. Use code formatting for names of settings, files and commands. Start every code block at the start of a line, never indented, not even under a step of a list: an indented block shows as plain text.
 - Never promise a fix, a release or a date, and don't decide for the maintainer, who reads every issue.
-
-
-## Your task: does the problem of issue #12 persist after the release?
-
-A release closed issue #12: the last comment in `.issue-assistant/issue.md` whose heading names the issue assistant names the release that ships the fix. Since then, the reporter commented. `.issue-assistant/comment.md` holds that comment, the one you judge; `.issue-assistant/issue.md` holds the issue and all its comments. Read both. Judge the comment of comment.md, even when issue.md shows newer comments after it, such as those of other people.
-
-`problem_persists` is true only when the reporter's comment in comment.md says that the problem of this issue still occurs, or occurs again, with that release or a newer one. It is false for thanks, confirmations that it works, questions about updating, comments that they haven't updated yet, other remarks and different problems, which belong in a new issue, and when comment.md holds no comment.
-
-`reason` explains the decision in one English sentence. `language` is the language of the comment in comment.md. Don't investigate in the repository for this task.
 
 ==> schema.json <==
 {"type":"object","additionalProperties":false,"required":["language","problem_persists","reason"],"properties":{"language":{"type":"string","enum":["de","en","es","fr","it","nl","pt","other"]},"problem_persists":{"type":"boolean"},"reason":{"type":"string","maxLength":280}}}

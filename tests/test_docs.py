@@ -1263,6 +1263,10 @@ def test_the_reference_of_the_labels_and_the_findings_has_every_key():
 SETTINGS = {
     "[engine] name": ("engine", "other"),
     "[engine] model": ("model", "sonnet"),
+    "[engine] light_model": ("light_model", "haiku"),
+    "[engine] effort": ("effort", "low"),
+    "[engine] max_turns": ("max_turns", 25),
+    "[engine] max_budget_usd": ("max_budget_usd", 0.5),
     "[engine] max_per_day": ("max_per_day", 5),
     "[engine] max_per_author_per_day": ("max_per_author_per_day", 1),
     "[engine] release_replies": ("release_replies", 0),
@@ -1312,7 +1316,7 @@ def test_the_reference_of_config_toml_has_every_key_with_its_default(root: Path)
     def toml(value: object) -> str:
         if isinstance(value, bool):
             return str(value).lower()
-        if isinstance(value, int):
+        if isinstance(value, int | float):
             return str(value)
         if isinstance(value, list):
             return "[" + ", ".join(f'"{item}"' for item in value) + "]"
@@ -1521,7 +1525,7 @@ def test_the_hook_describes_each_page_and_fills_in_what_it_asks_for():
     )
     result = hooks.on_page_markdown(markdown, page, None, None)
     assert page.meta == {"description": "The commands and the action."}
-    assert "| `prompt` | The prompt for the engine |" in result
+    assert "| `task` | The task for the engine, which the rules" in result
 
 
 def test_the_home_page_has_a_title_with_its_words_and_a_card_with_its_name():

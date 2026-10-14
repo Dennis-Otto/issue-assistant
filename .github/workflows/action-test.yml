@@ -135,7 +135,7 @@ jobs:
           GH_TELEMETRY: "false"
         run: |
           python3 issue_assistant.py context --issue 105 --mode triage
-          for file in issue.md labels.md issues.jsonl discussions.jsonl prompt.md schema.json; do
+          for file in issue.md labels.md issues.jsonl discussions.jsonl rules.md prompt.md schema.json; do
             if [[ ! -s ".issue-assistant/$file" ]]; then
               echo "::error::context wrote no .issue-assistant/$file"
               exit 1

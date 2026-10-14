@@ -125,6 +125,7 @@ jobs:
         uses: ./ # zizmor: ignore[self-repository]
         with:
           command: engine
+          mode: triage
           # One entry per engine: its key when its secret exists.
           ready-engines: ${{ (secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '') && 'claude' || '' }}
       # In a repository, the AI is off without its secret; here that would hide the
@@ -167,17 +168,32 @@ jobs:
           github_token: ${{ github.token }}
           allowed_non_write_users: "*"
           allowed_bots: "*"
-          prompt: ${{ steps.context.outputs.prompt }}
+          prompt: ${{ steps.context.outputs.task }}
           # --restricted removes every tool that runs code or reaches the network,
           # ignores settings files and confines the file tools to the checkout;
-          # --tools leaves only the reading tools, and nothing ever prompts.
+          # --tools leaves only the reading tools, and nothing ever prompts. The
+          # rules come first, as the system prompt, and the task stops at its turns
+          # and dollars.
           claude_args: |
             --restricted
             --tools "Read,Grep,Glob"
             --permission-prompts none
+            --append-system-prompt-file .issue-assistant/rules.md
             --model ${{ steps.engine.outputs.model }}
-            --max-turns 40
+            --max-turns ${{ steps.engine.outputs.turns }}
+            --max-budget-usd ${{ steps.engine.outputs.budget }}
+            ${{ steps.engine.outputs.effort && format('--effort {0}', steps.engine.outputs.effort) || '' }}
             --json-schema '${{ steps.context.outputs.schema }}'
+      # Numbers alone, also after a failure: the turns, time, cost and tokens of
+      # the run, in the summary of the job.
+      - name: Report what the analysis cost
+        id: usage
+        if: always() && steps.claude.outputs.execution_file != ''
+        uses: ./ # zizmor: ignore[self-repository]
+        with:
+          command: usage
+          mode: triage
+          execution-file: ${{ steps.claude.outputs.execution_file }}
 
       # The template skips apply without an answer; here no answer is the failure
       # the canary is for, such as a renamed output of the engine's action.
