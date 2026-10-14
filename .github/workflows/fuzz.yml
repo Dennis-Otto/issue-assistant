@@ -62,3 +62,13 @@ jobs:
               -rss_limit_mb=2048 -artifact_prefix="$RUNNER_TEMP/"
             echo "::endgroup::"
           done
+      # The PR coach: what failed, why it matters and how to fix it, in the summary
+      # of the check and as its annotation, from .github/checks.toml.
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: fuzz
+        run: |
+          script=.github/blueprint.py
+          [[ -f "$script" ]] || script=blueprint.py
+          python3 "$script" coach explain "$CHECK"
