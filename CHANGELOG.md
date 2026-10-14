@@ -4,6 +4,8 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.4.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.3.1...v1.4.0) (2026-10-14)
+
 ### Added
 
 - Try the assistant on an issue that exists nowhere: name a JSON file with the issue and its comments, as GitHub's REST API gives them, in the environment variable `ISSUE_ASSISTANT_FIXTURE`, and `context` and `apply` read that issue instead of one on GitHub and write nothing, as in a dry run. The project's own Canary analyzes such an issue every week with the engine, on the firewall runner, so that an update of the engine's action, a host that the firewall blocks or an expired secret shows before a release instead of as issues without an answer.
@@ -15,18 +17,6 @@ All notable changes of the issue assistant. The complete notes of every version,
 ### Security
 
 - A table in the AI's text can no longer cut its code in two. GitHub splits every row of a table at each `|`, also inside code, so code such as `` `x|#1 https://example.com` `` in a row turned into text that referenced an issue and linked to another site, also in a table of one column, in a quote or in a list item. A line such as `--|--` or `:-:`, which starts a table below its header, now shows as text, so the AI's text holds no table; the AI is asked not to write tables. A code block that closes with a shorter fence than it opens with, such as `~~~~~~` and `~~~`, now counts as text too: GitHub's block ran on past it, into the next part of the comment, until the fence of the next code block closed it, and showed that code as text. A checked issue number right after an `@`, as in `#0@GH-7`, becomes code: once `#0` was code, GitHub read `@GH-7` as a mention of the user GH-7. A lone `www.`, which GitHub links to the host `www`, becomes code. A link whose target holds a `(`, or entities that spell `..`, such as `&#46;&#46;`, no longer stays a link: GitHub's target runs on past the `)` that closes a `(`, and reads the entities, so either could lead out of the repository. New tests found all of these: they judge whole comments by a model of GitHub's rendering of their own, and fuzz them.
-
-## [1.4.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.3.1...v1.4.0) (2026-10-14)
-
-
-### Features
-
-* try the assistant on an issue from a JSON file, and run the live AI path every week in a canary ([#89](https://github.com/Dennis-Otto/issue-assistant/issues/89)) ([859a509](https://github.com/Dennis-Otto/issue-assistant/commit/859a50988eeb0690f81ff67f2803b04eb9d1b400))
-
-
-### Bug fixes
-
-* **lifecycle:** count a fix at the edge of the lookback, and skip closed issues ([#106](https://github.com/Dennis-Otto/issue-assistant/issues/106)) ([9dbec29](https://github.com/Dennis-Otto/issue-assistant/commit/9dbec290902d1f5150e2299ebffbb04574247e61))
 
 ## [1.3.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.3.0...v1.3.1) (2026-10-13)
 
