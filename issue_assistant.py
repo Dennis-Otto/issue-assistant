@@ -136,6 +136,24 @@ MAX_TEXT = 65_536
 # The most of one text, the issue's or a comment's, that the engine reads in
 # issue.md; a longer one is cut off with a note.
 MAX_RENDERED_TEXT = 20_000
+# What the engine reads of the rest of the repository, unless [context] in
+# config.toml sets other numbers: every open issue, the closed issues and the
+# discussions that changed last, up to these numbers. So the context and the calls
+# to GitHub stay bounded in a repository with tens of thousands of issues.
+MAX_ISSUES = 1_000
+MAX_DISCUSSIONS = 1_000
+CONTEXT_LIMITS = ("max_issues", "max_discussions")
+# A first analysis also reads the issues that GitHub's search finds for the words of
+# the new issue, so that an older duplicate is found beyond the closed issues above.
+SEARCHED = 30
+# The words of that search, joined by OR: GitHub's search takes five operators.
+SEARCH_TERMS = 6
+# The names of errors among them, before the words of the title.
+SEARCH_ERRORS = 3
+# The longest word of it, so that the query stays within GitHub's 256 characters.
+SEARCH_WORD = 40
+# The excerpt of each other issue in issues.jsonl; issues/<number>.md has its text.
+EXCERPT = 400
 
 NEEDS_TRIAGE = "needs-triage"
 NEEDS_INFO = "needs-info"
@@ -164,6 +182,9 @@ MODES = ("triage", "follow-up", "maintainer-reply", "release-reply")
 # The tasks that reporters start, which the limits of the AI runs apply to; a
 # maintainer starts the others.
 LIMITED = {"triage", "follow-up", "release-reply"}
+# The tasks that judge one comment, the one that started them, and read nothing of
+# the repository besides the issue.
+REPLIES = ("maintainer-reply", "release-reply")
 
 MARKER = re.compile(r"<!-- issue-assistant:([a-z-]+)((?: [a-z]+=[\w.+/-]+)*) -->")
 # Control characters other than tab and line break, which no comment needs: Python
@@ -344,6 +365,24 @@ ENGLISH_WORDS = {
     "have", "can", "an", "of", "to", "works", "but", "how", "after", "my",
     "no", "on", "in", "for", "what", "be",
 }  # fmt: skip
+# Words that tell little of what an issue is about, which the search for older
+# issues like it leaves out.
+COMMON_WORDS = frozenset(
+    GERMAN_WORDS
+    | ENGLISH_WORDS
+    | {
+        "are", "was", "were", "from", "into", "doesn", "don", "isn", "won",
+        "cannot", "can't", "anymore", "there", "should", "would", "could",
+        "issue", "bug", "error", "problem", "feature", "request", "help",
+        "please", "work", "working", "any", "all", "new", "use", "using",
+        "sich", "oder", "für", "fuer", "von", "beim", "seit", "mehr", "fehler",
+        "kein", "einen", "einem", "einer", "bitte", "geht",
+    }
+)  # fmt: skip
+# The words of a text, which a search for an issue is made of.
+WORD = re.compile(r"\w+")
+# The code of a system error, such as ECONNREFUSED or ENOENT.
+ERROR_CODE = re.compile(r"E[A-Z]{3,}")
 MONTHS_DE = (
     "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
     "September", "Oktober", "November", "Dezember",
@@ -586,6 +625,10 @@ class Config:
     max_per_day: int = MAX_PER_DAY
     max_per_author_per_day: int = MAX_PER_AUTHOR_PER_DAY
     release_replies: int = RELEASE_REPLIES
+    # What the engine reads of the other issues and the discussions; see
+    # CONTEXT_LIMITS.
+    max_issues: int = MAX_ISSUES
+    max_discussions: int = MAX_DISCUSSIONS
     # What `check` reports of labels.toml and config.toml beyond its own checks: the
     # values that the assistant can't use and the keys that it doesn't know.
     problems: tuple[str, ...] = ()
@@ -627,6 +670,10 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
         "max_per_day": Key("max_per_day", int),
         "max_per_author_per_day": Key("max_per_author_per_day", int),
         "release_replies": Key("release_replies", int),
+    },
+    "context": {
+        "max_issues": Key("max_issues", int),
+        "max_discussions": Key("max_discussions", int),
     },
     "links": {"hosts": Key("hosts", list, frozenset)},
     "forms": {
@@ -840,7 +887,8 @@ def load_config(root: Path, repository: str, *, lenient: bool = False) -> Config
 
 
 def limit(config: Config, key: str) -> int:
-    """A limit of the AI runs, one of LIMITS.
+    """A limit of the AI runs, one of LIMITS, or of what it reads, one of
+    CONTEXT_LIMITS.
 
     A value that is no whole number of 0 or more stops the run instead of lifting
     the limit; `check` names it before.
@@ -1152,9 +1200,93 @@ class GitHub:
         )
         return [item for item in items if "pull_request" not in item]
 
-    def all_issues(self) -> list[dict[str, Any]]:
-        items = self.rest("issues?state=all&per_page=100", pages=True)
-        return [item for item in items if "pull_request" not in item]
+    def recent_issues(self, closed: int) -> list[dict[str, Any]]:
+        """Every open issue and the `closed` closed ones that changed last, in the
+        form of the REST API, with the pull request that closed each, if one did.
+
+        GraphQL's issues are issues alone, while REST lists pull requests among them,
+        and its pages are as many as the repository has issues and pull requests.
+        """
+        found: list[dict[str, Any]] = []
+        for state, most in (("OPEN", None), ("CLOSED", closed)):
+            cursor = None
+            taken = 0
+            while most is None or taken < most:
+                data = self.graphql(
+                    """
+                    query($owner: String!, $name: String!, $states: [IssueState!],
+                          $first: Int!, $cursor: String) {
+                      repository(owner: $owner, name: $name) {
+                        issues(states: $states, first: $first, after: $cursor,
+                               orderBy: {field: UPDATED_AT, direction: DESC}) {
+                          pageInfo { hasNextPage endCursor }
+                          nodes {
+                            number title body state stateReason(enableDuplicate: true)
+                            createdAt closedAt
+                            labels(first: 20) { nodes { name } }
+                            comments { totalCount }
+                            closedByPullRequestsReferences(first: 5, includeClosedPrs: true) {
+                              nodes { number merged repository { nameWithOwner } }
+                            }
+                            timelineItems(itemTypes: [CLOSED_EVENT], last: 1) {
+                              nodes {
+                                ... on ClosedEvent {
+                                  closer { ... on PullRequest { number } }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                    """,
+                    {
+                        "owner": self.owner,
+                        "name": self.name,
+                        "states": [state],
+                        "first": 100 if most is None else min(100, most - taken),
+                        "cursor": cursor,
+                    },
+                )
+                page = data["repository"]["issues"]
+                found += [as_rest(node, self.owns) for node in page["nodes"]]
+                taken += len(page["nodes"])
+                if not page["pageInfo"]["hasNextPage"]:
+                    break
+                cursor = page["pageInfo"]["endCursor"]
+        return found
+
+    def search_issues(self, terms: list[str]) -> list[dict[str, Any]]:
+        """The issues of the repository that GitHub's search finds best for any of
+        the words, at most SEARCHED."""
+        # The parentheses keep `repo:` on every word, also where AND binds closer
+        # than OR, as in GitHub's advanced search.
+        found = self.search(f"repo:{self.repository} is:issue ({' OR '.join(terms)})")
+        own = f"/repos/{self.repository}".lower()
+        return [
+            item
+            for item in found
+            if "pull_request" not in item
+            and str(item.get("repository_url", "")).lower().endswith(own)
+        ]
+
+    def search(self, query: str) -> list[dict[str, Any]]:
+        """The SEARCHED issues and pull requests that GitHub's search finds best for
+        the query, in the form of the REST API."""
+        found = self._gh(
+            [
+                "api",
+                "--method",
+                "GET",
+                "search/issues",
+                "-f",
+                f"q={query}",
+                "-F",
+                f"per_page={SEARCHED}",
+            ]
+        )
+        items: list[dict[str, Any]] = found["items"]
+        return items
 
     def issues_since(self, since: datetime) -> list[dict[str, Any]]:
         """The issues opened or changed at or after the moment."""
@@ -1300,31 +1432,47 @@ class GitHub:
             and pull["mergeCommit"]
         ]
 
-    def discussions(self) -> list[dict[str, Any]]:
-        try:
-            data = self.graphql(
-                """
-                query($owner: String!, $name: String!) {
-                  repository(owner: $owner, name: $name) {
-                    discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
-                      nodes {
-                        number title closed isAnswered body
-                        category { name }
-                        answer { body }
+    def discussions(self, most: int) -> list[dict[str, Any]]:
+        """The `most` discussions that changed last."""
+        nodes: list[dict[str, Any]] = []
+        cursor = None
+        while len(nodes) < most:
+            try:
+                data = self.graphql(
+                    """
+                    query($owner: String!, $name: String!, $first: Int!,
+                          $cursor: String) {
+                      repository(owner: $owner, name: $name) {
+                        discussions(first: $first, after: $cursor,
+                                    orderBy: {field: UPDATED_AT, direction: DESC}) {
+                          pageInfo { hasNextPage endCursor }
+                          nodes {
+                            number title closed isAnswered body
+                            category { name }
+                            answer { body }
+                          }
+                        }
                       }
                     }
-                  }
-                }
-                """,
-                {"owner": self.owner, "name": self.name},
-            )
-        except GitHubError as error:
-            # A repository without discussions has none; GitHub says so only when
-            # the repository itself is gone.
-            if not error.missing():
-                raise
-            return []
-        nodes: list[dict[str, Any]] = data["repository"]["discussions"]["nodes"]
+                    """,
+                    {
+                        "owner": self.owner,
+                        "name": self.name,
+                        "first": min(100, most - len(nodes)),
+                        "cursor": cursor,
+                    },
+                )
+            except GitHubError as error:
+                # A repository without discussions has none; GitHub says so only
+                # when the repository itself is gone.
+                if not error.missing():
+                    raise
+                return []
+            page = data["repository"]["discussions"]
+            nodes += page["nodes"]
+            if not page["pageInfo"]["hasNextPage"]:
+                break
+            cursor = page["pageInfo"]["endCursor"]
         return nodes
 
     def discussion_exists(self, number: int) -> bool:
@@ -1610,6 +1758,40 @@ class GitHub:
 
 
 # Comments and issues
+
+
+def as_rest(
+    node: dict[str, Any], owns: Callable[[dict[str, Any]], bool]
+) -> dict[str, Any]:
+    """An issue of GraphQL in the form of the REST API, which the assistant reads,
+    with `closed_by`, the number of the pull request that fixed it, if one did.
+
+    That is the last merged pull request of this repository that names the issue,
+    such as `Fixes #12`, else the pull request that closed it last. A release
+    closes the issues that its pull requests fix (`close_with_release`), so the
+    closing is often the bot's and not the pull request's."""
+    closer = None
+    if node["state"] == "CLOSED":
+        fixes = [
+            pull["number"]
+            for pull in node["closedByPullRequestsReferences"]["nodes"]
+            if pull["merged"] and owns(pull)
+        ]
+        events = node["timelineItems"]["nodes"]
+        closed = ((events[-1] if events else {}).get("closer") or {}).get("number")
+        closer = fixes[-1] if fixes else closed
+    return {
+        "number": node["number"],
+        "title": node["title"],
+        "body": node["body"],
+        "state": node["state"].lower(),
+        "state_reason": (node["stateReason"] or "").lower() or None,
+        "labels": (node["labels"] or {"nodes": []})["nodes"],
+        "created_at": node["createdAt"],
+        "closed_at": node["closedAt"],
+        "comments": node["comments"]["totalCount"],
+        "closed_by": closer,
+    }
 
 
 def login(item: dict[str, Any] | None) -> str:
@@ -2159,16 +2341,145 @@ def render_labels(config: Config) -> str:
     return "\n".join(lines) + "\n"
 
 
+def judges(issue: dict[str, Any], comment: dict[str, Any], mode: str) -> bool:
+    """Whether a reply task may act on the comment: release-reply on one of the
+    reporter, maintainer-reply on one of a maintainer who isn't the reporter."""
+    reporter = login(issue.get("user"))
+    if mode == "release-reply":
+        return login(comment.get("user")) == reporter
+    return is_maintainer(comment) and login(comment.get("user")) != reporter
+
+
+def judged_comment(
+    issue: dict[str, Any],
+    comments: list[dict[str, Any]],
+    mode: str,
+    comment_id: int | None,
+) -> dict[str, Any] | None:
+    """The comment that a reply task judges: the one whose event started the run,
+    not a newer one that came in while the run waited, or, in a run by hand, the
+    newest on which the task may act. None once it is deleted, or without one."""
+    if comment_id is not None:
+        return next((item for item in comments if item.get("id") == comment_id), None)
+    fitting = [item for item in comments if judges(issue, item, mode)]
+    return fitting[-1] if fitting else None
+
+
+def render_judged(
+    issue: dict[str, Any],
+    comments: list[dict[str, Any]],
+    judged: dict[str, Any] | None,
+) -> str:
+    """comment.md: the comment that a reply task judges, as issue.md shows it."""
+    if judged is None:
+        return (
+            "# No comment to judge\n\n"
+            "The comment that this task judges was deleted, or there is none.\n"
+        )
+    index = next(
+        number for number, item in enumerate(comments, start=1) if item is judged
+    )
+    author = describe_author(judged, login(issue.get("user")))
+    return (
+        f"# Comment {index} of issue #{issue['number']} by {author}, "
+        f"{judged['created_at'][:10]}\n\n"
+        f"{rendered_text(text_of(judged), Visible())}\n"
+    )
+
+
+def search_terms(issue: dict[str, Any]) -> list[str]:
+    """The words of the search for older issues like this one: the names of errors in
+    its text, such as TypeError or ECONNREFUSED, then the words of its title.
+
+    Words alone, in lower case, so that none is a qualifier of the search, such as
+    repo:, or one of its operators, such as OR; none longer than SEARCH_WORD, so
+    that the query stays short enough for GitHub.
+    """
+    errors = [
+        word
+        for word in WORD.findall(text_of(issue))
+        if word.endswith(("Error", "Exception")) or ERROR_CODE.fullmatch(word)
+    ]
+    words = list(dict.fromkeys(errors))[:SEARCH_ERRORS] + WORD.findall(issue["title"])
+    terms = [
+        word.lower()
+        for word in words
+        if 2 < len(word) <= SEARCH_WORD
+        and not word.isdigit()
+        and word.lower() not in COMMON_WORDS
+    ]
+    return list(dict.fromkeys(terms))[:SEARCH_TERMS]
+
+
+def related_issues(
+    github: GitHub, issue: dict[str, Any], mode: str, config: Config
+) -> list[dict[str, Any]]:
+    """The other issues that the engine reads, the newest first: every open one, the
+    max_issues closed ones that changed last and, for a first analysis, those that a
+    search for its words finds among the older ones."""
+    found = {
+        item["number"]: item
+        for item in github.recent_issues(limit(config, "max_issues"))
+    }
+    terms = search_terms(issue) if mode == "triage" else []
+    if terms:
+        try:
+            for item in github.search_issues(terms):
+                found.setdefault(item["number"], item)
+        except GitHubError as error:
+            # The issues above are the context; the search only adds to them.
+            command("warning", f"The search for older issues failed: {error}")
+    found.pop(issue["number"], None)
+    return [found[number] for number in sorted(found, reverse=True)]
+
+
+def render_other_issue(item: dict[str, Any], visible: Visible) -> str:
+    """issues/<number>.md: the whole text of another issue, for the engine to read
+    when its excerpt in issues.jsonl looks promising."""
+    return (
+        f"# Issue #{item['number']}: {one_line(visible(item['title']))}\n\n"
+        f"{rendered_text(text_of(item), visible)}\n"
+    )
+
+
+def write_lines(path: Path, items: Iterable[dict[str, Any]]) -> None:
+    """A file of JSON Lines: one JSON object on each line."""
+    path.write_text(
+        "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in items),
+        encoding="utf-8",
+    )
+
+
+# What a context writes besides issue.md, prompt.md and schema.json, each only for
+# the tasks that need it. A run in the same checkout removes what an earlier one
+# wrote, so that a reply task never reads the other issues of an analysis.
+CONTEXT_FILES = ("comment.md", "labels.md", "issues.jsonl", "discussions.jsonl")
+
+
 def write_context(
-    github: GitHub, number: int, mode: str, config: Config
+    github: GitHub,
+    number: int,
+    mode: str,
+    config: Config,
+    comment_id: int | None = None,
 ) -> dict[str, str]:
-    """Write the files the engine reads and return the prompt and the schema."""
+    """Write the files that the task of the engine reads and return the prompt and
+    the schema.
+
+    Every task reads the issue with its comments. A reply task judges one comment,
+    `comment_id`, the one whose event started the run, and reads nothing else; the
+    others read the labels, the other issues and the discussions, up to the numbers
+    of [context].
+    """
     if mode not in MODES:
         raise AssistantError(f"Unknown mode {mode}.")
     folder = config.root / CONTEXT
     issue = github.issue(number)
     comments = github.comments(number)
     folder.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(folder / "issues", ignore_errors=True)
+    for name in CONTEXT_FILES:
+        (folder / name).unlink(missing_ok=True)
     # The invisible characters of the issue, and of the texts that every analysis
     # reads, in which anyone could plant instructions for later issues. They go after
     # the HTML comments, as in rendered_text, so that the engine reads no text that
@@ -2177,45 +2488,13 @@ def write_context(
     (folder / "issue.md").write_text(
         render_issue(issue, comments, own), encoding="utf-8"
     )
-    (folder / "labels.md").write_text(render_labels(config), encoding="utf-8")
-    others = [
-        {
-            "number": item["number"],
-            "title": elsewhere(item["title"]),
-            "state": item["state"],
-            "state_reason": item.get("state_reason"),
-            "labels": sorted(label_names(item)),
-            "opened": item["created_at"][:10],
-            "closed": (item.get("closed_at") or "")[:10] or None,
-            "comments": item.get("comments", 0),
-            "excerpt": elsewhere(excerpt(item.get("body") or "", 1500)),
-        }
-        for item in github.all_issues()
-        if item["number"] != number
-    ]
-    (folder / "issues.jsonl").write_text(
-        "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in others),
-        encoding="utf-8",
-    )
-    discussions = [
-        {
-            "number": item["number"],
-            "title": elsewhere(item["title"]),
-            "category": (item.get("category") or {}).get("name"),
-            "answered": item.get("isAnswered"),
-            "closed": item.get("closed"),
-            "excerpt": elsewhere(excerpt(item.get("body") or "", 1000)),
-            "answer": elsewhere(
-                excerpt((item.get("answer") or {}).get("body") or "", 1000)
-            )
-            or None,
-        }
-        for item in github.discussions()
-    ]
-    (folder / "discussions.jsonl").write_text(
-        "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in discussions),
-        encoding="utf-8",
-    )
+    if mode in REPLIES:
+        judged = judged_comment(issue, comments, mode, comment_id)
+        (folder / "comment.md").write_text(
+            render_judged(issue, comments, judged), encoding="utf-8"
+        )
+    else:
+        write_related(github, folder, issue, mode, config, elsewhere)
     if own.removed or elsewhere.removed:
         command(
             "notice",
@@ -2228,7 +2507,8 @@ def write_context(
         "repository": config.repository,
         "issue": str(number),
         "context": str(CONTEXT),
-        "release": github.latest_release() or "none yet",
+        "max_issues": str(config.max_issues),
+        "max_discussions": str(config.max_discussions),
     }
     prompt = "\n\n".join(
         (PROMPTS / name).read_text(encoding="utf-8")
@@ -2236,12 +2516,77 @@ def write_context(
     )
     for key, value in values.items():
         prompt = prompt.replace("{" + key + "}", value)
+    if "{release}" in prompt:
+        # Only the tasks that weigh what a release changed ask GitHub for it.
+        prompt = prompt.replace("{release}", github.latest_release() or "none yet")
     # Last, so that braces in the project's own text stay as they are.
     prompt = prompt.replace("{project}", config.project)
     schema = schema_json(mode, config)
     (folder / "prompt.md").write_text(prompt, encoding="utf-8")
     (folder / "schema.json").write_text(schema, encoding="utf-8")
     return {"prompt": prompt, "schema": schema}
+
+
+def write_related(
+    github: GitHub,
+    folder: Path,
+    issue: dict[str, Any],
+    mode: str,
+    config: Config,
+    visible: Visible,
+) -> None:
+    """labels.md, and what the engine reads of the rest of the repository: the other
+    issues, each with an excerpt in issues.jsonl and its whole text in
+    issues/<number>.md, and the discussions in discussions.jsonl.
+
+    `visible` counts the invisible characters of the whole texts; the titles and
+    excerpts of issues.jsonl come from the same texts and don't count them again.
+    """
+    (folder / "labels.md").write_text(render_labels(config), encoding="utf-8")
+    others = related_issues(github, issue, mode, config)
+    texts = folder / "issues"
+    texts.mkdir()
+    for item in others:
+        (texts / f"{item['number']}.md").write_text(
+            render_other_issue(item, visible), encoding="utf-8"
+        )
+    quiet = Visible()
+    write_lines(
+        folder / "issues.jsonl",
+        (
+            {
+                "number": item["number"],
+                "title": quiet(item["title"]),
+                "state": item["state"],
+                "state_reason": item.get("state_reason"),
+                "labels": sorted(label_names(item)),
+                "opened": item["created_at"][:10],
+                "closed": (item.get("closed_at") or "")[:10] or None,
+                "comments": item.get("comments", 0),
+                "closed_by": item.get("closed_by"),
+                "excerpt": quiet(excerpt(item.get("body") or "", EXCERPT)),
+            }
+            for item in others
+        ),
+    )
+    write_lines(
+        folder / "discussions.jsonl",
+        (
+            {
+                "number": item["number"],
+                "title": visible(item["title"]),
+                "category": (item.get("category") or {}).get("name"),
+                "answered": item.get("isAnswered"),
+                "closed": item.get("closed"),
+                "excerpt": visible(excerpt(item.get("body") or "", 1000)),
+                "answer": visible(
+                    excerpt((item.get("answer") or {}).get("body") or "", 1000)
+                )
+                or None,
+            }
+            for item in github.discussions(limit(config, "max_discussions"))
+        ),
+    )
 
 
 # The engine's answer
@@ -3640,20 +3985,22 @@ def apply_answer(
     *,
     repeat: bool = False,
     engine: str = DEFAULT_ENGINE,
+    comment_id: int | None = None,
 ) -> list[str]:
-    """Check the engine's answer and post it; `repeat` allows another analysis by hand."""
+    """Check the engine's answer and post it; `repeat` allows another analysis by
+    hand. A reply task acts on the comment `comment_id`, which its context judged."""
     engine = engine_named(engine)
     answer = parse_answer(mode, raw, config)
     issue = github.issue(number)
     if "pull_request" in issue:
         raise AssistantError(f"#{number} is a pull request, not an issue.")
     if mode == "release-reply":
-        return apply_release_reply(github, issue, answer, config)
+        return apply_release_reply(github, issue, answer, config, comment_id)
     if issue["state"] != "open" or issue.get("locked"):
         return [f"#{number} is closed or locked; nothing posted."]
     author = login(issue.get("user"))
     if mode == "maintainer-reply":
-        return apply_maintainer_reply(github, issue, answer, config)
+        return apply_maintainer_reply(github, issue, answer, config, comment_id)
     if not repeat:
         comments = github.comments(number)
         posted = earlier_post(github, issue, mode, comments)
@@ -3740,8 +4087,34 @@ def apply_answer(
     ]
 
 
+def acted_on(
+    github: GitHub, issue: dict[str, Any], mode: str, comment_id: int | None
+) -> tuple[list[dict[str, Any]], dict[str, Any]] | str:
+    """The comments of the issue and the one that the reply task judged, read
+    again, or why the task may not act on it.
+
+    The engine judged the comment of comment.md alone, so the task acts only on
+    it, and only when it comes from the reporter (release-reply) or a maintainer
+    (maintainer-reply): neither a newer comment nor a run by hand on the comment of
+    someone else stands in for it.
+    """
+    number = issue["number"]
+    comments = github.comments(number)
+    judged = judged_comment(issue, comments, mode, comment_id)
+    if judged is None:
+        return f"The comment judged on #{number} is gone; nothing done."
+    if not judges(issue, judged, mode):
+        role = "the reporter's" if mode == "release-reply" else "a maintainer's"
+        return f"The comment judged on #{number} is not {role}; nothing done."
+    return comments, judged
+
+
 def apply_maintainer_reply(
-    github: GitHub, issue: dict[str, Any], answer: dict[str, Any], config: Config
+    github: GitHub,
+    issue: dict[str, Any],
+    answer: dict[str, Any],
+    config: Config,
+    comment_id: int | None = None,
 ) -> list[str]:
     number = issue["number"]
     reason = plain(answer["reason"], config)
@@ -3749,15 +4122,13 @@ def apply_maintainer_reply(
         return [f"#{number} does not wait for the reporter: {reason}"]
     if NEEDS_INFO in label_names(issue):
         return [f"#{number} already waits for the reporter."]
+    found = acted_on(github, issue, "maintainer-reply", comment_id)
+    if isinstance(found, str):
+        return [found]
+    comments, judged = found
     author = login(issue.get("user"))
-    comments = github.comments(number)
-    asked = [
-        created(comment)
-        for comment in comments
-        if is_maintainer(comment) and login(comment.get("user")) != author
-    ]
-    if asked and any(
-        login(comment.get("user")) == author and created(comment) > asked[-1]
+    if any(
+        login(comment.get("user")) == author and created(comment) > created(judged)
         for comment in comments
     ):
         return [f"The reporter of #{number} already answered."]
@@ -3766,7 +4137,11 @@ def apply_maintainer_reply(
 
 
 def apply_release_reply(
-    github: GitHub, issue: dict[str, Any], answer: dict[str, Any], config: Config
+    github: GitHub,
+    issue: dict[str, Any],
+    answer: dict[str, Any],
+    config: Config,
+    comment_id: int | None = None,
 ) -> list[str]:
     """Reopen an issue that a release closed when its reporter says it isn't fixed."""
     number = issue["number"]
@@ -3775,6 +4150,9 @@ def apply_release_reply(
         return [f"#{number} is open or locked; nothing to reopen."]
     if not answer["problem_persists"]:
         return [f"#{number} stays closed: {reason}"]
+    found = acted_on(github, issue, "release-reply", comment_id)
+    if isinstance(found, str):
+        return [found]
     github.reopen(number)
     github.add_labels(number, [NEEDS_TRIAGE])
     github.comment(
@@ -4557,7 +4935,7 @@ def check_config(config: Config) -> list[str]:
             problems.append(f"{SETTINGS / 'config.toml'}: {host} is no host name")
     if config.model and not is_model_name(config.model):
         problems.append(model_problem(config.model))
-    for key in LIMITS:
+    for key in (*LIMITS, *CONTEXT_LIMITS):
         try:
             limit(config, key)
         except AssistantError as error:
@@ -5191,6 +5569,21 @@ def choose_engine(config: Config, ready: str) -> tuple[str, bool, str]:
     return key, available, model
 
 
+def event_comment(number: int) -> int | None:
+    """The id of the comment on the issue whose event started this run; None for any
+    other event, such as a run by hand, and outside of GitHub Actions.
+
+    The jobs of a run share its event, so the analysis and the apply job of a reply
+    find the same comment, also when newer ones came in while the run waited.
+    """
+    path = os.environ.get("GITHUB_EVENT_PATH")
+    payload = json.loads(Path(path).read_text("utf-8")) if path else {}
+    if (payload.get("issue") or {}).get("number") != number:
+        return None
+    identifier = (payload.get("comment") or {}).get("id")
+    return identifier if isinstance(identifier, int) else None
+
+
 def repository_of_run(*, needed: bool) -> str:
     """The repository the run looks after: GH_REPO, or else GITHUB_REPOSITORY.
 
@@ -5342,7 +5735,13 @@ def main(argv: list[str] | None = None) -> int:
         ):
             raise AssistantError(f"{arguments.command} needs an issue and a mode.")
         if arguments.command == "context":
-            written = write_context(github, arguments.issue, arguments.mode, config)
+            written = write_context(
+                github,
+                arguments.issue,
+                arguments.mode,
+                config,
+                event_comment(arguments.issue),
+            )
             output("prompt", written["prompt"])
             output("schema", written["schema"])
             return 0
@@ -5366,6 +5765,7 @@ def main(argv: list[str] | None = None) -> int:
                 os.environ.get("GITHUB_SHA", "HEAD"),
                 repeat=os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch",
                 engine=os.environ.get("ENGINE", ""),
+                comment_id=event_comment(arguments.issue),
             )
             done += github.writes
         elif arguments.command == "sweep":

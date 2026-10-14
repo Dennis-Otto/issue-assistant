@@ -14,6 +14,8 @@ All notable changes of the issue assistant. The complete notes of every version,
 - Every analysis and follow-up says what it is and asks whether it helped. Its footer links *How the assistant works*, the part *What happens with your issue* of your `SUPPORT.md`, or of the first file of `[transparency] files`, and asks for a 👍 or 👎 on the comment; the summary of the morning sweep, or of one started by hand, counts them for the analyses and follow-ups of the last 30 days, as numbers only. On a duplicate notice, the footer says that a 👎 also keeps the issue open, as before.
 - A long analysis keeps its questions in view: more than three links to related issues and files fold into one line below the questions, such as *Where to look: 5 links*, that opens them. A reminder links the comment with the questions that it reminds of.
 - The comments speak of the maintainers, not of one maintainer, and the information needed says that an answer reopens the issue if it closes, not while it is still open.
+- An analysis reads a window of the repository instead of every issue and pull request: every open issue, the 1,000 closed issues and the 1,000 discussions that changed last, and for a new issue up to 30 older issues that a search for its errors and the words of its title finds, so that old duplicates are still found. In a repository with tens of thousands of issues, the context stays small and takes a few calls to GitHub instead of hundreds. `[context] max_issues` and `max_discussions` in `config.toml` set the numbers. Each other issue comes with an excerpt of 400 characters, the pull request that fixed it, and its whole text for the AI to read when the excerpt looks promising.
+- Deciding whether a maintainer's comment waits for the reporter, or whether the reporter's comment after a release says the problem persists, reads only the issue and that comment, no longer every issue and discussion of the repository.
 
 ### Fixed
 
@@ -24,6 +26,7 @@ All notable changes of the issue assistant. The complete notes of every version,
 - A new title is no answer. Fixing a typo in it removed `needs-info`, stopped the reminder and started a follow-up of the AI with nothing new to read.
 - A comment of the reporter reopens an issue that closed for a missing answer also when an answer came in while the sweep closed it and took its labels. An issue that closed in another way since its last reopening stays closed.
 - No follow-up is posted once a maintainer joined the conversation while the AI wrote it.
+- A comment that someone else writes while the AI reads the reporter's comment after a release, such as "still broken for me too", no longer reopens an issue whose reporter just confirmed the fix: the AI judges the comment that started its run, not the newest one, and the issue reopens only for a comment of its reporter. In the same way, only the maintainer's comment that started the run can mark an issue as waiting for its reporter.
 
 ## [1.4.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.3.1...v1.4.0) (2026-10-14)
 
