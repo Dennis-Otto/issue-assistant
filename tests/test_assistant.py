@@ -12,6 +12,7 @@ import sys
 import time
 import tomllib
 import unicodedata
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -3391,6 +3392,429 @@ def test_the_kind_is_corrected_while_nobody_triaged_the_issue(config):
     triaged = FakeGitHub(config, make_issue(labels=("bug",)))
     assistant.apply_answer(triaged, "triage", 12, answer, config, "abc")
     assert triaged.labels_of(12) == {"bug", "question"}
+
+
+# Priorities, owners of areas and issue types, each a choice of the repository
+
+
+ISSUE_TYPES = [
+    {"id": "IT_bug", "name": "Bug", "isEnabled": True},
+    {"id": "IT_feature", "name": "Feature", "isEnabled": True},
+    {"id": "IT_task", "name": "Task", "isEnabled": False},
+]
+
+
+def routed(config, *, cards=("alice",), games=("bob", "alice")):
+    """The sample with two priorities, owners of its areas of cards and games, and
+    the issue types Bug and Feature of the kinds bug and enhancement."""
+    changes = {
+        "area: cards": {"owners": cards},
+        "area: games": {"owners": games},
+        "bug": {"issue_type": "Bug"},
+        "enhancement": {"issue_type": "Feature"},
+    }
+    labels = tuple(
+        dataclasses.replace(label, **changes.get(label.name, {}))
+        for label in config.labels
+    )
+    priorities = (
+        assistant.Label(
+            "priority: high", "b60205", "Breaks the project for many", "priority"
+        ),
+        assistant.Label(
+            "priority: low", "c2e0c6", "A detail, or has a workaround", "priority"
+        ),
+    )
+    return dataclasses.replace(config, labels=(*labels, *priorities))
+
+
+def routed_github(config, *issues):
+    github = FakeGitHub(config, *issues)
+    github.assignable_store |= {"alice", "bob"}
+    github.issue_type_store = deepcopy(ISSUE_TYPES)
+    return github
+
+
+def prioritized(**changes):
+    return make_answer(
+        **{
+            "priority": "priority: high",
+            "priority_rationale": "Every live card stays empty.",
+            **changes,
+        }
+    )
+
+
+@pytest.mark.parametrize("mode", ["triage", "follow-up"])
+def test_only_a_repository_with_priorities_is_asked_for_one(config, mode):
+    assert "priority" not in assistant.answer_schema(mode, config)["properties"]
+    assert "priority" not in assistant.render_labels(config)
+    schema = assistant.answer_schema(mode, routed(config))
+    assert schema["properties"]["priority"] == {
+        "type": "string",
+        "enum": ["priority: high", "priority: low", "none"],
+    }
+    assert schema["properties"]["priority_rationale"] == {
+        "type": "string",
+        "maxLength": 280,
+    }
+    assert {"priority", "priority_rationale"} <= set(schema["required"])
+    assert (
+        "## priority\n\n- `priority: high`: Breaks the project for many\n"
+        "- `priority: low`: A detail, or has a workaround\n"
+    ) in assistant.render_labels(routed(config))
+
+
+@pytest.mark.parametrize("mode", ["triage", "follow-up"])
+@pytest.mark.usefixtures("root")
+def test_the_task_explains_the_priority_only_where_there_are_priorities(config, mode):
+    github = FakeGitHub(config, make_issue())
+    task = assistant.write_context(github, 12, mode, config)["task"]
+    assert "{priority}" not in task and "priority" not in task
+    task = assistant.write_context(github, 12, mode, routed(config))["task"]
+    assert assistant.PRIORITY_RULE in task
+    assert "{priority}" not in task
+
+
+def test_an_issue_without_a_priority_gets_the_one_of_the_analysis(config):
+    config = routed(config, cards=())
+    github = routed_github(config, make_issue())
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(prioritized()), config, "abc"
+    )
+    assert "priority: high" in github.labels_of(12)
+    assert github.rationales[(12, "L_priority: high")] == (
+        "Every live card stays empty."
+    )
+    assert github.rationales[(12, "L_area: cards")] == (
+        "The live card shows nothing after a throw."
+    )
+    (body,) = github.posted(12)
+    assert "Labels: `area: cards`, `priority: high`." in body
+    assert done == ["Analysis on #12; labels added: area: cards, priority: high."]
+
+
+@pytest.mark.parametrize(
+    ("labels", "priority"),
+    [
+        # A maintainer chose the priority: the assistant never changes it.
+        (("bug", "needs-triage", "priority: low"), "priority: high"),
+        # The AI couldn't judge it.
+        (("bug", "needs-triage"), "none"),
+    ],
+)
+def test_the_assistant_never_changes_a_priority(config, labels, priority):
+    config = routed(config, cards=())
+    github = routed_github(config, make_issue(labels=labels))
+    answer = prioritized(priority=priority)
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    assert github.labels_of(12) == {*labels, "area: cards"}
+
+
+def test_a_priority_that_someone_removed_stays_away(config):
+    config = routed(config, cards=())
+    github = routed_github(config, make_issue())
+    github.comment_store[12] = [analysis(days_ago=1)]
+    github.event_store[12] = [label_event("priority: low", 0.5)]
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(prioritized()), config, "abc"
+    )
+    assert done == [
+        "#12 already has this triage; no second comment, labels added: area: cards."
+    ]
+
+
+def test_a_security_report_gets_no_public_priority(config):
+    config = routed(config, cards=())
+    github = routed_github(config, make_issue())
+    answer = prioritized(
+        security_report=True, priority_rationale="The token leaks in the log."
+    )
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    # A priority would judge the vulnerability in public: the maintainers set it.
+    assert "priority: high" not in github.labels_of(12)
+    assert "The token leaks" not in str(github.rationales)
+
+
+@pytest.mark.parametrize("mode", ["triage", "follow-up"])
+def test_a_priority_that_someone_ever_removed_stays_away(config, mode):
+    config = routed(config, cards=())
+    github = routed_github(config, make_issue(labels=("bug", "needs-info")))
+    github.event_store[12] = [
+        label_event("priority: high", 3, "labeled"),
+        label_event("priority: high", 2.5),
+    ]
+    if mode == "follow-up":
+        github.comment_store[12] = [
+            analysis(questions=1, days_ago=2),
+            make_comment(2, "reporter", "Every card is empty.", 1),
+        ]
+        answer = make_follow_up(
+            priority="priority: high", priority_rationale="As before."
+        )
+    else:
+        answer = prioritized()
+    assistant.apply_answer(github, mode, 12, json.dumps(answer), config, "abc")
+    assert "priority: high" not in github.labels_of(12)
+
+
+def test_a_follow_up_adds_the_priority_that_the_analysis_could_not_judge(config):
+    config = routed(config)
+    github = routed_github(config, make_issue(labels=("bug", "needs-info")))
+    github.comment_store[12] = [
+        analysis(questions=1, days_ago=2),
+        make_comment(2, "reporter", "Every card is empty.", 1),
+    ]
+    answer = make_follow_up(
+        priority="priority: low", priority_rationale="Only a detail is wrong."
+    )
+    done = assistant.apply_answer(
+        github, "follow-up", 12, json.dumps(answer), config, "abc"
+    )
+    assert done == ["Follow-up on #12; labels added: priority: low."]
+    # Only the first analysis assigns the owners of the areas.
+    assert not [call for call in github.calls if call[1].endswith("/assignees")]
+
+
+def test_the_first_analysis_assigns_the_owners_of_the_areas(config):
+    config = routed(config)
+    github = routed_github(config, make_issue())
+    answer = prioritized(areas=["area: cards", "area: games"])
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    # Each owner once, in the order of labels.toml; GitHub notifies them.
+    assert github.store[12]["assignees"] == [{"login": "alice"}, {"login": "bob"}]
+    assert ("POST", "issues/12/assignees", {"assignees": ["alice", "bob"]}) in (
+        github.calls
+    )
+    # The comment mentions none of them.
+    (body,) = github.posted(12)
+    assert "alice" not in body and "bob" not in body
+
+
+def test_an_issue_that_someone_is_assigned_to_keeps_its_assignees(config):
+    config = routed(config)
+    github = routed_github(config, make_issue(assignees=[{"login": "owner"}]))
+    answer = json.dumps(prioritized())
+    assistant.apply_answer(github, "triage", 12, answer, config, "abc")
+    assert github.store[12]["assignees"] == [{"login": "owner"}]
+    assert not [call for call in github.calls if call[1].endswith("/assignees")]
+
+
+def test_an_issue_gets_at_most_as_many_owners_as_github_assigns(config):
+    many = tuple(f"dev{number}" for number in range(12))
+    config = routed(config, cards=many, games=("dev3", "@someone", "someone"))
+    labels = {"area: cards", "area: games", "bug"}
+    assert config.owners(labels) == list(many[: assistant.MAX_ASSIGNEES])
+    assert config.owners({"area: games", "accessibility"}) == ["dev3", "someone"]
+    assert config.owners({"bug"}) == []
+
+
+def test_a_new_issue_is_assigned_to_the_owners_of_its_form_area(config):
+    config = routed(config)
+    github = routed_github(config, make_issue(labels=()))
+    assistant.handle_event(github, "issues", event("opened", make_issue()), config)
+    assert github.store[12]["assignees"] == [{"login": "alice"}]
+    # Without an area of the form, or with someone assigned, nobody is assigned.
+    for issue in (
+        make_issue(13, labels=(), body="No form."),
+        make_issue(14, labels=(), assignees=[{"login": "bob"}]),
+        # A form can also set the label of an area itself.
+        make_issue(15, labels=("area: games",), body="No form."),
+    ):
+        github.store[issue["number"]] = deepcopy(issue)
+        assistant.handle_event(github, "issues", event("opened", issue), config)
+    assert "assignees" not in github.store[13]
+    assert github.store[14]["assignees"] == [{"login": "bob"}]
+    assert github.store[15]["assignees"] == [{"login": "bob"}, {"login": "alice"}]
+
+
+def test_the_first_analysis_leaves_an_issue_that_someone_unassigned(config):
+    config = routed(config)
+    github = routed_github(config, make_issue())
+    # The form assigned the owners, and a maintainer unassigned them while the AI ran.
+    github.event_store[12] = [
+        {
+            "event": "unassigned",
+            "assignee": {"login": "alice"},
+            "actor": {"login": "owner", "type": "User"},
+            "created_at": at(0.01),
+        }
+    ]
+    answer = json.dumps(prioritized())
+    assistant.apply_answer(github, "triage", 12, answer, config, "abc")
+    assert not github.store[12].get("assignees")
+    assert not [call for call in github.calls if call[1].endswith("/assignees")]
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_a_run_again_assigns_the_owners_unless_someone_changed_the_assignees(
+    config, changed
+):
+    config = routed(config)
+    github = routed_github(config, make_issue())
+    github.comment_store[12] = [analysis(days_ago=1)]
+    if changed:
+        github.event_store[12] = [
+            {
+                "event": "unassigned",
+                "assignee": {"login": "alice"},
+                "actor": {"login": "owner", "type": "User"},
+                "created_at": at(0.5),
+            }
+        ]
+    answer = json.dumps(prioritized())
+    assistant.apply_answer(github, "triage", 12, answer, config, "abc")
+    assert github.store[12].get("assignees", []) == (
+        [] if changed else [{"login": "alice"}]
+    )
+
+
+@pytest.mark.parametrize(
+    ("labels", "current", "kind", "expected"),
+    [
+        # An issue without a type gets the type of its kind.
+        (("bug", "needs-triage"), None, "bug", "Bug"),
+        (("bug",), None, "bug", "Bug"),
+        # While nobody triaged it, the type follows a corrected kind.
+        (("bug", "needs-triage"), "Bug", "enhancement", "Feature"),
+        # A triaged issue, and a type that no kind has, keep their type.
+        (("bug",), "Bug", "enhancement", "Bug"),
+        (("bug", "needs-triage"), "Epic", "enhancement", "Epic"),
+        # A corrected kind without an issue type takes away the type of the other
+        # kind while nobody triaged the issue, and leaves the rest.
+        (("bug", "needs-triage"), "Bug", "question", None),
+        (("bug",), "Bug", "question", "Bug"),
+        (("bug", "needs-triage"), "Epic", "question", "Epic"),
+        (("bug", "needs-triage"), None, "question", None),
+    ],
+)
+def test_the_issue_type_follows_the_kind(config, labels, current, kind, expected):
+    config = routed(config)
+    issue = make_issue(labels=labels, type=current and {"id": "IT_x", "name": current})
+    github = routed_github(config, issue)
+    answer = prioritized(kind=kind, priority="none")
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    assert (github.store[12]["type"] or {}).get("name") == expected
+    mutations = [call for call in github.calls if "updateIssueIssueType" in call[1]]
+    assert len(mutations) == (current != expected)
+
+
+def test_a_kind_that_someone_changed_keeps_the_issue_type(config):
+    config = routed(config)
+    github = routed_github(config, make_issue(labels=("needs-triage",)))
+    github.comment_store[12] = [analysis(days_ago=1)]
+    github.event_store[12] = [label_event("bug", 0.5)]
+    answer = json.dumps(prioritized())
+    assistant.apply_answer(github, "triage", 12, answer, config, "abc")
+    assert "type" not in github.store[12]
+
+
+@pytest.mark.parametrize(
+    "types",
+    [None, [{"id": "IT_bug", "name": "Bug", "isEnabled": False}]],
+    ids=["none", "turned off"],
+)
+def test_a_repository_without_the_issue_type_keeps_the_labels_alone(
+    config, capsys, types
+):
+    config = routed(config)
+    github = routed_github(config, make_issue())
+    github.issue_type_store = types
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(prioritized()), config, "abc"
+    )
+    assert done[0].startswith("Analysis on #12")
+    assert (
+        "owner/project has no issue type Bug, which .github/labels.toml gives the "
+        "kind bug; #12 keeps its type."
+    ) in capsys.readouterr().out
+    assert "type" not in github.store[12]
+
+
+def test_an_issue_type_that_github_refuses_stops_nothing(config, capsys):
+    config = routed(config)
+    github = routed_github(config, make_issue())
+    github.fail("updateIssueIssueType", not_found("Resource not accessible"))
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(prioritized()), config, "abc"
+    )
+    assert done[0].startswith("Analysis on #12")
+    assert "#12 keeps its issue type: " in capsys.readouterr().out
+    assert github.posted(12)
+
+
+def test_an_issue_type_that_github_does_not_take_away_stops_nothing(config, capsys):
+    config = routed(config)
+    issue = make_issue(type={"id": "IT_bug", "name": "Bug"})
+    github = routed_github(config, issue)
+    github.fail("updateIssueIssueType", not_found("Resource not accessible"))
+    answer = prioritized(kind="question", priority="none")
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(answer), config, "abc"
+    )
+    assert done[0].startswith("Analysis on #12")
+    assert "#12 keeps its issue type: " in capsys.readouterr().out
+
+
+def test_a_dry_run_reports_an_issue_type_that_it_would_take_away(config):
+    config = routed(config)
+    github = routed_github(config, make_issue(type={"id": "IT_bug", "name": "Bug"}))
+    github.dry_run = True
+    answer = prioritized(kind="question", priority="none")
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    assert "remove the issue type of #12" in github.writes
+
+
+def test_a_dry_run_only_reports_the_priority_the_owners_and_the_issue_type(config):
+    config = routed(config)
+    github = routed_github(config, make_issue())
+    github.dry_run = True
+    assistant.apply_answer(
+        github, "triage", 12, json.dumps(prioritized()), config, "abc"
+    )
+    assert github.writes_made() == []
+    assert "assign #12 to alice" in github.writes
+    assert "set the issue type of #12 to Bug" in github.writes
+    assert "add priority: high to #12" in github.writes
+
+
+def test_the_labels_workflow_warns_of_owners_and_types_that_github_lacks(
+    config, capsys
+):
+    config = routed(config, cards=("alice", "carol"), games=("carol",))
+    labels = tuple(
+        dataclasses.replace(label, issue_type="Bugs") if label.name == "bug" else label
+        for label in config.labels
+    )
+    config = dataclasses.replace(config, labels=labels)
+    github = routed_github(config)
+    assistant.sync_labels(github, config)
+    out = capsys.readouterr().out
+    assert (
+        "::warning::.github/labels.toml: carol, the owner of area: cards, area: "
+        "games, can't be assigned to issues of owner/project; GitHub assigns only "
+        "people with access to it"
+    ) in out
+    assert "alice," not in out
+    assert (
+        "::warning::.github/labels.toml: owner/project has no issue type Bugs; did "
+        "you mean Bug?"
+    ) in out
+    assert "Feature" not in out
+    github.issue_type_store = None
+    assert assistant.check_routing(github, config)[-1] == (
+        ".github/labels.toml: owner/project has no issue types, which organizations "
+        "give their repositories; issue_type changes nothing"
+    )
+    # Another error of GitHub is no answer to the question, and fails the run.
+    github.fail("^GET assignees/", rate_limited())
+    with pytest.raises(assistant.GitHubError):
+        assistant.check_routing(github, config)
+    # Without owners and issue types, GitHub isn't asked.
+    bare = dataclasses.replace(config, labels=())
+    plain = FakeGitHub(bare)
+    assert assistant.check_routing(plain, bare) == []
+    assert plain.calls == []
 
 
 def test_questions_mark_the_issue_as_waiting(config):
