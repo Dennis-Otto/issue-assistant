@@ -193,6 +193,9 @@ def codex_reads_only(step):
     lets them read files but neither write them nor reach the network."""
     inputs = step["with"]
     assert inputs["openai-api-key"] == "${{ secrets.OPENAI_API_KEY }}"
+    # The action prints Codex's output into the log: JSON events alone (--json in
+    # its arguments) and no log of Codex, so that no line of it is a workflow command.
+    assert step["env"] == {"RUST_LOG": "off"}
     # Issues come from people without write access; no other user list.
     assert inputs["allow-users"] == "*"
     assert "allow-bots" not in inputs and "allow-bot-users" not in inputs
@@ -225,6 +228,7 @@ def codex_reads_only(step):
         assistant.engine_arguments(assistant.ENGINES["codex"], "The rules.")
     )
     assert arguments == [
+        "--json",
         "--config",
         'web_search="disabled"',
         "--config",

@@ -110,8 +110,8 @@ def test_codex_gets_the_strict_schema_and_the_rules_as_developer_instructions(
     assert "Your answer is one JSON object" not in written["task"]
     rules = (folder / "rules.md").read_text("utf-8")
     arguments = json.loads(written["engine-args"])
-    assert arguments[:3] == ["--config", 'web_search="disabled"', "--config"]
-    key, _, value = arguments[3].partition("=")
+    assert arguments[:4] == ["--json", "--config", 'web_search="disabled"', "--config"]
+    key, _, value = arguments[4].partition("=")
     assert key == "developer_instructions"
     assert tomllib.loads(f"rules = {value}")["rules"] == rules
 
@@ -352,12 +352,32 @@ def gemini_output(**fields):
     return json.dumps({"stats": {"models": {}}, **fields})
 
 
+def copilot_event(kind, **data):
+    return json.dumps({"type": kind, "id": "e", "parentId": None, "data": data})
+
+
+def copilot_output(*events):
+    """The JSON events that Copilot prints with --output-format json, one on each
+    line, around those of the test."""
+    return "\n".join(
+        (
+            copilot_event("session.start", sessionId="s"),
+            *events,
+            json.dumps({"type": "result", "exitCode": 0, "usage": {}}),
+        )
+    )
+
+
 @pytest.mark.parametrize("engine", CLI_ENGINES)
 def test_analyze_runs_the_engine_with_its_secret_alone(
     monkeypatch, tmp_path, config, context, engine
 ):
     answer = json.dumps(make_answer())
-    printed = gemini_output(response=answer) if engine == "gemini" else answer + "\n"
+    printed = (
+        gemini_output(response=answer)
+        if engine == "gemini"
+        else copilot_output(copilot_event("assistant.message", content=answer))
+    )
     run = FakeRun(INSTALLED, (0, printed, ""))
     monkeypatch.setattr(assistant.subprocess, "run", run)
     chosen = engine_config(config, engine, max_turns=30)
@@ -517,6 +537,24 @@ def test_a_failed_install_says_what_npm_said(
             "Copilot failed: Error: No authentication information found.",
         ),
         ("copilot", (0, "\n", ""), "Copilot failed: no answer"),
+        (
+            "copilot",
+            (
+                1,
+                copilot_output(
+                    copilot_event("session.error", errorType="auth", message="Denied.")
+                ),
+                "warned",
+            ),
+            "Copilot failed: Denied.",
+        ),
+        (
+            "copilot",
+            (0, copilot_output(copilot_event("assistant.message", content=" ")), ""),
+            "Copilot failed: no answer",
+        ),
+        # Killed by a signal, no stop at the turns, of which Copilot has none.
+        ("copilot", (-1, "", "Hung up.\n"), "Copilot failed: Hung up."),
     ],
 )
 def test_an_engine_that_fails_says_why_in_one_line(
@@ -548,8 +586,9 @@ def test_the_analyze_command_outputs_the_answer(
         '[engine]\nname = "copilot"\n', encoding="utf-8"
     )
     answer = json.dumps(make_answer())
+    printed = copilot_output(copilot_event("assistant.message", content=answer))
     monkeypatch.setattr(
-        assistant.subprocess, "run", FakeRun(INSTALLED, (0, answer, ""))
+        assistant.subprocess, "run", FakeRun(INSTALLED, (0, printed, ""))
     )
     runner = tmp_path / "runner"
     runner.mkdir()
@@ -581,3 +620,35 @@ def test_the_analyze_command_fails_on_an_engine_without_a_command_line(
     assert "::error::analyze runs the engines gemini, copilot, not claude." in (
         capsys.readouterr().out
     )
+
+
+def test_copilot_s_answer_is_its_text_as_it_is(config):
+    """Copilot's events hold the model's text as it is, not rendered as Markdown:
+    the backslashes of the JSON, its code spans and a reference such as #12 stay."""
+    answer = json.dumps(
+        make_answer(analysis='Run `type C:\\temp\\log`, quote "it", see #12.')
+    )
+    printed = copilot_output(
+        "Not JSON",
+        "[1, 2]",
+        json.dumps({"type": "assistant.message", "data": "text"}),
+        copilot_event("assistant.message", content="An earlier call.", apiCallId="a"),
+        copilot_event("assistant.message", content=7),
+        # A subagent's message is not the answer.
+        json.dumps(
+            {"type": "assistant.message", "agentId": "x", "data": {"content": "no"}}
+        ),
+        copilot_event("assistant.message", content="It reads:", apiCallId="b"),
+        copilot_event("assistant.message", content=answer, apiCallId="b"),
+    )
+    cli = assistant.ENGINES["copilot"].cli
+    text, reason = assistant.event_answer(cli, printed)
+    assert (text, reason) == (f"It reads:\n{answer}", None)
+    parsed = assistant.parse_answer("triage", text, engine_config(config, "copilot"))
+    assert parsed["analysis"] == json.loads(answer)["analysis"]
+    # Without the id of the call, the last message alone.
+    printed = copilot_output(
+        copilot_event("assistant.message", content="First."),
+        copilot_event("assistant.message", content=answer),
+    )
+    assert assistant.event_answer(cli, printed) == (answer, None)

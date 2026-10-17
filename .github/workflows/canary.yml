@@ -218,6 +218,12 @@ jobs:
         id: codex
         if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'codex'
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1.13
+        # The action prints what Codex prints into the log, where the runner reads
+        # each line that starts with :: as a workflow command. With --json from the
+        # context step, Codex prints only JSON events, one per line, and RUST_LOG
+        # turns off its log, so no text of an issue or of Codex starts a line.
+        env:
+          RUST_LOG: "off"
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           # renovate: datasource=npm depName=@openai/codex

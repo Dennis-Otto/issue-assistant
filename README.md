@@ -588,7 +588,7 @@ Bring the AI you already pay for, or start for free. Four engines write the anal
 | Claude by Anthropic, the default | `claude` | `CLAUDE_CODE_OAUTH_TOKEN`, the token of a Claude subscription that `claude setup-token` creates, or `ANTHROPIC_API_KEY` | the usage limits of the subscription, or the prices of Anthropic's API |
 | Codex by OpenAI | `codex` | `OPENAI_API_KEY`, an API key of OpenAI | the prices of OpenAI's API |
 | Gemini by Google | `gemini` | `GEMINI_API_KEY`, an API key of [Google AI Studio](https://aistudio.google.com/apikey) | **free** within the daily limits of the Gemini API's free tier, then its prices |
-| Copilot by GitHub | `copilot` | `COPILOT_GITHUB_TOKEN`, a [fine-grained token](https://github.com/settings/personal-access-tokens/new) with the permission *Copilot Requests* | the premium requests of the Copilot plan of the token's owner |
+| Copilot by GitHub | `copilot` | `COPILOT_GITHUB_TOKEN`, a [fine-grained token](https://github.com/settings/personal-access-tokens/new) with the permission *Copilot Requests* alone and no access to repositories | the premium requests of the Copilot plan of the token's owner |
 
 Each runs in one step of `analyze`, with only tools that read files of the checkout, a token of GitHub that only reads or none, and the hosts of its own block in `.github/egress-firewall.yaml`:
 
@@ -599,7 +599,7 @@ Each runs in one step of `analyze`, with only tools that read files of the check
 | `gemini` | `analyze` runs the Gemini CLI | system settings above those of the repository: the tools `read_file`, `list_directory`, `glob` and `grep_search` alone, no MCP server, extension, agent, skill, hook or telemetry | the top of the prompt | asked for in the prompt | `max_turns` |
 | `copilot` | `analyze` runs the Copilot CLI | `--available-tools view,glob,grep`, without GitHub's built-in MCP server, the temporary folder, questions or updates | the top of the prompt | asked for in the prompt | the time of the job |
 
-The `analyze` command installs the Gemini CLI or the Copilot CLI at the version that the workflow pins, without the scripts of its packages, and runs it in a home of its own, with no variable of the job but the engine's secret, so it holds no token of GitHub at all. [Decision 0017](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/0017-engines-without-an-action-of-their-own.md) says why it runs them itself, and [the security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md#the-boundary-of-each-engine) where each engine's boundary lies.
+The `analyze` command installs the Gemini CLI or the Copilot CLI at the version that the workflow pins, without the scripts of its packages, and runs it in a home of its own, with no variable of the job but the engine's secret, so it holds no token of the job. Copilot's secret is a token of GitHub of its own; give it the permission *Copilot Requests* alone and no access to repositories, so that it reaches nothing but Copilot. [Decision 0017](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/0017-engines-without-an-action-of-their-own.md) says why it runs them itself, and [the security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md#the-boundary-of-each-engine) where each engine's boundary lies.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/which-step-runs-the-engine-of-config-toml.dark.svg">

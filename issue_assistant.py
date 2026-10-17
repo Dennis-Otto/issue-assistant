@@ -655,10 +655,16 @@ class Cli:
     # Further variables, such as those that turn off telemetry and updates.
     variables: dict[str, str] = field(default_factory=dict)
     # The field of the JSON that it prints that holds the answer, next to a field
-    # error with a message; empty for one that prints the answer alone.
+    # error with a message.
     answer: str = ""
-    # The status with which it stops at its turns.
-    at_turns: int = -1
+    # Or the type of the JSON events, one on each line that it prints, whose
+    # data.content holds the answer: the last of the main agent, with the other
+    # parts of its call of the model; an event of the type `error_event` holds a
+    # message in data.
+    answer_event: str = ""
+    error_event: str = ""
+    # The status with which it stops at its turns; None for one that has none.
+    at_turns: int | None = None
 
 
 @dataclass(frozen=True)
@@ -699,7 +705,10 @@ ENGINES = {
     # give it the rules as developer instructions, which come before the task as a
     # system prompt does, and turn off web search, which would read the web and
     # send what an issue asks for through OpenAI; Codex reads a value of --config
-    # as TOML.
+    # as TOML. The action prints what Codex prints into the public log, where the
+    # runner reads a line that starts with :: as a workflow command; --json makes
+    # Codex print JSON events alone, one per line, which no text of an issue, of a
+    # file or of the AI can start.
     "codex": Engine(
         "Codex",
         "OpenAI",
@@ -708,6 +717,7 @@ ENGINES = {
         schema=STRICT,
         stops_at=(),
         action_arguments=(
+            "--json",
             "--config",
             'web_search="disabled"',
             "--config",
@@ -779,7 +789,9 @@ ENGINES = {
             command="copilot",
             # The tools that read files, the only ones the model gets, without the
             # built-in MCP server of GitHub, the temporary folder, questions,
-            # updates and remote control; the answer alone on its output.
+            # updates and remote control. Its output is JSON events, which hold
+            # the model's text as it is; its text for people renders Markdown,
+            # which would drop the backslashes of the JSON of the answer.
             arguments=(
                 "--available-tools",
                 "view,glob,grep",
@@ -790,12 +802,15 @@ ENGINES = {
                 "--no-ask-user",
                 "--no-auto-update",
                 "--no-remote",
-                "--silent",
                 "--no-color",
                 "--stream",
                 "off",
+                "--output-format",
+                "json",
             ),
             effort="--effort",
+            answer_event="assistant.message",
+            error_event="session.error",
             variables={"COPILOT_AUTO_UPDATE": "false"},
         ),
     ),
@@ -7586,13 +7601,13 @@ def cli_answer(
     engine: Engine, cli: Cli, result: subprocess.CompletedProcess[str]
 ) -> str:
     """The answer in the output of an engine's command line."""
-    if result.returncode == cli.at_turns:
+    if cli.at_turns is not None and result.returncode == cli.at_turns:
         raise AssistantError(
             f"{engine.name} stopped at the turns of the task, before it answered; "
             f"max_turns under [engine] in {SETTINGS / 'config.toml'} gives it more."
         )
     reason: object = None
-    answer: object = result.stdout
+    answer: object = None
     if cli.answer:
         try:
             printed = json.loads(result.stdout)
@@ -7602,10 +7617,39 @@ def cli_answer(
         error = report.get("error")
         reason = error.get("message") if isinstance(error, dict) else None
         answer = report.get(cli.answer)
+    else:
+        answer, reason = event_answer(cli, result.stdout)
     if result.returncode or not isinstance(answer, str) or not answer.strip():
         message = one_line(str(reason or result.stderr))[-300:] or "no answer"
         raise AssistantError(f"{engine.name} failed: {message}")
     return answer
+
+
+def event_answer(cli: Cli, printed: str) -> tuple[str | None, object]:
+    """The answer and the last message of an error in the JSON events that an
+    engine's command line printed, one on each line, of its main agent alone."""
+    events = []
+    for line in printed.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        data = event.get("data") if isinstance(event, dict) else None
+        if isinstance(data, dict) and "agentId" not in event:
+            events.append((event.get("type"), data))
+    errors = [data.get("message") for kind, data in events if kind == cli.error_event]
+    messages = [
+        data
+        for kind, data in events
+        if kind == cli.answer_event and isinstance(data.get("content"), str)
+    ]
+    reason = errors[-1] if errors else None
+    if not messages:
+        return None, reason
+    # A call of the model may answer in parts, split where it reasoned.
+    call = messages[-1].get("apiCallId")
+    parts = [data for data in messages if call and data.get("apiCallId") == call]
+    return "\n".join(data["content"] for data in parts or messages[-1:]), reason
 
 
 def analyze(
