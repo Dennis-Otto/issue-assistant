@@ -31,5 +31,22 @@
         "**This update waits for you.** The engine's action runs only on `main`, where the engine's secret is, so no check of this pull request runs it. Merge it when you can watch the [Canary](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/canary.yml): the push to `main` starts it, and it runs the analysis of a fixture issue with this version, from the engine on the firewall runner to the checked answer. Release only once it passed; if it fails, revert this update.",
       ],
     },
+    {
+      // The other engines run only in the job analyze too, and the Canary runs only
+      // this repository's engine, Claude: no run of the AI tries their updates
+      // before a release brings them to every repository that uses them. Their
+      // versions are below a line "# renovate:" in the reusable workflow.
+      matchDepNames: [
+        "openai/codex-action",
+        "@openai/codex",
+        "@google/gemini-cli",
+        "@github/copilot",
+      ],
+      groupName: "the other engines",
+      automerge: false,
+      prBodyNotes: [
+        "**This update waits for you.** Codex, Gemini and Copilot run only in the job `analyze`, with their secrets, and the Canary runs Claude alone, so neither a check of this pull request nor the Canary runs these versions. Read their release notes for changed inputs, outputs, flags or hosts, and, if you can, run an analysis by hand in a repository that uses the engine, after the merge and before the release.",
+      ],
+    },
   ],
 }

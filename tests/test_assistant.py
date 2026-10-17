@@ -2422,8 +2422,32 @@ def test_an_answer_in_a_code_fence_is_accepted(config):
     for fence in ("```json", "```"):
         raw = "\n".join([fence, json.dumps(make_answer()), "```"])
         assert assistant.parse_answer("triage", raw, config) == make_answer()
-    with pytest.raises(assistant.AssistantError, match="no JSON"):
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "Here is the analysis:\n\n{answer}",
+        "{answer}\n\nI read the issue and three files.",
+        "The answer:\n```json\n{answer}\n```\nThat is all.",
+    ],
+)
+def test_a_sentence_around_the_answer_is_left_out(config, template):
+    """An engine that is only asked for the JSON may say something before or after
+    it; apply takes the object and checks it like any other."""
+    raw = template.format(answer=json.dumps(make_answer(), indent=2))
+    assert assistant.parse_answer("triage", raw, config) == make_answer()
+    # The object alone, whatever the sentence holds: it still meets the schema.
+    with pytest.raises(assistant.AssistantError, match="breaks the schema"):
         assistant.parse_answer("triage", "Here it is: {}", config)
+
+
+@pytest.mark.parametrize(
+    "raw", ["No answer.", "Here it is: {not json}", "} and {", '{"kind": ']
+)
+def test_a_text_without_an_object_of_json_is_refused(config, raw):
+    with pytest.raises(assistant.AssistantError, match="no JSON"):
+        assistant.parse_answer("triage", raw, config)
 
 
 def test_an_answer_that_is_no_json_is_refused(config):
@@ -4200,7 +4224,7 @@ def test_the_engine_signs_its_comments(config):
         github, "triage", 12, json.dumps(make_answer()), config, "abc", engine=""
     )
     assert "engine=claude" in github.posted(12)[0].splitlines()[0]
-    with pytest.raises(assistant.AssistantError, match="Unknown engine gemini"):
+    with pytest.raises(assistant.AssistantError, match="Unknown engine llama"):
         assistant.apply_answer(
             github,
             "triage",
@@ -4208,8 +4232,18 @@ def test_the_engine_signs_its_comments(config):
             json.dumps(make_answer()),
             config,
             "abc",
-            engine="gemini",
+            engine="llama",
         )
+
+
+@pytest.mark.parametrize("engine", ["codex", "gemini", "copilot"])
+def test_every_engine_signs_its_comments_with_its_name(config, engine):
+    github = FakeGitHub(config, make_issue())
+    answer = json.dumps(make_answer())
+    assistant.apply_answer(github, "triage", 12, answer, config, "abc", engine=engine)
+    (comment,) = github.posted(12)
+    assert f"engine={engine}" in comment.splitlines()[0]
+    assert assistant.ENGINES[engine].name in comment
 
 
 def test_a_dry_run_only_previews_the_comment(config):
@@ -7493,7 +7527,7 @@ def test_the_context_command_writes_multiline_outputs(
     )
     assert code == 0
     assert re.match(r"prompt<<EOF_[0-9a-f]{16}\nYou are the issue assistant", outputs)
-    assert re.search(r"\nschema=\{.*\}\n$", outputs)
+    assert re.search(r"\nschema=\{.*\}\nengine-args=\n$", outputs)
 
 
 @pytest.mark.parametrize(

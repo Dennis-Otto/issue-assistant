@@ -1698,3 +1698,18 @@ def test_the_hidden_copy_of_a_picture_has_no_link():
     assert "display: none;" in css
     website = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))
     assert "stylesheets/pictures.css" in website["extra_css"]
+
+
+def test_the_readme_says_which_limits_each_engine_stops_at():
+    # The column "Stops at" of the README's table of engines, from ENGINES.
+    readme = (ROOT / "README.md").read_text("utf-8")
+    rows = {
+        cells[1].strip("` "): cells[-2].strip()
+        for line in readme.splitlines()
+        if line.startswith("| `")
+        and (cells := line.split("|"))[1].strip("` ") in assistant.ENGINES
+    }
+    assert set(rows) == set(assistant.ENGINES)
+    for key, engine in assistant.ENGINES.items():
+        named = " and ".join(f"`{stop}`" for stop in engine.stops_at)
+        assert rows[key] == (named or "the time of the job"), key
