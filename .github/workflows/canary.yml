@@ -125,13 +125,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # As in the reusable workflow, which every repository runs: here
-      # job.workflow_* are this repository and the commit of this run.
+      # The same sparse checkout into the context folder as in the reusable
+      # workflow, which every repository runs; there it takes job.workflow_sha,
+      # here that is the commit of this run, the checkout's default.
       - name: Check out the issue assistant of this workflow
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
-          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
           path: .issue-assistant/action
           # Only what the action runs: the engine reads the context folder, and the
           # docs and tests of the issue assistant would only mislead it there.
@@ -256,13 +255,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # As in the reusable workflow, which every repository runs: here
-      # job.workflow_* are this repository and the commit of this run.
+      # The same sparse checkout into the context folder as in the reusable
+      # workflow, which every repository runs; there it takes job.workflow_sha,
+      # here that is the commit of this run, the checkout's default.
       - name: Check out the issue assistant of this workflow
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
-          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
           path: .issue-assistant/action
           # Only what the action runs: the engine reads the context folder, and the
           # docs and tests of the issue assistant would only mislead it there.

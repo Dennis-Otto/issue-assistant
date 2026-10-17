@@ -379,6 +379,18 @@ CANARY = load(OWN / "canary.yml")
 CANARY_ISSUE = "tests/fixtures/canary-issue.json"
 
 
+def canary_tool_checkout(step, production):
+    """The Canary's checkout of the tool is production's, at the commit of its own
+    run, which is the checkout's default: job.workflow_sha is that commit there."""
+    assert production["with"] == TOOL_CHECKOUT
+    inputs = {
+        key: value
+        for key, value in TOOL_CHECKOUT.items()
+        if key not in ("repository", "ref")
+    }
+    return step == dict(production, **{"with": inputs})
+
+
 def test_the_canary_runs_the_ai_as_the_template_does():
     """The Canary's job analyze is the template's: the runner, the environment, the
     permissions, the outputs and the steps of the engines.
@@ -394,8 +406,8 @@ def test_the_canary_runs_the_ai_as_the_template_does():
     steps = {step.get("id"): step for step in analyze["steps"]}
     # The same checkout of the tool as in every repository, so that the release,
     # which waits for the canary, runs the path of production.
-    assert analyze["steps"][:2] == ANALYZE["steps"][:2]
-    assert analyze["steps"][1]["with"] == TOOL_CHECKOUT
+    assert analyze["steps"][0] == ANALYZE["steps"][0]
+    assert canary_tool_checkout(analyze["steps"][1], ANALYZE["steps"][1])
     for engine, rules in ENGINE_RULES.items():
         inputs = dict(STEPS[engine]["with"], **rules["canary"])
         assert steps[engine] == dict(STEPS[engine], **{"with": inputs}), engine
@@ -444,8 +456,8 @@ def test_the_canary_checks_the_answer_as_apply_does_and_writes_nothing():
     assert apply["runs-on"] == template["runs-on"]
     # The template's job may write to the issue; the canary's can only read.
     assert apply["permissions"] == dict(template["permissions"], issues="read")
-    assert apply["steps"][:3] == template["steps"][:3]
-    assert apply["steps"][2]["with"] == TOOL_CHECKOUT
+    assert apply["steps"][:2] == template["steps"][:2]
+    assert canary_tool_checkout(apply["steps"][2], template["steps"][2])
     (step,) = [step for step in apply["steps"] if step.get("uses") == TOOL]
     assert step["with"] == {
         "command": "apply",
