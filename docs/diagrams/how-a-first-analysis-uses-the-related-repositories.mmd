@@ -1,0 +1,27 @@
+flowchart TB
+  accTitle: How a first analysis uses the related repositories
+  accDescr: The context step asks GitHub whether each repository of [related] is public; one that isn't, or doesn't exist, is left out with a warning. It searches each public one for the words of the new issue and writes what it finds to related-issues.jsonl, each issue with its repository, and the whole texts to related/. The AI may name those issues as related, never as duplicates, and may say in belongs_in that the issue belongs in one of the related repositories. The apply job links only issues that exist in a public related repository and leaves out the rest, and belongs_in becomes one sentence for the maintainers. Nothing moves or closes on its own: a maintainer transfers the issue by hand.
+  config(["[related]<br>repositories"]) --> public{"public?"}
+  public -- "no" --> warning["a warning:<br>none of its<br>issues"]
+  public -- "yes" --> search["a search for<br>the words of<br>the issue"]
+  search --> files[("related-issues.jsonl,<br>related/")]
+  files --> ai["`**the AI**<br>related issues<br>with their<br>repository,<br>belongs_in`"]
+  ai --> exists{"apply: does<br>the issue exist<br>there?"}
+  exists -- "yes" --> link["a link under<br>Related"]
+  exists -- "no" --> left["left out"]
+  ai --> sentence["one sentence<br>for the<br>maintainers"]
+  sentence --> maintainer(["a maintainer<br>transfers it<br>by hand"])
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
+  class config trigger
+  class public,exists question
+  class search,sentence job
+  class files,link safe
+  class ai ai
+  class warning,left stop
+  class maintainer person

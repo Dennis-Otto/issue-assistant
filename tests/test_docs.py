@@ -1032,6 +1032,7 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
             text = example.texts[language]
             kind = {
                 "duplicate": "analysis",
+                "elsewhere": "analysis",
                 "named-duplicate": "duplicate",
                 "secret": "analysis",
                 "personal": "analysis",
@@ -1273,6 +1274,7 @@ SETTINGS = {
     "[context] max_issues": ("max_issues", 300),
     "[context] max_discussions": ("max_discussions", 0),
     "[context] max_analyzed": ("max_analyzed", 0),
+    "[related] repositories": ("related_repositories", ["owner/server"]),
     "[links] hosts": ("hosts", ["docs.example.com"]),
     "[forms] area_field": ("area_field", "Component"),
     "[forms] unmapped_options": ("unmapped_options", ["None"]),

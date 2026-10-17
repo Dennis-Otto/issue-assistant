@@ -63,6 +63,9 @@ duplicate = "Posible duplicado"
   @{author}, un mantenedor marcó esta incidencia como duplicado de #{number}."""
 related = "Relacionado"
 discussion = "discusión"
+"belongs_in" = """\
+  Puede que esto corresponda a {repository} y no a este repositorio; si es así, un \
+  mantenedor puede transferir la incidencia allí."""
 references = "Dónde mirar"
 links = "Dónde mirar: {count} enlaces"
 "sensitive.secret" = """\

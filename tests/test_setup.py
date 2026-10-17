@@ -248,8 +248,8 @@ def test_unknown_keys_are_named_with_the_key_they_probably_mean(
         f"{CONFIG}: hosts belongs in the section [links], not in [engine]",
         f"{CONFIG}: unknown section [release]; did you mean [releases]?",
         f"{CONFIG}: unknown key hots in [links]; did you mean hosts?",
-        f"{CONFIG}: unknown section [colours]; known: [engine], [context], [links], "
-        "[forms], [transparency], [releases], [lifecycle]",
+        f"{CONFIG}: unknown section [colours]; known: [engine], [context], [related], "
+        "[links], [forms], [transparency], [releases], [lifecycle]",
     ]
     # The other commands keep the defaults and warn.
     config = assistant.load_config(root, REPOSITORY)
@@ -1298,6 +1298,26 @@ def test_gitignore_is_checked_and_actionlint_needs_no_runner(config, root):
     assert assistant.check_workflows(config) == [".gitignore: add /.issue-assistant/"]
     (root / ".gitignore").unlink()
     assert assistant.check_workflows(config) == [".gitignore: add /.issue-assistant/"]
+
+
+def test_the_related_repositories_are_checked(config):
+    names = (
+        "owner/server",
+        "Owner/Server",
+        "owner/project",
+        "no repository",
+        *(f"owner/app{number}" for number in range(5)),
+    )
+    checked = dataclasses.replace(config, related_repositories=names)
+    assert assistant.check_config(checked) == [
+        f"{CONFIG}: [related] names Owner/Server twice",
+        f"{CONFIG}: [related] owner/project is this repository",
+        f"{CONFIG}: [related] no repository is no repository; name it as owner/name",
+        f"{CONFIG}: [related] names more than 5 repositories; an analysis searches "
+        "the first 5",
+    ]
+    fine = dataclasses.replace(config, related_repositories=names[:1])
+    assert assistant.check_config(fine) == []
 
 
 def test_config_problems_are_found(config, root):

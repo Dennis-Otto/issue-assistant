@@ -4021,6 +4021,258 @@ def test_related_issues_and_discussions_are_checked(config):
     assert "#105" not in body and "#4" not in body and "Twice" not in body
 
 
+# Related repositories: [related] names public repositories whose issues a first
+# analysis searches too, links when they help, and names when an issue belongs in
+# one of them; nothing moves or closes on its own.
+
+SERVER = "owner/server"
+LINK_31 = "[owner/server#31](https://github.com/owner/server/issues/31)"
+
+
+def related(config, *names):
+    """The sample with the related repositories of [related]."""
+    return dataclasses.replace(config, related_repositories=names)
+
+
+def with_server(config, *issues):
+    """The sample's GitHub with the related repository owner/server, public, which has
+    the issues, and owner/private, which isn't."""
+    github = FakeGitHub(config, make_issue(3), make_issue())
+    github.sibling_store[SERVER] = FakeGitHub(config, *issues, repository=SERVER)
+    github.sibling_store["owner/private"] = None
+    return github
+
+
+def test_only_valid_related_repositories_other_than_this_one_are_searched(config):
+    names = (
+        "owner/server",
+        "Owner/Server",
+        "owner/project",
+        "OWNER/PROJECT",
+        "not a repository",
+        "-owner/x",
+        "owner/..",
+        *(f"owner/app{number}" for number in range(6)),
+    )
+    assert assistant.siblings(related(config, *names)) == [
+        "owner/server",
+        *(f"owner/app{number}" for number in range(4)),
+    ]
+    assert assistant.siblings(config) == []
+
+
+@pytest.mark.usefixtures("root")
+def test_a_first_analysis_also_searches_the_related_repositories(config, capsys):
+    config = related(config, SERVER, "owner/private", "owner/broken")
+    new = make_issue(title="Live card stays empty", body="TypeError: x is undefined")
+    found = make_issue(
+        31, title="Empty card", body="Same\u200b here.\n\n<!-- hidden -->", labels=()
+    )
+    found.update(state="closed", state_reason="completed", closed_at=at(4))
+    github = with_server(config, found)
+    github.store[12] = new
+    github.sibling_store["owner/broken"] = FakeGitHub(config, repository="owner/broken")
+    query = "is:issue (typeerror OR live OR card OR stays OR empty)"
+    github.sibling_store[SERVER].search_store[f"repo:{SERVER} {query}"] = [found]
+    github.sibling_store["owner/broken"].fail("^SEARCH", server_error())
+    written = assistant.write_context(github, 12, "triage", config)
+    folder = config.root / ".issue-assistant"
+    (line,) = read_lines(folder / "related-issues.jsonl")
+    assert line == {
+        "repository": SERVER,
+        "number": 31,
+        "title": "Empty card",
+        "state": "closed",
+        "state_reason": "completed",
+        "labels": [],
+        "opened": found["created_at"][:10],
+        "closed": at(4)[:10],
+        "comments": 0,
+        "excerpt": "Same here.",
+    }
+    text = (folder / "related" / "owner" / "server" / "31.md").read_text("utf-8")
+    assert text == "# Issue #31: Empty card\n\n```\nSame here.\n```\n"
+    # The issues of this repository stay apart.
+    assert 31 not in [item["number"] for item in read_lines(folder / "issues.jsonl")]
+    out = capsys.readouterr().out
+    assert (
+        "::warning::[related] owner/private is no public repository, so the analysis "
+        "reads none of its issues.\n"
+    ) in out
+    assert "::warning::The search in owner/broken failed: gh api: HTTP 502\n" in out
+    # One invisible character of the issue of owner/server, counted once.
+    assert "1 from other issues and discussions" in out
+    task = written["task"]
+    assert (
+        "- `.issue-assistant/related-issues.jsonl`: the issues of the related "
+        "repositories `owner/server`, `owner/private`, `owner/broken`, which share"
+    ) in task
+    assert "never one of the `duplicates`" in task
+    assert "otherwise `owner/project`" in task
+    assert "{related" not in task
+    assert "`.issue-assistant/related/`" in written["prompt"]
+    # A follow-up reads none of them, and nothing is left of the analysis.
+    calls = len(github.calls)
+    task = assistant.write_context(github, 12, "follow-up", config)["task"]
+    assert not (folder / "related-issues.jsonl").exists()
+    assert not (folder / "related").exists()
+    assert "related-issues" not in task and "belongs_in" not in task
+    assert ("SIBLING", SERVER, None) not in github.calls[calls:]
+    # An issue without a telling word searches nowhere, and the file is empty.
+    github.store[12].update(title="Bug", body="")
+    calls = len(github.calls)
+    assistant.write_context(github, 12, "triage", config)
+    assert (folder / "related-issues.jsonl").read_text("utf-8") == ""
+    assert not [call for call in github.calls[calls:] if call[0] == "SIBLING"]
+
+
+@pytest.mark.usefixtures("root")
+def test_without_related_repositories_the_analysis_is_as_before(config):
+    github = FakeGitHub(config, make_issue())
+    written = assistant.write_context(github, 12, "triage", config)
+    assert not (config.root / ".issue-assistant" / "related-issues.jsonl").exists()
+    assert "related-issues" not in written["task"]
+    assert "belongs_in" not in written["schema"]
+    assert not [call for call in github.calls if call[0] == "SIBLING"]
+
+
+def test_only_a_repository_with_related_repositories_asks_where_an_issue_belongs(
+    config,
+):
+    schema = assistant.answer_schema("triage", config)
+    assert "belongs_in" not in schema["properties"]
+    item = schema["properties"]["related"]["items"]
+    assert list(item["properties"]) == ["kind", "number", "reason"]
+    schema = assistant.answer_schema("triage", related(config, SERVER))
+    repositories = {"type": "string", "enum": [REPOSITORY, SERVER]}
+    assert schema["properties"]["belongs_in"] == repositories
+    assert "belongs_in" in schema["required"]
+    item = schema["properties"]["related"]["items"]
+    assert item["properties"]["repository"] == repositories
+    assert item["required"] == ["repository", "kind", "number", "reason"]
+    # A follow-up names no related issues.
+    follow_up = assistant.answer_schema("follow-up", related(config, SERVER))
+    assert "belongs_in" not in follow_up["properties"]
+
+
+def server_answer(**changes):
+    """An answer of the AI in a repository with the related owner/server."""
+    return make_answer(**{"belongs_in": REPOSITORY, **changes})
+
+
+def test_issues_of_related_repositories_are_checked_and_linked_never_closed(config):
+    config = related(config, SERVER, "owner/private")
+    pull = make_issue(32, pull_request={"url": "x"})
+    github = with_server(config, make_issue(31), pull)
+    answer = server_answer(
+        analysis="Like owner/server#31 and OWNER/server#031, not owner/server#34, "
+        "someone/else#1 or owner/private#1.",
+        duplicates=[{"number": 31, "confidence": "high", "reason": "The same."}],
+        related=[
+            {
+                "repository": SERVER,
+                "kind": "issue",
+                "number": 31,
+                "reason": "The same drop, see #3.",
+            },
+            {"repository": SERVER, "kind": "issue", "number": 31, "reason": "Twice."},
+            {"repository": SERVER, "kind": "issue", "number": 32, "reason": "A pull."},
+            {"repository": SERVER, "kind": "issue", "number": 33, "reason": "None."},
+            {
+                "repository": SERVER,
+                "kind": "discussion",
+                "number": 5,
+                "reason": "Elsewhere.",
+            },
+        ],
+    )
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(answer), config, "abc"
+    )
+    (body,) = github.posted(12)
+    link = "[owner/server#31](https://github.com/owner/server/issues/31)"
+    assert f"- {link}: The same drop, see #3.\n" in body
+    assert f"Like {link} and {link}, not `owner/server#34`, `someone/else#1` or " in (
+        body
+    )
+    assert "`owner/private#1`." in body
+    for left_out in ("Twice", "A pull", "None.", "Elsewhere"):
+        assert left_out not in body
+    # #31 of owner/server is no duplicate of this repository's #31, which doesn't
+    # exist: nothing closes, and no suggestion goes into GitHub's panel.
+    assert "Possible duplicate" not in body
+    assert assistant.POSSIBLE_DUPLICATE not in github.labels_of(12)
+    assert not github.suggestions
+    assert "may belong" not in body and len(done) == 1
+    # The related repository is only read.
+    assert github.sibling_store[SERVER].writes_made() == []
+    assert ("SIBLING", "owner/private", None) in github.calls
+
+
+@pytest.mark.parametrize(
+    ("belongs_in", "said"),
+    [(SERVER, True), ("owner/private", False), (REPOSITORY, False)],
+)
+def test_an_issue_that_belongs_elsewhere_gets_a_sentence_for_the_maintainers(
+    config, belongs_in, said
+):
+    config = related(config, SERVER, "owner/private")
+    github = with_server(config)
+    answer = server_answer(belongs_in=belongs_in)
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(answer), config, "abc"
+    )
+    (body,) = github.posted(12)
+    sentence = (
+        "This may belong in `owner/server` rather than here; if so, a maintainer can "
+        "transfer the issue there."
+    )
+    assert (f"\n\n{sentence}\n\n" in body) is said
+    assert (
+        "#12 may belong in owner/server; a maintainer can transfer it." in done
+    ) is said
+    # Nothing moves or closes on its own.
+    assert github.issue(12)["state"] == "open"
+    assert "transferIssue" not in str(github.writes_made())
+
+
+def test_a_possible_vulnerability_says_nothing_of_where_it_belongs(config):
+    config = related(config, SERVER)
+    github = with_server(config)
+    answer = server_answer(belongs_in=SERVER, security_report=True)
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert "owner/server" not in body
+    assert not [call for call in github.calls if call[0] == "SIBLING"]
+
+
+@pytest.mark.parametrize(
+    ("text", "cleaned"),
+    [
+        ("See owner/server#31.", f"See {LINK_31}."),
+        ("OWNER/Server#031", LINK_31),
+        ("(owner/server#31)", f"({LINK_31})"),
+        # Only the checked issue of a related repository.
+        ("owner/server#32", "`owner/server#32`"),
+        ("owner/other#31", "`owner/other#31`"),
+        ("x_owner/server#31", "`x_owner/server#31`"),
+        ("owner/server#0", "`owner/server#0`"),
+        ("owner/server#2147483648", "`owner/server#2147483648`"),
+        ("owner/server#00000000031", "`owner/server#00000000031`"),
+        # An ! before it would make the link an image.
+        ("!owner/server#31", "!`owner/server#31`"),
+        ("`code`!owner/server#31", "`code`!`owner/server#31`"),
+        # A link of its own, so that no emphasis around it splits the reference.
+        ("_a owner/server#31_", f"_a {LINK_31}_"),
+        ("[x](https://evil.example) owner/server#31", f"x {LINK_31}"),
+    ],
+)
+def test_only_checked_issues_of_related_repositories_stay_links(config, text, cleaned):
+    output = assistant.sanitize(text, config, {7, "owner/server#31"})
+    assert output == cleaned
+    assert problems(output, {7, "owner/server#31"}, config) == []
+
+
 def test_references_are_listed_once(config):
     github = FakeGitHub(config, make_issue())
     answer = make_answer(
@@ -6800,6 +7052,30 @@ def test_the_search_for_issues_builds_the_gh_command(monkeypatch, tmp_path):
             ],
             None,
         )
+    ]
+
+
+def test_a_related_repository_is_read_only_once_it_is_public(monkeypatch, tmp_path):
+    calls, _ = gh_answers(
+        monkeypatch,
+        tmp_path,
+        Completed(json.dumps({"visibility": "public", "private": False})),
+        Completed(json.dumps({"visibility": "private", "private": True})),
+        Completed(stderr="gh: Not Found (HTTP 404)", returncode=1),
+        Completed(stderr="gh: Bad credentials (HTTP 401)", returncode=1),
+    )
+    github = assistant.GitHub(REPOSITORY)
+    server = github.sibling(SERVER)
+    assert server is not None and server.repository == SERVER and server.dry_run
+    # Asked once in a run.
+    assert github.sibling(SERVER) is server
+    assert github.sibling("owner/private") is None
+    assert github.sibling("owner/gone") is None
+    with pytest.raises(assistant.GitHubError, match="HTTP 401"):
+        github.sibling("owner/failing")
+    names = (SERVER, "owner/private", "owner/gone", "owner/failing")
+    assert [call[0] for call in calls] == [
+        ["gh", "api", f"repos/{name}"] for name in names
     ]
 
 

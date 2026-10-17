@@ -113,6 +113,25 @@ def test_the_context_of_each_task_reads_as_its_golden_file(config, mode):
     assert_golden(f"context/{mode}.txt", files_of(folder))
 
 
+@pytest.mark.usefixtures("root")
+def test_the_context_with_related_repositories_reads_as_its_golden_file(config):
+    """A first analysis in a repository with a related one: its task, its schema and
+    the issues that a search there finds."""
+    config = dataclasses.replace(config, related_repositories=("owner/server",))
+    issue = make_issue(title="Live card stays empty", body="The card is empty.")
+    found = make_issue(31, title="Empty card after a reconnect", body="Same here.")
+    server = FakeGitHub(config, found, repository="owner/server")
+    server.search_store[
+        "repo:owner/server is:issue (live OR card OR stays OR empty)"
+    ] = [found]
+    github = FakeGitHub(config, issue)
+    github.sibling_store["owner/server"] = server
+    assistant.write_context(github, 12, "triage", config)
+    assert_golden(
+        "context/triage-related.txt", files_of(config.root / assistant.CONTEXT)
+    )
+
+
 # The events: what the event job plans, and what it asks of GitHub
 
 
@@ -361,6 +380,7 @@ def test_every_golden_file_has_its_test():
     names = {
         *comment_files(),
         *(f"context/{mode}.txt" for mode in assistant.MODES),
+        "context/triage-related.txt",
         *(f"events/{case.replace(' ', '-')}.json.txt" for case in EVENTS),
         *(f"summaries/{case}.md.txt" for case in SUMMARIES),
     }

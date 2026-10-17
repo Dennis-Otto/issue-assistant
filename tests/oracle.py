@@ -99,11 +99,14 @@ class Piece:
     kind: str = "other"
 
 
-def problems(markdown: str, numbers: Collection[int], config: Config) -> list[str]:
+def problems(
+    markdown: str, numbers: Collection[int | str], config: Config
+) -> list[str]:
     """What in the Markdown would mention, reference, link elsewhere or show HTML.
 
-    `numbers` are the issues that it may reference, and `config` names the
-    repository and the sites that it may link to.
+    `numbers` are the issues that it may reference: those of the repository by their
+    number, and those of other repositories, as owner/name#123, that it may link to.
+    `config` names the repository and the sites that it may link to.
     """
     found: list[str] = []
     for readings in inline_parts(markdown, found):
@@ -220,15 +223,23 @@ def pieces(children: list[Token]) -> Iterator[Piece]:
             yield Piece(token.markup)
 
 
-def judged(children: list[Token], numbers: set[int], config: Config) -> list[str]:
+def judged(children: list[Token], numbers: set[int | str], config: Config) -> list[str]:
     """What a paragraph would mention, reference, link elsewhere or show."""
     found = []
+    # The issues of other repositories that the comment may reference and link.
+    checked = {str(item).casefold() for item in numbers if isinstance(item, str)}
+    elsewhere = {
+        f"https://github.com/{repository}/issues/{number}"
+        for repository, _, number in (item.rpartition("#") for item in checked)
+    }
     parts = list(pieces(children))
     starts, source = [], ""
     for part in parts:
         starts.append(len(source))
         source += part.source
-        if part.kind == "link" and not allowed(part.shown, config):
+        if part.kind == "link" and not (
+            allowed(part.shown, config) or part.shown.casefold() in elsewhere
+        ):
             found.append(f"link to {part.shown}")
         elif part.kind == "html":
             found.append(f"HTML {part.source!r}")
@@ -256,7 +267,11 @@ def judged(children: list[Token], numbers: set[int], config: Config) -> list[str
     for node in text_nodes(parts, starts, taken):
         found += [f"e-mail link to {m[0]}" for m in EMAIL.finditer(node)]
         found += [f"reference {m[0]}" for m in COMMIT.finditer(node)]
-        found += [f"reference {m[0]}" for m in CROSS_REFERENCE.finditer(node)]
+        found += [
+            f"reference {m[0]}"
+            for m in CROSS_REFERENCE.finditer(node)
+            if m[0].casefold() not in checked
+        ]
         found += [
             f"reference {m[0]}"
             for m in REFERENCE.finditer(node)

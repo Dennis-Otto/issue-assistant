@@ -1,0 +1,20 @@
+<!-- issue-assistant:analysis lang=de questions=0 engine=claude -->
+
+Danke für deine Meldung, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
+
+### Zusammenfassung
+
+Jede Nacht um 3 Uhr verlieren die Sensoren für ein paar Minuten das Netz, und das Diagramm zeigt eine Lücke.
+
+### Erste Analyse
+
+Das Dashboard zeigt nur, was der Hub meldet, und die Lücken beginnen, wenn die Firmware des Hubs jede Nacht ihre Funkkanäle durchsucht. Die Firmware hat ein eigenes Repository, in dem ein Bericht denselben nächtlichen Abbruch beschreibt.
+
+Das gehört möglicherweise eher zu `demo-org/plant-hub-firmware`; dann kann ein Maintainer das Issue dorthin übertragen.
+
+### Verwandte Themen
+
+- [demo-org/plant-hub-firmware#31](https://github.com/demo-org/plant-hub-firmware/issues/31): Derselbe nächtliche Abbruch, zurückgeführt auf die Kanalsuche der Firmware.
+
+<sub>🤖 Automatische Erstanalyse von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer entscheiden. Labels: `bug`, `area: sensors`. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+

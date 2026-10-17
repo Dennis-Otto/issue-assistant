@@ -36,6 +36,12 @@ max_issues = 1000
 max_discussions = 1000
 max_analyzed = 30
 
+[related]
+# Public repositories that share users and topics with this one, as "owner/name", up
+# to 5. A first analysis also searches their issues, links those that help, and says
+# when an issue may belong in one of them; a maintainer transfers it by hand.
+repositories = []
+
 [links]
 # Hosts that links in the assistant's comments may lead to, besides this repository.
 hosts = []
