@@ -3,6 +3,7 @@
 import dataclasses
 import io
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -152,12 +153,14 @@ LABEL = (
             '[[label]]\nname = "kind/bug"\n\n[[label]]\nname = 5\ncolor = "d73a4a"\n'
             'description = "A bug"\ngroup = "type"\n\n'
             + LABEL
-            + 'form_options = "Cards"\nask = "no"\n',
+            + 'form_options = "Cards"\nask = "no"\nowners = "alice"\nissue_type = 5\n',
             [
                 f"{LABELS}: the label kind/bug needs color, description, group",
                 f"{LABELS}: label 2: name must be a string",
                 f"{LABELS}: the label bug: form_options must be a list of strings",
                 f"{LABELS}: the label bug: ask must be true or false",
+                f"{LABELS}: the label bug: owners must be a list of strings",
+                f"{LABELS}: the label bug: issue_type must be a string",
             ],
         ),
     ],
@@ -1055,6 +1058,52 @@ def test_label_problems_are_found(config):
     assert ".github/labels.toml: at least one label needs the group type" in (
         assistant.check_labels(without_kinds)
     )
+
+
+def test_owners_issue_types_and_priorities_are_checked(config):
+    crowd = tuple(f"dev{number}" for number in range(9))
+    labels = (
+        *config.labels,
+        assistant.Label(
+            "area: api", "c5def5", "The API", "area", owners=("@alice", "a_b", *crowd)
+        ),
+        assistant.Label("area: web", "c5def5", "The web", "area", issue_type="Bug"),
+        assistant.Label("a11y", "c5def5", "Accessible", "topic", owners=("alice",)),
+        assistant.Label("chore", "a2eeef", "A chore", "type", issue_type=" Task"),
+        assistant.Label("none", "e4e4e4", "Not urgent", "priority"),
+    )
+    problems = assistant.check_labels(dataclasses.replace(config, labels=labels))
+    assert problems == [
+        f"{LABELS}: write the owner @alice of area: api without @",
+        f"{LABELS}: the owner 'a_b' of area: api is no login of GitHub",
+        f"{LABELS}: area: api has 11 owners; GitHub assigns at most 10 people to "
+        "an issue",
+        f"{LABELS}: only kinds have an issue_type, not area: web",
+        f"{LABELS}: only areas have owners, not a11y",
+        f"{LABELS}: the issue_type of chore starts or ends with a space",
+        f"{LABELS}: no priority can be named none, the answer of the AI for an issue "
+        "without one",
+    ]
+
+
+def test_the_examples_of_the_starter_labels_work_when_uncommented(tmp_path):
+    """The starter shows priorities, owners and issue types in comments; taken in,
+    they pass the checks."""
+    starter = (assistant.TEMPLATES / assistant.LABELS_FILE).read_text("utf-8")
+    # A commented line of TOML: a table or a key with its value, and nothing after.
+    toml = r'^# (\[\[label\]\]|[a-z_]+ = (?:"[^"]*"|\[[^]]*\]|true|false))$'
+    uncommented, count = re.subn(toml, r"\1", starter, flags=re.MULTILINE)
+    assert count > 10
+    path = tmp_path / "labels.toml"
+    path.write_text(uncommented, encoding="utf-8")
+    found = assistant.Problems()
+    labels = assistant.load_labels(path, found)
+    assert found == assistant.Problems()
+    config = assistant.Config(tmp_path, REPOSITORY, labels, "")
+    assert assistant.check_labels(config) == []
+    assert config.group("priority")
+    assert any(label.owners for label in labels)
+    assert any(label.issue_type for label in labels)
 
 
 def test_form_problems_are_found(config, root):

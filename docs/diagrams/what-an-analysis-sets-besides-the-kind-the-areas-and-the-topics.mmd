@@ -1,0 +1,15 @@
+flowchart TB
+  accTitle: What an analysis sets besides the kind, the areas and the topics
+  accDescr: Each of the three is a choice of the repository in labels.toml. With labels of the group priority, the AI chooses one, or none when the issue shows too little; an issue without a priority gets it with its reason, and a priority that the issue has stays. A kind with an issue_type gives an issue without a type that type, and corrects the type of another kind while the issue needs triage; a type that no kind has, such as Epic, stays. Owners of an area are assigned to an issue of the area that nobody is assigned to, when it opens with the area from its form and after its first analysis, and GitHub notifies them; the assistant mentions nobody.
+  answer["the answer of the AI"] --> priority{"`labels of the group<br>**priority**?`"}
+  priority -- "yes" --> add["an issue without a priority<br>gets the one of the AI,<br>with its reason"]
+  answer --> kind{"`the kind has an<br>**issue_type**?`"}
+  kind -- "yes" --> type["an issue without a type<br>gets it; while it needs<br>triage, the type follows<br>a corrected kind"]
+  answer --> areas{"`its areas have<br>**owners**?`"}
+  areas -- "yes" --> assign["they are assigned to an<br>issue that nobody is<br>assigned to; GitHub<br>notifies them"]
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class priority,kind,areas question
+  class answer job
+  class add,type,assign safe

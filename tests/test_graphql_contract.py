@@ -361,6 +361,48 @@ REQUESTS = {
         )
         for reason in REASONS
     },
+    "the issue types of an organization's repository": Request(
+        lambda github: github.issue_types(),
+        {
+            "repository": {
+                "issueTypes": {
+                    "nodes": [
+                        {"name": "Bug", "isEnabled": True},
+                        {"name": "Task", "isEnabled": False},
+                    ]
+                }
+            }
+        },
+        ["Bug"],
+    ),
+    "the issue types of a person's repository": Request(
+        lambda github: github.issue_types(),
+        {"repository": {"issueTypes": None}},
+        None,
+    ),
+    "an issue type that exists": Request(
+        lambda github: github.issue_type_id("Bug"),
+        {"repository": {"issueType": {"id": "IT_kwDOA48Fh84AtH84", "isEnabled": True}}},
+        "IT_kwDOA48Fh84AtH84",
+    ),
+    "an issue type that is turned off": Request(
+        lambda github: github.issue_type_id("Bug"),
+        {
+            "repository": {
+                "issueType": {"id": "IT_kwDOA48Fh84AtH84", "isEnabled": False}
+            }
+        },
+        None,
+    ),
+    "an issue type that doesn't exist": Request(
+        lambda github: github.issue_type_id("Bug"),
+        {"repository": {"issueType": None}},
+        None,
+    ),
+    "setting the issue type": Request(
+        lambda github: github.set_issue_type(ISSUE, "Bug", "IT_kwDOA48Fh84AtH84"),
+        {"updateIssueIssueType": {"clientMutationId": None}},
+    ),
     "suggesting a duplicate": Request(
         lambda github: github.suggest_duplicate(
             ISSUE, ORIGINAL, "Both describe the empty live card."
@@ -422,6 +464,17 @@ def test_labels_carry_github_s_rationale_of_at_most_280_characters(monkeypatch, 
     assert {len(label["rationale"]) for label in sent["variables"]["labels"]} == {280}
 
 
+def test_the_issue_type_is_looked_up_by_its_name_and_set_by_its_id(monkeypatch, schema):
+    owner, name = REPOSITORY.split("/")
+    _, (sent,) = send(monkeypatch, schema, REQUESTS["an issue type that exists"])
+    assert sent["variables"] == {"owner": owner, "name": name, "type": "Bug"}
+    _, (sent,) = send(monkeypatch, schema, REQUESTS["setting the issue type"])
+    assert sent["variables"] == {
+        "issue": ISSUE["node_id"],
+        "type": "IT_kwDOA48Fh84AtH84",
+    }
+
+
 def test_a_duplicate_is_closed_with_its_original_and_others_without(
     monkeypatch, schema
 ):
@@ -446,7 +499,7 @@ def test_every_graphql_document_of_the_script_is_checked(monkeypatch, schema):
         for request in REQUESTS.values()
         for sent in send(monkeypatch, schema, request)[1]
     }
-    assert len(documents) == 9
+    assert len(documents) == 12
     assert documents == checked
 
 
