@@ -135,12 +135,17 @@ jobs:
           GH_TELEMETRY: "false"
         run: |
           python3 issue_assistant.py context --issue 105 --mode triage
-          for file in issue.md labels.md issues.jsonl discussions.jsonl rules.md prompt.md schema.json; do
+          for file in issue.md labels.md issues.jsonl discussions.jsonl corrections.md rules.md prompt.md schema.json; do
             if [[ ! -s ".issue-assistant/$file" ]]; then
               echo "::error::context wrote no .issue-assistant/$file"
               exit 1
             fi
           done
+          # Reading the corrections only warns when GitHub fails; here it fails.
+          if grep -q 'GitHub failed' .issue-assistant/corrections.md; then
+            echo "::error::reading the corrections failed against the real API"
+            exit 1
+          fi
           wc -l .issue-assistant/*.jsonl
 
   # GitHub changes its API without a release of the action. The tests check the

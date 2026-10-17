@@ -11,7 +11,6 @@ import dataclasses
 import importlib.util
 import json
 import re
-from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -20,8 +19,8 @@ import issue_assistant as assistant
 from support import (
     BOT_USER,
     BUG_BODY,
-    NOW,
     FakeGitHub,
+    Frozen,
     analysis,
     assert_golden,
     at,
@@ -261,14 +260,6 @@ def test_each_event_plans_as_its_golden_file(config, case):
 
 
 # The job summaries of the commands
-
-
-class Frozen(datetime):
-    """The clock of the tests, in place of the real one of the sweep."""
-
-    @classmethod
-    def now(cls, tz=None):
-        return NOW.astimezone(tz)
 
 
 def waiting_since(config, days):

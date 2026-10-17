@@ -72,6 +72,16 @@ def at(days_ago: float = 0) -> str:
     return (NOW - timedelta(days=days_ago)).isoformat().replace("+00:00", "Z")
 
 
+class Frozen(datetime):
+    """The clock of the tests, NOW, in place of the real one of main, which the
+    sweep reads: monkeypatch.setattr(assistant, "datetime", Frozen). Without it, a
+    test of a sweep would change its result as the days pass."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return NOW.astimezone(tz)
+
+
 API = f"https://api.github.com/repos/{REPOSITORY}"
 # The repository on GitHub, where the addresses of its comments start.
 WEB = f"https://github.com/{REPOSITORY}"
@@ -607,17 +617,22 @@ class FakeGitHub(assistant.GitHub):
                     sorted(items, key=lambda item: -item["number"]), query, pages
                 )
             if route == "issues/comments":
-                # Every comment of the repository, with the address of its issue.
-                return paged(
-                    [
-                        {**comment, "issue_url": f"{API}/issues/{number}"}
-                        for number, comments in sorted(self.comment_store.items())
-                        for comment in comments
-                        if changed_since(comment, query)
-                    ],
-                    query,
-                    pages,
-                )
+                # Every comment of the repository, with the address of its issue;
+                # sorted, the newest first, as GitHub sorts them by their creation
+                # and ignores the direction without a sort.
+                found = [
+                    {**comment, "issue_url": f"{API}/issues/{number}"}
+                    for number, comments in sorted(self.comment_store.items())
+                    for comment in comments
+                    if changed_since(comment, query)
+                ]
+                if "sort" in query:
+                    assert query["sort"] == ["created"], query
+                    assert query["direction"] == ["desc"], query
+                    found.sort(
+                        key=lambda item: (item["created_at"], item["id"]), reverse=True
+                    )
+                return paged(found, query, pages)
             if route == "labels":
                 return paged(self.label_store, query, pages)
             if route == "releases/latest":
