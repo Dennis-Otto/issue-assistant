@@ -937,6 +937,9 @@ class FakeGitHub(assistant.GitHub):
             return {"repository": {"issueType": found[0] if found else None}}
         number = int(variables["issue"].removeprefix("I_"))
         if "updateIssueIssueType" in query:
+            if variables["type"] is None:
+                self._issue(number)["type"] = None
+                return {"updateIssueIssueType": {"clientMutationId": None}}
             (found,) = [
                 item
                 for item in self.issue_type_store or []

@@ -2018,16 +2018,16 @@ class GitHub:
         self._write(f"remove {name} from #{number}", remove)
 
     def assign(self, number: int, logins: list[str]) -> None:
-        """Assign people to the issue; GitHub leaves out those it can't assign."""
-        if logins:
-            self._write(
-                f"assign #{number} to {', '.join(logins)}",
-                lambda: self.rest(
-                    f"issues/{number}/assignees",
-                    method="POST",
-                    data={"assignees": logins},
-                ),
-            )
+        """Assign people, at least one, to the issue; GitHub leaves out those it
+        can't assign."""
+        self._write(
+            f"assign #{number} to {', '.join(logins)}",
+            lambda: self.rest(
+                f"issues/{number}/assignees",
+                method="POST",
+                data={"assignees": logins},
+            ),
+        )
 
     def assignable(self, user: str) -> bool:
         """Whether issues of the repository can be assigned to the person."""
@@ -2073,12 +2073,18 @@ class GitHub:
         found = (data["repository"] or {}).get("issueType")
         return str(found["id"]) if found and found["isEnabled"] else None
 
-    def set_issue_type(self, issue: dict[str, Any], name: str, type_id: str) -> None:
+    def set_issue_type(
+        self, issue: dict[str, Any], name: str | None, type_id: str | None
+    ) -> None:
+        """Set the issue type of the issue; None takes its type away."""
+        what = f"set the issue type of #{issue['number']} to {name}"
+        if type_id is None:
+            what = f"remove the issue type of #{issue['number']}"
         self._write(
-            f"set the issue type of #{issue['number']} to {name}",
+            what,
             lambda: self.graphql(
                 """
-                mutation($issue: ID!, $type: ID!) {
+                mutation($issue: ID!, $type: ID) {
                   updateIssueIssueType(input: {issueId: $issue, issueTypeId: $type}) {
                     clientMutationId
                   }
@@ -4648,14 +4654,8 @@ def label_rationale(answer: dict[str, Any], config: Config) -> str:
     return plain(answer["label_rationale"], config)
 
 
-def priority_rationale(answer: dict[str, Any], config: Config) -> str:
-    """Why the priority fits, for the timeline of the issue."""
-    if answer.get("security_report"):
-        return SECURITY_RATIONALE
-    return plain(answer["priority_rationale"], config)
-
-
 def chosen_priority(
+    github: GitHub,
     issue: dict[str, Any],
     answer: dict[str, Any],
     config: Config,
@@ -4664,13 +4664,24 @@ def chosen_priority(
     """The priority of the answer for an issue without one; None otherwise.
 
     The assistant never changes a priority: one that the issue has stays, and so
-    does the absence of one that someone removed (`keep`).
+    does the absence of one that someone removed (`keep`, or any removal on the
+    timeline of the issue). A possible security report gets none: a public
+    priority would judge the vulnerability in public, so the maintainers set it.
     """
     priorities = set(config.group("priority"))
     chosen = answer.get("priority", NO_PRIORITY)
-    if chosen == NO_PRIORITY or priorities & (label_names(issue) | set(keep)):
+    if (
+        chosen == NO_PRIORITY
+        or answer.get("security_report")
+        or priorities & (label_names(issue) | set(keep))
+    ):
         return None
-    return str(chosen)
+    removed = any(
+        event["event"] == "unlabeled"
+        and (event.get("label") or {}).get("name") in priorities
+        for event in github.events(issue["number"])
+    )
+    return None if removed else str(chosen)
 
 
 def apply_issue_type(
@@ -4681,23 +4692,35 @@ def apply_issue_type(
     keep: Collection[str] = (),
 ) -> None:
     """Give the issue the issue type of its kind, as its label: an issue without a
-    type, and one whose type is that of another kind while nobody triaged it.
+    type, and one whose type is that of another kind while nobody triaged it. A
+    kind without a type then takes away the type of the other kind.
 
     A type that no kind has, such as Epic, is someone's choice and stays, and so
     does the type of an issue whose kind someone changed (`keep`). A repository
     without the type, such as one of a person, which has no issue types, keeps
     the labels alone, and so does an issue whose type GitHub doesn't change.
     """
-    wanted = config.issue_type(kind)
-    if not wanted or kind in keep:
+    if kind in keep:
         return
+    wanted = config.issue_type(kind)
     number = issue["number"]
     # GitHub's REST API gives the type of an issue as `type`, or null.
     current = (issue.get("type") or {}).get("name") or ""
-    of_kinds = {label.issue_type for label in config.labels if label.group == "type"}
+    of_kinds = {
+        label.issue_type
+        for label in config.labels
+        if label.group == "type" and label.issue_type
+    }
     if current == wanted or (
         current and (NEEDS_TRIAGE not in label_names(issue) or current not in of_kinds)
     ):
+        return
+    if not wanted:
+        # Here `current` is the type of another kind, of an issue that needs triage.
+        try:
+            github.set_issue_type(issue, None, None)
+        except GitHubError as error:
+            command("notice", f"#{number} keeps its issue type: {error}")
         return
     try:
         type_id = github.issue_type_id(wanted)
@@ -4717,10 +4740,17 @@ def assign_owners(
     github: GitHub, issue: dict[str, Any], labels: Collection[str], config: Config
 ) -> list[str]:
     """Assign an issue that nobody is assigned to to the owners of its areas among
-    `labels`; GitHub notifies them. The assistant never mentions them."""
+    `labels`; GitHub notifies them. The assistant never mentions them.
+
+    An issue that someone unassigned anyone from stays as it is: a person chose.
+    """
     if issue.get("assignees"):
         return []
     owners = config.owners(labels)
+    if not owners or any(
+        event["event"] == "unassigned" for event in github.events(issue["number"])
+    ):
+        return []
     github.assign(issue["number"], owners)
     return owners
 
@@ -4753,9 +4783,9 @@ def apply_labels(
         if name not in current and name not in keep
     ]
     github.add_explained_labels(issue, added, label_rationale(answer, config))
-    if priority := chosen_priority(issue, answer, config, keep):
+    if priority := chosen_priority(github, issue, answer, config, keep):
         github.add_explained_labels(
-            issue, [priority], priority_rationale(answer, config)
+            issue, [priority], plain(answer["priority_rationale"], config)
         )
         added.append(priority)
     apply_issue_type(github, issue, kind, config, keep)

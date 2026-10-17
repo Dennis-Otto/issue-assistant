@@ -3500,14 +3500,38 @@ def test_a_priority_that_someone_removed_stays_away(config):
     ]
 
 
-def test_the_priority_of_a_security_report_says_nothing_of_it(config):
+def test_a_security_report_gets_no_public_priority(config):
     config = routed(config, cards=())
     github = routed_github(config, make_issue())
     answer = prioritized(
         security_report=True, priority_rationale="The token leaks in the log."
     )
     assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
-    assert github.rationales[(12, "L_priority: high")] == (assistant.SECURITY_RATIONALE)
+    # A priority would judge the vulnerability in public: the maintainers set it.
+    assert "priority: high" not in github.labels_of(12)
+    assert "The token leaks" not in str(github.rationales)
+
+
+@pytest.mark.parametrize("mode", ["triage", "follow-up"])
+def test_a_priority_that_someone_ever_removed_stays_away(config, mode):
+    config = routed(config, cards=())
+    github = routed_github(config, make_issue(labels=("bug", "needs-info")))
+    github.event_store[12] = [
+        label_event("priority: high", 3, "labeled"),
+        label_event("priority: high", 2.5),
+    ]
+    if mode == "follow-up":
+        github.comment_store[12] = [
+            analysis(questions=1, days_ago=2),
+            make_comment(2, "reporter", "Every card is empty.", 1),
+        ]
+        answer = make_follow_up(
+            priority="priority: high", priority_rationale="As before."
+        )
+    else:
+        answer = prioritized()
+    assistant.apply_answer(github, mode, 12, json.dumps(answer), config, "abc")
+    assert "priority: high" not in github.labels_of(12)
 
 
 def test_a_follow_up_adds_the_priority_that_the_analysis_could_not_judge(config):
@@ -3580,6 +3604,24 @@ def test_a_new_issue_is_assigned_to_the_owners_of_its_form_area(config):
     assert github.store[15]["assignees"] == [{"login": "bob"}, {"login": "alice"}]
 
 
+def test_the_first_analysis_leaves_an_issue_that_someone_unassigned(config):
+    config = routed(config)
+    github = routed_github(config, make_issue())
+    # The form assigned the owners, and a maintainer unassigned them while the AI ran.
+    github.event_store[12] = [
+        {
+            "event": "unassigned",
+            "assignee": {"login": "alice"},
+            "actor": {"login": "owner", "type": "User"},
+            "created_at": at(0.01),
+        }
+    ]
+    answer = json.dumps(prioritized())
+    assistant.apply_answer(github, "triage", 12, answer, config, "abc")
+    assert not github.store[12].get("assignees")
+    assert not [call for call in github.calls if call[1].endswith("/assignees")]
+
+
 @pytest.mark.parametrize("changed", [False, True])
 def test_a_run_again_assigns_the_owners_unless_someone_changed_the_assignees(
     config, changed
@@ -3614,8 +3656,11 @@ def test_a_run_again_assigns_the_owners_unless_someone_changed_the_assignees(
         # A triaged issue, and a type that no kind has, keep their type.
         (("bug",), "Bug", "enhancement", "Bug"),
         (("bug", "needs-triage"), "Epic", "enhancement", "Epic"),
-        # A kind without an issue type changes nothing.
-        (("bug", "needs-triage"), "Bug", "question", "Bug"),
+        # A corrected kind without an issue type takes away the type of the other
+        # kind while nobody triaged the issue, and leaves the rest.
+        (("bug", "needs-triage"), "Bug", "question", None),
+        (("bug",), "Bug", "question", "Bug"),
+        (("bug", "needs-triage"), "Epic", "question", "Epic"),
         (("bug", "needs-triage"), None, "question", None),
     ],
 )
@@ -3672,6 +3717,28 @@ def test_an_issue_type_that_github_refuses_stops_nothing(config, capsys):
     assert done[0].startswith("Analysis on #12")
     assert "#12 keeps its issue type: " in capsys.readouterr().out
     assert github.posted(12)
+
+
+def test_an_issue_type_that_github_does_not_take_away_stops_nothing(config, capsys):
+    config = routed(config)
+    issue = make_issue(type={"id": "IT_bug", "name": "Bug"})
+    github = routed_github(config, issue)
+    github.fail("updateIssueIssueType", not_found("Resource not accessible"))
+    answer = prioritized(kind="question", priority="none")
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(answer), config, "abc"
+    )
+    assert done[0].startswith("Analysis on #12")
+    assert "#12 keeps its issue type: " in capsys.readouterr().out
+
+
+def test_a_dry_run_reports_an_issue_type_that_it_would_take_away(config):
+    config = routed(config)
+    github = routed_github(config, make_issue(type={"id": "IT_bug", "name": "Bug"}))
+    github.dry_run = True
+    answer = prioritized(kind="question", priority="none")
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
+    assert "remove the issue type of #12" in github.writes
 
 
 def test_a_dry_run_only_reports_the_priority_the_owners_and_the_issue_type(config):

@@ -141,9 +141,9 @@ An issue that waits for its reporter keeps what the comments of the assistant pr
 
 Three choices of `labels.toml` give an analysis more to set, each only where the repository makes it:
 
-- **A priority** comes from the labels of the group `priority`, such as `priority: high`. The AI chooses the one whose description fits what the issue shows, or none when it shows too little, and its reason shows on the timeline, as that of the other labels. The assistant gives a priority only to an issue without one, also in a follow-up that brought what was missing, and never changes one or adds back one that someone removed. Without such labels, the AI isn't asked for one.
-- **The owners of an area** are assigned to its issues: `owners = ["login"]` of an area label assigns those people to a new issue whose form chose the area, and, after the first analysis, to an issue of the areas that the analysis added, as long as nobody is assigned to it. GitHub notifies them; no comment mentions them. With `exempt_assignees = true`, the sweep leaves those issues to them, as every assigned one.
-- **The issue types of an organization** follow the kind: `issue_type = "Bug"` of a kind gives its issues that type when they have none, and while an issue needs triage, its type follows a corrected kind, as its label does. A type that no kind has, such as `Epic`, stays, and a repository of a person, which has no issue types, keeps the labels alone.
+- **A priority** comes from the labels of the group `priority`, such as `priority: high`. The AI chooses the one whose description fits what the issue shows, or none when it shows too little, and its reason shows on the timeline, as that of the other labels. The assistant gives a priority only to an issue without one, also in a follow-up that brought what was missing, and never changes one or adds back one that someone removed. A possible security report gets none, so that no public label judges the vulnerability; the maintainers set its priority. Without such labels, the AI isn't asked for one.
+- **The owners of an area** are assigned to its issues: `owners = ["login"]` of an area label assigns those people to a new issue whose form chose the area, and, after the first analysis, to an issue of the areas that the analysis added, as long as nobody is assigned to it and nobody unassigned anyone from it. GitHub notifies them; no comment mentions them. With `exempt_assignees = true`, the sweep leaves those issues to them, as every assigned one.
+- **The issue types of an organization** follow the kind: `issue_type = "Bug"` of a kind gives its issues that type when they have none, and while an issue needs triage, its type follows a corrected kind, as its label does: to the type of that kind, or to none for a kind without a type. A type that no kind has, such as `Epic`, stays, and a repository of a person, which has no issue types, keeps the labels alone.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-an-analysis-sets-besides-the-kind-the-areas-and-the-topics.dark.svg">
@@ -627,7 +627,7 @@ The action runs `issue_assistant.py` with one command:
 | `usage` | analyze | writes the turns, time, cost and tokens of the engine's run into the summary of the job, numbers only, and a warning when the run stopped at its turns or its dollars |
 | `apply` | apply | checks the AI's answer and posts it |
 | `sweep` | lifecycle | reminds, closes unanswered issues and duplicates, marks fixed issues and closes them with the release |
-| `sync-labels` | labels | creates and updates the labels, and renames those that the repository has in another case |
+| `sync-labels` | labels | creates and updates the labels, renames those that the repository has in another case, and warns of owners whom GitHub can't assign and of issue types that the repository lacks |
 | `findings` | findings | dismisses the accepted findings of code scanning and fails while others are open; needs no other settings |
 | `check` | your CI | checks labels, issue forms, workflows, firewall, settings, the description of the project and the notice to reporters, and names every key it doesn't know |
 
