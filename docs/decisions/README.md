@@ -22,3 +22,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0014](0014-bound-every-run-and-put-the-rules-first.md) | Bound every run of the AI by its task, put the rules in the system prompt, and show what each run cost | accepted |
 | [0015](0015-reusable-workflows.md) | The templates call the jobs as reusable workflows of a release, so an update is a move of the pins | accepted |
 | [0016](0016-learn-from-the-history-on-github.md) | Learn from the maintainers' corrections as they stand on GitHub, as data of the context | accepted |
+| [0017](0017-engines-without-an-action-of-their-own.md) | Four engines, and the command lines without a fitting action run in the action | accepted |

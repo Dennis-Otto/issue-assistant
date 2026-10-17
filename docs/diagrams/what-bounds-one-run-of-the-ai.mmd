@@ -1,13 +1,13 @@
 flowchart TB
   accTitle: What bounds one run of the AI
-  accDescr: The event job names the task of the run. The engine command chooses from [engine] in config.toml what the run may use: the model, or light_model for a reply to one comment; the turns, all of max_turns for an analysis or a maintainer's question, half for a follow-up and a tenth for a reply; the dollars of max_budget_usd and the effort. The context command writes the rules into rules.md and the task into prompt.md. The engine takes the rules as its system prompt and the task as its prompt, reads the checkout and stops at its turns or its dollars; its answer goes to the job apply. The usage command reads the numbers of the run, also after a failure, and writes one line into the summary of the job: the turns, the time, the cost and the tokens. When the run stopped at a limit, a warning names the setting.
+  accDescr: The event job names the task of the run. The engine command chooses from [engine] in config.toml what the run may use: the model, or light_model for a reply to one comment; the turns, all of max_turns for an analysis or a maintainer's question, half for a follow-up and a tenth for a reply; the dollars of max_budget_usd and the effort. The context command writes the rules into rules.md and the task into prompt.md. The engine takes the rules before the task, reads the checkout and stops at its turns or its dollars, as far as it counts them; its answer goes to the job apply. For Claude, the usage command reads the numbers of the run, also after a failure, and writes one line into the summary of the job: the turns, the time, the cost and the tokens. When the run stopped at a limit, a warning names the setting.
   task(["the task of the run"]) --> engine["`**engine**<br>model or light_model,<br>max_turns: all, half<br>or a tenth,<br>max_budget_usd, effort`"]
   config[("config.toml<br>[engine]")] --> engine
   task --> context["`**context**<br>the rules into rules.md,<br>the task into prompt.md`"]
-  engine --> ai["`**the engine**<br>the rules as its system<br>prompt, the task as its<br>prompt; stops at its<br>turns or its dollars`"]
+  engine --> ai["`**the engine**<br>the rules before<br>the task; stops at its<br>turns or its dollars,<br>as far as it counts them`"]
   context --> ai
   ai --> answer["its answer, JSON,<br>to the job apply"]
-  ai -. "also after<br>a failure" .-> usage["`**usage**<br>one line of numbers:<br>turns, time, cost<br>and tokens`"]
+  ai -. "Claude, also<br>after a failure" .-> usage["`**usage**<br>one line of numbers:<br>turns, time, cost<br>and tokens`"]
   usage --> summary[("the summary<br>of the job")]
   usage -. "stopped at<br>a limit" .-> warning["a warning that<br>names the setting"]
   classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px

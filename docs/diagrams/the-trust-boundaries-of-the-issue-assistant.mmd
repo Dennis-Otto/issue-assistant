@@ -1,11 +1,11 @@
 flowchart TB
   accTitle: The trust boundaries of the issue assistant
-  accDescr: Anyone can write an issue, its comments, other issues and discussions, and a pull request. The text reaches the event job, which runs no AI and chooses the task, and, as data in files, the job analyze: the first boundary. There the AI reads with Read, Grep and Glob alone, behind a firewall, with a read-only token and the engine's secret. Its answer in JSON crosses the second boundary into the job apply, which runs no AI and holds no secret. Its checks want the schema, labels and issues that exist, and no secret, mention, image, HTML or foreign link. When they fail, nothing is posted; when they pass, apply writes to GitHub, only to the issue of the event: the third boundary. A merged pull request starts issue-lifecycle.yml on the default branch, without AI, which learns only the issues that it fixes, the fourth boundary, and writes to GitHub.
+  accDescr: Anyone can write an issue, its comments, other issues and discussions, and a pull request. The text reaches the event job, which runs no AI and chooses the task, and, as data in files, the job analyze: the first boundary. There the AI reads with tools that only read, behind a firewall, with a read-only token or none and the engine's secret. Its answer in JSON crosses the second boundary into the job apply, which runs no AI and holds no secret. Its checks want the schema, labels and issues that exist, and no secret, mention, image, HTML or foreign link. When they fail, nothing is posted; when they pass, apply writes to GitHub, only to the issue of the event: the third boundary. A merged pull request starts issue-lifecycle.yml on the default branch, without AI, which learns only the issues that it fixes, the fourth boundary, and writes to GitHub.
   text["issue, comments,<br>other issues, discussions"]
   merged(["merged pull request"])
   event["`**event**<br>no AI`"]
   subgraph firewall ["analyze: firewall, read-only token"]
-    analyze["`**the AI** with Read,<br>Grep and Glob,<br>the engine's secret`"]
+    analyze["`**the AI** with tools<br>that only read,<br>the engine's secret`"]
   end
   subgraph checked ["apply: no AI, no secret"]
     checks("`**checks**<br>schema, labels and<br>issues that exist; no<br>secret, mention, image,<br>HTML or foreign link`")
