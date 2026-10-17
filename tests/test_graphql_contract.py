@@ -147,8 +147,12 @@ DISCUSSION = {
     "closed": False,
     "isAnswered": True,
     "body": "The card shows in every view.",
+    "createdAt": "2026-09-01T12:00:00Z",
     "category": {"name": "Q&A"},
-    "answer": {"body": "Turn it off in the options of the card."},
+    "answer": {
+        "body": "Turn it off in the options of the card.",
+        "createdAt": "2026-09-02T12:00:00Z",
+    },
 }
 CLOSED = {"closeIssue": {"issue": {"number": 12}}}
 PAGE = {"hasNextPage": False, "endCursor": "Y3Vyc29yOjE="}
@@ -194,6 +198,54 @@ def issue_as_rest(number: int, **changes: Any) -> dict[str, Any]:
         "closed_at": None,
         "comments": 2,
         "closed_by": None,
+        **changes,
+    }
+
+
+OPENED = "2026-08-01T12:00:00Z"
+
+
+def reference(number: int, repository: str = REPOSITORY) -> dict[str, Any]:
+    """The original of a duplicate, as the closed issues of evaluate name it."""
+    return {
+        "number": number,
+        "createdAt": OPENED,
+        "repository": {"nameWithOwner": repository},
+    }
+
+
+def closed_node(number: int, **changes: Any) -> dict[str, Any]:
+    """A closed issue as GitHub holds it for evaluate."""
+    return {
+        "number": number,
+        "title": "The live card stays empty",
+        "body": "After a throw.",
+        "createdAt": "2026-09-01T12:00:00Z",
+        "closedAt": "2026-09-03T12:00:00Z",
+        "stateReason": "DUPLICATE",
+        "authorAssociation": "NONE",
+        "author": {"__typename": "User", "login": "reporter"},
+        "labels": {"nodes": [{"name": "bug"}]},
+        "duplicateOf": None,
+        "timelineItems": {"nodes": []},
+        **changes,
+    }
+
+
+def closed_as_rest(number: int, **changes: Any) -> dict[str, Any]:
+    """The closed issue of closed_node in the form that closed_issues returns."""
+    return {
+        "number": number,
+        "title": "The live card stays empty",
+        "body": "After a throw.",
+        "user": {"login": "reporter", "type": "User"},
+        "author_association": "NONE",
+        "state": "closed",
+        "state_reason": "duplicate",
+        "labels": [{"name": "bug"}],
+        "created_at": "2026-09-01T12:00:00Z",
+        "closed_at": "2026-09-03T12:00:00Z",
+        "duplicate_of": None,
         **changes,
     }
 
@@ -305,6 +357,60 @@ REQUESTS = {
             issue_as_rest(3, **CLOSED_ISSUE),
             issue_as_rest(4, **CLOSED_ISSUE, closed_by=35),
             issue_as_rest(2, labels=[]),
+        ],
+    ),
+    # A duplicate, one marked as a duplicate, one of another repository's, one
+    # unmarked again and one of a deleted account, opened by a bot.
+    "the closed issues of an evaluation": Request(
+        lambda github: list(github.closed_issues()),
+        {
+            "repository": {
+                "issues": {
+                    "pageInfo": PAGE,
+                    "nodes": [
+                        closed_node(12, duplicateOf=reference(7)),
+                        closed_node(
+                            11,
+                            timelineItems={
+                                "nodes": [
+                                    {
+                                        "__typename": "MarkedAsDuplicateEvent",
+                                        "canonical": {"__typename": "Issue"}
+                                        | reference(5),
+                                    }
+                                ]
+                            },
+                        ),
+                        closed_node(10, duplicateOf=reference(3, "someone/else")),
+                        closed_node(
+                            9,
+                            timelineItems={
+                                "nodes": [{"__typename": "UnmarkedAsDuplicateEvent"}]
+                            },
+                        ),
+                        closed_node(
+                            8,
+                            author={"__typename": "Bot", "login": "renovate"},
+                            labels=None,
+                            stateReason=None,
+                        ),
+                        closed_node(6, author=None),
+                    ],
+                }
+            }
+        },
+        [
+            closed_as_rest(12, duplicate_of={"number": 7, "created_at": OPENED}),
+            closed_as_rest(11, duplicate_of={"number": 5, "created_at": OPENED}),
+            closed_as_rest(10),
+            closed_as_rest(9),
+            closed_as_rest(
+                8,
+                user={"login": "renovate", "type": "Bot"},
+                labels=[],
+                state_reason=None,
+            ),
+            closed_as_rest(6, user={"login": "ghost", "type": "User"}),
         ],
     ),
     "a discussion that exists": Request(
@@ -499,7 +605,7 @@ def test_every_graphql_document_of_the_script_is_checked(monkeypatch, schema):
         for request in REQUESTS.values()
         for sent in send(monkeypatch, schema, request)[1]
     }
-    assert len(documents) == 12
+    assert len(documents) == 13
     assert documents == checked
 
 

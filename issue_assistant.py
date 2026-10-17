@@ -32,7 +32,7 @@ import unicodedata
 from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Iterator
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from fnmatch import fnmatchcase
 from functools import cache, partial
@@ -194,6 +194,15 @@ SEARCH_ERRORS = 3
 SEARCH_WORD = 40
 # The excerpt of each other issue in issues.jsonl; issues/<number>.md has its text.
 EXCERPT = 400
+# What `evaluate` replays: by default the 50 closed issues opened last that people
+# labelled or closed as a duplicate, at most 200, found among the 1,000 closed issues
+# opened last, a page of a hundred at a time.
+EVALUATED = 50
+MOST_EVALUATED = 200
+EVALUATION_PAGES = 10
+# The moment that it replays: a minute after the issue was opened, when it had the
+# labels of its form and the analysis would have started.
+OPENING = timedelta(minutes=1)
 
 NEEDS_TRIAGE = "needs-triage"
 NEEDS_INFO = "needs-info"
@@ -704,6 +713,10 @@ class Engine:
     # an engine that takes the rules otherwise.
     action_arguments: tuple[str, ...] = ()
     cli: Cli | None = None
+    # For an engine with an action and a schema that it enforces, its command line
+    # as `evaluate` runs it on your computer, with the arguments that keep it to
+    # reading, as its action has them in the workflow; see answer_with_schema.
+    local: tuple[str, ...] = ()
 
 
 # The engines the workflow template has a step for; .github/issue-assistant/config.toml
@@ -714,6 +727,20 @@ ENGINES = {
         "Anthropic",
         "claude-opus-5-5",
         ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"),
+        # As in the step of the workflow: --restricted removes every tool that runs
+        # code or reaches the network and confines the file tools to the checkout,
+        # and --tools leaves only those that read.
+        local=(
+            "claude",
+            "-p",
+            "--restricted",
+            "--tools",
+            "Read,Grep,Glob",
+            "--permission-prompts",
+            "none",
+            "--output-format",
+            "json",
+        ),
     ),
     # The Codex action runs Codex in a sandbox that reads files but neither writes
     # them nor reaches the network, and enforces the strict schema. Its arguments
@@ -1805,6 +1832,58 @@ class GitHub:
                 cursor = page["pageInfo"]["endCursor"]
         return found
 
+    def closed_issues(self) -> Iterator[dict[str, Any]]:
+        """The closed issues, the newest first, in the form of the REST API with
+        `duplicate_of`: the issue of this repository that each was closed or marked
+        as a duplicate of, with its number and when it was opened, or None.
+
+        The pages come one by one as `evaluate` reads on, up to EVALUATION_PAGES.
+        """
+        cursor = None
+        for _ in range(EVALUATION_PAGES):
+            data = self.graphql(
+                """
+                query($owner: String!, $name: String!, $cursor: String) {
+                  repository(owner: $owner, name: $name) {
+                    issues(first: 100, after: $cursor, states: [CLOSED],
+                           orderBy: {field: CREATED_AT, direction: DESC}) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        number title body createdAt closedAt
+                        stateReason(enableDuplicate: true) authorAssociation
+                        author { __typename login }
+                        labels(first: 20) { nodes { name } }
+                        duplicateOf {
+                          number createdAt repository { nameWithOwner }
+                        }
+                        timelineItems(
+                          itemTypes: [MARKED_AS_DUPLICATE_EVENT,
+                                      UNMARKED_AS_DUPLICATE_EVENT],
+                          last: 1
+                        ) {
+                          nodes {
+                            ... on MarkedAsDuplicateEvent {
+                              canonical {
+                                ... on Issue {
+                                  number createdAt repository { nameWithOwner }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                """,
+                {"owner": self.owner, "name": self.name, "cursor": cursor},
+            )
+            page = data["repository"]["issues"]
+            yield from (closed_as_rest(node, self.owns) for node in page["nodes"])
+            if not page["pageInfo"]["hasNextPage"]:
+                return
+            cursor = page["pageInfo"]["endCursor"]
+
     def search_issues(self, terms: list[str]) -> list[dict[str, Any]]:
         """The issues of the repository that GitHub's search finds best for any of
         the words, at most SEARCHED."""
@@ -2019,7 +2098,8 @@ class GitHub:
         ]
 
     def discussions(self, most: int) -> list[dict[str, Any]]:
-        """The `most` discussions that changed last."""
+        """The `most` discussions that changed last, with the moments when each
+        and its answer were written, for `evaluate`."""
         nodes: list[dict[str, Any]] = []
         cursor = None
         while len(nodes) < most:
@@ -2033,9 +2113,9 @@ class GitHub:
                                     orderBy: {field: UPDATED_AT, direction: DESC}) {
                           pageInfo { hasNextPage endCursor }
                           nodes {
-                            number title closed isAnswered body
+                            number title closed isAnswered body createdAt
                             category { name }
-                            answer { body }
+                            answer { body createdAt }
                           }
                         }
                       }
@@ -2486,6 +2566,41 @@ def as_rest(
         "closed_at": node["closedAt"],
         "comments": node["comments"]["totalCount"],
         "closed_by": closer,
+    }
+
+
+def closed_as_rest(
+    node: dict[str, Any], owns: Callable[[dict[str, Any]], bool]
+) -> dict[str, Any]:
+    """A closed issue of GraphQL for `evaluate`, in the form of the REST API, with
+    `duplicate_of`: the issue of this repository that it was closed as a duplicate
+    of, else the one it was marked as a duplicate of last, unless someone unmarked
+    it, with its number and when it was opened; None for any other issue."""
+    events = node["timelineItems"]["nodes"]
+    marked = (events[-1] if events else {}).get("canonical") or {}
+    original = node["duplicateOf"] or (marked if "number" in marked else None)
+    author = node["author"] or {}
+    return {
+        "number": node["number"],
+        "title": node["title"],
+        "body": node["body"],
+        # A deleted account is GitHub's ghost.
+        "user": {
+            "login": author.get("login") or "ghost",
+            "type": "Bot" if author.get("__typename") == "Bot" else "User",
+        },
+        "author_association": node["authorAssociation"],
+        "state": "closed",
+        "state_reason": (node["stateReason"] or "").lower() or None,
+        "labels": (node["labels"] or {"nodes": []})["nodes"],
+        "created_at": node["createdAt"],
+        "closed_at": node["closedAt"],
+        "duplicate_of": {
+            "number": original["number"],
+            "created_at": original["createdAt"],
+        }
+        if original and owns(original)
+        else None,
     }
 
 
@@ -8145,6 +8260,658 @@ def report_usage(path: str, run: Run, mode: str | None) -> list[str]:
     return [usage_line(result, run)]
 
 
+# Evaluation: how often a first analysis chooses what the maintainers chose
+
+# The groups of labels whose choices `evaluate` scores, as the report names them.
+SCORED_GROUPS = dict(
+    zip(CHOSEN_GROUPS, ("Type", "Areas", "Topics", "Priority"), strict=True)
+)
+# The engines whose command line `evaluate` runs on this computer.
+LOCAL_ENGINES = tuple(
+    key for key, engine in ENGINES.items() if engine.cli or engine.local
+)
+
+
+@dataclass(frozen=True)
+class Sample:
+    """A closed issue that `evaluate` replays, and what people decided about it."""
+
+    # The issue as it is now, closed, and as it was at the moment of the replay.
+    issue: dict[str, Any]
+    moment: datetime
+    then: dict[str, Any]
+    # The labels of each group of SCORED_GROUPS that it has, but those of bots.
+    labels: dict[str, frozenset[str]]
+    # The older issue that it was closed as a duplicate of.
+    original: int | None
+    # Whether a maintainer asked its reporter for more information.
+    asked: bool
+
+    @property
+    def number(self) -> int:
+        number: int = self.issue["number"]
+        return number
+
+
+def labels_at(
+    issue: dict[str, Any], events: list[dict[str, Any]], when: datetime
+) -> set[str]:
+    """The labels that the issue had at the moment: those of now, with every change
+    of a label after it undone, the latest first."""
+    names = label_names(issue)
+    for event in sorted(events, key=created, reverse=True):
+        if created(event) <= when:
+            break
+        name = str((event.get("label") or {}).get("name", ""))
+        if event["event"] == "labeled":
+            names.discard(name)
+        elif event["event"] == "unlabeled":
+            names.add(name)
+    return names
+
+
+def labels_by_people(
+    config: Config, issue: dict[str, Any], events: list[dict[str, Any]]
+) -> dict[str, frozenset[str]]:
+    """The labels of each scored group that the issue has, but those that a bot
+    added last, such as the assistant or a labeler of the repository."""
+    last = {
+        str((event.get("label") or {}).get("name", "")): event
+        for event in sorted(events, key=created)
+        if event["event"] == "labeled"
+    }
+    names = {
+        name
+        for name in label_names(issue)
+        if name not in last or not is_bot(last[name].get("actor"))
+    }
+    return {
+        group: frozenset(names.intersection(config.group(group)))
+        for group in SCORED_GROUPS
+    }
+
+
+def maintainers_asked(
+    issue: dict[str, Any],
+    comments: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    when: datetime,
+) -> bool:
+    """Whether a maintainer asked the reporter for more information after the
+    moment: with a question in their first comment, outside of code, or with the
+    label needs-info."""
+    reporter = login(issue.get("user"))
+    first = next(
+        (
+            comment
+            for comment in comments
+            if created(comment) > when
+            and is_maintainer(comment)
+            and not is_bot(comment.get("user"))
+            and login(comment.get("user")) != reporter
+        ),
+        None,
+    )
+    question = first is not None and "?" in CODE.sub(
+        "", HTML_COMMENT.sub("", text_of(first))
+    )
+    return question or any(
+        event["event"] == "labeled"
+        and (event.get("label") or {}).get("name") == NEEDS_INFO
+        and not is_bot(event.get("actor"))
+        and created(event) > when
+        for event in events
+    )
+
+
+def sample_of(github: GitHub, config: Config, issue: dict[str, Any]) -> Sample | None:
+    """The sample of a closed issue that people labelled with a label of a scored
+    group or closed as a duplicate of an older issue, and that the assistant never
+    analyzed; None for any other issue, such as one that a bot opened."""
+    if is_bot(issue["user"]):
+        return None
+    duplicate = issue["duplicate_of"]
+    original = (
+        duplicate["number"]
+        if duplicate and moment(duplicate["created_at"]) < created(issue)
+        else None
+    )
+    scored = {name for group in SCORED_GROUPS for name in config.group(group)}
+    if original is None and not label_names(issue) & scored:
+        return None
+    number = issue["number"]
+    comments = github.comments(number)
+    if any(kind_of(comment) == "analysis" for comment in comments):
+        return None
+    events = github.events(number)
+    labels = labels_by_people(config, issue, events)
+    if original is None and not any(labels.values()):
+        return None
+    when = created(issue) + OPENING
+    then = issue | {
+        "state": "open",
+        "state_reason": None,
+        "closed_at": None,
+        "duplicate_of": None,
+        "labels": [{"name": name} for name in sorted(labels_at(issue, events, when))],
+    }
+    asked = maintainers_asked(issue, comments, events, when)
+    return Sample(issue, when, then, labels, original, asked)
+
+
+def choose_samples(
+    github: GitHub, config: Config, count: int
+) -> tuple[list[Sample], int]:
+    """The samples of the `count` closed issues opened last that have one, and how
+    many closed issues it read for them."""
+    chosen: list[Sample] = []
+    read = 0
+    for issue in github.closed_issues():
+        read += 1
+        sample = sample_of(github, config, issue)
+        if sample:
+            chosen.append(sample)
+            if len(chosen) == count:
+                break
+    return chosen, read
+
+
+class Then(GitHub):
+    """GitHub as it was at the moment of a sample, for the context of its replay:
+    the issue as it was, and of everything else only what existed then.
+
+    An issue closed since is open, and a discussion answered since has no answer;
+    the texts and the labels of the other issues are those of now. It reads through
+    `github`, writes nothing and shares `memo` with the replays of the other
+    samples, so that the window of the issues, the discussions, the releases and the
+    latest comments are read once. A read that it doesn't change, such as whether
+    someone may push, goes to GitHub as it is.
+    """
+
+    def __init__(self, github: GitHub, sample: Sample, memo: dict[str, Any]) -> None:
+        super().__init__(github.repository, dry_run=True)
+        self.now = github
+        self.sample = sample
+        self.memo = memo
+
+    def rest(
+        self,
+        path: str,
+        *,
+        method: str = "GET",
+        data: object = None,
+        pages: bool = False,
+    ) -> Any:
+        return self.now.rest(path, method=method, data=data, pages=pages)
+
+    def _once(self, key: str, read: Callable[[], Any]) -> Any:
+        if key not in self.memo:
+            self.memo[key] = read()
+        return deepcopy(self.memo[key])
+
+    def _before(
+        self, items: Iterable[dict[str, Any]], key: str = "created_at"
+    ) -> list[dict[str, Any]]:
+        return [item for item in items if moment(item[key]) <= self.sample.moment]
+
+    def _as_then(self, issue: dict[str, Any]) -> dict[str, Any]:
+        closed = issue.get("closed_at")
+        if closed and moment(closed) > self.sample.moment:
+            return issue | {
+                "state": "open",
+                "state_reason": None,
+                "closed_at": None,
+                "closed_by": None,
+            }
+        return issue
+
+    def issue(self, number: int) -> dict[str, Any]:
+        if number == self.sample.number:
+            return deepcopy(self.sample.then)
+        return self._as_then(self.now.issue(number))
+
+    def comments(self, number: int) -> list[dict[str, Any]]:
+        return self._before(self.now.comments(number))
+
+    def events(self, number: int) -> list[dict[str, Any]]:
+        return self._before(self.now.events(number))
+
+    def reactions(self, comment_id: int) -> list[dict[str, Any]]:
+        return self._before(self.now.reactions(comment_id))
+
+    def latest_comments(self, pages: int) -> list[dict[str, Any]]:
+        return self._before(
+            self._once(f"comments {pages}", lambda: self.now.latest_comments(pages))
+        )
+
+    def recent_issues(self, closed: int) -> list[dict[str, Any]]:
+        found = self._once(f"issues {closed}", lambda: self.now.recent_issues(closed))
+        return [self._as_then(item) for item in self._before(found)]
+
+    def search_issues(self, terms: list[str]) -> list[dict[str, Any]]:
+        found = self.now.search_issues(terms)
+        return [self._as_then(item) for item in self._before(found)]
+
+    def discussions(self, most: int) -> list[dict[str, Any]]:
+        found = self._once(f"discussions {most}", lambda: self.now.discussions(most))
+        return [
+            item | {"answer": None, "isAnswered": False}
+            if item.get("answer")
+            and moment(item["answer"]["createdAt"]) > self.sample.moment
+            else item
+            for item in self._before(found, "createdAt")
+        ]
+
+    def latest_release(self) -> str | None:
+        found = self._before(self._once("releases", self.now.releases), "published_at")
+        return str(found[-1]["tag_name"]) if found else None
+
+
+@dataclass(frozen=True)
+class Answered:
+    """The answer of an engine's command line, and what its run cost, if it says."""
+
+    text: str
+    cost: float | None = None
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """What the replay of a sample chose, or why it failed."""
+
+    sample: Sample
+    labels: dict[str, frozenset[str]] = field(default_factory=dict)
+    # The issues that it named as duplicates, each with its confidence.
+    duplicates: tuple[tuple[int, str], ...] = ()
+    asks: bool = False
+    cost: float | None = None
+    error: str = ""
+
+
+def chosen_labels(answer: dict[str, Any], config: Config) -> dict[str, frozenset[str]]:
+    """The labels of each scored group that an answer gives: its kind, unless it is
+    spam, its areas and topics, and its priority, unless it chose none."""
+    return {
+        "type": frozenset({answer["kind"]}.intersection(config.group("type"))),
+        "area": frozenset(answer["areas"]),
+        "topic": frozenset(answer["topics"]),
+        "priority": frozenset({answer.get("priority", NO_PRIORITY)} - {NO_PRIORITY}),
+    }
+
+
+def replay(
+    github: GitHub,
+    config: Config,
+    samples: list[Sample],
+    answer: Callable[[], Answered],
+) -> list[Outcome]:
+    """The first analysis of each sample as at its moment: its context written by
+    Then, the engine's answer from `answer`, and what that answer chose.
+
+    The engine reads the context folder of the checkout, as in the workflow. A
+    sample whose context, engine or answer fails is an outcome with its error, and
+    the others go on.
+    """
+    memo: dict[str, Any] = {}
+    outcomes = []
+    for index, sample in enumerate(samples, start=1):
+        place = f"{index} of {len(samples)}, #{sample.number}"
+        try:
+            write_context(Then(github, sample, memo), sample.number, "triage", config)
+            answered = answer()
+            chosen = parse_answer("triage", answered.text, config)
+        except (AssistantError, GitHubError) as error:
+            reason = one_line(str(error))
+            print(f"{place}: failed, {reason}")
+            outcomes.append(Outcome(sample, error=reason))
+            continue
+        print(f"{place}: answered")
+        named = tuple(
+            (item["number"], item["confidence"]) for item in chosen["duplicates"]
+        )
+        outcomes.append(
+            Outcome(
+                sample,
+                chosen_labels(chosen, config),
+                named,
+                bool(chosen["missing_information"]),
+                answered.cost,
+            )
+        )
+    return outcomes
+
+
+@dataclass(frozen=True)
+class Score:
+    """A measure of the replays: over how many issues it counts, how many choices
+    the assistant made, how many the maintainers made, and how many of them agree."""
+
+    name: str
+    issues: int
+    chosen: int
+    actual: int
+    right: int
+
+
+def scores(outcomes: list[Outcome], config: Config) -> list[Score]:
+    """The precision and recall of each scored group of labels that labels.toml
+    has, of the duplicates, of the sure ones alone, and of the questions for more
+    information.
+
+    A group counts the issues that people gave a label of it, since an issue
+    without an area says nothing about the areas; the duplicates count the issues
+    closed as a duplicate of an older one, and a duplicate named for any other is a
+    wrong one; the questions count every issue.
+    """
+    answered = [outcome for outcome in outcomes if not outcome.error]
+    found = []
+    for group, name in SCORED_GROUPS.items():
+        if not config.group(group):
+            continue
+        judged = [outcome for outcome in answered if outcome.sample.labels[group]]
+        found.append(
+            Score(
+                name,
+                len(judged),
+                sum(len(outcome.labels[group]) for outcome in judged),
+                sum(len(outcome.sample.labels[group]) for outcome in judged),
+                sum(
+                    len(outcome.labels[group] & outcome.sample.labels[group])
+                    for outcome in judged
+                ),
+            )
+        )
+    originals = sum(outcome.sample.original is not None for outcome in answered)
+    for name, sure in (("Duplicates", False), ("Sure duplicates", True)):
+        named = [
+            (outcome, number)
+            for outcome in answered
+            for number, confidence in outcome.duplicates
+            if not sure or confidence == "high"
+        ]
+        right = sum(number == outcome.sample.original for outcome, number in named)
+        found.append(Score(name, originals, len(named), originals, right))
+    found.append(
+        Score(
+            "Asks for information",
+            len(answered),
+            sum(outcome.asks for outcome in answered),
+            sum(outcome.sample.asked for outcome in answered),
+            sum(outcome.asks and outcome.sample.asked for outcome in answered),
+        )
+    )
+    return found
+
+
+def share(part: int, whole: int) -> str:
+    """A share as a percentage with its numbers; a dash when there is no whole."""
+    return f"{100 * part / whole:.0f} % ({part} of {whole})" if whole else "–"
+
+
+def table_cell(text: str) -> str:
+    """Text for a cell of a Markdown table: one line, whose | ends no cell."""
+    return one_line(text).replace("|", "\\|")
+
+
+# What the report says of the question for more information, by whether the
+# assistant asked and whether the maintainers did.
+ASKED = {
+    (True, True): "asked, as the maintainers did",
+    (True, False): "asked, the maintainers didn't",
+    (False, True): "missed the maintainers' question",
+    (False, False): "",
+}
+
+
+def outcome_row(outcome: Outcome, repository: str) -> str:
+    """The line of the report's table for one replay."""
+    sample = outcome.sample
+    link = f"[#{sample.number}](https://github.com/{repository}/issues/{sample.number})"
+    if outcome.error:
+        return f"| {link} | failed: {table_cell(outcome.error)} | | | | |"
+
+    def names(labels: Iterable[str]) -> str:
+        return ", ".join(table_cell(code_span(name)) for name in sorted(labels))
+
+    # The groups that count for the issue, as in scores.
+    groups = [group for group in SCORED_GROUPS if sample.labels[group]]
+    right = [name for g in groups for name in outcome.labels[g] & sample.labels[g]]
+    wrong = [name for g in groups for name in outcome.labels[g] - sample.labels[g]]
+    missed = [name for g in groups for name in sample.labels[g] - outcome.labels[g]]
+    numbers = [number for number, _ in outcome.duplicates]
+    named = ", ".join(f"#{number}" for number in numbers)
+    if sample.original is None:
+        duplicate = f"named {named}, of none" if numbers else ""
+    elif sample.original in numbers:
+        duplicate = f"found #{sample.original}"
+    else:
+        duplicate = f"missed #{sample.original}" + (f", named {named}" if named else "")
+    return (
+        f"| {link} | {names(right)} | {names(wrong)} | {names(missed)} | "
+        f"{duplicate} | {ASKED[(outcome.asks, sample.asked)]} |"
+    )
+
+
+def render_evaluation(
+    config: Config,
+    engine: Engine,
+    run: Run,
+    day: date,
+    outcomes: list[Outcome],
+    read: int,
+) -> str:
+    """The report of `evaluate`: the precision and recall of each measure, what it
+    replayed and how, and a line for each issue."""
+    repository = config.repository
+    failed = sum(bool(outcome.error) for outcome in outcomes)
+    costs = [outcome.cost for outcome in outcomes if outcome.cost is not None]
+    lines = [
+        f"# How accurate the issue assistant is on {repository}",
+        "",
+        f"Measured on {day.isoformat()} with {engine.name}, {code_span(run.model)}, on "
+        f"the {len(outcomes)} newest of {read} closed issues read that people "
+        "labelled or closed as a duplicate of an older issue, and that the assistant "
+        "never analyzed. It analyzed each as it was a minute after it was opened, "
+        "with the issues, discussions and releases of that moment, and compared its "
+        "choices with what the maintainers decided.",
+        "",
+        "| Measure | Precision | Recall | Issues |",
+        "| --- | ---: | ---: | ---: |",
+        *(
+            f"| {score.name} | {share(score.right, score.chosen)} | "
+            f"{share(score.right, score.actual)} | {score.issues} |"
+            for score in scores(outcomes, config)
+        ),
+        "",
+        "*Precision* is the share of the assistant's choices that the maintainers "
+        "made too, and *recall* the share of the maintainers' choices that the "
+        "assistant made. A group of labels counts the issues that people gave a "
+        "label of the group; the duplicates count the issues closed as a duplicate "
+        "of an older one, and the sure ones only the duplicates that the assistant "
+        "was sure of, which get the notice that closes them; the questions count "
+        "every issue, and the maintainers asked when the first comment of one of "
+        "them asked a question or someone added `needs-info`.",
+    ]
+    if failed:
+        lines += [
+            "",
+            f"{failed} of the {len(outcomes)} analyses failed; they count in no "
+            "measure.",
+        ]
+    if costs:
+        lines += ["", f"The analyses cost ${sum(costs):.2f} at the prices of the API."]
+    lines += [
+        "",
+        "## Issue by issue",
+        "",
+        "| Issue | Right | Wrong | Missed | Duplicate | Information |",
+        "| --- | --- | --- | --- | --- | --- |",
+        *(outcome_row(outcome, repository) for outcome in outcomes),
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def answer_with_schema(
+    engine: Engine, command_line: list[str], run: Run, folder: Path, root: Path
+) -> Answered:
+    """The answer of an engine's command line that enforces the schema, as `local`
+    in ENGINES names it, to the task of the context folder, with the arguments that
+    its action gets in the workflow: the rules as the system prompt, the model, the
+    limits of the task and the schema of the answer. The task goes in on standard
+    input, which takes a text of any length on every system."""
+    effort = ["--effort", run.effort] if run.effort else []
+    result = subprocess.run(
+        [
+            *command_line,
+            "--append-system-prompt-file",
+            str(CONTEXT / "rules.md"),
+            "--model",
+            run.model,
+            "--max-turns",
+            str(run.turns),
+            "--max-budget-usd",
+            run.budget,
+            *effort,
+            "--json-schema",
+            (folder / "schema.json").read_text(encoding="utf-8"),
+        ],
+        input=(folder / "prompt.md").read_text(encoding="utf-8"),
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=ENGINE_MINUTES * 60,
+        check=False,
+    )
+    try:
+        printed = json.loads(result.stdout)
+    except ValueError:
+        printed = None
+    # The result, as the execution file of the action holds it last.
+    report = printed if isinstance(printed, dict) else {}
+    answer = report.get("structured_output")
+    if result.returncode or not isinstance(answer, dict):
+        subtype = str(report.get("subtype"))
+        # A run that stopped at a limit of its task.
+        if subtype in OUTCOMES and subtype != "success":
+            raise AssistantError(
+                f"{engine.name} {OUTCOMES[subtype]}, before it answered."
+            )
+        message = one_line(str(report.get("result") or result.stderr))[-300:]
+        raise AssistantError(f"{engine.name} failed: {message or 'no answer'}")
+    return Answered(json.dumps(answer), number_of(report.get("total_cost_usd")))
+
+
+def evaluated_config(config: Config, engine: str | None, model: str | None) -> Config:
+    """The settings of an evaluation: those of config.toml, with the engine and the
+    model that `evaluate` names. Another engine than that of config.toml runs its
+    own default model and effort, unless a model is named."""
+    if engine and engine != engine_named(config.engine):
+        config = replace(config, engine=engine, model="", effort="")
+    return replace(config, model=model) if model else config
+
+
+def local_engine(config: Config, work: Path) -> Callable[[], Answered]:
+    """What answers the task of the context folder in `evaluate`: the command line
+    of the engine of `config` on this computer, as you would run it, logged in as
+    you, with only its tools that read the checkout."""
+    key = engine_named(config.engine)
+    if key not in LOCAL_ENGINES:
+        raise AssistantError(
+            f"evaluate runs the engines {', '.join(LOCAL_ENGINES)}, not {key}."
+        )
+    engine = ENGINES[key]
+    run = task_run(config, "triage")
+    folder = config.root / CONTEXT
+    cli = engine.cli
+    name = cli.command if cli else engine.local[0]
+    command_path = shutil.which(name)
+    if command_path is None:
+        raise AssistantError(
+            f"evaluate runs the command line of {engine.name}, {name}, which isn't "
+            "on the PATH of this computer."
+        )
+    found: str = command_path
+    settings = work / "settings.json"
+
+    def answer() -> Answered:
+        try:
+            if cli is None:
+                return answer_with_schema(
+                    engine, [found, *engine.local[1:]], run, folder, config.root
+                )
+            prompt = "\n\n".join(
+                (folder / file).read_text(encoding="utf-8")
+                for file in ("rules.md", "prompt.md")
+            )
+            variables = os.environ | cli.variables
+            if cli.settings_variable:
+                settings.write_text(
+                    json.dumps(cli_settings(cli, run)), encoding="utf-8"
+                )
+                variables[cli.settings_variable] = str(settings)
+            result = subprocess.run(
+                cli_command(cli, found, run, prompt),
+                cwd=config.root,
+                env=variables,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=ENGINE_MINUTES * 60,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            raise AssistantError(
+                f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."
+            ) from None
+        return Answered(cli_answer(engine, cli, result))
+
+    return answer
+
+
+def evaluate(
+    github: GitHub,
+    config: Config,
+    count: int,
+    report: Path,
+    answer: Callable[[], Answered],
+    day: date,
+) -> list[str]:
+    """Replay the first analysis of the `count` closed issues opened last that
+    people labelled or closed as a duplicate, write the report, and return the
+    lines of the summary: each measure, and where the report is."""
+    if not 1 <= count <= MOST_EVALUATED:
+        raise AssistantError(
+            f"--issues must be a whole number from 1 to {MOST_EVALUATED}, not {count}."
+        )
+    # The replays read again the comments and events that the choice read.
+    github.remember()
+    samples, read = choose_samples(github, config, count)
+    if not samples:
+        raise AssistantError(
+            f"None of the {read} closed issues read has a label that people chose or "
+            "the original of a duplicate, without an analysis of the assistant."
+        )
+    outcomes = replay(github, config, samples, answer)
+    engine = ENGINES[engine_named(config.engine)]
+    run = task_run(config, "triage")
+    report.write_text(
+        render_evaluation(config, engine, run, day, outcomes, read), encoding="utf-8"
+    )
+    failed = sum(bool(outcome.error) for outcome in outcomes)
+    return [
+        f"{score.name}: precision {share(score.right, score.chosen)}, recall "
+        f"{share(score.right, score.actual)}, over {plural(score.issues, 'issue')}"
+        for score in scores(outcomes, config)
+    ] + [
+        f"Replayed {len(outcomes)} of the {read} closed issues read with "
+        f"{engine.name}, {run.model}; {failed} failed.",
+        f"The report is in {report}.",
+    ]
+
+
 def event_comment(number: int) -> int | None:
     """The id of the comment on the issue whose event started this run; None for any
     other event, such as a run by hand, and outside of GitHub Actions.
@@ -8230,6 +8997,33 @@ def main(argv: list[str] | None = None) -> int:
         "are open",
     )
     commands.add_parser("check", help="check the repository's set-up")
+    evaluation = commands.add_parser(
+        "evaluate",
+        help="measure how often a first analysis chooses the labels, duplicates and "
+        "questions of the maintainers, by replaying closed issues with the engine's "
+        "command line on this computer",
+    )
+    evaluation.add_argument(
+        "--issues",
+        type=int,
+        default=EVALUATED,
+        help=f"how many closed issues to replay, 1 to {MOST_EVALUATED}; "
+        f"{EVALUATED} by default",
+    )
+    evaluation.add_argument(
+        "--engine",
+        choices=LOCAL_ENGINES,
+        help="the engine whose command line answers; by default that of config.toml",
+    )
+    evaluation.add_argument(
+        "--model", help="the model; by default that of config.toml for its engine"
+    )
+    evaluation.add_argument(
+        "--report",
+        type=Path,
+        help="the Markdown file of the report, outside the checkout; by default "
+        "NAME-accuracy.md next to it",
+    )
     setup = commands.add_parser(
         "install", help="write the workflows and the starters into a repository"
     )
@@ -8346,7 +9140,8 @@ def main(argv: list[str] | None = None) -> int:
             task_name = arguments.mode or "analysis"
             summary(f"Issue assistant: cost of the {task_name}{of}", lines, False)
             return 0
-        github = GitHub(repository, dry_run=dry_run)
+        # evaluate only reads; its engine writes into the checkout alone.
+        github = GitHub(repository, dry_run=dry_run or arguments.command == "evaluate")
         if arguments.command == "findings":
             # Independent of the settings of the issues.
             lines, left = watch_findings(github, root)
@@ -8356,6 +9151,30 @@ def main(argv: list[str] | None = None) -> int:
             summary("Findings", lines or ["No open findings."], dry_run)
             return 1 if left else 0
         config = load_config(root, repository)
+        if arguments.command == "evaluate":
+            config = evaluated_config(config, arguments.engine, arguments.model)
+            written = (
+                arguments.report or root.parent / f"{github.name}-accuracy.md"
+            ).resolve()
+            if written.is_relative_to(root):
+                raise AssistantError(
+                    f"The report {written} must be outside the checkout, where the "
+                    "engine would read it in the next evaluation."
+                )
+            work = Path(tempfile.mkdtemp(prefix="issue-assistant-"))
+            try:
+                lines = evaluate(
+                    github,
+                    config,
+                    arguments.issues,
+                    written,
+                    local_engine(config, work),
+                    datetime.now(UTC).date(),
+                )
+            finally:
+                shutil.rmtree(work, ignore_errors=True)
+            summary(f"Accuracy on {repository}", lines, False)
+            return 0
         if fixture_name:
             fixture = read_fixture(root, fixture_name)
             if arguments.issue not in {None, fixture.number}:

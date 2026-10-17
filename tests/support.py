@@ -819,6 +819,26 @@ class FakeGitHub(assistant.GitHub):
             assert self.discussion_pages <= 50, "endless paging of the discussions"
             nodes, info = page_of(self.discussion_store or [], variables)
             return {"repository": {"discussions": {"pageInfo": info, "nodes": nodes}}}
+        if "duplicateOf" in query:
+            # The closed issues of evaluate, the newest first, a page of a hundred.
+            assert "orderBy: {field: CREATED_AT, direction: DESC}" in query
+            assert "states: [CLOSED]" in query and "first: 100" in query
+            self.issue_pages["EVALUATED"] += 1
+            assert self.issue_pages["EVALUATED"] <= 50, "endless paging of the issues"
+            issues = sorted(
+                (
+                    issue
+                    for issue in self.store.values()
+                    if "pull_request" not in issue and issue["state"] == "closed"
+                ),
+                key=lambda issue: issue["created_at"],
+                reverse=True,
+            )
+            nodes, info = page_of(
+                [self.as_closed_graphql(issue) for issue in issues],
+                {"first": 100, "cursor": variables["cursor"]},
+            )
+            return {"repository": {"issues": {"pageInfo": info, "nodes": nodes}}}
         if "issues(states:" in query:
             # The issues alone, never a pull request, by their last update.
             assert "orderBy: {field: UPDATED_AT, direction: DESC}" in query
@@ -970,6 +990,47 @@ class FakeGitHub(assistant.GitHub):
             )
             return {"closeIssue": {"issue": {"number": number}}}
         raise AssertionError(f"unexpected query {query}")
+
+    def as_closed_graphql(self, issue):
+        """A closed issue as the GraphQL of evaluate gives it. Its `original` is the
+        number of the issue it was closed as a duplicate of, as `duplicateOf`; its
+        `marked`, that of the last MarkedAsDuplicateEvent, or 0 for an unmarking;
+        either may be (repository, number) for an issue of another repository."""
+
+        def reference(number):
+            here, number = number if isinstance(number, tuple) else (REPOSITORY, number)
+            original = self.store.get(number, {"created_at": issue["created_at"]})
+            return {
+                "number": number,
+                "createdAt": original["created_at"],
+                "repository": {"nameWithOwner": here},
+            }
+
+        marked = issue.get("marked")
+        events = (
+            []
+            if marked is None
+            else [{"canonical": reference(marked)} if marked else {}]
+        )
+        user = issue["user"]
+        return {
+            "number": issue["number"],
+            "title": issue["title"],
+            "body": issue["body"],
+            "createdAt": issue["created_at"],
+            "closedAt": issue["closed_at"],
+            "stateReason": (issue["state_reason"] or "").upper() or None,
+            "authorAssociation": issue["author_association"],
+            "author": {
+                "__typename": user["type"] if user["type"] == "Bot" else "User",
+                "login": user["login"],
+            },
+            "labels": {"nodes": [{"name": label["name"]} for label in issue["labels"]]},
+            "duplicateOf": reference(issue["original"])
+            if "original" in issue
+            else None,
+            "timelineItems": {"nodes": events},
+        }
 
     def search(self, query):
         self.calls.append(("SEARCH", query, None))

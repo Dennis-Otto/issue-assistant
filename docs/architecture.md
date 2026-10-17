@@ -9,7 +9,7 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 | Component | Files | What it does |
 | --- | --- | --- |
 | The action | `action.yml` | Passes every input through the environment to `issue_assistant.py` and runs one command of it |
-| Commands | `main()` in `issue_assistant.py` | `event`, `engine`, `context`, `apply`, `sweep`, `sync-labels`, `findings`, `check` and `install`; [the README](https://github.com/Dennis-Otto/issue-assistant#commands) names what each does |
+| Commands | `main()` in `issue_assistant.py` | `event`, `engine`, `context`, `analyze`, `usage`, `apply`, `sweep`, `sync-labels`, `findings`, `check`, `install` and `evaluate`, which replays closed issues as they were with the class `Then`, a view of GitHub at a moment; [the README](https://github.com/Dennis-Otto/issue-assistant#commands) names what each does |
 | GitHub client | the class `GitHub` | Every read and write through `gh api`; in a dry run it only records what it would write |
 | Settings | `load_config`, `load_labels`, `load_findings` | Read `.github/issue-assistant/config.toml`, `.github/labels.toml` and `.github/findings.toml` of the repository |
 | Events | `handle_event`, `limited`, `within_limits` | Labels and owners from the issue forms, and the next task of the engine: `triage`, `follow-up`, `maintainer-reply`, `release-reply` or `maintainer-question`, never on a muted issue but on a maintainer's command, and within the [limits of the AI runs](https://github.com/Dennis-Otto/issue-assistant#limits-of-the-ai-runs) for the tasks that people who don't maintain the repository start |
