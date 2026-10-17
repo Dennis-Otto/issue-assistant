@@ -1,0 +1,18 @@
+flowchart TB
+  accTitle: How evaluate replays a closed issue
+  accDescr: evaluate reads the closed issues, the newest first, and takes those that people labelled after they were opened or closed as a duplicate of an older issue, and that the assistant never analyzed, until it has as many as --issues asks for. It rewinds each to a minute after it was opened: the labels of that moment, no later comment, and only the issues, discussions and releases that existed then, an issue closed since as open. It writes the context of a first analysis, and the engine's command line on your computer answers, with only its tools that read. The answer's kind, areas, topics and priority are compared with the labels that people gave the issue after the moment, its duplicates with the original, and its questions with whether a maintainer asked. The report has the precision and recall of each, and a line for each issue.
+  closed(["the closed issues,<br>the newest first"]) --> choose{"labelled by people<br>after it was opened,<br>or a duplicate,<br>and never analyzed?"}
+  choose -- "no" --> skip["skipped"]
+  choose -- "yes" --> rewind["`**rewound** to a minute<br>after it was opened:<br>its labels then, no later<br>comment, only the issues,<br>discussions and releases<br>of that moment`"]
+  rewind --> context[(".issue-assistant/:<br>the context of<br>a first analysis")]
+  context --> engine["`**the engine's command<br>line** on your computer,<br>with only its tools<br>that read`"]
+  engine --> compare["`**compared** with what<br>the maintainers decided:<br>labels, the original of<br>a duplicate, a question<br>for more information`"]
+  compare --> report[("the report: precision<br>and recall of each,<br>and a line for each issue")]
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class closed trigger
+  class choose question
+  class rewind,engine,compare,skip job
+  class context,report safe

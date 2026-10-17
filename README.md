@@ -59,7 +59,7 @@ The [documentation website](https://dennis-otto.github.io/issue-assistant/) has 
 
 <sub>💛 If the issue assistant is useful to you, you can [support its development](https://github.com/sponsors/Dennis-Otto).</sub>
 
-[Requirements](#requirements) · [Set up a repository](#set-up-a-repository) · [FAQ](#faq) · [Troubleshooting](#troubleshooting) · [Compared with other tools](#compared-with-other-tools) · [Architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md) · [Security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md) · [Roadmap](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/roadmap.md) · [Changelog](https://github.com/Dennis-Otto/issue-assistant/blob/main/CHANGELOG.md)
+[Requirements](#requirements) · [Set up a repository](#set-up-a-repository) · [FAQ](#faq) · [Troubleshooting](#troubleshooting) · [Compared with other tools](#compared-with-other-tools) · [How accurate is it?](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/accuracy.md) · [Architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md) · [Security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md) · [Roadmap](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/roadmap.md) · [Changelog](https://github.com/Dennis-Otto/issue-assistant/blob/main/CHANGELOG.md)
 
 <!-- --8<-- [start:how-it-works] -->
 
@@ -679,8 +679,9 @@ The action runs `issue_assistant.py` with one command:
 | `sync-labels` | labels | creates and updates the labels, renames those that the repository has in another case, and warns of owners whom GitHub can't assign and of issue types that the repository lacks |
 | `findings` | findings | dismisses the accepted findings of code scanning and fails while others are open; needs no other settings |
 | `check` | your CI | checks labels, issue forms, workflows, firewall, settings, the description of the project and the notice to reporters, and names every key it doesn't know |
+| `evaluate` | your computer | replays the first analysis of closed issues, each as it was a minute after it was opened, with the engine's command line, and reports how often its labels, duplicates and questions match the maintainers' |
 
-`install` runs from a git checkout of a release, as [Set up a repository](https://github.com/Dennis-Otto/issue-assistant#set-up-a-repository) shows, and pins its commit and tag; `--ref` and `--version` name them for another checkout. `install --setup` also creates the environment `issue-assistant` for the default branch and has the GitHub CLI ask for the engine's secret. `install`, `check`, `engine` and `usage` read only the checkout, `analyze` reaches npm and the engine besides, and `install --setup` the environment too; the other commands call GitHub, for the repository that `GH_REPO` names as `owner/name`, or else the workflow's `GITHUB_REPOSITORY`. Every command but `install` and `check` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment, as the last step of the set-up shows.
+`install` runs from a git checkout of a release, as [Set up a repository](https://github.com/Dennis-Otto/issue-assistant#set-up-a-repository) shows, and pins its commit and tag; `--ref` and `--version` name them for another checkout. `install --setup` also creates the environment `issue-assistant` for the default branch and has the GitHub CLI ask for the engine's secret. `install`, `check`, `engine` and `usage` read only the checkout, `analyze` reaches npm and the engine besides, and `install --setup` the environment too; the other commands call GitHub, for the repository that `GH_REPO` names as `owner/name`, or else the workflow's `GITHUB_REPOSITORY`; `evaluate` runs the engine's command line on your computer besides, and writes nothing on GitHub. Every command but `install`, `check` and `evaluate` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment, as the last step of the set-up shows.
 
 <!-- --8<-- [end:commands] -->
 <!-- --8<-- [start:try-a-prompt] -->
@@ -705,6 +706,29 @@ python3 issue_assistant.py context --mode triage
 ```
 
 <!-- --8<-- [end:try-a-prompt] -->
+<!-- --8<-- [start:accuracy] -->
+
+## Measure the accuracy
+
+How often would the assistant have been right in your repository? `evaluate` replays the first analysis of closed issues that your maintainers decided, with the engine's command line on your computer, and compares what the AI chooses with what they chose. In the repository's checkout, with the assistant installed:
+
+```sh
+export GH_REPO=OWNER/REPO
+python3 path/to/issue_assistant.py evaluate --issues 50
+```
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/how-evaluate-replays-a-closed-issue.dark.svg">
+  <img src="docs/images/diagrams/how-evaluate-replays-a-closed-issue.svg" alt="How evaluate replays a closed issue: evaluate reads the closed issues, the newest first, and takes those that people labelled after they were opened or closed as a duplicate of an older issue, and that the assistant never analyzed, until it has as many as --issues asks for. It rewinds each to a minute after it was opened: the labels of that moment, no later comment, and only the issues, discussions and releases that existed then, an issue closed since as open. It writes the context of a first analysis, and the engine's command line on your computer answers, with only its tools that read. The answer's kind, areas, topics and priority are compared with the labels that people gave the issue after the moment, its duplicates with the original, and its questions with whether a maintainer asked. The report has the precision and recall of each, and a line for each issue.">
+</picture>
+
+- **Which issues.** The closed issues, the newest first, that people labelled with a type, an area, a topic or a priority of `labels.toml` after they were opened, or closed as a duplicate of an older issue, and that the assistant never analyzed, since its own labels would grade themselves: 50 unless `--issues` asks for another number up to 200, from the 1,000 closed issues opened last.
+- **As they were.** Each issue as it was a minute after it was opened: with the labels of that moment, such as those of its form, without a later comment, and with only the issues, discussions and releases of that moment; an issue closed since is open there, and a discussion answered since has no answer. The texts and labels of the other issues, and the code and documentation of the checkout, are those of today, and so is the window of the other issues: an original closed long ago may be missing from it, though the search still finds it among the issues of that moment.
+- **The engine.** The engine of `config.toml` with its model, turns and budget, or the one that `--engine` names, `claude`, `gemini` or `copilot`, with the model of `--model`. Its command line runs as you would run it, logged in as you, with only its tools that read the checkout, and each issue costs what a first analysis costs. Nothing is written on GitHub.
+- **The measures.** *Precision* is the share of the AI's choices that the maintainers made too, *recall* the share of the maintainers' choices that the AI made: for each group of labels, over the issues that people gave a label of the group after they were opened, apart from bots, while a label that the issue had at that moment, such as that of its form, counts for neither, since the AI sees it; for the duplicates, over the issues closed as a duplicate of an older one, and for the sure ones alone, the first one whose original was open and opened or triaged by a maintainer, which gets the notice that closes the issue; and for the questions for more information that the reporter would get, never for a type that `labels.toml` asks nothing for, where the maintainers asked when the first comment of one of them asked a question or someone added `needs-info`.
+- **The report.** A Markdown file with the numbers, the engine, the model and the day, and a line for each issue with its right, wrong and missed labels, its duplicate and its question: `NAME-accuracy.md` next to the checkout, or the file of `--report`, which must be outside the checkout, where the engine would read it the next time.
+
+<!-- --8<-- [end:accuracy] -->
 <!-- --8<-- [start:faq] -->
 
 ## FAQ
