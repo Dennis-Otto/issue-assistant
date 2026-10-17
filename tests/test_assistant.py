@@ -4115,7 +4115,7 @@ def test_a_first_analysis_also_searches_the_related_repositories(config, capsys)
         "excerpt": "Same here.",
     }
     text = (folder / "related" / "owner" / "server" / "31.md").read_text("utf-8")
-    assert text == "# Issue #31: Empty card\n\n```\nSame here.\n```\n"
+    assert text == "# Issue owner/server#31: Empty card\n\n```\nSame here.\n```\n"
     # The issues of this repository stay apart.
     assert 31 not in [item["number"] for item in read_lines(folder / "issues.jsonl")]
     out = capsys.readouterr().out
@@ -4289,12 +4289,19 @@ def test_a_possible_vulnerability_says_nothing_of_where_it_belongs(config):
         # A link of its own, so that no emphasis around it splits the reference.
         ("_a owner/server#31_", f"_a {LINK_31}_"),
         ("[x](https://evil.example) owner/server#31", f"x {LINK_31}"),
+        # The case of docs/security.md: a name that ends in `_` would end the
+        # emphasis and leave #5, a reference to this repository.
+        (
+            "_see owner/app_#5_",
+            "_see [owner/app_#5](https://github.com/owner/app_/issues/5)_",
+        ),
     ],
 )
 def test_only_checked_issues_of_related_repositories_stay_links(config, text, cleaned):
-    output = assistant.sanitize(text, config, {7, "owner/server#31"})
+    checked = {7, "owner/server#31", "owner/app_#5"}
+    output = assistant.sanitize(text, config, checked)
     assert output == cleaned
-    assert problems(output, {7, "owner/server#31"}, config) == []
+    assert problems(output, checked, config) == []
 
 
 def test_references_are_listed_once(config):

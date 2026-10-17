@@ -95,7 +95,8 @@ class Piece:
 
     source: str
     shown: str = ""
-    # text, code, link, html, image, or other, such as the marks of emphasis.
+    # text, label (the text of a link), code, link, html, image, or other, such as
+    # the marks of emphasis.
     kind: str = "other"
 
 
@@ -195,14 +196,17 @@ def inline(text: str, env: dict[str, Any]) -> list[Token]:
 
 
 def pieces(children: list[Token]) -> Iterator[Piece]:
-    """The parts of a paragraph, each with what was written for it."""
+    """The parts of a paragraph, each with what was written for it. GitHub links,
+    references and mentions nothing in the text of a link, so that text is a label,
+    not text."""
     href = ""
+    inside = 0
     for token in children:
         if token.type == "text":
-            yield Piece(token.content, token.content, "text")
+            yield Piece(token.content, token.content, "label" if inside else "text")
         elif token.type == "text_special":
             # An escape or an entity: GitHub shows one character for it.
-            yield Piece(token.markup, token.content, "text")
+            yield Piece(token.markup, token.content, "label" if inside else "text")
         elif token.type in {"softbreak", "hardbreak"}:
             # GitHub would link the backslash of a hard break as part of an address
             # before it; a backslash that the cleaning leaves is always escaped.
@@ -215,8 +219,10 @@ def pieces(children: list[Token]) -> Iterator[Piece]:
             yield Piece(f"![{token.content}]({token.attrGet('src')})", kind="image")
         elif token.type == "link_open":
             href = str(token.attrGet("href"))
+            inside += 1
             yield Piece("<" if token.markup == "autolink" else "[", href, "link")
         elif token.type == "link_close":
+            inside -= 1
             yield Piece(">" if token.markup == "autolink" else f"]({href})")
         else:
             # The marks of emphasis.

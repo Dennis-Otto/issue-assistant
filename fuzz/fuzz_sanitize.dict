@@ -84,3 +84,10 @@
 "\xe2\x80\x8b"
 "\x1d"
 "\x0d"
+
+# References to the issues of the related repository owner/server, and names that
+# only look like it.
+"owner/server#"
+"Owner/Server#0"
+"owner/server_#"
+"owner/app_#"

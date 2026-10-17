@@ -3483,11 +3483,16 @@ def related_issues(
     return [found[number] for number in sorted(found, reverse=True)]
 
 
-def render_other_issue(item: dict[str, Any], visible: Visible) -> str:
+def render_other_issue(
+    item: dict[str, Any], visible: Visible, repository: str = ""
+) -> str:
     """issues/<number>.md: the whole text of another issue, for the engine to read
-    when its excerpt in issues.jsonl looks promising."""
+    when its excerpt in issues.jsonl looks promising. For an issue of a related
+    repository the heading names that repository, so its number is never taken for
+    one of this repository."""
     return (
-        f"# Issue #{item['number']}: {one_line(visible(item['title']))}\n\n"
+        f"# Issue {repository}#{item['number']}: "
+        f"{one_line(visible(item['title']))}\n\n"
         f"{rendered_text(text_of(item), visible)}\n"
     )
 
@@ -3773,7 +3778,7 @@ def write_siblings(
         texts = folder / "related" / repository
         texts.mkdir(parents=True, exist_ok=True)
         (texts / f"{item['number']}.md").write_text(
-            render_other_issue(item, visible), encoding="utf-8"
+            render_other_issue(item, visible, repository), encoding="utf-8"
         )
     quiet = Visible()
     write_lines(

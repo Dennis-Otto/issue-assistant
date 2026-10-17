@@ -135,8 +135,9 @@ def test_sanitized_text_mentions_nobody_and_links_only_allowed_sites(text, numbe
     assert problems(output, numbers, CONFIG) == [], output
 
 
-# Text with references to the issues of a related repository, of which #3 and #4
-# exist, and the characters that could join them to something else.
+# Text with references to the issues of related repositories, of which owner/server#3,
+# #4 and owner/app_#5 exist, and the characters that could join them to something
+# else; a name that ends in `_` can end emphasis.
 ELSEWHERE = st.lists(
     st.one_of(
         PIECES,
@@ -148,6 +149,8 @@ ELSEWHERE = st.lists(
                 "owner/server_#3",
                 "x_owner/server#3",
                 "owner/servers#3",
+                "owner/app_#5",
+                "owner/app_#6",
                 "owner/",
                 "server#3",
                 "!",
@@ -158,7 +161,9 @@ ELSEWHERE = st.lists(
     ),
     max_size=30,
 ).map("".join)
-CHECKED_ELSEWHERE = st.sets(st.sampled_from(["owner/server#3", "owner/server#4"]))
+CHECKED_ELSEWHERE = st.sets(
+    st.sampled_from(["owner/server#3", "owner/server#4", "owner/app_#5"])
+)
 
 
 @hypothesis.settings(
