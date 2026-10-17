@@ -458,6 +458,11 @@ class FakeGitHub(assistant.GitHub):
         self.suggestions: list[dict] = []
         self.rationales: dict[tuple[int, str], str] = {}
         self.graphql_error: str | None = None
+        # Who can be assigned to issues: people with access to the repository.
+        self.assignable_store: set[str] = {"owner"}
+        # The issue types of the repository, each with its name, ID and whether it
+        # is turned on; None for a repository of a person, which has none.
+        self.issue_type_store: list[dict] | None = None
         # Patterns of the calls that fail, such as "^GET issues/7$", with their error.
         self.failures: list[tuple[str, assistant.GitHubError]] = []
         # Who changed the text of an issue last, and when, by its number, as
@@ -593,6 +598,11 @@ class FakeGitHub(assistant.GitHub):
                 return paged(self.event_store.get(int(match[1]), []), query, pages)
             if match := re.fullmatch(r"issues/comments/(\d+)/reactions", route):
                 return paged(self.reaction_store.get(int(match[1]), []), query, pages)
+            if match := re.fullmatch(r"assignees/([^/]+)", route):
+                # No Content for a person who can be assigned, Not Found otherwise.
+                if unquote(match[1]) not in self.assignable_store:
+                    raise not_found()
+                return None
             if match := re.fullmatch(r"collaborators/([^/]+)/permission", route):
                 user = unquote(match[1])
                 # Anyone else can read a public repository.
@@ -668,6 +678,26 @@ class FakeGitHub(assistant.GitHub):
                 comment["created_at"] = self.time()
                 self.comment_store.setdefault(int(match[1]), []).append(comment)
                 return comment
+            if match := re.fullmatch(r"issues/(\d+)/assignees", route):
+                has_keys(data, {"assignees"})
+                assert 0 < len(data["assignees"]) <= 10, data
+                issue = self._issue(int(match[1]))
+                assignees = issue.setdefault("assignees", [])
+                # GitHub leaves out, without an error, whom it can't assign.
+                for user in data["assignees"]:
+                    if user in self.assignable_store and {"login": user} not in (
+                        assignees
+                    ):
+                        assignees.append({"login": user})
+                        self.event_store.setdefault(int(match[1]), []).append(
+                            {
+                                "event": "assigned",
+                                "assignee": {"login": user},
+                                "actor": BOT_USER,
+                                "created_at": self.time(),
+                            }
+                        )
+                return issue
             if match := re.fullmatch(r"issues/(\d+)/labels", route):
                 has_keys(data, {"labels"})
                 assert all(isinstance(name, str) for name in data["labels"]), data
@@ -894,7 +924,26 @@ class FakeGitHub(assistant.GitHub):
                 variables["number"], {"lastEditedAt": None, "editor": None}
             )
             return {"repository": {"issue": deepcopy(edit)}}
+        if "issueTypes(" in query:
+            types = self.issue_type_store
+            nodes = None if types is None else {"nodes": deepcopy(types)}
+            return {"repository": {"issueTypes": nodes}}
+        if "issueType(name:" in query:
+            found = [
+                {"id": item["id"], "isEnabled": item["isEnabled"]}
+                for item in self.issue_type_store or []
+                if item["name"] == variables["type"]
+            ]
+            return {"repository": {"issueType": found[0] if found else None}}
         number = int(variables["issue"].removeprefix("I_"))
+        if "updateIssueIssueType" in query:
+            (found,) = [
+                item
+                for item in self.issue_type_store or []
+                if item["id"] == variables["type"] and item["isEnabled"]
+            ]
+            self._issue(number)["type"] = {"id": found["id"], "name": found["name"]}
+            return {"updateIssueIssueType": {"clientMutationId": None}}
         if "addLabelsToLabelable" in query:
             names = [item["labelId"].removeprefix("L_") for item in variables["labels"]]
             self._add(number, names)

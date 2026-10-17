@@ -6,6 +6,8 @@
 #   type       the kind of an issue; the issue forms set one, the assistant may correct it
 #   area       the part of the project; set from the Area field of a form and by the assistant
 #   topic      cross-cutting topics the assistant may add
+#   priority   optional: how urgent an issue is; the assistant gives one to an issue
+#              that has none, and never changes one
 #   lifecycle  set and removed by the assistant's rules; all seven are required
 #   decision   set by the maintainer only
 #   release    set on pull requests, for the release notes
@@ -13,12 +15,17 @@
 #
 # form_options lists the answers of the Area field that choose a label.
 # ask = false keeps the assistant from asking reporters of that kind for information.
+# owners, of an area, lists the GitHub logins that a new issue of the area is
+# assigned to, when nobody is; GitHub notifies them, the assistant mentions nobody.
+# issue_type, of a kind, names the issue type that its issues get, in a repository
+# of an organization; the Labels workflow warns of a type that GitHub doesn't know.
 
 [[label]]
 name = "bug"
 color = "d73a4a"
 description = "Something isn't working"
 group = "type"
+# issue_type = "Bug"
 
 [[label]]
 name = "enhancement"
@@ -26,6 +33,7 @@ color = "a2eeef"
 description = "New feature or improvement"
 group = "type"
 ask = false
+# issue_type = "Feature"
 
 [[label]]
 name = "question"
@@ -47,6 +55,7 @@ color = "c5def5"
 description = "Installing, configuring or updating"
 group = "area"
 form_options = ["Installation, configuration or update"]
+# owners = ["your-login"]
 
 [[label]]
 name = "area: docs"
@@ -54,6 +63,26 @@ color = "c5def5"
 description = "The documentation"
 group = "area"
 form_options = ["Documentation"]
+
+# Priorities are optional; the assistant chooses one by their descriptions, judged
+# by what an issue shows. Take these in, or write your own.
+# [[label]]
+# name = "priority: high"
+# color = "b60205"
+# description = "Breaks the project for many users or loses data, without a workaround"
+# group = "priority"
+#
+# [[label]]
+# name = "priority: medium"
+# color = "fbca04"
+# description = "Hinders some users, or has a workaround"
+# group = "priority"
+#
+# [[label]]
+# name = "priority: low"
+# color = "c2e0c6"
+# description = "A detail, or affects few users"
+# group = "priority"
 
 # The lifecycle. The descriptions of needs-info, stale and possible-duplicate name
 # the days of [lifecycle] in config.toml, or no days; stale names the days from the

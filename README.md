@@ -137,6 +137,21 @@ An issue that waits for its reporter keeps what the comments of the assistant pr
 - **A comment of the reporter reopens the issue** that the sweep closed for a missing answer, as the closing comment promises, whatever its labels say: also when an answer came in while the sweep closed it and took them.
 - **A follow-up waits for no maintainer.** The AI writes for a minute or two; the job that posts its follow-up checks again, and posts nothing once a maintainer joined the conversation.
 
+### Priorities, owners and issue types
+
+Three choices of `labels.toml` give an analysis more to set, each only where the repository makes it:
+
+- **A priority** comes from the labels of the group `priority`, such as `priority: high`. The AI chooses the one whose description fits what the issue shows, or none when it shows too little, and its reason shows on the timeline, as that of the other labels. The assistant gives a priority only to an issue without one, also in a follow-up that brought what was missing, and never changes one or adds back one that someone removed. Without such labels, the AI isn't asked for one.
+- **The owners of an area** are assigned to its issues: `owners = ["login"]` of an area label assigns those people to a new issue whose form chose the area, and, after the first analysis, to an issue of the areas that the analysis added, as long as nobody is assigned to it. GitHub notifies them; no comment mentions them. With `exempt_assignees = true`, the sweep leaves those issues to them, as every assigned one.
+- **The issue types of an organization** follow the kind: `issue_type = "Bug"` of a kind gives its issues that type when they have none, and while an issue needs triage, its type follows a corrected kind, as its label does. A type that no kind has, such as `Epic`, stays, and a repository of a person, which has no issue types, keeps the labels alone.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-an-analysis-sets-besides-the-kind-the-areas-and-the-topics.dark.svg">
+  <img src="docs/images/diagrams/what-an-analysis-sets-besides-the-kind-the-areas-and-the-topics.svg" alt="What an analysis sets besides the kind, the areas and the topics: Each of the three is a choice of the repository in labels.toml. With labels of the group priority, the AI chooses one, or none when the issue shows too little; an issue without a priority gets it with its reason, and a priority that the issue has stays. A kind with an issue_type gives an issue without a type that type, and corrects the type of another kind while the issue needs triage; a type that no kind has, such as Epic, stays. Owners of an area are assigned to an issue of the area that nobody is assigned to, when it opens with the area from its form and after its first analysis, and GitHub notifies them; the assistant mentions nobody.">
+</picture>
+
+The AI names neither people nor types: they come from `labels.toml`, by the areas and the kind that the schema of its answer allows, and its priority is one of the labels of the group. `check` makes sure that only areas have owners, each a login of GitHub, and only kinds an issue type, as [the reference](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#labelstoml) lists; the Labels workflow warns of an owner whom GitHub can't assign and of a type that the repository doesn't have.
+
 ### Waiting periods, exemptions and old threads
 
 The days above are the defaults of `[lifecycle]` in `config.toml`, and a repository with slow reporters or a busy queue sets its own: the reminder after `remind_after_days`, the closing after `close_after_days`, a duplicate after `duplicate_grace_days`, and the window of `reopen_after_release_days` in which the reporter's comment after a release reopens the issue. The comments name the days that the repository set, in each of their languages, and `check` fails when the description of `needs-info`, `stale` or `possible-duplicate` in `labels.toml` names other days.
@@ -309,8 +324,8 @@ The summary of the morning sweep, on the page of its run in the Actions tab, say
   | --- | --- |
   | Analyses posted | the analyses, and the issues they were on |
   | Median time from a new issue to its analysis | for the issues opened in the 30 days |
-  | Labels of the AI kept for 14 days | the kinds, areas and topics that an analysis or follow-up added and no maintainer removed within 14 days, without the labels that the area field of the form chose; one of the last 14 days counts as kept until someone removes it |
-  | Labels that maintainers added within 7 days | kinds, areas and topics that a maintainer added in the week after the first analysis, which the AI missed |
+  | Labels of the AI kept for 14 days | the kinds, areas, topics and priorities that an analysis or follow-up added and no maintainer removed within 14 days, without the labels that the area field of the form chose; one of the last 14 days counts as kept until someone removes it |
+  | Labels that maintainers added within 7 days | kinds, areas, topics and priorities that a maintainer added in the week after the first analysis, which the AI missed |
   | Duplicate notices | closed as a duplicate, by the sweep or a maintainer; objected to in a comment; kept open otherwise; and still waiting for the closing |
   | Questions to reporters | the issues whose analysis or follow-up asked: answered by the reporter in a comment, closed without an answer, settled otherwise, as by a maintainer, and still waiting |
   | Feedback on the analyses | the 👍 and 👎 on them |
@@ -433,7 +448,7 @@ On Windows, run the commands in Git Bash; Python's launcher `py` takes the place
 | `.github/workflows/issue-assistant.yml`, `issue-lifecycle.yml`, `labels.yml`, `findings.yml` | always, with the pin of the release | nothing: the check makes sure that they equal the templates |
 | `.github/egress-firewall.yaml` | when missing | add the hosts that the engine needs besides those of the template, if any |
 | `.github/issue-assistant/project.md` | when missing | describe the project, as step 2 says |
-| `.github/labels.toml` | when missing | define the labels: the seven lifecycle labels are required; kinds, areas and topics are what the AI chooses from |
+| `.github/labels.toml` | when missing | define the labels: the seven lifecycle labels are required; kinds, areas, topics and, if you add them, priorities are what the AI chooses from |
 | `.github/issue-assistant/config.toml` | when missing | choose the engine, the hosts that links may lead to, the field of the issue forms that chooses an area, and the files that tell reporters which AI reads their issue |
 | `.github/findings.toml` | when missing | accept findings of code scanning that can't or shouldn't be fixed, each with its reason |
 | `.github/ISSUE_TEMPLATE/bug_report.yml` | together with the starter `labels.toml`, when the repository has no issue forms or templates | adapt the answers of the field *Area*, whose `form_options` in `labels.toml` choose an area label |
@@ -487,8 +502,9 @@ Updates arrive as pull requests of Dependabot or Renovate that move the commit h
 name = "area: cards"
 color = "bfdadc"
 description = "Dashboard cards"          # at most 100 characters
-group = "area"                            # type, area, topic, lifecycle, decision, release or dependabot
+group = "area"                            # type, area, topic, priority, lifecycle, decision, release or dependabot
 form_options = ["Live card", "Training card"]   # answers of the Area field that choose it
+owners = ["octocat"]                      # optional: assigned to its issues while nobody is
 
 [[label]]
 name = "enhancement"
@@ -496,6 +512,13 @@ color = "a2eeef"
 description = "New feature or improvement"
 group = "type"
 ask = false                               # never ask reporters of this kind for information
+issue_type = "Feature"                    # optional: the issue type of the organization for this kind
+
+[[label]]
+name = "priority: high"
+color = "b60205"
+description = "Breaks the project for many users or loses data, without a workaround"
+group = "priority"                        # optional: the AI gives one to an issue without a priority
 ```
 
 ### `.github/issue-assistant/config.toml`
