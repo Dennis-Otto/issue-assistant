@@ -63,6 +63,9 @@ duplicate = "Possível duplicata"
   @{author}, um mantenedor marcou esta issue como duplicata de #{number}."""
 related = "Relacionadas"
 discussion = "discussão"
+"belongs_in" = """\
+  Isto talvez pertença a {repository} e não a este repositório; nesse caso, um \
+  mantenedor pode transferir a issue para lá."""
 references = "Onde olhar"
 links = "Onde olhar: {count} links"
 "sensitive.secret" = """\

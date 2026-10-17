@@ -66,6 +66,9 @@ duplicate = "Doublon possible"
   @{author}, un mainteneur a marqué ce ticket comme doublon de #{number}."""
 related = "Sujets liés"
 discussion = "discussion"
+"belongs_in" = """\
+  Ceci relève peut-être plutôt de {repository}\u00A0; dans ce cas, un mainteneur peut \
+  y transférer le ticket."""
 references = "Où regarder"
 links = "Où regarder\u00A0: {count} liens"
 "sensitive.secret" = """\

@@ -435,6 +435,18 @@ def test_github_then_reads_reactions_comments_and_searches_of_then(config, githu
     assert then.may_push("owner")
 
 
+def test_github_then_searches_related_repositories_as_they_were(config, github):
+    then = assistant.Then(github, sample(), {})
+    server = "owner/server"
+    github.sibling_store[server] = FakeGitHub(config, repository=server)
+    words = ["live", "card"]
+    query = f"repo:{server} is:issue ({' OR '.join(words)})"
+    github.sibling_store[server].search_store[query] = [closed(5, 50), closed(6, 10)]
+    other = then.sibling(server)
+    assert [item["number"] for item in other.search_issues(words)] == [5]
+    assert then.sibling("owner/private") is None
+
+
 # The replays
 
 

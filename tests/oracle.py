@@ -95,15 +95,19 @@ class Piece:
 
     source: str
     shown: str = ""
-    # text, code, link, html, image, or other, such as the marks of emphasis.
+    # text, label (the text of a link), code, link, html, image, or other, such as
+    # the marks of emphasis.
     kind: str = "other"
 
 
-def problems(markdown: str, numbers: Collection[int], config: Config) -> list[str]:
+def problems(
+    markdown: str, numbers: Collection[int | str], config: Config
+) -> list[str]:
     """What in the Markdown would mention, reference, link elsewhere or show HTML.
 
-    `numbers` are the issues that it may reference, and `config` names the
-    repository and the sites that it may link to.
+    `numbers` are the issues that it may reference: those of the repository by their
+    number, and those of other repositories, as owner/name#123, that it may link to.
+    `config` names the repository and the sites that it may link to.
     """
     found: list[str] = []
     for readings in inline_parts(markdown, found):
@@ -192,14 +196,17 @@ def inline(text: str, env: dict[str, Any]) -> list[Token]:
 
 
 def pieces(children: list[Token]) -> Iterator[Piece]:
-    """The parts of a paragraph, each with what was written for it."""
+    """The parts of a paragraph, each with what was written for it. GitHub links,
+    references and mentions nothing in the text of a link, so that text is a label,
+    not text."""
     href = ""
+    inside = 0
     for token in children:
         if token.type == "text":
-            yield Piece(token.content, token.content, "text")
+            yield Piece(token.content, token.content, "label" if inside else "text")
         elif token.type == "text_special":
             # An escape or an entity: GitHub shows one character for it.
-            yield Piece(token.markup, token.content, "text")
+            yield Piece(token.markup, token.content, "label" if inside else "text")
         elif token.type in {"softbreak", "hardbreak"}:
             # GitHub would link the backslash of a hard break as part of an address
             # before it; a backslash that the cleaning leaves is always escaped.
@@ -212,23 +219,33 @@ def pieces(children: list[Token]) -> Iterator[Piece]:
             yield Piece(f"![{token.content}]({token.attrGet('src')})", kind="image")
         elif token.type == "link_open":
             href = str(token.attrGet("href"))
+            inside += 1
             yield Piece("<" if token.markup == "autolink" else "[", href, "link")
         elif token.type == "link_close":
+            inside -= 1
             yield Piece(">" if token.markup == "autolink" else f"]({href})")
         else:
             # The marks of emphasis.
             yield Piece(token.markup)
 
 
-def judged(children: list[Token], numbers: set[int], config: Config) -> list[str]:
+def judged(children: list[Token], numbers: set[int | str], config: Config) -> list[str]:
     """What a paragraph would mention, reference, link elsewhere or show."""
     found = []
+    # The issues of other repositories that the comment may reference and link.
+    checked = {str(item).casefold() for item in numbers if isinstance(item, str)}
+    elsewhere = {
+        f"https://github.com/{repository}/issues/{number}"
+        for repository, _, number in (item.rpartition("#") for item in checked)
+    }
     parts = list(pieces(children))
     starts, source = [], ""
     for part in parts:
         starts.append(len(source))
         source += part.source
-        if part.kind == "link" and not allowed(part.shown, config):
+        if part.kind == "link" and not (
+            allowed(part.shown, config) or part.shown.casefold() in elsewhere
+        ):
             found.append(f"link to {part.shown}")
         elif part.kind == "html":
             found.append(f"HTML {part.source!r}")
@@ -256,7 +273,11 @@ def judged(children: list[Token], numbers: set[int], config: Config) -> list[str
     for node in text_nodes(parts, starts, taken):
         found += [f"e-mail link to {m[0]}" for m in EMAIL.finditer(node)]
         found += [f"reference {m[0]}" for m in COMMIT.finditer(node)]
-        found += [f"reference {m[0]}" for m in CROSS_REFERENCE.finditer(node)]
+        found += [
+            f"reference {m[0]}"
+            for m in CROSS_REFERENCE.finditer(node)
+            if m[0].casefold() not in checked
+        ]
         found += [
             f"reference {m[0]}"
             for m in REFERENCE.finditer(node)

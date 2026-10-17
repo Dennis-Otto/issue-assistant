@@ -333,6 +333,8 @@ def action_tables_of(markdown: str) -> str:
 # with its own texts, for the demo project of the pictures in docs/images.
 LANGUAGES = {"en": "English", "de": "Deutsch"}
 DEMO = "demo-org/plant-monitor"
+# The related repository of the demo project, in [related] of its config.toml.
+FIRMWARE = "demo-org/plant-hub-firmware"
 REPORTER = "alex-demo"
 MAINTAINER = "sam-demo"
 # The days after the closing that the example of a locked issue names; the default
@@ -380,6 +382,14 @@ WORDS: dict[str, dict[str, Any]] = {
             "The dashboard has no export yet. `ChartFeed.history()` returns the points "
             "that the chart shows, which an export could write.",
             "Asks for the same export of the history as a CSV file.",
+        ],
+        "elsewhere": [
+            "Every night at 3 a.m., the sensors drop off the network for a few minutes, "
+            "and the chart shows a gap.",
+            "The dashboard only shows what the hub reports, and the gaps start when the "
+            "hub's firmware scans its radio channels each night. The firmware has its "
+            "own repository, where a report describes the same nightly drop.",
+            "The same nightly drop, traced to the channel scan of the firmware.",
         ],
         "secret": [
             "How to connect the hub to a second Wi-Fi network as a fallback.",
@@ -433,6 +443,15 @@ WORDS: dict[str, dict[str, Any]] = {
             "Punkte des Diagramms, die ein Export schreiben könnte.",
             "Wünscht denselben Export des Verlaufs als CSV-Datei.",
         ],
+        "elsewhere": [
+            "Jede Nacht um 3 Uhr verlieren die Sensoren für ein paar Minuten das Netz, "
+            "und das Diagramm zeigt eine Lücke.",
+            "Das Dashboard zeigt nur, was der Hub meldet, und die Lücken beginnen, wenn "
+            "die Firmware des Hubs jede Nacht ihre Funkkanäle durchsucht. Die Firmware "
+            "hat ein eigenes Repository, in dem ein Bericht denselben nächtlichen "
+            "Abbruch beschreibt.",
+            "Derselbe nächtliche Abbruch, zurückgeführt auf die Kanalsuche der Firmware.",
+        ],
         "secret": [
             "Wie sich der Hub mit einem zweiten WLAN als Ausweichnetz verbindet.",
             "Der Hub speichert ein Netz in `wifi.ssid`. Ein zweites gehört in "
@@ -472,6 +491,14 @@ KINDS = {
         "When the AI is sure that an open, older issue reports the same, the analysis "
         "says so first. The issue gets the label `possible-duplicate` and closes "
         "{duplicate_grace} days later, unless someone writes a comment or reacts with 👎.",
+    ),
+    "elsewhere": (
+        "An issue for a related repository",
+        "Where `[related]` of `config.toml` names public repositories that share "
+        "users and topics with this one, the AI also searches their issues and links "
+        "those that help. When the issue was filed in the wrong repository, a "
+        "sentence says where it may belong, for the maintainers, who transfer it by "
+        "hand: nothing moves or closes on its own.",
     ),
     "named-duplicate": (
         "A duplicate that a maintainer named",
@@ -699,6 +726,20 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
             ),
             [],
             ["area: dashboard"],
+            config,
+        ),
+        "elsewhere": ia.render_analysis(
+            answer("bug", *words["elsewhere"][:2]),
+            REPORTER,
+            ia.Findings(
+                related=[
+                    f"{ia.elsewhere_link(f'{FIRMWARE}#31')}: {words['elsewhere'][2]}"
+                ],
+                numbers={f"{FIRMWARE}#31"},
+                belongs_in=FIRMWARE,
+            ),
+            [],
+            ["bug", "area: sensors"],
             config,
         ),
         "named-duplicate": ia.render_duplicate(23, REPORTER, language, config),

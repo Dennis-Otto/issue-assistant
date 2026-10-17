@@ -203,6 +203,10 @@ EVALUATION_PAGES = 10
 # The moment that it replays: a minute after the issue was opened, when it had the
 # labels of its form and the analysis would have started.
 OPENING = timedelta(minutes=1)
+# A first analysis also searches the issues of the related repositories of
+# [related], at most this many, for the reports that belong in one of them; see
+# siblings and write_siblings.
+MAX_RELATED = 5
 
 NEEDS_TRIAGE = "needs-triage"
 NEEDS_INFO = "needs-info"
@@ -363,6 +367,10 @@ TRAILING = frozenset(")?!.,:;*_~'\"")
 # emphasis, so a reference counts whatever follows its number.
 MENTION = re.compile(r"(?<![A-Za-z0-9])@([A-Za-z0-9][A-Za-z0-9-]{0,38}(?:/[\w-]+)?)")
 CROSS_REFERENCE = re.compile(r"(?<![A-Za-z0-9])([\w.-]+/[\w.-]+#\d+)")
+# An issue or a discussion that the checks found, which a comment may link: one of
+# this repository by its number, or an issue of a related repository of [related]
+# as owner/name#123, with the name that [related] gives it.
+Checked = int | str
 ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)", re.IGNORECASE)
 # GitHub also links an e-mail address, with or without mailto: or xmpp:, and a
 # commit of another repository or of a fork: owner/repository@sha or user@sha. Each
@@ -1120,6 +1128,9 @@ class Config:
     max_issues: int = MAX_ISSUES
     max_discussions: int = MAX_DISCUSSIONS
     max_analyzed: int = MAX_ANALYZED
+    # Public repositories that share users and topics with this one, as owner/name:
+    # a first analysis searches their issues too; see siblings.
+    related_repositories: tuple[str, ...] = ()
     # What `check` reports of labels.toml and config.toml beyond its own checks: the
     # values that the assistant can't use and the keys that it doesn't know.
     problems: tuple[str, ...] = ()
@@ -1197,6 +1208,7 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
         "max_discussions": Key("max_discussions", int),
         "max_analyzed": Key("max_analyzed", int),
     },
+    "related": {"repositories": Key("related_repositories", list, tuple)},
     "links": {"hosts": Key("hosts", list, frozenset)},
     "forms": {
         "area_field": Key("area_field", str),
@@ -1454,6 +1466,26 @@ def limit(config: Config, key: str) -> int:
     return value
 
 
+def is_repository(name: str) -> bool:
+    """Whether the name is one of a repository on GitHub, as owner/name, whose owner
+    is a login."""
+    return bool(
+        REPOSITORY_NAME.fullmatch(name) and LOGIN.fullmatch(name.partition("/")[0])
+    )
+
+
+def siblings(config: Config) -> list[str]:
+    """The related repositories of [related] that a first analysis searches: each a
+    repository other than this one, once in any case, and the first MAX_RELATED;
+    `check` names the others."""
+    found: dict[str, str] = {}
+    for name in config.related_repositories:
+        key = name.casefold()
+        if is_repository(name) and key != config.repository.casefold():
+            found.setdefault(key, name)
+    return list(found.values())[:MAX_RELATED]
+
+
 def load_findings(root: Path) -> tuple[Acceptance, ...]:
     """The accepted findings of .github/findings.toml; none without the file.
 
@@ -1625,6 +1657,8 @@ class GitHub:
         self._memo: dict[str, list[dict[str, Any]]] | None = None
         # The issue that a file holds in place of GitHub.
         self.fixture: Fixture | None = None
+        # The related repositories read in this run, by their name; see sibling().
+        self._siblings: dict[str, GitHub | None] = {}
 
     def use_fixture(self, fixture: Fixture) -> None:
         """Read the issue of the fixture and its comments from it, not from GitHub,
@@ -1683,6 +1717,28 @@ class GitHub:
         """The default branch of the repository, which `install --setup` reads."""
         repository = self._gh(["api", f"repos/{self.repository}"])
         return str(repository["default_branch"])
+
+    def public(self) -> bool:
+        """Whether the repository is public; not one that the token can't see."""
+        try:
+            repository = self._gh(["api", f"repos/{self.repository}"])
+        except GitHubError as error:
+            if not error.missing():
+                raise
+            return False
+        return bool(repository.get("visibility") == "public")
+
+    def sibling(self, repository: str) -> GitHub | None:
+        """The related repository of [related] with that name, to read and never to
+        write, once it is public; None for one that isn't, or doesn't exist.
+
+        Its issues become links in a comment here and their texts part of the log
+        of the run, which can be public, so the issues of a private one stay out.
+        """
+        if repository not in self._siblings:
+            other = GitHub(repository, dry_run=True)
+            self._siblings[repository] = other if other.public() else None
+        return self._siblings[repository]
 
     def graphql(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
         response = self._gh(
@@ -3542,13 +3598,37 @@ def related_issues(
     return [found[number] for number in sorted(found, reverse=True)]
 
 
-def render_other_issue(item: dict[str, Any], visible: Visible) -> str:
+def render_other_issue(
+    item: dict[str, Any], visible: Visible, repository: str = ""
+) -> str:
     """issues/<number>.md: the whole text of another issue, for the engine to read
-    when its excerpt in issues.jsonl looks promising."""
+    when its excerpt in issues.jsonl looks promising. For an issue of a related
+    repository the heading names that repository, so its number is never taken for
+    one of this repository."""
     return (
-        f"# Issue #{item['number']}: {one_line(visible(item['title']))}\n\n"
+        f"# Issue {repository}#{item['number']}: "
+        f"{one_line(visible(item['title']))}\n\n"
         f"{rendered_text(text_of(item), visible)}\n"
     )
+
+
+def issue_line(
+    item: dict[str, Any], visible: Visible, **more: object
+) -> dict[str, Any]:
+    """The line of an issue in issues.jsonl and related-issues.jsonl, with `more`
+    before its excerpt."""
+    return {
+        "number": item["number"],
+        "title": visible(item["title"]),
+        "state": item["state"],
+        "state_reason": item.get("state_reason"),
+        "labels": sorted(label_names(item)),
+        "opened": item["created_at"][:10],
+        "closed": (item.get("closed_at") or "")[:10] or None,
+        "comments": item.get("comments", 0),
+        **more,
+        "excerpt": visible(excerpt(item.get("body") or "", EXCERPT)),
+    }
 
 
 def write_lines(path: Path, items: Iterable[dict[str, Any]]) -> None:
@@ -3568,6 +3648,7 @@ CONTEXT_FILES = (
     "issues.jsonl",
     "discussions.jsonl",
     "corrections.md",
+    "related-issues.jsonl",
 )
 
 
@@ -3608,7 +3689,8 @@ def write_context(
     issue = github.issue(number)
     comments = github.comments(number)
     folder.mkdir(parents=True, exist_ok=True)
-    shutil.rmtree(folder / "issues", ignore_errors=True)
+    for texts in ("issues", "related"):
+        shutil.rmtree(folder / texts, ignore_errors=True)
     for name in CONTEXT_FILES:
         (folder / name).unlink(missing_ok=True)
     # The invisible characters of the issue, and of the texts that every analysis
@@ -3631,6 +3713,7 @@ def write_context(
                 render_learned(github, config, issue, comments, others),
                 encoding="utf-8",
             )
+            write_siblings(github, folder, issue, config, elsewhere)
     if own.removed or elsewhere.removed:
         command(
             "notice",
@@ -3648,6 +3731,7 @@ def write_context(
         "max_analyzed": str(config.max_analyzed),
         "languages": language_list(),
         "priority": PRIORITY_RULE if config.group("priority") else "",
+        **related_rules(config),
     }
 
     def render(name: str) -> str:
@@ -3748,21 +3832,7 @@ def write_related(
     quiet = Visible()
     write_lines(
         folder / "issues.jsonl",
-        (
-            {
-                "number": item["number"],
-                "title": quiet(item["title"]),
-                "state": item["state"],
-                "state_reason": item.get("state_reason"),
-                "labels": sorted(label_names(item)),
-                "opened": item["created_at"][:10],
-                "closed": (item.get("closed_at") or "")[:10] or None,
-                "comments": item.get("comments", 0),
-                "closed_by": item.get("closed_by"),
-                "excerpt": quiet(excerpt(item.get("body") or "", EXCERPT)),
-            }
-            for item in others
-        ),
+        (issue_line(item, quiet, closed_by=item.get("closed_by")) for item in others),
     )
     write_lines(
         folder / "discussions.jsonl",
@@ -3783,6 +3853,89 @@ def write_related(
         ),
     )
     return others
+
+
+def write_siblings(
+    github: GitHub,
+    folder: Path,
+    issue: dict[str, Any],
+    config: Config,
+    visible: Visible,
+) -> None:
+    """related-issues.jsonl, for a first analysis in a repository with related
+    repositories: the issues of each that GitHub's search finds for the words of the
+    issue, each with its repository and an excerpt, and its whole text in
+    related/<owner>/<name>/<number>.md.
+
+    Only public repositories count, as GitHub.sibling says. The search adds to the
+    context, as the one for older issues does, so a repository that GitHub fails to
+    search is a warning.
+    """
+    names = siblings(config)
+    if not names:
+        return
+    terms = search_terms(issue)
+    found: list[tuple[str, dict[str, Any]]] = []
+    for repository in names if terms else []:
+        try:
+            other = github.sibling(repository)
+            if other is None:
+                command(
+                    "warning",
+                    f"[related] {repository} is no public repository, so the "
+                    "analysis reads none of its issues.",
+                )
+                continue
+            found += [(repository, item) for item in other.search_issues(terms)]
+        except GitHubError as error:
+            command("warning", f"The search in {repository} failed: {error}")
+    for repository, item in found:
+        texts = folder / "related" / repository
+        texts.mkdir(parents=True, exist_ok=True)
+        (texts / f"{item['number']}.md").write_text(
+            render_other_issue(item, visible, repository), encoding="utf-8"
+        )
+    quiet = Visible()
+    write_lines(
+        folder / "related-issues.jsonl",
+        ({"repository": name, **issue_line(item, quiet)} for name, item in found),
+    )
+
+
+def related_rules(config: Config) -> dict[str, str]:
+    """What the task of a first analysis says of the related repositories, for
+    `{related_files}` and `{related_rule}`; nothing without any."""
+    names = siblings(config)
+    if not names:
+        return {"related_files": "", "related_rule": ""}
+    listed = ", ".join(f"`{name}`" for name in names)
+    which = (
+        f"repository {listed}, which shares"
+        if len(names) == 1
+        else f"repositories {listed}, which share"
+    )
+    return {
+        "related_files": (
+            f"\n- `{CONTEXT}/related-issues.jsonl`: the issues of the related {which} "
+            "users and topics with this one, that a search for the words of this "
+            "issue found there, in the form of "
+            "`issues.jsonl` with the `repository` of each. "
+            f"`{CONTEXT}/related/<owner>/<name>/<number>.md` holds the whole text of "
+            "each of them."
+        ),
+        "related_rule": (
+            "\n   - Search `related-issues.jsonl` the same way. An issue there can be "
+            "`related`, with its `repository`, but never one of the `duplicates`, "
+            "which are issues of this repository alone. The other items of "
+            f"`related` have the `repository` `{config.repository}`. Refer to an "
+            "issue of a related repository as owner/name#123 in your texts."
+            "\n   - `belongs_in`: the related repository that the issue is about, "
+            "when it was clearly filed in the wrong repository, such as a problem "
+            "in the code or the documentation of that project, and `analysis` says "
+            f"why; otherwise `{config.repository}`. Nothing moves the issue: the "
+            "maintainers decide."
+        ),
+    }
 
 
 # The engine's answer
@@ -3878,6 +4031,18 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
                 "sensitive_data": choice(SENSITIVE),
             }
         )
+    related = {
+        "kind": choice(["issue", "discussion"]),
+        "number": {"type": "integer", "minimum": 1},
+        "reason": text(280),
+    }
+    # Where there are related repositories, a related issue can be one of theirs,
+    # and the issue can belong in one of them.
+    belongs: dict[str, Any] = {}
+    if names := siblings(config):
+        repositories = choice([config.repository, *names])
+        related = {"repository": repositories, **related}
+        belongs = {"belongs_in": repositories}
     return record(
         common
         | {
@@ -3896,17 +4061,8 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
                     }
                 ),
             },
-            "related": {
-                "type": "array",
-                "maxItems": 5,
-                "items": record(
-                    {
-                        "kind": choice(["issue", "discussion"]),
-                        "number": {"type": "integer", "minimum": 1},
-                        "reason": text(280),
-                    }
-                ),
-            },
+            "related": {"type": "array", "maxItems": 5, "items": record(related)},
+            **belongs,
             "references": {"type": "array", "items": reference, "maxItems": 6},
             "sensitive_data": choice(SENSITIVE),
             "security_report": {"type": "boolean"},
@@ -4168,7 +4324,7 @@ def allowed_url(url: str, config: Config) -> bool:
 
 def clean_prose(
     text: str,
-    numbers: set[int],
+    numbers: set[Checked],
     config: Config,
     before: str = " ",
     after: str = " ",
@@ -4250,6 +4406,23 @@ def clean_prose(
         checked = int(match[1]) in numbers and match.string[start - 1 : start] != "@"
         return keep(match[0]) if checked else code(match[0])
 
+    names = {
+        str(item).rpartition("#")[0].casefold(): str(item).rpartition("#")[0]
+        for item in numbers
+        if isinstance(item, str)
+    }
+
+    def cross(match: re.Match[str]) -> str:
+        # Only a checked issue of a related repository stays a link, and one with
+        # its address, which no emphasis around it can split, as it could split a
+        # name like owner/name_ from its #12; not after an !, which would make the
+        # link an image.
+        start = match.start()
+        found = cross_reference(match[1], names)
+        if found in numbers and (match.string[start - 1] if start else before) != "!":
+            return keep(elsewhere_link(str(found)))
+        return code(match[1])
+
     rewrites: list[tuple[re.Pattern[str], Callable[[re.Match[str]], str]]] = [
         (MARKDOWN_LINK, link),
         (BARE_URL, lambda m: address(m[0], m)),
@@ -4257,7 +4430,7 @@ def clean_prose(
         (EMAIL, lambda m: code(m[0])),
         (COMMIT_REFERENCE, lambda m: code(m[0])),
         (MENTION, lambda m: code(m[0])),
-        (CROSS_REFERENCE, lambda m: code(m[1])),
+        (CROSS_REFERENCE, cross),
         (ISSUE_REFERENCE, reference),
     ]
     previous = None
@@ -4287,6 +4460,25 @@ def clean_prose(
     return joined(
         kept[int(piece)] if index % 2 else piece for index, piece in enumerate(pieces)
     )
+
+
+def cross_reference(text: str, names: dict[str, str]) -> str | None:
+    """The issue that a reference such as owner/name#12 names, as name#number with
+    the name of the repository in `names`, by its name in lower case; None for a
+    repository that `names` doesn't have, or for no number of an issue."""
+    repository, _, number = text.rpartition("#")
+    name = names.get(repository.casefold())
+    # Ten digits at most, so that int() never reads a number of a thousand.
+    if name is None or len(number) > len(str(MAX_NUMBER)):
+        return None
+    value = int(number)
+    return f"{name}#{value}" if 0 < value <= MAX_NUMBER else None
+
+
+def elsewhere_link(reference: str) -> str:
+    """The link of an issue of a related repository, owner/name#12."""
+    repository, _, number = reference.rpartition("#")
+    return f"[{reference}](https://github.com/{repository}/issues/{number})"
 
 
 def settled(
@@ -4343,10 +4535,11 @@ def joined(pieces: Iterable[str]) -> str:
     return text
 
 
-def sanitize(text: str, config: Config, numbers: Iterable[int] = ()) -> str:
+def sanitize(text: str, config: Config, numbers: Iterable[Checked] = ()) -> str:
     """The engine's text without mentions, images, HTML, headings and foreign links.
 
-    Code stays as it is; issue numbers stay links only when they were checked.
+    Code stays as it is; issue numbers, and references to issues of related
+    repositories, stay links only when they were checked.
     """
     checked = set(numbers)
     # Before the code is found, so that what is code stays code: strip() takes some
@@ -4598,7 +4791,9 @@ class Findings:
     duplicate_reason: str = ""
     related: list[str] = field(default_factory=list)
     references: list[str] = field(default_factory=list)
-    numbers: set[int] = field(default_factory=set)
+    numbers: set[Checked] = field(default_factory=set)
+    # The related repository that the issue may belong in; empty for this one.
+    belongs_in: str = ""
 
 
 # More links than this, to related issues and to files, fold into one line that
@@ -4683,6 +4878,10 @@ def render_analysis(
             )
         parts.append(f"### {say(language, 'summary')}\n\n{clean(answer['summary'])}")
         parts.append(f"### {say(language, 'analysis')}\n\n{clean(answer['analysis'])}")
+        if findings.belongs_in:
+            parts.append(
+                say(language, "belongs_in", repository=code_span(findings.belongs_in))
+            )
         steps = [clean(step) for step in answer["next_steps"] if step.strip()]
         if steps:
             parts.append(f"### {say(language, 'next_steps')}\n\n{bullets(steps)}")
@@ -4905,7 +5104,7 @@ MAX_NUMBER = 2**31 - 1
 
 
 def named_numbers(
-    github: GitHub, current: int, texts: Iterable[str], known: Collection[int]
+    github: GitHub, current: int, texts: Iterable[str], known: Collection[Checked]
 ) -> set[int]:
     """The other issues and discussions that the texts name, as #123 or GH-123, and
     that exist: of the first MAX_NAMED that the checks didn't find already.
@@ -4927,6 +5126,41 @@ def named_numbers(
         if other_issue(github, number, current) is not None
         or github.discussion_exists(number)
     }
+
+
+def issue_elsewhere(github: GitHub, repository: str, number: int) -> str | None:
+    """An issue of a related repository, as owner/name#123, when the repository is
+    public and has the issue; None otherwise, also for a pull request."""
+    other = github.sibling(repository)
+    if other is None or other_issue(other, number, 0) is None:
+        return None
+    return f"{repository}#{number}"
+
+
+def named_elsewhere(
+    github: GitHub, config: Config, texts: Iterable[str], known: Collection[Checked]
+) -> set[str]:
+    """The issues of the related repositories that the texts name, as owner/name#123,
+    and that exist: of the first MAX_NAMED that the checks didn't find already, as
+    named_numbers does for this repository."""
+    names = {name.casefold(): name for name in siblings(config)}
+    named = dict.fromkeys(
+        found
+        for text in texts
+        for match in CROSS_REFERENCE.finditer(text)
+        if (found := cross_reference(match[1], names)) and found not in known
+    )
+    return {
+        found
+        for found in list(named)[:MAX_NAMED]
+        if issue_elsewhere(github, *split_reference(found))
+    }
+
+
+def split_reference(reference: str) -> tuple[str, int]:
+    """The repository and the number of owner/name#123."""
+    repository, _, number = reference.rpartition("#")
+    return repository, int(number)
 
 
 def vouched_for(original: dict[str, Any]) -> bool:
@@ -4958,12 +5192,14 @@ def check_findings(
 
     A sure duplicate of an open, older issue that a maintainer opened or triaged gets
     the notice and closes later; the first other candidate becomes a suggestion in
-    GitHub's panel for the maintainer.
+    GitHub's panel for the maintainer. A duplicate is always one of this
+    repository: an issue of a related one can only be related, and the issue only
+    said to belong in that one, which a maintainer then transfers by hand.
     """
     number = issue["number"]
     language = answer["language"]
     findings = Findings()
-    related: list[tuple[int, str, str]] = []
+    related: list[tuple[Checked, str, str]] = []
     suggested = False
     for candidate in answer["duplicates"]:
         original = other_issue(github, candidate["number"], number)
@@ -4991,6 +5227,18 @@ def check_findings(
             suggested = True
         related.append((original["number"], "issue", candidate["reason"]))
     for item in answer["related"]:
+        repository = item.get("repository", config.repository)
+        if repository != config.repository:
+            # Only issues: the context has no discussions of other repositories.
+            found = (
+                issue_elsewhere(github, repository, item["number"])
+                if item["kind"] == "issue"
+                else None
+            )
+            if found and found not in findings.numbers:
+                findings.numbers.add(found)
+                related.append((found, "issue", item["reason"]))
+            continue
         if item["number"] in findings.numbers or item["number"] == number:
             continue
         if item["kind"] == "issue":
@@ -5000,26 +5248,26 @@ def check_findings(
         if exists:
             findings.numbers.add(item["number"])
             related.append((item["number"], item["kind"], item["reason"]))
-    findings.numbers |= named_numbers(
-        github,
-        number,
-        [
-            answer["summary"],
-            answer["analysis"],
-            *answer["next_steps"],
-            *answer["missing_information"],
-            findings.duplicate_reason,
-            *(reason for _, _, reason in related),
-            *(item["reason"] for item in answer["references"]),
-        ],
-        findings.numbers,
-    )
+    texts = [
+        answer["summary"],
+        answer["analysis"],
+        *answer["next_steps"],
+        *answer["missing_information"],
+        findings.duplicate_reason,
+        *(reason for _, _, reason in related),
+        *(item["reason"] for item in answer["references"]),
+    ]
+    findings.numbers |= named_numbers(github, number, texts, findings.numbers)
+    findings.numbers |= named_elsewhere(github, config, texts, findings.numbers)
     findings.related = [
-        f"#{entry}"
+        (elsewhere_link(entry) if isinstance(entry, str) else f"#{entry}")
         + (f" ({say(language, 'discussion')})" if kind == "discussion" else "")
         + f": {sanitize(one_line(reason), config, findings.numbers)}"
         for entry, kind, reason in related
     ]
+    belongs_in = answer.get("belongs_in", config.repository)
+    if belongs_in != config.repository and github.sibling(belongs_in):
+        findings.belongs_in = belongs_in
     findings.references = references(
         answer["references"], sha, language, config, findings.numbers
     )
@@ -5031,7 +5279,7 @@ def references(
     sha: str,
     language: str,
     config: Config,
-    numbers: Collection[int] = (),
+    numbers: Collection[Checked] = (),
 ) -> list[str]:
     """The links to the files to look at, each with its reason, in which the issues
     and discussions of `numbers`, which exist, stay links."""
@@ -5380,9 +5628,15 @@ def apply_answer(
     waiting = [NEEDS_INFO] if asks and NEEDS_INFO not in label_names(issue) else []
     github.add_labels(number, waiting)
     lifecycle = waiting + duplicate
-    return [
+    done = [
         f"Analysis on #{number}; labels added: {', '.join(planned + lifecycle) or 'none'}."
     ]
+    if findings.belongs_in:
+        done.append(
+            f"#{number} may belong in {findings.belongs_in}; a maintainer can "
+            "transfer it."
+        )
+    return done
 
 
 def acted_on(
@@ -7297,6 +7551,7 @@ def check_config(config: Config) -> list[str]:
     for host in sorted(config.hosts):
         if not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", host):
             problems.append(f"{SETTINGS / 'config.toml'}: {host} is no host name")
+    problems += related_problems(config)
     problems += engine_problems(config)
     for key in (*LIMITS, *CONTEXT_LIMITS):
         try:
@@ -7317,6 +7572,32 @@ def check_config(config: Config) -> list[str]:
                 problems.append(
                     f"{name}: say that {engine.name} by {engine.vendor} reads the issues"
                 )
+    return problems
+
+
+def related_problems(config: Config) -> list[str]:
+    """The names of [related] that no analysis searches: no repository, this one, one
+    named before, or one past the first MAX_RELATED."""
+    where = SETTINGS / "config.toml"
+    own = config.repository.casefold()
+    problems, seen = [], set()
+    for name in config.related_repositories:
+        key = name.casefold()
+        if not is_repository(name):
+            problems.append(
+                f"{where}: [related] {name} is no repository; name it as owner/name"
+            )
+        elif key == own:
+            problems.append(f"{where}: [related] {name} is this repository")
+        elif key in seen:
+            problems.append(f"{where}: [related] names {name} twice")
+        else:
+            seen.add(key)
+    if len(seen) > MAX_RELATED:
+        problems.append(
+            f"{where}: [related] names more than {MAX_RELATED} repositories; an "
+            f"analysis searches the first {MAX_RELATED}"
+        )
     return problems
 
 
@@ -8505,6 +8786,12 @@ class Then(GitHub):
     def search(self, query: str) -> list[dict[str, Any]]:
         # Only issues of then, so that later ones push none of them out of the results.
         return self.now.search(f"{query} created:<={stamp(self.sample.moment)}")
+
+    def sibling(self, repository: str) -> GitHub | None:
+        # A related repository as it was at the moment too, so that its search finds
+        # no issue opened later.
+        other = self.now.sibling(repository)
+        return None if other is None else Then(other, self.sample, {})
 
     def search_issues(self, terms: list[str]) -> list[dict[str, Any]]:
         return [

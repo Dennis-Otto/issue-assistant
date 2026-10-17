@@ -8,6 +8,7 @@ tests/oracle.py sees it. The reading of issues, which anyone writes, is checked 
 same way against how it read them before.
 """
 
+import dataclasses
 import json
 import re
 
@@ -134,6 +135,58 @@ def test_sanitized_text_mentions_nobody_and_links_only_allowed_sites(text, numbe
     assert problems(output, numbers, CONFIG) == [], output
 
 
+# Text with references to the issues of related repositories, of which owner/server#3,
+# #4 and owner/app_#5 exist, and the characters that could join them to something
+# else; a name that ends in `_` can end emphasis.
+ELSEWHERE = st.lists(
+    st.one_of(
+        PIECES,
+        st.sampled_from(
+            [
+                "owner/server#3",
+                "Owner/Server#03",
+                "owner/server#4",
+                "owner/server_#3",
+                "x_owner/server#3",
+                "owner/servers#3",
+                "owner/app_#5",
+                "owner/app_#6",
+                "owner/",
+                "server#3",
+                "!",
+                "_",
+                "*",
+            ]
+        ),
+    ),
+    max_size=30,
+).map("".join)
+CHECKED_ELSEWHERE = st.sets(
+    st.sampled_from(["owner/server#3", "owner/server#4", "owner/app_#5"])
+)
+
+
+@hypothesis.settings(
+    max_examples=EXAMPLES * 3, suppress_health_check=[hypothesis.HealthCheck.too_slow]
+)
+@given(ELSEWHERE, NUMBERS, CHECKED_ELSEWHERE)
+def test_only_checked_issues_of_related_repositories_become_links(
+    text, numbers, elsewhere
+):
+    """Wherever the comment puts the text, as in
+    test_cleaned_text_stays_safe_wherever_the_comment_puts_it."""
+    checked = numbers | elsewhere
+    cleaned = assistant.sanitize(text, CONFIG, checked)
+    line = assistant.sanitize(assistant.one_line(text), CONFIG, checked)
+    for comment in (
+        cleaned,
+        f"### Summary\n\n{cleaned}\n\n### Next steps",
+        assistant.bullets([cleaned, cleaned]),
+        f"- #7: {line}\n- #8: {line}",
+    ):
+        assert problems(comment, checked | {7, 8}, CONFIG) == [], comment
+
+
 @hypothesis.settings(suppress_health_check=[hypothesis.HealthCheck.too_slow])
 @given(TEXT, st.integers(min_value=1, max_value=300))
 def test_a_line_of_the_engine_s_text_is_short_clean_and_one_line(text, limit):
@@ -225,6 +278,29 @@ def test_a_whole_comment_mentions_nobody_and_links_only_allowed_places(
     for body in bodies:
         found = stray_problems(body, numbers, sample_config, author, security=security)
         assert found == [], body
+
+
+@hypothesis.settings(
+    suppress_health_check=[
+        hypothesis.HealthCheck.too_slow,
+        hypothesis.HealthCheck.data_too_large,
+    ]
+)
+@given(st.data())
+def test_a_whole_analysis_with_related_repositories_links_only_what_it_checked(
+    sample_config, data
+):
+    """As above, for a first analysis in a repository with a public related
+    repository, owner/server, and a private one, whose issues it may name."""
+    config = dataclasses.replace(
+        sample_config, related_repositories=("owner/server", "owner/private")
+    )
+    answer = answer_of(assistant.answer_schema("triage", config), Drawn(data))
+    bodies, numbers = posted_comments(config, "triage", answer)
+    hypothesis.event("posted" if bodies else "refused")
+    security = answer.get("security_report", False)
+    for body in bodies:
+        assert stray_problems(body, numbers, config, security=security) == [], body
 
 
 def test_the_whole_comments_include_follow_ups():

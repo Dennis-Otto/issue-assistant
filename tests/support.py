@@ -415,9 +415,12 @@ def as_graphql(issue):
 class FakeGitHub(assistant.GitHub):
     """The REST and GraphQL endpoints the script uses, in memory."""
 
-    def __init__(self, config, *issues, dry_run=False):
-        super().__init__(REPOSITORY, dry_run=dry_run)
+    def __init__(self, config, *issues, dry_run=False, repository=REPOSITORY):
+        super().__init__(repository, dry_run=dry_run)
         self.store = {issue["number"]: deepcopy(issue) for issue in issues}
+        # The related repositories of [related] that GitHub shows, each a fake of
+        # its own, or None for one that isn't public; any other doesn't exist.
+        self.sibling_store: dict[str, FakeGitHub | None] = {}
         self.comment_store: dict[int, list] = {}
         self.event_store: dict[int, list] = {}
         self.reaction_store: dict[int, list] = {}
@@ -1032,13 +1035,20 @@ class FakeGitHub(assistant.GitHub):
             "timelineItems": {"nodes": events},
         }
 
+    def sibling(self, repository):
+        """The fake of a related repository, which GitHub.sibling reads once it is
+        public; tests/test_assistant.py tests that with gh itself."""
+        self.calls.append(("SIBLING", repository, None))
+        self._failing(f"SIBLING {repository}")
+        return self.sibling_store.get(repository)
+
     def search(self, query):
         self.calls.append(("SEARCH", query, None))
         self._failing(f"SEARCH {query}")
         # The qualifier of evaluate's replays, which GitHub doesn't count in the
         # length of the query: only issues opened at or before the moment.
         query, _, before = query.partition(" created:<=")
-        scope = f"repo:{REPOSITORY} is:issue ("
+        scope = f"repo:{self.repository} is:issue ("
         assert query.startswith(scope) and query.endswith(")"), query
         words = query.removeprefix(scope).removesuffix(")").split(" OR ")
         # GitHub's search takes at most five operators and 256 characters.
@@ -1053,7 +1063,7 @@ class FakeGitHub(assistant.GitHub):
         found = deepcopy(found[: assistant.SEARCHED])
         for item in found:
             item.setdefault(
-                "repository_url", f"https://api.github.com/repos/{REPOSITORY}"
+                "repository_url", f"https://api.github.com/repos/{self.repository}"
             )
         return found
 
@@ -1086,17 +1096,28 @@ ISSUES = range(1, 21)
 def posted_comments(config, mode, answer, sha=REF):
     """What the assistant posts on #12 for the answer, and the issue numbers that it
     may reference there: the other issues that it looked up and found, as duplicates,
-    related issues or numbers that its texts name. Nothing for an answer that the
-    checks refuse as a whole.
+    related issues or numbers that its texts name, and those of the related
+    repositories, as owner/name#123. Nothing for an answer that the checks refuse as
+    a whole.
 
     A follow-up answers the reporter, who answered the questions of the analysis,
-    and an answer the question of a maintainer, comment 2.
+    and an answer the question of a maintainer, comment 2. The first related
+    repository is public, with the same issues, and any other private.
     """
     github = FakeGitHub(
         config,
         *(make_issue(number, labels=("bug",)) for number in ISSUES if number != 12),
         make_issue(),
     )
+    names = assistant.siblings(config)
+    for index, name in enumerate(names):
+        github.sibling_store[name] = (
+            None
+            if index
+            else FakeGitHub(
+                config, *(make_issue(number) for number in ISSUES), repository=name
+            )
+        )
     if mode == "follow-up":
         github.comment_store[12] = [
             analysis(questions=1, days_ago=1),
@@ -1115,7 +1136,12 @@ def posted_comments(config, mode, answer, sha=REF):
         for method, path, _ in github.calls
         if method == "GET" and (match := re.fullmatch(r"issues/(\d+)", path))
     }
-    return github.posted(12), (looked_up & set(ISSUES)) - {12}
+    elsewhere = {
+        f"{names[0]}#{match[1]}"
+        for method, path, _ in (github.sibling_store[names[0]].calls if names else [])
+        if method == "GET" and (match := re.fullmatch(r"issues/(\d+)", path))
+    }
+    return github.posted(12), ((looked_up & set(ISSUES)) - {12}) | elsewhere
 
 
 def own_details(body):
