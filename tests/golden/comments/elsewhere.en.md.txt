@@ -1,0 +1,20 @@
+<!-- issue-assistant:analysis lang=en questions=0 engine=claude -->
+
+Thanks for the report, @alex-demo! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
+
+### Summary
+
+Every night at 3 a.m., the sensors drop off the network for a few minutes, and the chart shows a gap.
+
+### First analysis
+
+The dashboard only shows what the hub reports, and the gaps start when the hub's firmware scans its radio channels each night. The firmware has its own repository, where a report describes the same nightly drop.
+
+This may belong in `demo-org/plant-hub-firmware` rather than here; if so, a maintainer can transfer the issue there.
+
+### Related
+
+- [demo-org/plant-hub-firmware#31](https://github.com/demo-org/plant-hub-firmware/issues/31): The same nightly drop, traced to the channel scan of the firmware.
+
+<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `bug`, `area: sensors`. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+

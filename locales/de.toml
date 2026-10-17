@@ -63,6 +63,9 @@ duplicate = "Mögliches Duplikat"
   @{author}, ein Maintainer hat dieses Issue als Duplikat von #{number} markiert."""
 related = "Verwandte Themen"
 discussion = "Diskussion"
+"belongs_in" = """\
+  Das gehört möglicherweise eher zu {repository}; dann kann ein Maintainer das Issue \
+  dorthin übertragen."""
 references = "Zum Nachlesen"
 links = "Zum Nachlesen: {count} Links"
 "sensitive.secret" = """\

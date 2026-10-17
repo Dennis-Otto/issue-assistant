@@ -64,6 +64,9 @@ duplicate = "Possible duplicate"
   @{author}, a maintainer marked this issue as a duplicate of #{number}."""
 related = "Related"
 discussion = "discussion"
+"belongs_in" = """\
+  This may belong in {repository} rather than here; if so, a maintainer can transfer \
+  the issue there."""
 references = "Where to look"
 links = "Where to look: {count} links"
 "sensitive.secret" = """\

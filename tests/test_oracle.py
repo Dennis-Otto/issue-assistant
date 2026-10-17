@@ -142,6 +142,12 @@ from support import CONFIG
             ],
         ),
         ("x\rx\0", ["a NUL or carriage return"]),
+        # GitHub links, references and mentions nothing in the text of a link,
+        # also under emphasis; only where the link leads counts.
+        (
+            "[see *#1* by @octocat and x@example.com](https://evil.example)",
+            ["link to https://evil.example"],
+        ),
         # A table splits each row at every pipe that no backslash escapes, also in
         # code, in a quote, in a list item, and with one column.
         ("intro\nf | g\n--|--\n`x|#1 y` | w", ["reference #1"]),
@@ -163,6 +169,17 @@ from support import CONFIG
 )
 def test_the_oracle_finds_what_github_links(markdown, found):
     assert sorted(problems(markdown, {7}, CONFIG)) == sorted(found)
+
+
+def test_the_text_of_a_checked_link_to_another_repository_references_nothing():
+    """GitHub rendered `_see [owner/app_#5](https://github.com/owner/app_/issues/5)_`
+    as one link in emphasis: the `#5` in its text references no issue of this
+    repository, although the `_` before it ends no word."""
+    linked = "_see [owner/app_#5](https://github.com/owner/app_/issues/5)_"
+    assert problems(linked, {"owner/app_#5"}, CONFIG) == []
+    assert problems(linked, set(), CONFIG) == [
+        "link to https://github.com/owner/app_/issues/5"
+    ]
 
 
 @pytest.mark.parametrize(

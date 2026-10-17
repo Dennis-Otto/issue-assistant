@@ -64,6 +64,9 @@ duplicate = "Mogelijk duplicaat"
   @{author}, een maintainer heeft dit issue gemarkeerd als duplicaat van #{number}."""
 related = "Gerelateerd"
 discussion = "discussie"
+"belongs_in" = """\
+  Dit hoort mogelijk eerder bij {repository}; in dat geval kan een maintainer het \
+  issue daarheen overzetten."""
 references = "Waar te kijken"
 links = "Waar te kijken: {count} links"
 "sensitive.secret" = """\

@@ -64,6 +64,9 @@ duplicate = "Possibile duplicato"
   #{number}."""
 related = "Correlati"
 discussion = "discussione"
+"belongs_in" = """\
+  Questo potrebbe riguardare {repository} più che questo repository; in tal caso, un \
+  manutentore può trasferirvi la segnalazione."""
 references = "Dove guardare"
 links = "Dove guardare: {count} link"
 "sensitive.secret" = """\
