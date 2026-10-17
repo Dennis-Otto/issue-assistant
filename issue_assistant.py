@@ -5361,6 +5361,8 @@ LEARNING_PAGES = 5
 # title after LEARNED_TITLE.
 MAX_LEARNED = 8_000
 LEARNED_TITLE = 100
+# The people behind a 👎 whose permission one run asks GitHub for at most.
+MAX_DISLIKERS = 20
 LEARNED_HEADING = "# Corrections of your earlier analyses\n\n"
 # The labels of an analyzed issue count from the start of its history: the assistant
 # adds them just before it posts its analysis.
@@ -5421,16 +5423,20 @@ def disliked(
 ) -> bool:
     """Whether a maintainer, someone who may push, gave one of the assistant's
     analyses among the comments a 👎. Only an analysis with a 👎 costs a call, and
-    each person one more, which `pushers` keeps for the run."""
+    each person one more, which `pushers` keeps for the run. A bot's 👎 counts
+    for nothing, and after MAX_DISLIKERS people the 👎 of anyone not yet asked
+    about is ignored, so that many accounts can't make a triage read more."""
     for comment in comments:
         reactions = comment.get("reactions") or {}
         if kind_of(comment) != "analysis" or not int(reactions.get("-1") or 0):
             continue
         for reaction in github.reactions(comment["id"]):
             user = login(reaction.get("user"))
-            if reaction["content"] != "-1" or not user:
+            if reaction["content"] != "-1" or not user or is_bot(reaction["user"]):
                 continue
             if user not in pushers:
+                if len(pushers) >= MAX_DISLIKERS:
+                    continue
                 pushers[user] = github.may_push(user)
             if pushers[user]:
                 return True
@@ -5471,10 +5477,10 @@ def learned_corrections(
         events = github.events(number)
         labels = corrected_labels(config, activity, number, first[number], events)
         parts = [
-            f"a maintainer removed {json.dumps(item.label)}, which you chose"
+            f"a maintainer removed {json.dumps(item.label, ensure_ascii=False)}, which you chose"
             for item in labels.removed
         ] + [
-            f"a maintainer added {json.dumps(item.label)}, which you missed"
+            f"a maintainer added {json.dumps(item.label, ensure_ascii=False)}, which you missed"
             for item in labels.added
         ]
         if duplicate := objected_duplicate(issues[number], found[number], events):

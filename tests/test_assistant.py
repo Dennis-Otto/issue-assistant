@@ -8058,6 +8058,10 @@ def test_a_first_analysis_learns_from_the_maintainers_corrections(config):
     words, the labels of labels.md and the titles in JSON, in a fence that no title
     can close."""
     github = learning_github(config)
+    # A label's name stays as labels.md writes it, umlauts and all.
+    ui = assistant.Label("area: Oberfläche", "bfdadc", "UI", "area")
+    config = dataclasses.replace(config, labels=(*config.labels, ui))
+    github.event_store[60].append(labeling("labeled", ui.name, 8, OWNER))
     assistant.write_context(github, 12, "triage", config)
     assert learned(config) == corrections_md(
         "8 issues",
@@ -8068,7 +8072,8 @@ def test_a_first_analysis_learns_from_the_maintainers_corrections(config):
             '#61 "Private title 61": you named #7 as its duplicate, someone '
             "objected, and it was not closed as one",
             '#60 "Card \\"live\\" ```x``` empty": a maintainer removed "area: games",'
-            ' which you chose; a maintainer added "area: setup", which you missed',
+            ' which you chose; a maintainer added "area: setup", which you missed;'
+            ' a maintainer added "area: Oberfläche", which you missed',
         ],
     )
     assert learned(config).count("````\n") == 2
@@ -8115,6 +8120,23 @@ def test_learning_reads_the_latest_comments_and_each_issue_once(config):
         "# Corrections of your earlier analyses\n\n"
         "No maintainer corrected your analyses of the 2 issues analyzed last.\n"
     )
+
+
+# The context is written into config.root, which is then a copy of the sample.
+@pytest.mark.usefixtures("root")
+def test_a_bot_s_or_too_many_people_s_thumbs_down_cost_no_calls(config, monkeypatch):
+    """A bot's 👎 is never looked up, and after MAX_DISLIKERS people the 👎 of
+    anyone else counts for nothing, so that many accounts can't make each triage
+    read more."""
+    monkeypatch.setattr(assistant, "MAX_DISLIKERS", 1)
+    github = learning_github(config)
+    github.reaction_store[670].insert(
+        0, {"content": "-1", "user": {"login": "helper[bot]", "type": "Bot"}}
+    )
+    assistant.write_context(github, 12, "triage", config)
+    asked = [path for _, path, _ in github.calls if path.startswith("collaborators/")]
+    assert asked == ["collaborators/someone/permission"]
+    assert "#65" not in learned(config)
 
 
 def test_the_latest_comments_come_in_pages_up_to_their_limit(config):
@@ -8174,6 +8196,10 @@ def test_an_issue_learns_from_its_own_corrections_and_not_beyond_the_window(conf
 def test_corrections_md_stays_short(monkeypatch, config):
     monkeypatch.setattr(assistant, "MAX_LEARNED", 200)
     github = learning_github(config)
+    # A label's name stays as labels.md writes it, umlauts and all.
+    ui = assistant.Label("area: Oberfläche", "bfdadc", "UI", "area")
+    config = dataclasses.replace(config, labels=(*config.labels, ui))
+    github.event_store[60].append(labeling("labeled", ui.name, 8, OWNER))
     assistant.write_context(github, 12, "triage", config)
     assert learned(config) == corrections_md(
         "8 issues",
