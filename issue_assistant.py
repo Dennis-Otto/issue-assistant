@@ -95,7 +95,15 @@ TEMPLATE_WORKFLOWS = (
     "issue-lifecycle.yml",
     "labels.yml",
     "findings.yml",
+    "discussion-assistant.yml",
 )
+# The workflow of the first answers in Discussions, which a repository needs only
+# once [discussions] answer_categories of config.toml names a category: install
+# writes it then, and check compares it with its template whenever it is there. Its
+# apply job writes to discussions, which a repository that only moves the pin of
+# issue-assistant.yml doesn't grant, so the discussions have a reusable workflow of
+# their own; decision 0018 says why.
+DISCUSSION_WORKFLOW = "discussion-assistant.yml"
 # The reasons GitHub accepts for dismissing a code scanning alert.
 DISMISS_REASONS = ("false positive", "won't fix", "used in tests")
 ACTION = "Dennis-Otto/issue-assistant"
@@ -159,6 +167,7 @@ TURN_DIVISORS = {
     "maintainer-reply": 10,
     "release-reply": 10,
     "maintainer-question": 1,
+    "discussion-answer": 1,
 }
 # The fewest turns of any task, unless max_turns itself is fewer: a reply reads two
 # files and then answers, three turns in a measured run, and one more to spare.
@@ -252,10 +261,14 @@ MODES = (
     "maintainer-reply",
     "release-reply",
     "maintainer-question",
+    "discussion-answer",
 )
+# The tasks about a discussion rather than an issue, which DISCUSSION_WORKFLOW
+# starts.
+DISCUSSION_MODES = ("discussion-answer",)
 # The tasks that reporters start, which the limits of the AI runs apply to; a
 # maintainer starts the others.
-LIMITED = {"triage", "follow-up", "release-reply"}
+LIMITED = {"triage", "follow-up", "release-reply", "discussion-answer"}
 # The tasks that judge one comment, the one that started them, and read nothing of
 # the repository's issues besides their own.
 REPLIES = ("maintainer-reply", "release-reply", "maintainer-question")
@@ -1131,6 +1144,9 @@ class Config:
     # Public repositories that share users and topics with this one, as owner/name:
     # a first analysis searches their issues too; see siblings.
     related_repositories: tuple[str, ...] = ()
+    # The categories of GitHub Discussions whose new discussions get a first answer;
+    # none answers no discussion. See answers_category.
+    answer_categories: tuple[str, ...] = ()
     # What `check` reports of labels.toml and config.toml beyond its own checks: the
     # values that the assistant can't use and the keys that it doesn't know.
     problems: tuple[str, ...] = ()
@@ -1209,6 +1225,7 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
         "max_analyzed": Key("max_analyzed", int),
     },
     "related": {"repositories": Key("related_repositories", list, tuple)},
+    "discussions": {"answer_categories": Key("answer_categories", list, tuple)},
     "links": {"hosts": Key("hosts", list, frozenset)},
     "forms": {
         "area_field": Key("area_field", str),
@@ -1471,6 +1488,15 @@ def is_repository(name: str) -> bool:
     is a login."""
     return bool(
         REPOSITORY_NAME.fullmatch(name) and LOGIN.fullmatch(name.partition("/")[0])
+    )
+
+
+def answers_category(config: Config, category: str) -> bool:
+    """Whether new discussions of the category get a first answer: it is one of
+    [discussions] answer_categories, in any case, as GitHub names categories."""
+    wanted = category.strip().casefold()
+    return bool(wanted) and any(
+        name.strip().casefold() == wanted for name in config.answer_categories
     )
 
 
@@ -2215,6 +2241,101 @@ class GitHub:
             return False
         return bool(data["repository"]["discussion"])
 
+    def discussion(self, number: int) -> dict[str, Any] | None:
+        """The discussion with its comments and their replies, in the form of the
+        REST API, as the assistant reads issues; None when there is none.
+
+        The first 50 comments, each with its first 20 replies, and the number of
+        all: the first answer comes within minutes of the question, among the
+        first comments.
+        """
+        try:
+            data = self.graphql(
+                """
+                query($owner: String!, $name: String!, $number: Int!) {
+                  repository(owner: $owner, name: $name) {
+                    discussion(number: $number) {
+                      id number title body createdAt closed locked isAnswered
+                      authorAssociation
+                      author { __typename login }
+                      category { name isAnswerable }
+                      comments(first: 50) {
+                        totalCount
+                        nodes {
+                          body createdAt authorAssociation
+                          author { __typename login }
+                          replies(first: 20) {
+                            nodes {
+                              body createdAt authorAssociation
+                              author { __typename login }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                """,
+                {"owner": self.owner, "name": self.name, "number": number},
+            )
+        except GitHubError as error:
+            if not error.missing():
+                raise
+            return None
+        node = data["repository"]["discussion"]
+        return discussion_as_rest(node) if node else None
+
+    def discussions_since(self, since: datetime) -> list[dict[str, Any]]:
+        """The discussions opened at or after the moment, the newest first, with
+        their author, its role and their category, in the form of the REST API."""
+        found: list[dict[str, Any]] = []
+        cursor = None
+        while True:
+            try:
+                data = self.graphql(
+                    """
+                    query($owner: String!, $name: String!, $first: Int!,
+                          $cursor: String) {
+                      repository(owner: $owner, name: $name) {
+                        discussions(first: $first, after: $cursor,
+                                    orderBy: {field: CREATED_AT, direction: DESC}) {
+                          pageInfo { hasNextPage endCursor }
+                          nodes {
+                            number createdAt authorAssociation
+                            author { __typename login }
+                            category { name }
+                          }
+                        }
+                      }
+                    }
+                    """,
+                    {
+                        "owner": self.owner,
+                        "name": self.name,
+                        "first": 100,
+                        "cursor": cursor,
+                    },
+                )
+            except GitHubError as error:
+                # A repository without discussions has none, as in discussions().
+                if not error.missing():
+                    raise
+                return found
+            page = data["repository"]["discussions"]
+            for node in page["nodes"]:
+                if moment(node["createdAt"]) < since:
+                    return found
+                found.append(
+                    {
+                        "number": node["number"],
+                        "category": {"name": node["category"]["name"]},
+                        **post_as_rest(node),
+                    }
+                )
+            if not page["pageInfo"]["hasNextPage"]:
+                return found
+            cursor = page["pageInfo"]["endCursor"]
+
     def last_edit(self, number: int) -> tuple[str, datetime] | None:
         """Who changed the text of the issue last, and when; None while nobody did.
 
@@ -2247,6 +2368,27 @@ class GitHub:
             f"comment on #{number}",
             lambda: self.rest(
                 f"issues/{number}/comments", method="POST", data={"body": body}
+            ),
+        )
+
+    def answer_discussion(self, discussion: dict[str, Any], body: str) -> None:
+        """Post a comment on the discussion, at its top level; it never marks the
+        comment as the answer, which is the asker's choice."""
+        if self.dry_run:
+            self.previews.append(body)
+        self._write(
+            f"comment on discussion #{discussion['number']}",
+            lambda: self.graphql(
+                """
+                mutation($discussion: ID!, $body: String!) {
+                  addDiscussionComment(
+                    input: {discussionId: $discussion, body: $body}
+                  ) {
+                    comment { id }
+                  }
+                }
+                """,
+                {"discussion": discussion["node_id"], "body": body},
             ),
         )
 
@@ -2660,6 +2802,56 @@ def closed_as_rest(
     }
 
 
+def actor(node: dict[str, Any] | None) -> dict[str, str]:
+    """An author of GraphQL as the REST API names it: a bot by its login and [bot],
+    as github-actions[bot], of the type Bot, and a deleted account as ghost."""
+    if not node:
+        return {"login": "ghost", "type": "User"}
+    if node.get("__typename") == "Bot":
+        return {"login": f"{node['login']}[bot]", "type": "Bot"}
+    return {"login": node["login"], "type": "User"}
+
+
+def post_as_rest(node: dict[str, Any]) -> dict[str, Any]:
+    """A discussion, a comment or a reply of GraphQL: who wrote it, in which role,
+    when, and its text, as the REST API names them."""
+    return {
+        "user": actor(node["author"]),
+        "author_association": node["authorAssociation"],
+        "created_at": node["createdAt"],
+        "body": node.get("body"),
+    }
+
+
+def discussion_as_rest(node: dict[str, Any]) -> dict[str, Any]:
+    """A discussion of GitHub.discussion() in the form of the REST API, with its
+    comments, each with its replies, and their number."""
+    comments = node["comments"]
+    return {
+        "node_id": node["id"],
+        "number": node["number"],
+        "title": node["title"],
+        **post_as_rest(node),
+        "state": "closed" if node["closed"] else "open",
+        "locked": node["locked"],
+        "answered": bool(node["isAnswered"]),
+        "category": {
+            "name": node["category"]["name"],
+            "is_answerable": node["category"]["isAnswerable"],
+        },
+        "comment_count": comments["totalCount"],
+        "comments": [
+            {
+                **post_as_rest(comment),
+                "replies": [
+                    post_as_rest(reply) for reply in comment["replies"]["nodes"]
+                ],
+            }
+            for comment in comments["nodes"]
+        ],
+    }
+
+
 def login(item: dict[str, Any] | None) -> str:
     return str((item or {}).get("login") or "")
 
@@ -2894,6 +3086,8 @@ def handle_event(
 ) -> Plan:
     if name == "workflow_dispatch":
         inputs = payload.get("inputs") or {}
+        if "discussion" in inputs:
+            return discussion_by_hand(github, int(inputs["discussion"]))
         number = int(inputs["issue"])
         issue = github.issue(number)
         if "pull_request" in issue:
@@ -2903,6 +3097,8 @@ def handle_event(
             raise AssistantError(f"Unknown mode {mode}.")
         add_form_labels(github, issue, config)
         return Plan(number, mode, [f"Started by hand: {mode}."])
+    if name == "discussion":
+        return handle_discussion(github, payload, config)
     issue = payload["issue"]
     number = issue["number"]
     if "pull_request" in issue or is_bot(payload.get("sender")):
@@ -2948,6 +3144,40 @@ def handle_event(
         plan.notes.insert(0, refused)
         return plan
     return Plan(number, notes=[f"Event {name}.{action} is not handled."])
+
+
+def discussion_by_hand(github: GitHub, number: int) -> Plan:
+    """A run by hand of the workflow of the discussions: a first answer, also after
+    an earlier one, as a maintainer started it."""
+    if github.discussion(number) is None:
+        raise AssistantError(f"#{number} is no discussion.")
+    return Plan(number, "discussion-answer", ["Started by hand: discussion-answer."])
+
+
+def handle_discussion(github: GitHub, payload: dict[str, Any], config: Config) -> Plan:
+    """A new discussion gets a first answer when its category is one of
+    [discussions] answer_categories and someone who doesn't maintain the
+    repository opened it, within the limits of the day."""
+    discussion = payload["discussion"]
+    number = discussion["number"]
+    action = payload.get("action")
+    if action != "created":
+        return Plan(number, notes=[f"Event discussion.{action} is not handled."])
+    if is_bot(payload.get("sender")):
+        return Plan(number, notes=["Bot: nothing to do."])
+    category = str((discussion.get("category") or {}).get("name") or "")
+    if not answers_category(config, category):
+        return Plan(
+            number,
+            notes=[
+                f"The category {category!r} is not one of [discussions] "
+                "answer_categories: no answer."
+            ],
+        )
+    if is_maintainer(discussion):
+        return Plan(number, notes=["Opened by a maintainer: no answer."])
+    plan = Plan(number, "discussion-answer")
+    return within_limits(github, plan, discussion, created(discussion), config)
 
 
 def handle_comment(
@@ -3253,19 +3483,29 @@ def within_limits(
     issues opened before it, and only an analysis has a limit for each reporter.
     Every follow-up and reply after a release of the day counts too: as it starts,
     the run is recorded in the marker of the assistant's comment that it answers,
-    so it counts also while it still runs. Decision 0009 says why.
+    so it counts also while it still runs. Decision 0009 says why. The new
+    discussions of the categories that get a first answer count as new issues do,
+    in one count with them, while [discussions] names any; issues and discussions
+    share their numbers. Decision 0018 says why.
     """
     if plan.mode not in LIMITED or is_maintainer(trigger):
         return plan
     per_day = limit(config, "max_per_day")
     per_author = limit(config, "max_per_author_per_day")
     since = at - DAY
-    # A new issue counts only the issues opened before it; a new analysis that the
-    # reporter asked for counts every issue of the day, as a follow-up does.
-    first = plan.mode == "triage" and plan.answers is None
+    # A new issue or discussion counts only those opened before it; a new analysis
+    # that the reporter asked for counts every one of the day, as a follow-up does.
+    first = plan.mode in {"triage", "discussion-answer"} and plan.answers is None
+    opened = github.issues_since(since)
+    if config.answer_categories:
+        opened += [
+            item
+            for item in github.discussions_since(since)
+            if answers_category(config, item["category"]["name"])
+        ]
     reporters = [
         login(item.get("user"))
-        for item in github.issues_since(since)
+        for item in opened
         if since <= created(item) <= at
         and not is_bot(item.get("user"))
         and not is_maintainer(item)
@@ -3411,13 +3651,15 @@ def excerpt(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def describe_author(item: dict[str, Any], reporter: str) -> str:
+def describe_author(item: dict[str, Any], reporter: str, role: str = "reporter") -> str:
+    """Who wrote an issue or a comment, with their roles: `role` for `reporter`,
+    who opened the issue or the discussion, and maintainer."""
     name = login(item.get("user"))
     if name == BOT and marker(item):
         return "the issue assistant (you, earlier)"
     roles = []
     if name == reporter:
-        roles.append("reporter")
+        roles.append(role)
     if is_maintainer(item):
         roles.append("maintainer")
     return f"@{name}" + (f" ({', '.join(roles)})" if roles else "")
@@ -3457,6 +3699,52 @@ def render_issue(
             "",
             rendered_text(text_of(comment), visible),
         ]
+    return "\n".join(lines) + "\n"
+
+
+def render_discussion(
+    discussion: dict[str, Any], visible: Visible | None = None
+) -> str:
+    """discussion.md: the discussion, its comments and their replies, each text in a
+    code fence of its own, as issue.md shows an issue, so that no text can pass for
+    another one, for a maintainer or for the assistant."""
+    visible = visible or Visible()
+    author = login(discussion.get("user"))
+
+    def by(item: dict[str, Any]) -> str:
+        return f"{describe_author(item, author, 'author')}, {item['created_at'][:10]}"
+
+    state = discussion["state"] + (", answered" if discussion["answered"] else "")
+    lines = [
+        f"# Discussion #{discussion['number']}: "
+        f"{one_line(visible(discussion['title']))}",
+        "",
+        f"- Author: {describe_author(discussion, author, 'author')}",
+        f"- Category: {one_line(visible(discussion['category']['name']))}",
+        f"- State: {state}",
+        f"- Opened: {discussion['created_at'][:10]}",
+        "",
+        "## Text of the discussion",
+        "",
+        rendered_text(text_of(discussion), visible),
+    ]
+    for index, comment in enumerate(discussion["comments"], start=1):
+        lines += [
+            "",
+            f"## Comment {index} by {by(comment)}",
+            "",
+            rendered_text(text_of(comment), visible),
+        ]
+        for number, reply in enumerate(comment["replies"], start=1):
+            lines += [
+                "",
+                f"### Reply {number} to comment {index} by {by(reply)}",
+                "",
+                rendered_text(text_of(reply), visible),
+            ]
+    later = discussion["comment_count"] - len(discussion["comments"])
+    if later > 0:
+        lines += ["", f"({plural(later, 'later comment')} not shown.)"]
     return "\n".join(lines) + "\n"
 
 
@@ -3586,7 +3874,7 @@ def related_issues(
         item["number"]: item
         for item in github.recent_issues(limit(config, "max_issues"))
     }
-    terms = search_terms(issue) if mode == "triage" else []
+    terms = search_terms(issue) if mode in {"triage", *DISCUSSION_MODES} else []
     if terms:
         try:
             for item in github.search_issues(terms):
@@ -3639,10 +3927,13 @@ def write_lines(path: Path, items: Iterable[dict[str, Any]]) -> None:
     )
 
 
-# What a context writes besides issue.md, rules.md, prompt.md and schema.json, each
-# only for the tasks that need it. A run in the same checkout removes what an earlier one
-# wrote, so that a reply task never reads the other issues of an analysis.
+# What a context writes besides rules.md, prompt.md and schema.json, each only for
+# the tasks that need it. A run in the same checkout removes what an earlier one
+# wrote, so that a reply task never reads the other issues of an analysis, and the
+# answer to a discussion never the issue of an earlier task.
 CONTEXT_FILES = (
+    "issue.md",
+    "discussion.md",
     "comment.md",
     "labels.md",
     "issues.jsonl",
@@ -3677,17 +3968,24 @@ def write_context(
     the schema: the task, which the rules of rules.md precede as the engine's system
     prompt, and both in one prompt for a template that passes no system prompt.
 
-    Every task reads the issue with its comments. A reply task judges one comment,
-    `comment_id`, the one whose event started the run, and reads nothing else; the
-    others read the labels, the other issues and the discussions, up to the numbers
-    of [context], and a first analysis also what the maintainers corrected of the
-    earlier analyses.
+    Every task of an issue reads the issue with its comments. A reply task judges
+    one comment, `comment_id`, the one whose event started the run, and reads
+    nothing else; the others read the labels, the other issues and the discussions,
+    up to the numbers of [context], and a first analysis also what the maintainers
+    corrected of the earlier analyses. The first answer to a discussion reads the
+    discussion with its comments, the issues, also those that a search for its
+    words finds, and the other discussions.
     """
     if mode not in MODES:
         raise AssistantError(f"Unknown mode {mode}.")
     folder = config.root / CONTEXT
-    issue = github.issue(number)
-    comments = github.comments(number)
+    if mode in DISCUSSION_MODES:
+        found = github.discussion(number)
+        if found is None:
+            raise AssistantError(f"#{number} is no discussion.")
+        issue, comments = found, []
+    else:
+        issue, comments = github.issue(number), github.comments(number)
     folder.mkdir(parents=True, exist_ok=True)
     for texts in ("issues", "related"):
         shutil.rmtree(folder / texts, ignore_errors=True)
@@ -3698,28 +3996,38 @@ def write_context(
     # the HTML comments, as in rendered_text, so that the engine reads no text that
     # GitHub hides.
     own, elsewhere = Visible(), Visible()
-    (folder / "issue.md").write_text(
-        render_issue(issue, comments, own), encoding="utf-8"
-    )
-    if mode in REPLIES:
-        judged = judged_comment(issue, comments, mode, comment_id)
-        (folder / "comment.md").write_text(
-            render_judged(issue, comments, judged), encoding="utf-8"
+    if mode in DISCUSSION_MODES:
+        # The discussion and what an analysis reads of the repository; no labels,
+        # which a discussion doesn't get.
+        (folder / "discussion.md").write_text(
+            render_discussion(issue, own), encoding="utf-8"
         )
+        write_related(github, folder, issue, mode, config, elsewhere)
     else:
-        others = write_related(github, folder, issue, mode, config, elsewhere)
-        if mode == "triage":
-            (folder / "corrections.md").write_text(
-                render_learned(github, config, issue, comments, others),
-                encoding="utf-8",
+        (folder / "issue.md").write_text(
+            render_issue(issue, comments, own), encoding="utf-8"
+        )
+        if mode in REPLIES:
+            judged = judged_comment(issue, comments, mode, comment_id)
+            (folder / "comment.md").write_text(
+                render_judged(issue, comments, judged), encoding="utf-8"
             )
-            write_siblings(github, folder, issue, config, elsewhere)
+        else:
+            (folder / "labels.md").write_text(render_labels(config), encoding="utf-8")
+            others = write_related(github, folder, issue, mode, config, elsewhere)
+            if mode == "triage":
+                (folder / "corrections.md").write_text(
+                    render_learned(github, config, issue, comments, others),
+                    encoding="utf-8",
+                )
+                write_siblings(github, folder, issue, config, elsewhere)
     if own.removed or elsewhere.removed:
+        subject = "discussion" if mode in DISCUSSION_MODES else "issue"
         command(
             "notice",
             f"Removed {own.removed + elsewhere.removed} invisible characters, such "
             "as zero-width spaces and Unicode tags, from the texts for the engine: "
-            f"{own.removed} from issue #{number}, {elsewhere.removed} from other "
+            f"{own.removed} from {subject} #{number}, {elsewhere.removed} from other "
             "issues and discussions.",
         )
     values = {
@@ -3813,15 +4121,13 @@ def write_related(
     config: Config,
     visible: Visible,
 ) -> list[dict[str, Any]]:
-    """labels.md, and what the engine reads of the rest of the repository: the other
-    issues, each with an excerpt in issues.jsonl and its whole text in
-    issues/<number>.md, and the discussions in discussions.jsonl. Returns the other
-    issues.
+    """What the engine reads of the rest of the repository: the other issues, each
+    with an excerpt in issues.jsonl and its whole text in issues/<number>.md, and
+    the other discussions in discussions.jsonl. Returns the other issues.
 
     `visible` counts the invisible characters of the whole texts; the titles and
     excerpts of issues.jsonl come from the same texts and don't count them again.
     """
-    (folder / "labels.md").write_text(render_labels(config), encoding="utf-8")
     others = related_issues(github, issue, mode, config)
     texts = folder / "issues"
     texts.mkdir()
@@ -3850,6 +4156,7 @@ def write_related(
                 or None,
             }
             for item in github.discussions(limit(config, "max_discussions"))
+            if item["number"] != issue["number"]
         ),
     )
     return others
@@ -3956,6 +4263,9 @@ def choice(values: list[str]) -> dict[str, Any]:
 # What an issue shows that it shouldn't: nothing, personal data such as an e-mail
 # address, or a secret that must be replaced.
 SENSITIVE = ["none", "personal", "secret"]
+# What a discussion is: a question, which the answer settles, a bug or a request for
+# a feature, which belong in an issue, or spam, which gets no answer.
+DISCUSSION_KINDS = ["question", "bug", "feature", "spam"]
 
 
 def record(properties: dict[str, Any]) -> dict[str, Any]:
@@ -4007,6 +4317,18 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
                 "language": choice(ANSWER_LANGUAGES),
                 "answer": text(3000),
                 "references": {"type": "array", "items": reference, "maxItems": 6},
+            }
+        )
+    if mode == "discussion-answer":
+        return record(
+            {
+                "language": choice(ANSWER_LANGUAGES),
+                "kind": choice(DISCUSSION_KINDS),
+                "answer": text(3000),
+                "missing_information": strings(400, 5),
+                "references": {"type": "array", "items": reference, "maxItems": 6},
+                "sensitive_data": choice(SENSITIVE),
+                "security_report": {"type": "boolean"},
             }
         )
     common = {
@@ -4987,6 +5309,81 @@ def render_answer(
     return "\n\n".join(parts) + "\n"
 
 
+def issue_form(config: Config, kind: str) -> str:
+    """Where someone opens the issue that a discussion suggests: the bug report form
+    of the starter for a bug, where the repository has it, else the list of forms."""
+    new = f"https://github.com/{config.repository}/issues/new"
+    if kind == "bug" and (config.root / FORM_STARTER).is_file():
+        return f"{new}?template={FORM_STARTER.name}"
+    return f"{new}/choose"
+
+
+def render_discussion_answer(
+    answer: dict[str, Any],
+    author: str,
+    references: list[str],
+    asks: list[str],
+    config: Config,
+    engine: str = DEFAULT_ENGINE,
+    numbers: Collection[Checked] = (),
+    *,
+    answerable: bool = True,
+) -> str:
+    """The first answer to a discussion, with what it still needs to know and the
+    files to look at; a bug or a request for a feature also gets a sentence that
+    asks for an issue. `numbers` are the issues and discussions that exist, which
+    its text may link; `answerable` says that the asker can mark it as the answer
+    in this category. A possible security report gets only the pointer to the
+    security policy."""
+    language = answer["language"]
+    parts = [
+        render_marker(
+            "discussion-answer",
+            lang=language,
+            type=answer["kind"],
+            questions=int(bool(asks)),
+            engine=engine,
+        ),
+        say(language, "discussion.intro", author=author),
+    ]
+    if answer["sensitive_data"] != "none":
+        parts.append(say(language, f"discussion.sensitive.{answer['sensitive_data']}"))
+    security = answer["security_report"]
+    if security:
+        parts.append(say(language, "security", policy=config.policy))
+    else:
+        parts.append(sanitize(answer["answer"], config, numbers))
+        if answer["kind"] in {"bug", "feature"}:
+            parts.append(
+                say(
+                    language,
+                    f"discussion.{answer['kind']}",
+                    form=issue_form(config, answer["kind"]),
+                )
+            )
+        if asks:
+            parts.append(
+                f"### {say(language, 'missing')}\n\n"
+                f"{say(language, 'discussion.missing.intro')}\n\n"
+                f"{bullets(sanitize(ask, config, numbers) for ask in asks)}"
+            )
+        links = link_sections(language, [], references)
+        if links:
+            parts.append(links)
+    parts.append(
+        say(
+            language,
+            "discussion.footer",
+            engine=ENGINES[engine].name,
+            answerable=say(language, "discussion.answerable")
+            if answerable and not security
+            else "",
+            feedback=invitation(language, config),
+        )
+    )
+    return "\n\n".join(parts) + "\n"
+
+
 def render_reminder(
     author: str, language: str, closes: datetime, questions: str = ""
 ) -> str:
@@ -5539,6 +5936,10 @@ def apply_answer(
     hand. A reply task acts on the comment `comment_id`, which its context judged."""
     engine = engine_named(engine)
     answer = parse_answer(mode, raw, config)
+    if mode in DISCUSSION_MODES:
+        return apply_discussion_answer(
+            github, number, answer, config, sha, engine, repeat=repeat
+        )
     issue = github.issue(number)
     if "pull_request" in issue:
         raise AssistantError(f"#{number} is a pull request, not an issue.")
@@ -5738,6 +6139,75 @@ def apply_maintainer_question(
         ),
     )
     return [f"Answer on #{number} to the question of {asker}."]
+
+
+def apply_discussion_answer(
+    github: GitHub,
+    number: int,
+    answer: dict[str, Any],
+    config: Config,
+    sha: str,
+    engine: str = DEFAULT_ENGINE,
+    *,
+    repeat: bool = False,
+) -> list[str]:
+    """Post the first answer to a discussion, checked and cleaned as every text of
+    the engine, and never mark it as the answer.
+
+    The discussion is read again, because the analysis took minutes: it gets no
+    answer once it is closed or locked, and, unless a maintainer runs it by hand,
+    none once it has one of the assistant, an answer that its author marked, or a
+    comment of a maintainer, who took it over, or once it moved to a category that
+    gets none.
+    """
+    discussion = github.discussion(number)
+    if discussion is None:
+        return [f"#{number} is no discussion; nothing posted."]
+    if discussion["state"] != "open" or discussion["locked"]:
+        return [f"Discussion #{number} is closed or locked; nothing posted."]
+    if not repeat:
+        comments = discussion["comments"]
+        thread = [*comments, *(reply for item in comments for reply in item["replies"])]
+        if any(kind_of(item) == "discussion-answer" for item in comments):
+            return [f"Discussion #{number} has its first answer; nothing posted."]
+        if discussion["answered"] or any(map(is_maintainer, thread)):
+            return [
+                f"Discussion #{number} has an answer or a maintainer's comment "
+                "already; nothing posted."
+            ]
+        if not answers_category(config, discussion["category"]["name"]):
+            return [
+                f"Discussion #{number} is no longer in a category of [discussions] "
+                "answer_categories; nothing posted."
+            ]
+    if answer["kind"] == "spam":
+        return [f"Discussion #{number} looks like spam: no answer."]
+    asks: list[str] = []
+    numbers: set[int] = set()
+    links: list[str] = []
+    # Nothing about a possible vulnerability is discussed in public: no questions,
+    # no files and no other issue.
+    if not answer["security_report"]:
+        asks = [ask.strip() for ask in answer["missing_information"] if ask.strip()]
+        reasons = [item["reason"] for item in answer["references"]]
+        numbers = named_numbers(github, number, [answer["answer"], *asks, *reasons], ())
+        links = references(
+            answer["references"], sha, answer["language"], config, numbers
+        )
+    github.answer_discussion(
+        discussion,
+        render_discussion_answer(
+            answer,
+            login(discussion.get("user")),
+            links,
+            asks,
+            config,
+            engine,
+            numbers,
+            answerable=discussion["category"]["is_answerable"],
+        ),
+    )
+    return [f"First answer on discussion #{number}: {answer['kind']}."]
 
 
 def apply_release_reply(
@@ -7509,7 +7979,8 @@ def check_workflows(config: Config) -> list[str]:
         path = config.root / WORKFLOWS / name
         where = str(WORKFLOWS / name)
         if not path.is_file():
-            problems.append(f"{where} is missing; {reinstall()}")
+            if name != DISCUSSION_WORKFLOW or config.answer_categories:
+                problems.append(f"{where} is missing; {reinstall()}")
             continue
         expected = normalized(load_yaml(template), [], template.name)
         actual = normalized(load_yaml(path, where), problems, where)
@@ -7552,6 +8023,11 @@ def check_config(config: Config) -> list[str]:
         if not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", host):
             problems.append(f"{SETTINGS / 'config.toml'}: {host} is no host name")
     problems += related_problems(config)
+    problems += [
+        f"{SETTINGS / 'config.toml'}: [discussions] answer_categories names "
+        f"{name!r} {problem}"
+        for name, problem in category_problems(config)
+    ]
     problems += engine_problems(config)
     for key in (*LIMITS, *CONTEXT_LIMITS):
         try:
@@ -7573,6 +8049,21 @@ def check_config(config: Config) -> list[str]:
                     f"{name}: say that {engine.name} by {engine.vendor} reads the issues"
                 )
     return problems
+
+
+def category_problems(config: Config) -> list[tuple[str, str]]:
+    """The names of [discussions] answer_categories that answer nothing: an empty
+    one, which no category has, and one named before, in any case."""
+    seen: set[str] = set()
+    found = []
+    for name in config.answer_categories:
+        key = name.strip().casefold()
+        if not key:
+            found.append((name, "which is no category"))
+        elif key in seen:
+            found.append((name, "twice"))
+        seen.add(key)
+    return found
 
 
 def related_problems(config: Config) -> list[str]:
@@ -7989,7 +8480,8 @@ def add_form(root: Path, *, starter_labels: bool) -> list[str]:
 
 def notice(config: Config, engine: Engine, language: str) -> str:
     """What happens with an issue, for reporters: the notice of the templates in
-    the language, with the engine and the periods of the repository."""
+    the language, with the engine, the periods of the repository and the categories
+    of the discussions that get a first answer."""
     lifecycle = config.lifecycle
     lines = [
         line
@@ -7999,8 +8491,13 @@ def notice(config: Config, engine: Engine, language: str) -> str:
         # Without releases, GitHub closes a fixed issue with the merge.
         if (config.releases or FIXED not in line)
         and (lifecycle.lock_closed_after_days or "{lock_days}" not in line)
+        and (config.answer_categories or "{categories}" not in line)
     ]
-    values = {"engine": engine.name, "vendor": engine.vendor}
+    values = {
+        "engine": engine.name,
+        "vendor": engine.vendor,
+        "categories": ", ".join(config.answer_categories),
+    }
     text_ = "".join(lines)
     for key, value in (values | lifecycle.text(language)).items():
         text_ = text_.replace(f"{{{key}}}", value)
@@ -8044,16 +8541,19 @@ def pinned(template: str, ref: str, version: str) -> str:
 def install(root: Path, ref: str, version: str) -> list[str]:
     """Write the workflows and the firewall policy of the templates into a repository.
 
-    The starters are only written when they are missing: labels, project.md,
-    config.toml, findings.toml, and, with the starter labels, a bug report form in a
-    repository without issue forms. The notice to reporters, the entry of .gitignore and what actionlint
+    The workflow of the discussions only when config.toml names categories whose
+    discussions get a first answer, as the starter does, or when it is there
+    already. The starters are only written when they are missing: labels,
+    project.md, config.toml, findings.toml, and, with the starter labels, a bug
+    report form in a repository without issue forms. The notice to reporters, the entry of .gitignore and what actionlint
     needs are added where they are missing, so that running it again changes
     nothing but the workflows.
     """
     if not SHA.fullmatch(ref):
         raise AssistantError("Give the commit hash of the issue assistant's release.")
     done = []
-    for name in TEMPLATE_WORKFLOWS:
+
+    def write(name: str) -> None:
         target = root / WORKFLOWS / name
         target.parent.mkdir(parents=True, exist_ok=True)
         content = pinned(
@@ -8061,6 +8561,10 @@ def install(root: Path, ref: str, version: str) -> list[str]:
         )
         target.write_text(content, encoding="utf-8", newline="\n")
         done.append(f"wrote {WORKFLOWS / name}")
+
+    for name in TEMPLATE_WORKFLOWS:
+        if name != DISCUSSION_WORKFLOW:
+            write(name)
     firewall = root / FIREWALL
     if firewall.is_file():
         done.append(f"kept {FIREWALL}; check names each host of the engine it lacks")
@@ -8076,6 +8580,11 @@ def install(root: Path, ref: str, version: str) -> list[str]:
             shutil.copyfile(TEMPLATES / starter, target)
             done.append(f"wrote {starter}; adapt it")
     done += add_form(root, starter_labels=starter_labels)
+    # Once the starters are there: the settings say whether discussions get answers.
+    if (root / WORKFLOWS / DISCUSSION_WORKFLOW).is_file() or load_config(
+        root, "", lenient=True
+    ).answer_categories:
+        write(DISCUSSION_WORKFLOW)
     ignore = root / ".gitignore"
     entry = f"/{CONTEXT}/"
     lines = ignore.read_text(encoding="utf-8").splitlines() if ignore.is_file() else []
@@ -9526,6 +10035,11 @@ def main(argv: list[str] | None = None) -> int:
                 shutil.rmtree(work, ignore_errors=True)
             summary(f"Accuracy on {repository}", lines, False)
             return 0
+        if fixture_name and arguments.mode in DISCUSSION_MODES:
+            raise AssistantError(
+                f"A fixture holds an issue; {arguments.mode} reads a discussion of "
+                "GitHub, so unset it."
+            )
         if fixture_name:
             fixture = read_fixture(root, fixture_name)
             if arguments.issue not in {None, fixture.number}:

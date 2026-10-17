@@ -30,6 +30,7 @@ from support import (
     earlier_form_fields,
     make_answer,
     make_comment,
+    make_discussion_answer,
     make_follow_up,
     make_issue,
     posted_comments,
@@ -261,7 +262,12 @@ class Drawn:
         hypothesis.HealthCheck.data_too_large,
     ]
 )
-@given(st.sampled_from(["triage", "follow-up", "maintainer-question"]), st.data())
+@given(
+    st.sampled_from(
+        ["triage", "follow-up", "maintainer-question", "discussion-answer"]
+    ),
+    st.data(),
+)
 def test_a_whole_comment_mentions_nobody_and_links_only_allowed_places(
     sample_config, mode, data
 ):
@@ -316,6 +322,17 @@ def test_the_whole_comments_include_answers_to_questions():
     answer = {"language": "de", "answer": "Weil.", "references": []}
     (body,), _ = posted_comments(CONFIG, "maintainer-question", answer)
     assert body.startswith("<!-- issue-assistant:answer lang=de to=2 engine=claude")
+
+
+def test_the_whole_comments_include_first_answers_to_discussions():
+    """The discussion is a question in Q&A, so the answers that the property test
+    above and the fuzzer judge are posted, and are not nothing."""
+    answer = make_discussion_answer(kind="bug", missing_information=["Which?"])
+    (body,), numbers = posted_comments(CONFIG, "discussion-answer", answer)
+    assert body.startswith(
+        "<!-- issue-assistant:discussion-answer lang=en type=bug questions=1"
+    )
+    assert stray_problems(body, numbers, CONFIG) == []
 
 
 def test_only_the_comment_on_a_security_report_may_link_to_the_policy():

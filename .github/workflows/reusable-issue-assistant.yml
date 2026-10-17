@@ -57,9 +57,12 @@ jobs:
           github.event.sender.login == github.event.issue.user.login)))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    # discussions: read for the limits of the day, which count the new discussions
+    # that get a first answer too.
     permissions:
       contents: read
       issues: write
+      discussions: read
     outputs:
       issue: ${{ steps.event.outputs.issue }}
       mode: ${{ steps.event.outputs.mode }}

@@ -1,0 +1,18 @@
+<!-- issue-assistant:discussion-answer lang=de type=question questions=1 engine=claude -->
+
+Danke für deine Frage, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe eine erste Antwort geschrieben. Die Maintainer und die Community lesen mit und ergänzen sie vielleicht.
+
+Ja. Trag beide Sensoren in `chart.sensors` ein, dann zeichnet das Diagramm für jeden eine Linie, in der Farbe seiner Pflanze; seit 1.3 blendet ein Klick auf einen Namen in der Legende seine Linie aus. Bei mehr als vier Linien liest sich ein zweites Diagramm besser, wie #17 zeigt.
+
+### Fehlende Informationen
+
+Damit ich genauer antworten kann, ergänze bitte Folgendes in einem Kommentar:
+
+- Die Version des Dashboards, unter Einstellungen → Über: Die Legende braucht 1.3 oder neuer.
+
+### Zum Nachlesen
+
+- [`src/plant_monitor/chart.py`, Zeile 52](https://github.com/demo-org/plant-monitor/blob/4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c/src/plant_monitor/chart.py#L52): Zeichnet eine Linie für jeden Sensor aus `chart.sensors`.
+
+<sub>🤖 Automatische erste Antwort von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues und Diskussionen. Sie kann falsch sein; prüfe sie, bevor du dich darauf verlässt. Wenn sie deine Frage beantwortet, kannst du sie als Antwort markieren. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+

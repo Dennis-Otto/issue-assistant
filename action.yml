@@ -13,11 +13,11 @@ inputs:
     description: event, engine, context, analyze, apply, usage, sweep, sync-labels, findings or check
     required: true
   issue:
-    description: Number of the issue, for context, apply and usage
+    description: Number of the issue or the discussion, for context, apply and usage
     required: false
     default: ""
   mode:
-    description: Task of the engine (triage, follow-up, maintainer-reply, release-reply or maintainer-question), for engine, context, analyze, apply and usage
+    description: Task of the engine (triage, follow-up, maintainer-reply, release-reply, maintainer-question or discussion-answer), for engine, context, analyze, apply and usage
     required: false
     default: ""
   answer:
@@ -51,7 +51,7 @@ inputs:
 
 outputs:
   issue:
-    description: The issue of the event
+    description: The issue or the discussion of the event
     value: ${{ steps.run.outputs.issue }}
   mode:
     description: The engine's next task, or none

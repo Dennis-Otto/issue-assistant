@@ -9,6 +9,7 @@
 | `golden/` | What the assistant writes, word for word: comments, contexts, plans and job summaries |
 | `test_golden.py` | The tests that compare those texts with their golden files |
 | `test_assistant.py` | The events, the sweeps, the answers of the AI and the commands of the script |
+| `test_discussions.py` | The first answers in Discussions: the event, the limits, the context, the checks of the answer and the set-up |
 | `test_graphql_contract.py` | Every GraphQL document against the copy of GitHub's schema in `github/` |
 | `test_properties.py`, `test_lifecycle_properties.py` | Property tests of the cleaning, of whole comments and of the lifecycle |
 | `oracle.py`, `test_oracle.py` | The Markdown parser that judges the cleaning, held to what GitHub's renderer does |

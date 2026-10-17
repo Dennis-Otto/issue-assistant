@@ -39,6 +39,13 @@ tool = "CodeQL"
 rule = "actions/untrusted-checkout/medium"
 reason = "false positive"
 comment = "The tool checkout takes job.workflow_sha, the commit of this reusable workflow that the caller pins, never code of a pull request: the same code as the job's own steps."
+path = ".github/workflows/reusable-discussion-assistant.yml"
+
+[[accept]]
+tool = "CodeQL"
+rule = "actions/untrusted-checkout/medium"
+reason = "false positive"
+comment = "The tool checkout takes job.workflow_sha, the commit of this reusable workflow that the caller pins, never code of a pull request: the same code as the job's own steps."
 path = ".github/workflows/reusable-issue-lifecycle.yml"
 
 [[accept]]
