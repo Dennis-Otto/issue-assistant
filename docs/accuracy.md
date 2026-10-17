@@ -18,5 +18,7 @@ A number of your own repository is welcome in the [discussions](https://github.c
 
 - **The text of an issue is that of today.** A reporter who added what the maintainers asked for makes the question for it look needless.
 - **The rest of the repository is partly that of today.** The texts and labels of the other issues, and the code, the documentation and the changelog of the checkout, which may already name the fix.
+- **The window of the other issues is that of today.** It holds the issues open now and those closed last, so for an older issue an original that was open then and closed long ago may be missing from it; the search for its words still finds the issues of that moment. The duplicates found may be a little fewer than at that moment.
+- **The labels of its form count for nothing.** A label that an issue had a minute after it was opened, such as that of its form, is no decision of the maintainers, and the AI sees it, so only the labels that people added later count.
 - **A maintainer's question is a guess.** A question mark in the first comment of a maintainer, or the label `needs-info`, counts as a question for more information, also when it asked something else.
 - **Small numbers vary.** A repository with few closed issues has few duplicates to find, and one more found or missed moves the share a lot; the report names the counts behind each share.

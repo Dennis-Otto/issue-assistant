@@ -4939,6 +4939,14 @@ def vouched_for(original: dict[str, Any]) -> bool:
     return is_maintainer(original) or NEEDS_TRIAGE not in label_names(original)
 
 
+def questions(answer: dict[str, Any], config: Config) -> list[str]:
+    """The questions for more information that the reporter gets for an answer:
+    those it lists, for a kind that labels.toml asks for, and never for spam."""
+    if answer["kind"] == "spam" or answer["kind"] not in config.asking_kinds():
+        return []
+    return [ask.strip() for ask in answer["missing_information"] if ask.strip()]
+
+
 def check_findings(
     github: GitHub,
     issue: dict[str, Any],
@@ -5324,11 +5332,7 @@ def apply_answer(
     if answer["kind"] == "spam":
         github.add_explained_labels(issue, [INVALID], label_rationale(answer, config))
         return [f"#{number} looks like spam: marked invalid, no comment."]
-    asks = [
-        ask.strip()
-        for ask in answer["missing_information"]
-        if ask.strip() and answer["kind"] in config.asking_kinds()
-    ]
+    asks = questions(answer, config)
     # The labels come before the comment, so that a run that GitHub stops leaves no
     # comment without its labels; the run again posts the comment. Only `needs-info`
     # comes after it: without the question, the sweep would remind the reporter of
@@ -8311,10 +8315,18 @@ def labels_at(
 
 
 def labels_by_people(
-    config: Config, issue: dict[str, Any], events: list[dict[str, Any]]
+    config: Config,
+    issue: dict[str, Any],
+    events: list[dict[str, Any]],
+    when: datetime,
 ) -> dict[str, frozenset[str]]:
-    """The labels of each scored group that the issue has, but those that a bot
-    added last, such as the assistant or a labeler of the repository."""
+    """The labels of each scored group that the issue has and that a person added
+    last, after the moment: what the maintainers decided.
+
+    A label that it had at the moment, such as that of its form, which GitHub
+    records as added by the reporter, is no decision: the replay sees it. Nor is
+    one that a bot added last, such as the assistant or a labeler of the
+    repository."""
     last = {
         str((event.get("label") or {}).get("name", "")): event
         for event in sorted(events, key=created)
@@ -8323,7 +8335,9 @@ def labels_by_people(
     names = {
         name
         for name in label_names(issue)
-        if name not in last or not is_bot(last[name].get("actor"))
+        if name in last
+        and created(last[name]) > when
+        and not is_bot(last[name].get("actor"))
     }
     return {
         group: frozenset(names.intersection(config.group(group)))
@@ -8384,10 +8398,10 @@ def sample_of(github: GitHub, config: Config, issue: dict[str, Any]) -> Sample |
     if any(kind_of(comment) == "analysis" for comment in comments):
         return None
     events = github.events(number)
-    labels = labels_by_people(config, issue, events)
+    when = created(issue) + OPENING
+    labels = labels_by_people(config, issue, events, when)
     if original is None and not any(labels.values()):
         return None
-    when = created(issue) + OPENING
     then = issue | {
         "state": "open",
         "state_reason": None,
@@ -8488,9 +8502,14 @@ class Then(GitHub):
         found = self._once(f"issues {closed}", lambda: self.now.recent_issues(closed))
         return [self._as_then(item) for item in self._before(found)]
 
+    def search(self, query: str) -> list[dict[str, Any]]:
+        # Only issues of then, so that later ones push none of them out of the results.
+        return self.now.search(f"{query} created:<={stamp(self.sample.moment)}")
+
     def search_issues(self, terms: list[str]) -> list[dict[str, Any]]:
-        found = self.now.search_issues(terms)
-        return [self._as_then(item) for item in self._before(found)]
+        return [
+            self._as_then(item) for item in self._before(super().search_issues(terms))
+        ]
 
     def discussions(self, most: int) -> list[dict[str, Any]]:
         found = self._once(f"discussions {most}", lambda: self.now.discussions(most))
@@ -8521,8 +8540,10 @@ class Outcome:
 
     sample: Sample
     labels: dict[str, frozenset[str]] = field(default_factory=dict)
-    # The issues that it named as duplicates, each with its confidence.
-    duplicates: tuple[tuple[int, str], ...] = ()
+    # The older issues that it named as duplicates, as the analysis keeps them, and
+    # the one that gets the notice that closes the issue, if any.
+    duplicates: tuple[int, ...] = ()
+    sure: int | None = None
     asks: bool = False
     cost: float | None = None
     error: str = ""
@@ -8537,6 +8558,29 @@ def chosen_labels(answer: dict[str, Any], config: Config) -> dict[str, frozenset
         "topic": frozenset(answer["topics"]),
         "priority": frozenset({answer.get("priority", NO_PRIORITY)} - {NO_PRIORITY}),
     }
+
+
+def named_duplicates(
+    then: GitHub, number: int, answer: dict[str, Any]
+) -> tuple[tuple[int, ...], int | None]:
+    """The duplicates of an answer as check_findings keeps them: each older issue
+    once, and the first sure one whose original was open and vouched for, which
+    gets the notice that closes the issue."""
+    named: list[int] = []
+    sure = None
+    for candidate in answer["duplicates"]:
+        original = other_issue(then, candidate["number"], number)
+        if not original or original["number"] > number or original["number"] in named:
+            continue
+        named.append(original["number"])
+        if (
+            sure is None
+            and candidate["confidence"] == "high"
+            and original["state"] == "open"
+            and vouched_for(original)
+        ):
+            sure = original["number"]
+    return tuple(named), sure
 
 
 def replay(
@@ -8556,25 +8600,25 @@ def replay(
     outcomes = []
     for index, sample in enumerate(samples, start=1):
         place = f"{index} of {len(samples)}, #{sample.number}"
+        then = Then(github, sample, memo)
         try:
-            write_context(Then(github, sample, memo), sample.number, "triage", config)
+            write_context(then, sample.number, "triage", config)
             answered = answer()
             chosen = parse_answer("triage", answered.text, config)
+            named, sure = named_duplicates(then, sample.number, chosen)
         except (AssistantError, GitHubError) as error:
             reason = one_line(str(error))
             print(f"{place}: failed, {reason}")
             outcomes.append(Outcome(sample, error=reason))
             continue
         print(f"{place}: answered")
-        named = tuple(
-            (item["number"], item["confidence"]) for item in chosen["duplicates"]
-        )
         outcomes.append(
             Outcome(
                 sample,
                 chosen_labels(chosen, config),
                 named,
-                bool(chosen["missing_information"]),
+                sure,
+                bool(questions(chosen, config)),
                 answered.cost,
             )
         )
@@ -8626,8 +8670,11 @@ def scores(outcomes: list[Outcome], config: Config) -> list[Score]:
         named = [
             (outcome, number)
             for outcome in answered
-            for number, confidence in outcome.duplicates
-            if not sure or confidence == "high"
+            for number in (
+                ((outcome.sure,) if outcome.sure else ())
+                if sure
+                else outcome.duplicates
+            )
         ]
         right = sum(number == outcome.sample.original for outcome, number in named)
         found.append(Score(name, originals, len(named), originals, right))
@@ -8678,7 +8725,7 @@ def outcome_row(outcome: Outcome, repository: str) -> str:
     right = [name for g in groups for name in outcome.labels[g] & sample.labels[g]]
     wrong = [name for g in groups for name in outcome.labels[g] - sample.labels[g]]
     missed = [name for g in groups for name in sample.labels[g] - outcome.labels[g]]
-    numbers = [number for number, _ in outcome.duplicates]
+    numbers = list(outcome.duplicates)
     named = ", ".join(f"#{number}" for number in numbers)
     if sample.original is None:
         duplicate = f"named {named}, of none" if numbers else ""
@@ -8726,7 +8773,8 @@ def render_evaluation(
         "*Precision* is the share of the assistant's choices that the maintainers "
         "made too, and *recall* the share of the maintainers' choices that the "
         "assistant made. A group of labels counts the issues that people gave a "
-        "label of the group; the duplicates count the issues closed as a duplicate "
+        "label of the group after they were opened, and a label that an issue had "
+        "then, such as that of its form, counts for neither; the duplicates count the issues closed as a duplicate "
         "of an older one, and the sure ones only the duplicates that the assistant "
         "was sure of, which get the notice that closes them; the questions count "
         "every issue, and the maintainers asked when the first comment of one of "
@@ -8833,6 +8881,14 @@ def local_engine(config: Config, work: Path) -> Callable[[], Answered]:
             "on the PATH of this computer."
         )
     found: str = command_path
+    if os.name == "nt" and Path(found).suffix.lower() in {".cmd", ".bat"}:
+        # cmd.exe cuts an argument at its first line break and refuses a command
+        # line beyond 8191 characters, and the task is longer.
+        raise AssistantError(
+            f"evaluate can't run {found}: Windows passes the task to a .cmd or .bat "
+            f"file through cmd.exe, which cuts it. Install {engine.name} as a "
+            "program of its own, or run evaluate in WSL."
+        )
     settings = work / "settings.json"
 
     def answer() -> Answered:
@@ -8866,6 +8922,8 @@ def local_engine(config: Config, work: Path) -> Callable[[], Answered]:
             raise AssistantError(
                 f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."
             ) from None
+        except OSError as error:
+            raise AssistantError(f"{engine.name} didn't start: {error}") from None
         return Answered(cli_answer(engine, cli, result))
 
     return answer
@@ -9160,6 +9218,12 @@ def main(argv: list[str] | None = None) -> int:
                 raise AssistantError(
                     f"The report {written} must be outside the checkout, where the "
                     "engine would read it in the next evaluation."
+                )
+            # Checked before the replays, whose answers cost, so that none is lost.
+            if not written.parent.is_dir() or not os.access(written.parent, os.W_OK):
+                raise AssistantError(
+                    f"The report {written} needs a folder that exists and that you "
+                    "may write to."
                 )
             work = Path(tempfile.mkdtemp(prefix="issue-assistant-"))
             try:

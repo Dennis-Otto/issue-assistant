@@ -65,10 +65,12 @@ def sample(number=20, original=None, asked=False, **labels):
 
 
 def outcome(chosen, *, duplicates=(), asks=False, cost=None, **labels):
+    """An outcome whose first duplicate named with high confidence is the sure one."""
     return assistant.Outcome(
         chosen,
         {group: frozenset(labels.get(group, ())) for group in assistant.SCORED_GROUPS},
-        tuple(duplicates),
+        tuple(number for number, _ in duplicates),
+        next((number for number, sure in duplicates if sure == "high"), None),
         asks,
         cost,
     )
@@ -85,8 +87,8 @@ def github(config):
     - #23, whose only label of a type a bot added;
     - #22, a duplicate of #7, which is older;
     - #21, a duplicate of #27, which is newer, and labelled by people;
-    - #20, a bug of the cards, with the label bug of its form and a question of a
-      maintainer, opened 30 days ago;
+    - #20, of the cards, with the label bug of its form, which no maintainer
+      chose, and a question of a maintainer, opened 30 days ago;
     - and #7, open, opened 40 days ago.
     """
     issues = [
@@ -110,6 +112,7 @@ def github(config):
     }
     fake.event_store = {
         23: [labeled("enhancement", 4.9, "github-actions[bot]")],
+        21: [labeled("question", 11.5)],
         20: [
             # The label of its form, which it had from the start.
             labeled("bug", 30),
@@ -245,8 +248,9 @@ def test_the_samples_are_the_newest_closed_issues_that_people_decided(config, gi
     # The original of #21 is newer, so its replay can't find it.
     assert newer.original is None
     assert newer.labels["type"] == {"question"}
+    # The label of its form is no decision of the maintainers: the replay sees it.
     assert bug.labels == {
-        "type": {"bug"},
+        "type": set(),
         "area": {"area: cards"},
         "topic": set(),
         "priority": set(),
@@ -265,6 +269,13 @@ def test_the_samples_stop_at_their_number(config, github):
     assert ([item.number for item in samples], read) == ([22], 5)
 
 
+def test_an_issue_whose_only_label_came_with_its_form_is_no_sample(config):
+    issue = closed(30, 8, labels=("bug",))
+    github = FakeGitHub(config, issue)
+    github.event_store = {30: [labeled("bug", 8, "reporter")]}
+    assert assistant.choose_samples(github, config, 1) == ([], 1)
+
+
 def test_the_labels_then_undo_each_change_after_the_moment():
     issue = make_issue(labels=("bug", "area: cards"))
     when = assistant.moment(at(10))
@@ -279,17 +290,23 @@ def test_the_labels_then_undo_each_change_after_the_moment():
     assert assistant.labels_at(issue, events, when) == {"bug", "question"}
 
 
-def test_a_label_counts_unless_a_bot_added_it_last(config):
-    issue = make_issue(labels=("bug", "area: cards", "area: games", "needs-info"))
+def test_a_label_counts_when_a_person_added_it_last_after_the_moment(config):
+    issue = make_issue(
+        labels=("bug", "question", "area: cards", "area: games", "needs-info", "P1")
+    )
+    when = assistant.moment(at(6))
     events = [
+        # The labels of its form, which GitHub records as added by the reporter,
+        # and one that no event added.
+        labeled("bug", 6, "reporter"),
         labeled("area: cards", 5, "github-actions[bot]"),
         labeled("area: cards", 4, kind="unlabeled"),
         labeled("area: cards", 3),
         labeled("area: games", 2, "github-actions[bot]"),
         labeled("needs-info", 2, "owner"),
     ]
-    assert assistant.labels_by_people(config, issue, events) == {
-        "type": {"bug"},
+    assert assistant.labels_by_people(config, issue, events, when) == {
+        "type": set(),
         "area": {"area: cards"},
         "topic": set(),
         "priority": set(),
@@ -407,11 +424,56 @@ def test_github_then_reads_reactions_comments_and_searches_of_then(config, githu
     ]
     found = then.search_issues(words)
     assert [(item["number"], item["state"]) for item in found] == [(5, "open")]
+    # GitHub's search finds only the issues of then, so that no later one pushes
+    # them out of its results.
+    assert github.calls[-1] == (
+        "SEARCH",
+        f"{query} created:<={assistant.stamp(bug.moment)}",
+        None,
+    )
     # Any other read goes to GitHub as it is.
     assert then.may_push("owner")
 
 
 # The replays
+
+
+def test_the_questions_of_an_answer_are_those_that_apply_would_ask(config):
+    asks = ["The version. ", " "]
+    assert assistant.questions(make_answer(missing_information=asks), config) == [
+        "The version."
+    ]
+    # labels.toml asks no questions for an enhancement, and none go to spam.
+    for kind in ("enhancement", "spam"):
+        answer = make_answer(kind=kind, missing_information=asks)
+        assert assistant.questions(answer, config) == []
+
+
+def test_the_duplicates_of_an_answer_are_those_that_the_analysis_keeps(config, github):
+    then = assistant.Then(github, sample(), {})
+    # Closed before the moment, and open but neither opened nor triaged by a
+    # maintainer.
+    github.store[19] = closed(19, 40)
+    github.store[18] = make_issue(18, days_ago=35, labels=("needs-triage",))
+
+    def named(number, confidence="high"):
+        return {"number": number, "confidence": confidence, "reason": "Same."}
+
+    answer = make_answer(
+        duplicates=[
+            # Newer than #20, its own number, and one that doesn't exist.
+            named(27),
+            named(20),
+            named(99),
+            named(19),
+            named(18),
+            named(7, "medium"),
+            named(7),
+        ]
+    )
+    assert assistant.named_duplicates(then, 20, answer) == ((19, 18, 7), None)
+    answer = make_answer(duplicates=[named(19), named(7), named(18)])
+    assert assistant.named_duplicates(then, 20, answer) == ((19, 7, 18), 7)
 
 
 class FakeEngine:
@@ -468,7 +530,8 @@ def test_each_replay_reads_the_issue_and_the_repository_as_they_were(
     assert (states[20], states[21]) == ("closed", "open")
     assert [item.error for item in outcomes] == ["", "", ""]
     duplicate, newer, bug = outcomes
-    assert duplicate.duplicates == ((7, "high"),) and duplicate.cost == 0.25
+    assert duplicate.duplicates == (7,) and duplicate.sure == 7
+    assert duplicate.cost == 0.25
     assert newer.labels["type"] == {"question"} and newer.labels["area"] == set()
     assert bug.asks and bug.labels["area"] == {"area: cards"}
 
@@ -632,8 +695,10 @@ def test_the_report_has_each_measure_and_a_line_for_each_issue(config):
         "*Precision* is the share of the assistant's choices that the maintainers "
         "made too, and *recall* the share of the maintainers' choices that the "
         "assistant made. A group of labels counts the issues that people gave a "
-        "label of the group; the duplicates count the issues closed as a duplicate "
-        "of an older one, and the sure ones only the duplicates that the assistant "
+        "label of the group after they were opened, and a label that an issue had "
+        "then, such as that of its form, counts for neither; the duplicates count "
+        "the issues closed as a duplicate of an older one, and the sure ones only "
+        "the duplicates that the assistant "
         "was sure of, which get the notice that closes them; the questions count "
         "every issue, and the maintainers asked when the first comment of one of "
         "them asked a question or someone added `needs-info`.\n"
@@ -776,6 +841,10 @@ def test_claude_runs_as_in_the_workflow_with_the_task_on_its_input(
             subprocess.TimeoutExpired("claude", 900),
             "Claude gave no answer within 15 minutes.",
         ),
+        (
+            PermissionError("Access is denied"),
+            "Claude didn't start: Access is denied",
+        ),
     ],
 )
 def test_claude_that_gives_no_answer_says_why(
@@ -827,6 +896,23 @@ def test_copilot_takes_no_settings_file(monkeypatch, tmp_path, config, context):
     ((_, options),) = run.calls
     assert "GEMINI_CLI_SYSTEM_SETTINGS_PATH" not in options["env"]
     assert not (tmp_path / "settings.json").exists()
+
+
+@pytest.mark.parametrize("found", ["C:/npm/gemini.cmd", "C:/npm/gemini.BAT"])
+def test_an_engine_that_windows_runs_through_cmd_is_refused(
+    monkeypatch, tmp_path, config, found
+):
+    monkeypatch.setattr(assistant.shutil, "which", lambda name: found)
+    monkeypatch.setattr(assistant.os, "name", "nt")
+    chosen = dataclasses.replace(config, engine="gemini")
+    with pytest.raises(assistant.AssistantError, match="cmd.exe, which cuts it"):
+        assistant.local_engine(chosen, tmp_path)
+
+
+def test_an_engine_that_windows_runs_as_a_program_is_run(monkeypatch, tmp_path, config):
+    monkeypatch.setattr(assistant.shutil, "which", lambda name: "C:/bin/claude.exe")
+    monkeypatch.setattr(assistant.os, "name", "nt")
+    assert callable(assistant.local_engine(config, tmp_path))
 
 
 def test_an_engine_that_evaluate_doesn_t_run_or_can_t_find_is_refused(
@@ -908,7 +994,8 @@ def test_the_evaluate_command_writes_the_report_next_to_the_checkout(
     assert "The analyses cost $1.00 at the prices of the API." in text
     assert summary == (
         "### Accuracy on owner/project\n\n"
-        "- Type: precision 100 % (2 of 2), recall 100 % (2 of 2), over 2 issues\n"
+        # The bug of #22 is the label of its form, which counts for neither.
+        "- Type: precision 100 % (1 of 1), recall 100 % (1 of 1), over 1 issue\n"
         "- Areas: precision –, recall –, over 0 issues\n"
         "- Topics: precision –, recall –, over 0 issues\n"
         "- Duplicates: precision 100 % (1 of 1), recall 100 % (1 of 1), over 1 issue\n"
@@ -969,6 +1056,10 @@ def test_the_evaluate_command_takes_another_engine_model_and_report(
             ["--report", "accuracy.md"],
             "must be outside the checkout, where the engine would read it in the "
             "next evaluation.",
+        ),
+        (
+            ["--report", "../missing/accuracy.md"],
+            "needs a folder that exists and that you may write to.",
         ),
         (["--issues", "0"], "--issues must be a whole number from 1 to 200, not 0."),
         (

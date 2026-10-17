@@ -1035,13 +1035,22 @@ class FakeGitHub(assistant.GitHub):
     def search(self, query):
         self.calls.append(("SEARCH", query, None))
         self._failing(f"SEARCH {query}")
+        # The qualifier of evaluate's replays, which GitHub doesn't count in the
+        # length of the query: only issues opened at or before the moment.
+        query, _, before = query.partition(" created:<=")
         scope = f"repo:{REPOSITORY} is:issue ("
         assert query.startswith(scope) and query.endswith(")"), query
         words = query.removeprefix(scope).removesuffix(")").split(" OR ")
         # GitHub's search takes at most five operators and 256 characters.
         assert len(words) <= assistant.SEARCH_TERMS, query
         assert len(query) <= 256, query
-        found = deepcopy(self.search_store.get(query, [])[: assistant.SEARCHED])
+        found = [
+            item
+            for item in self.search_store.get(query, [])
+            if not before
+            or assistant.moment(item["created_at"]) <= assistant.moment(before)
+        ]
+        found = deepcopy(found[: assistant.SEARCHED])
         for item in found:
             item.setdefault(
                 "repository_url", f"https://api.github.com/repos/{REPOSITORY}"
