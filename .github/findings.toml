@@ -19,3 +19,31 @@ tool = "Scorecard"
 rule = "MaintainedID"
 reason = "won't fix"
 comment = "Scorecard counts a repository younger than 90 days as unmaintained; this one gets commits and releases every week."
+
+[[accept]]
+tool = "CodeQL"
+rule = "actions/untrusted-checkout/medium"
+reason = "false positive"
+comment = "The tool checkout takes job.workflow_sha, the commit of this reusable workflow that the caller pins, never code of a pull request: the same code as the job's own steps."
+path = ".github/workflows/reusable-findings.yml"
+
+[[accept]]
+tool = "CodeQL"
+rule = "actions/untrusted-checkout/medium"
+reason = "false positive"
+comment = "The tool checkout takes job.workflow_sha, the commit of this reusable workflow that the caller pins, never code of a pull request: the same code as the job's own steps."
+path = ".github/workflows/reusable-issue-assistant.yml"
+
+[[accept]]
+tool = "CodeQL"
+rule = "actions/untrusted-checkout/medium"
+reason = "false positive"
+comment = "The tool checkout takes job.workflow_sha, the commit of this reusable workflow that the caller pins, never code of a pull request: the same code as the job's own steps."
+path = ".github/workflows/reusable-issue-lifecycle.yml"
+
+[[accept]]
+tool = "CodeQL"
+rule = "actions/untrusted-checkout/medium"
+reason = "false positive"
+comment = "The tool checkout takes job.workflow_sha, the commit of this reusable workflow that the caller pins, never code of a pull request: the same code as the job's own steps."
+path = ".github/workflows/reusable-labels.yml"

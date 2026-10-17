@@ -298,11 +298,15 @@ def test_install_writes_the_workflows_with_the_release(sample_root):
     workflow = (sample_root / ".github/workflows/issue-assistant.yml").read_text(
         "utf-8"
     )
-    assert f"uses: Dennis-Otto/issue-assistant@{REF} # v1.0.0" in workflow
-    # The steps event, engine, context, usage and apply.
-    assert workflow.count(f"Dennis-Otto/issue-assistant@{REF} # v1.0.0") == 5
-    for name in ("issue-lifecycle.yml", "labels.yml"):
-        assert (sample_root / ".github/workflows" / name).is_file()
+    # One pin of the release, of the reusable workflow that has the jobs.
+    assert workflow.count(f"@{REF} # v1.0.0") == 1
+    assert (
+        "uses: Dennis-Otto/issue-assistant/.github/workflows/"
+        f"reusable-issue-assistant.yml@{REF} # v1.0.0"
+    ) in workflow
+    for name in ("issue-lifecycle.yml", "labels.yml", "findings.yml"):
+        text = (sample_root / ".github/workflows" / name).read_text("utf-8")
+        assert f"/reusable-{name}@{REF} # v1.0.0" in text
     assert (sample_root / ".github/egress-firewall.yaml").read_text("utf-8") == (
         assistant.TEMPLATES / assistant.FIREWALL
     ).read_text("utf-8")
@@ -321,12 +325,13 @@ def test_install_and_check_read_the_templates_from_templates_alone(
     assistant.install(root, REF, "v1.0.0")
     for name in assistant.TEMPLATE_WORKFLOWS:
         template = assistant.TEMPLATES / assistant.WORKFLOWS / name
-        # Byte for byte the template, with the release in the pin of the action.
-        assert (root / assistant.WORKFLOWS / name).read_bytes() == (
-            assistant.ACTION_PIN.sub(
-                f"{assistant.ACTION}@{REF} # v1.0.0", template.read_text("utf-8")
-            ).encode()
+        # Byte for byte the template, with the release in the pin of the issue
+        # assistant.
+        written = (root / assistant.WORKFLOWS / name).read_text("utf-8")
+        assert written.encode() == (
+            assistant.pinned(template.read_text("utf-8"), REF, "v1.0.0").encode()
         )
+        assert written != template.read_text("utf-8")
     assert (root / assistant.FIREWALL).read_bytes() == (
         assistant.TEMPLATES / assistant.FIREWALL
     ).read_bytes()
@@ -773,7 +778,9 @@ def test_install_leaves_actionlint_settings_that_it_can_t_edit_safely(text):
     assert assistant.with_item(text, keys, assistant.FIREWALL_RUNNER) is None
 
 
-def test_install_lets_actionlint_know_the_runner_and_the_queue(root):
+def test_install_lets_actionlint_know_the_queue(root):
+    """The runner of the AI is in the reusable workflow, which actionlint doesn't
+    read in a repository that calls it; the queue is in the template."""
     path = root / assistant.ACTIONLINT
     assert assistant.add_to_actionlint(root) == []
     path.write_text(
@@ -781,7 +788,6 @@ def test_install_lets_actionlint_know_the_runner_and_the_queue(root):
         encoding="utf-8",
     )
     assert assistant.add_to_actionlint(root) == [
-        "listed the runner ubuntu-24.04-firewall in .github/actionlint.yaml",
         "let actionlint ignore the queue of issue-assistant.yml in "
         ".github/actionlint.yaml",
     ]
@@ -791,14 +797,11 @@ def test_install_lets_actionlint_know_the_runner_and_the_queue(root):
         "    ignore:\n"
         '      - \'unexpected key "queue" for "concurrency" section\'\n'
         "  .github/workflows/ci.yml:\n    ignore:\n      - 'x'\n"
-        "self-hosted-runner:\n  labels:\n    - ubuntu-24.04-firewall\n"
     )
     assert assistant.add_to_actionlint(root) == []
     assert assistant.check_workflows(assistant.load_config(root, REPOSITORY)) == []
     path.write_text("[a]\n", encoding="utf-8")
     assert assistant.add_to_actionlint(root) == [
-        ".github/actionlint.yaml: add 'ubuntu-24.04-firewall' to the list "
-        "self-hosted-runner > labels; its YAML is too unusual to edit safely",
         '.github/actionlint.yaml: add \'unexpected key "queue" for "concurrency" '
         "section' to the list paths > .github/workflows/issue-assistant.yml > ignore; "
         "its YAML is too unusual to edit safely",
@@ -812,11 +815,11 @@ def test_install_writes_the_rest_without_reading_actionlint_s_settings(
     # Settings that are no YAML, which check reports.
     path = root / assistant.ACTIONLINT
     path.write_text("self-hosted-runner: [a\n", encoding="utf-8")
-    done = assistant.add_to_actionlint(root)
-    assert len(done) == 2
-    assert done[0].startswith(
-        ".github/actionlint.yaml: add 'ubuntu-24.04-firewall' to the list "
-        "self-hosted-runner > labels; .github/actionlint.yaml is no valid YAML: "
+    (done,) = assistant.add_to_actionlint(root)
+    assert done.startswith(
+        '.github/actionlint.yaml: add \'unexpected key "queue" for "concurrency" '
+        "section' to the list paths > .github/workflows/issue-assistant.yml > "
+        "ignore; .github/actionlint.yaml is no valid YAML: "
     )
     # A computer with neither PyYAML nor yq.
     path.write_text("self-hosted-runner:\n  labels: []\n", encoding="utf-8")
@@ -831,9 +834,10 @@ def test_install_writes_the_rest_without_reading_actionlint_s_settings(
     monkeypatch.setattr(assistant.subprocess, "run", without_yq)
     done = assistant.install(root, REF, "v1.0.0")
     assert (
-        ".github/actionlint.yaml: add 'ubuntu-24.04-firewall' to the list "
-        "self-hosted-runner > labels; Reading the workflows needs PyYAML or yq; "
-        "install one of them, for example with: pip install pyyaml"
+        '.github/actionlint.yaml: add \'unexpected key "queue" for "concurrency" '
+        "section' to the list paths > .github/workflows/issue-assistant.yml > "
+        "ignore; Reading the workflows needs PyYAML or yq; install one of them, "
+        "for example with: pip install pyyaml"
     ) in done
     assert "wrote .github/workflows/issue-assistant.yml" in done
     assert path.read_text("utf-8") == "self-hosted-runner:\n  labels: []\n"
@@ -1177,7 +1181,7 @@ def test_a_project_description_that_says_too_little_fails_the_check(
 def test_a_changed_workflow_is_found(config, root):
     path = root / ".github/workflows/issue-assistant.yml"
     path.write_text(
-        path.read_text("utf-8").replace("issues: read", "issues: write"),
+        path.read_text("utf-8").replace("discussions: read", "discussions: write"),
         encoding="utf-8",
     )
     (root / ".github/workflows/labels.yml").unlink()
@@ -1194,17 +1198,19 @@ def test_actions_must_be_pinned_to_a_commit(config, root):
     path.write_text(path.read_text("utf-8").replace(REF, "v1"), encoding="utf-8")
     problems = assistant.check_workflows(config)
     assert problems == [
-        ".github/workflows/issue-lifecycle.yml: pin Dennis-Otto/issue-assistant "
-        "to a commit hash, not 'v1'"
+        ".github/workflows/issue-lifecycle.yml: pin Dennis-Otto/issue-assistant/"
+        ".github/workflows/reusable-issue-lifecycle.yml to a commit hash, not 'v1'"
     ]
 
 
 def test_newer_pins_of_the_same_actions_fit(config, root):
-    path = root / ".github/workflows/issue-assistant.yml"
-    text = path.read_text("utf-8").replace(
-        "3d3c42e5aac5ba805825da76410c181273ba90b1", "f" * 40
-    )
-    path.write_text(text, encoding="utf-8")
+    """A move of the pins, as Renovate or Dependabot makes it, is all an update of
+    the issue assistant needs, when its release changed no template."""
+    for name in assistant.TEMPLATE_WORKFLOWS:
+        path = root / ".github/workflows" / name
+        text = path.read_text("utf-8").replace(f"{REF} # v1.0.0", f"{'f' * 40} # v9")
+        assert text != path.read_text("utf-8")
+        path.write_text(text, encoding="utf-8")
     assert assistant.check_workflows(config) == []
 
 
@@ -1233,18 +1239,14 @@ def test_firewall_problems_are_found(config, root):
     )
 
 
-def test_actionlint_and_gitignore_are_checked(config, root):
+def test_gitignore_is_checked_and_actionlint_needs_no_runner(config, root):
+    # The runner of the AI is in the reusable workflow, which actionlint doesn't
+    # read in a repository that calls it.
     (root / ".github/actionlint.yaml").write_text(
         "self-hosted-runner:\n  labels: []\n", encoding="utf-8"
     )
     (root / ".gitignore").write_text("/build/\n", encoding="utf-8")
-    assert assistant.check_workflows(config) == [
-        ".github/actionlint.yaml: list the runner ubuntu-24.04-firewall",
-        ".gitignore: add /.issue-assistant/",
-    ]
-    (root / ".github/actionlint.yaml").write_text(
-        "self-hosted-runner:\n  labels: [ubuntu-24.04-firewall]\n", encoding="utf-8"
-    )
+    assert assistant.check_workflows(config) == [".gitignore: add /.issue-assistant/"]
     (root / ".gitignore").unlink()
     assert assistant.check_workflows(config) == [".gitignore: add /.issue-assistant/"]
 
@@ -1458,7 +1460,7 @@ def test_install_takes_the_release_of_its_checkout(monkeypatch, tmp_path, capsys
     code, _, _ = run_main(monkeypatch, tmp_path, target, None, "install")
     assert code == 0, capsys.readouterr().out
     workflow = (target / ".github/workflows/labels.yml").read_text("utf-8")
-    assert f"Dennis-Otto/issue-assistant@{commit} # v9.8.7" in workflow
+    assert f"/reusable-labels.yml@{commit} # v9.8.7" in workflow
 
 
 def test_yaml_is_read_with_pyyaml(tmp_path):

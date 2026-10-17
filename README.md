@@ -83,6 +83,13 @@ Four workflows run in the repository. Only the violet job runs an AI, and it can
 | `labels.yml` | when `.github/labels.toml` changes on main | creates and updates the labels; never deletes one |
 | `findings.yml` | every morning, after each scan of CodeQL, OpenSSF Scorecard, Workflow security and OSV-Scanner on main, when `.github/findings.toml` changes | dismisses the accepted findings of code scanning and fails while others are open |
 
+Each of the four is a short workflow with what starts it, the most permissions that its jobs get and one pin: the reusable workflow of the issue assistant at the commit of a release, which has the jobs. They run in your repository, with its events, variables, environment and firewall policy, and each job runs the issue assistant of that same commit:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-a-workflow-of-a-repository-calls.dark.svg">
+  <img src="docs/images/diagrams/what-a-workflow-of-a-repository-calls.svg" alt="What a workflow of a repository calls: A workflow of the repository, such as issue-assistant.yml, holds what starts it, the most permissions that its jobs get, and one pin, of a release of the issue assistant. It calls the reusable workflow of that release, whose jobs run in the repository, with its events, variables, environment issue-assistant and firewall policy, and each job runs the issue assistant of the same commit. A new release reaches the repository as a pull request of Dependabot or Renovate that moves the pin; install runs again only when a release changes a template.">
+</picture>
+
 Every job runs on `ubuntu-24.04`, the AI's on GitHub's egress-firewall runner of the same version. The events of one issue wait for each other, first in, first out, so a comment written while an analysis runs is handled after it, never dropped. A run of the lifecycle or the findings whose job has nothing to do, such as after the hourly scheduled run of a release workflow, takes no runner and never takes the place of one that waits.
 
 Every task of the AI is one of five: `triage` for a new issue, `follow-up` when the reporter answered the assistant's questions (at most twice, and never once the maintainer joined the conversation), `maintainer-reply` to decide whether a maintainer's comment waits for the reporter, `release-reply` to decide whether the reporter of an issue that a release closed says that the problem persists, and `maintainer-question` to answer the question of a maintainer's [`/assistant ask`](#slash-commands). Which one an event of an issue gives it:
@@ -353,7 +360,7 @@ Issues come from anyone, so the design assumes that an issue tries to steer the 
 - **No code of a pull request runs.** The lifecycle workflow starts on `pull_request_target` only to learn which issues a merged pull request fixes. It checks out the default branch, runs no AI and skips Dependabot's pull requests.
 - **The jobs that write reach only GitHub.** Every job without the AI starts with [Harden-Runner](https://github.com/step-security/harden-runner) in block mode: the network allows `api.github.com` and `github.com` alone, besides the runner's own hosts, and no step can use sudo or containers to lift the block. A compromised action or tool in a job with a write token can't send it anywhere else. The Action test of this repository runs the action behind the same block. The block holds in a public repository, and in a private one only with a subscription or trial of StepSecurity, the maker of Harden-Runner; without one, or when its service is unavailable, the job runs unblocked. StepSecurity receives the repository, the run and the job of each of these jobs, and the hosts that its steps connect to.
 - **Findings stay private.** Code scanning alerts are only shown to maintainers, but the logs of a public repository's runs are public. So the Findings workflow names an open alert by its number and link only, never its rule, file or message, and nothing becomes an issue.
-- **Every repository uses exactly the templates.** The templates are the four workflows and the firewall policy in `templates/`, which this repository uses for its own issues and findings too. `check` fails when a repository's workflow differs from its template in anything but the commit hashes of its actions, and the tests of this repository pin the rules of the templates.
+- **Every repository uses exactly the templates.** The templates are the four workflows and the firewall policy in `templates/`, which this repository uses for its own issues and findings too. Each workflow calls the jobs of a release, the reusable workflows in `.github/workflows/reusable-*.yml` of this repository, at a commit that no repository can change, and gives them no more permissions than they need. `check` fails when a repository's workflow differs from its template in anything but the commit hashes of its pins, and the tests of this repository pin the rules of the templates and of the jobs.
 
 What `apply` makes of an answer that an issue steered:
 
@@ -383,7 +390,7 @@ A set-up has three parts: what `install` writes, what you edit, and what you set
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-install-writes-what-you-edit-and-what-you-set-on-github.dark.svg">
-  <img src="docs/images/diagrams/what-install-writes-what-you-edit-and-what-you-set-on-github.svg" alt="What install writes, what you edit and what you set on GitHub: install of a release, run in the root of the repository, writes the four workflows, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore; adds the notice to reporters to SUPPORT.md and the runner of the AI to actionlint's settings where they are missing; and writes starters of project.md, config.toml, labels.toml, findings.toml and a bug report form when they are missing. With --setup, it also creates the environment issue-assistant on GitHub, limited to the default branch, and asks for the engine's secret. Then you describe the project in project.md, adapt the starters, and turn off the auto-close of issues by merged pull requests. Then check passes, and a run by hand shows the first analysis as a dry run.">
+  <img src="docs/images/diagrams/what-install-writes-what-you-edit-and-what-you-set-on-github.svg" alt="What install writes, what you edit and what you set on GitHub: install of a release, run in the root of the repository, writes the four workflows, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore; adds the notice to reporters to SUPPORT.md and the queue of issue-assistant.yml to actionlint's settings where they are missing; and writes starters of project.md, config.toml, labels.toml, findings.toml and a bug report form when they are missing. With --setup, it also creates the environment issue-assistant on GitHub, limited to the default branch, and asks for the engine's secret. Then you describe the project in project.md, adapt the starters, and turn off the auto-close of issues by merged pull requests. Then check passes, and a run by hand shows the first analysis as a dry run.">
 </picture>
 
 <!-- --8<-- [start:quick-start] -->
@@ -430,7 +437,7 @@ On Windows, run the commands in Git Bash; Python's launcher `py` takes the place
 | `.github/findings.toml` | when missing | accept findings of code scanning that can't or shouldn't be fixed, each with its reason |
 | `.github/ISSUE_TEMPLATE/bug_report.yml` | together with the starter `labels.toml`, when the repository has no issue forms or templates | adapt the answers of the field *Area*, whose `form_options` in `labels.toml` choose an area label |
 | `SUPPORT.md`, or the files of `[transparency]` | when they don't name the engine | the section *What happens with your issue*, which the footer of every analysis and follow-up links, tells reporters which AI reads their issue, in German for a file such as `SUPPORT.de.md` |
-| `.github/actionlint.yaml` | when it exists | nothing: it lists the runner `ubuntu-24.04-firewall` and ignores the `queue` of `issue-assistant.yml`, which actionlint 1.7.12 doesn't know yet |
+| `.github/actionlint.yaml` | when it exists | nothing: it ignores the `queue` of `issue-assistant.yml`, which actionlint 1.7.12 doesn't know yet |
 | `.gitignore` | when the entry is missing | nothing: `/.issue-assistant/` keeps the context of the AI out of commits |
 
 GitHub ignores the case of label names, so the Labels workflow renames a label that the repository has in another case, such as `Bug` for `bug`, instead of creating a second one. A YAML file that `install` can't edit without changing the rest, such as a list in braces, it leaves as it is and names what to add.
@@ -465,7 +472,7 @@ gh secret set CLAUDE_CODE_OAUTH_TOKEN --env issue-assistant --repo OWNER/REPO
 
 Without the secret, labels, reminders, closing and reopening keep working. The repository variable `ISSUE_ASSISTANT_AI` set to `off` switches the AI off.
 
-Updates arrive as Dependabot pull requests that move the commit hash of the action in the workflows. When a new release changes the templates, its release notes say so; run the commands of step 1 again.
+Updates arrive as pull requests of Dependabot or Renovate that move the commit hash of the issue assistant in the four workflows, and that is the whole update: the jobs are those of the release that the workflows pin. Only a release that changes a template needs the commands of step 1 again, and its release notes say so.
 
 <!-- --8<-- [end:set-up] -->
 <!-- --8<-- [start:settings] -->
@@ -578,7 +585,7 @@ Everything except one step of the `analyze` job is independent of the AI: the co
 | --- | --- | --- | --- |
 | `claude` (default) | `anthropics/claude-code-action` | `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` | `--restricted --tools "Read,Grep,Glob"`, the rules with `--append-system-prompt-file`, `--max-turns` and `--max-budget-usd`, schema with `--json-schema` |
 
-To add one, for example OpenAI Codex with `openai/codex-action` (`prompt-file`, `output-schema-file` and a read-only sandbox) or the GitHub Copilot CLI in programmatic mode (only reading tools, the JSON asked for in the prompt): add it to `ENGINES` in `issue_assistant.py` with its secrets, the one that `install --setup` asks for first, give it a step with its key as `id` in `templates/.github/workflows/issue-assistant.yml` with the same condition as the Claude step, add its secret to `ready-engines` and its answer to the job output `answer`, pass it the rules, the turns and the dollars of the task, give `usage` the numbers of its run, add its hosts to `templates/.github/egress-firewall.yaml` in a block of its own, and its rules to `ENGINE_RULES` in `tests/test_templates.py`, which keeps it read-only.
+To add one, for example OpenAI Codex with `openai/codex-action` (`prompt-file`, `output-schema-file` and a read-only sandbox) or the GitHub Copilot CLI in programmatic mode (only reading tools, the JSON asked for in the prompt): add it to `ENGINES` in `issue_assistant.py` with its secrets, the one that `install --setup` asks for first, give it a step with its key as `id` in `.github/workflows/reusable-issue-assistant.yml` with the same condition as the Claude step, add its secret to `ready-engines`, to the secrets of `workflow_call` there and to those that `templates/.github/workflows/issue-assistant.yml` passes by name, and its answer to the job output `answer`, pass it the rules, the turns and the dollars of the task, give `usage` the numbers of its run, add its hosts to `templates/.github/egress-firewall.yaml` in a block of its own, and its rules to `ENGINE_RULES` in `tests/test_templates.py`, which keeps it read-only.
 
 <!-- --8<-- [end:engines] -->
 <!-- --8<-- [start:commands] -->
@@ -698,7 +705,7 @@ Set the repository variable `ISSUE_ASSISTANT_AI` to `off`, for example with `gh 
 
 ### Why must the workflows equal the templates?
 
-The security of the assistant lives in its workflows: the permissions of each job, the runner with the firewall and the order of the steps. So `check` fails when a workflow differs from its template in anything but the commit hashes of its actions, as decisions [0006](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/0006-the-templates-exactly.md) and [0007](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/0007-templates-live-in-templates.md) explain. A change that a repository needs is welcome as an issue here, and reaches every repository with a release.
+The security of the assistant lives in its workflows: the permissions of each job, the runner with the firewall and the order of the steps. So `check` fails when a workflow differs from its template in anything but the commit hashes of its actions, as decisions [0006](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/0006-the-templates-exactly.md) and [0007](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/0007-templates-live-in-templates.md) explain. The workflows only call the jobs of a release, so an update moves their pins and changes nothing else, as decision 0015 of the [decision records](https://github.com/Dennis-Otto/issue-assistant/tree/main/docs/decisions) explains. A change that a repository needs is welcome as an issue here, and reaches every repository with a release.
 
 ### Does it need Claude?
 
@@ -732,7 +739,6 @@ The summary of each run says what the assistant did and why; the runs are under 
 | An issue with `fixed-in-next-release` stays open after a release | The release is a draft or a pre-release, it doesn't contain every pull request that fixes the issue, or a maintainer set the label by hand after it, which waits for the next one | Publish a final release that contains the fixes; the sweep of the next morning closes the issue, or start *Issue lifecycle* by hand |
 | An issue still waits for its reporter after they changed the title | Only a comment or an edit of the text answers the questions | Nothing to fix: the reporter answers in a comment or in the text. To end the waiting yourself, remove `needs-info` |
 | A label of `.github/labels.toml` is missing in the repository | The Labels workflow runs when `labels.toml` changes on `main`, not before | Run it by hand: `gh workflow run labels.yml` |
-| actionlint calls `ubuntu-24.04-firewall` an unknown label | actionlint doesn't know the runner of the preview | Run `install` again, which lists it in `.github/actionlint.yaml`, as [What install writes](https://github.com/Dennis-Otto/issue-assistant#what-install-writes) says |
 
 <!-- --8<-- [end:troubleshooting] -->
 
@@ -760,7 +766,7 @@ The tests check every GraphQL request of the script against GitHub's schema, and
 
 Every week, and after every change on `main` of the path of an issue through the AI, the Canary runs that whole path, with the engine on the firewall runner and an issue that exists nowhere, as a dry run that writes nothing; [the architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md#the-canary) shows how.
 
-The templates that `install` writes are in `templates/`. This repository's own copies in `.github/` come from the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint) with the release that it pins, so a pull request changes only `templates/`; [the architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories) shows how a change of a template reaches every repository.
+The templates that `install` writes are in `templates/`, and the jobs that they call in `.github/workflows/reusable-*.yml`. This repository's own copies of the templates in `.github/` come from the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint) with the release that it pins, so a pull request changes only `templates/` and the reusable workflows; [the architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories) shows how a change of a template reaches every repository.
 
 ## License
 

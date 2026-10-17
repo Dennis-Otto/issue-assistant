@@ -5,15 +5,15 @@ config:
 ---
 flowchart TB
     accTitle: How a change of a template reaches the repositories
-    accDescr: A pull request in this repository changes templates/. Its checks lint the templates and check the set-up with them installed, while the required check issue-assistant compares this repository's own workflows with the release that they pin, so it stays green. Merged, the change becomes a release. A pull request in the repository blueprint installs that release there and moves the pins of the action. The next release of the blueprint brings it to every repository made from it, this one too. Repositories without the blueprint get the release from Dependabot and run install again.
+    accDescr: A pull request in this repository changes templates/ or the reusable workflows. Its checks lint them and check the set-up with the templates installed, while the required check issue-assistant compares this repository's own workflows with the release that they pin, so it stays green. Merged, the change becomes a release. A pull request in the repository blueprint installs that release there and moves the pins of the issue assistant. The next release of the blueprint brings it to every repository made from it, this one too. Repositories without the blueprint get the release from Dependabot or Renovate, which move the pins; they run install again only when the release changed a template.
 
-    change["Pull request here<br>changes templates/ alone"]
+    change["Pull request here<br>changes templates/<br>or the reusable workflows"]
     checks["Its checks pass<br>templates linted and installed<br>own workflows: the pinned release"]
-    release["`Release **vX.Y.Z**<br>its notes name the changed templates`"]
-    sync["Pull request in the blueprint<br>install of vX.Y.Z<br>new pins of the action"]
+    release["`Release **vX.Y.Z**<br>its notes name a changed template`"]
+    sync["Pull request in the blueprint<br>install of vX.Y.Z<br>new pins of the issue assistant"]
     rollout(["Blueprint bot<br>an update pull request<br>in every repository of the blueprint"])
-    fleet["Every repository of the blueprint<br>this one too<br>the templates of vX.Y.Z"]
-    others["Repositories without the blueprint<br>Dependabot moves the pin<br>install again"]
+    fleet["Every repository of the blueprint<br>this one too<br>the jobs of vX.Y.Z"]
+    others["Repositories without the blueprint<br>Dependabot or Renovate moves the pins<br>install again only for a changed template"]
 
     change --> checks --> release
     release --> sync --> rollout --> fleet

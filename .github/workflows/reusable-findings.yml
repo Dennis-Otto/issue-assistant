@@ -1,0 +1,76 @@
+name: Findings
+
+# The job of templates/.github/workflows/findings.yml, which every repository that
+# uses the issue assistant calls at the commit of a release. Without AI: dismisses
+# the code scanning alerts that .github/findings.toml accepts, with its reason, and
+# fails while any other alert is open. The run names an open alert by its number and
+# link only, which only maintainers can follow; nothing becomes a public issue. The
+# job blocks every host but GitHub's with Harden-Runner and runs the issue assistant
+# of this workflow's own commit (decision 0015).
+# https://github.com/Dennis-Otto/issue-assistant
+
+on:
+  workflow_call:
+    inputs:
+      dry_run:
+        description: Only show what would happen
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  findings:
+    name: Accept or report findings
+    if: >-
+      !github.event.repository.fork &&
+      (github.event_name != 'workflow_run' ||
+        (github.event.workflow_run.head_repository.full_name == github.repository &&
+         github.event.workflow_run.head_branch == github.event.repository.default_branch))
+    # The job waits for the group, not the run: a run whose job is skipped, after
+    # the scan of a pull request, never takes the place of one that waits.
+    concurrency:
+      group: findings
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Block every host but GitHub's
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The commit of this workflow, which the caller pins. actionlint 1.7.12 doesn't
+      # know job.workflow_repository and job.workflow_sha yet, which toJSON hides,
+      # nor the self-repository syntax $/, which would need no checkout.
+      - name: Check out the issue assistant of this workflow
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          path: .issue-assistant/action
+          # Only what the action runs: the engine reads the context folder, and the
+          # docs and tests of the issue assistant would only mislead it there.
+          sparse-checkout: |
+            /action.yml
+            /issue_assistant.py
+            /version.txt
+            /prompts/
+            /locales/
+            /templates/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Dismiss accepted findings and report the others
+        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
+        with:
+          command: findings
+          dry-run: ${{ inputs.dry_run }}

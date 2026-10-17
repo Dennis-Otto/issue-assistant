@@ -1,11 +1,11 @@
 flowchart TB
   accTitle: What install writes, what you edit and what you set on GitHub
-  accDescr: install of a release, run in the root of the repository, writes the four workflows, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore; adds the notice to reporters to SUPPORT.md and the runner of the AI to actionlint's settings where they are missing; and writes starters of project.md, config.toml, labels.toml, findings.toml and a bug report form when they are missing. With --setup, it also creates the environment issue-assistant on GitHub, limited to the default branch, and asks for the engine's secret. Then you describe the project in project.md, adapt the starters, and turn off the auto-close of issues by merged pull requests. Then check passes, and a run by hand shows the first analysis as a dry run.
+  accDescr: install of a release, run in the root of the repository, writes the four workflows, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore; adds the notice to reporters to SUPPORT.md and the queue of issue-assistant.yml to actionlint's settings where they are missing; and writes starters of project.md, config.toml, labels.toml, findings.toml and a bug report form when they are missing. With --setup, it also creates the environment issue-assistant on GitHub, limited to the default branch, and asks for the engine's secret. Then you describe the project in project.md, adapt the starters, and turn off the auto-close of issues by merged pull requests. Then check passes, and a run by hand shows the first analysis as a dry run.
   install(["`**install --setup** of a release,<br>in the root of the repository`"]) --> written
   subgraph written ["install writes"]
     direction TB
     workflows["the four workflows,<br>the firewall policy,<br>a line in .gitignore"]
-    notices["where missing: the notice<br>to reporters in SUPPORT.md,<br>the runner for actionlint"]
+    notices["where missing: the notice<br>to reporters in SUPPORT.md,<br>the queue for actionlint"]
     starters["starters, when missing:<br>project.md, config.toml,<br>labels.toml, findings.toml,<br>a bug report form"]
   end
   written -- "with --setup" --> github

@@ -759,9 +759,9 @@ def test_every_page_names_the_same_users():
 
 def test_the_requirements_say_that_the_firewall_runner_is_a_preview():
     workflow = yaml.safe_load(
-        (
-            ROOT / "templates" / ".github" / "workflows" / "issue-assistant.yml"
-        ).read_text("utf-8")
+        (ROOT / ".github" / "workflows" / "reusable-issue-assistant.yml").read_text(
+            "utf-8"
+        )
     )
     runner = workflow["jobs"]["analyze"]["runs-on"]
     requirements = readme_part("requirements")
