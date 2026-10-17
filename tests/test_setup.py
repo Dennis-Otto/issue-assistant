@@ -307,9 +307,10 @@ def test_install_writes_the_workflows_with_the_release(sample_root):
     for name in ("issue-lifecycle.yml", "labels.yml", "findings.yml"):
         text = (sample_root / ".github/workflows" / name).read_text("utf-8")
         assert f"/reusable-{name}@{REF} # v1.0.0" in text
+    # The hosts of the engine of config.toml alone.
     assert (sample_root / ".github/egress-firewall.yaml").read_text("utf-8") == (
-        assistant.TEMPLATES / assistant.FIREWALL
-    ).read_text("utf-8")
+        assistant.firewall_policy("claude")
+    )
     assert "/.issue-assistant/" in (sample_root / ".gitignore").read_text("utf-8")
 
 
@@ -333,8 +334,8 @@ def test_install_and_check_read_the_templates_from_templates_alone(
         )
         assert written != template.read_text("utf-8")
     assert (root / assistant.FIREWALL).read_bytes() == (
-        assistant.TEMPLATES / assistant.FIREWALL
-    ).read_bytes()
+        assistant.firewall_policy("claude").encode()
+    )
     assert assistant.check(assistant.load_config(root, REPOSITORY)) == []
 
 
@@ -354,7 +355,7 @@ def test_install_keeps_what_the_repository_has(tmp_path):
         "utf-8"
     ) == "Mine"
     assert (
-        "kept .github/egress-firewall.yaml; check that it allows the template's hosts"
+        "kept .github/egress-firewall.yaml; check names each host of the engine it lacks"
         in done
     )
     assert "wrote .github/labels.toml; adapt it" in done
@@ -968,6 +969,43 @@ def test_setup_asks_for_the_secret_in_a_terminal(monkeypatch, config):
     assert str(refused.value) == f"gh set no secret; run {command}"
 
 
+@pytest.mark.parametrize(
+    ("engine", "secret"),
+    [
+        ("codex", "OPENAI_API_KEY"),
+        ("gemini", "GEMINI_API_KEY"),
+        ("copilot", "COPILOT_GITHUB_TOKEN"),
+    ],
+)
+def test_setup_asks_for_the_one_secret_of_another_engine(
+    monkeypatch, config, engine, secret
+):
+    chosen = dataclasses.replace(config, engine=engine, releases=False)
+    environment = {"deployment_branch_policy": {"custom_branch_policies": True}}
+    command = f"gh secret set {secret} --env issue-assistant --repo owner/project"
+    github = FakeEnvironments(environment, policies=["trunk"])
+    assert list(assistant.set_up_github(github, chosen, ask=False))[1:] == [
+        f"left for you: {command}"
+    ]
+    asked = []
+
+    def gh(args, **kwargs):
+        asked.append(args)
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(assistant.subprocess, "run", gh)
+    name = assistant.ENGINES[engine].name
+    assert list(assistant.set_up_github(github, chosen, ask=True))[1:] == [
+        f"{command}: paste the secret of {name}",
+        f"set the secret {secret} of the environment issue-assistant",
+    ]
+    assert asked == [command.split()]
+    github.secrets = [{"name": secret}]
+    assert list(assistant.set_up_github(github, chosen, ask=False))[1:] == [
+        f"kept the secret of {name} in the environment issue-assistant"
+    ]
+
+
 def test_setup_stops_when_github_fails(config):
     github = FakeEnvironments()
     github.error = assistant.GitHubError("gh api: HTTP 403: Forbidden", status=403)
@@ -1262,7 +1300,7 @@ def test_config_problems_are_found(config, root):
         max_issues=-5,
     )
     assert assistant.check_config(broken) == [
-        ".github/issue-assistant/config.toml: unknown engine unknown; known engines: claude",
+        ".github/issue-assistant/config.toml: unknown engine unknown; known engines: claude, codex, copilot, gemini",
         ".github/issue-assistant/config.toml: https://evil.example/path is no host name",
         ".github/issue-assistant/config.toml: max_per_day must be a whole number, "
         "0 or more",
@@ -1485,7 +1523,7 @@ def test_the_tool_files_are_where_the_action_expects_them():
     assert tool == assistant.TOOL
     # The rules of every task, and a prompt for each, which write_context reads.
     assert sorted(path.name for path in assistant.PROMPTS.iterdir()) == sorted(
-        f"{name}.md" for name in ("rules", *assistant.MODES)
+        f"{name}.md" for name in ("rules", "answer", *assistant.MODES)
     )
     assert tool / "templates" == assistant.TEMPLATES
     for starter in assistant.STARTERS:

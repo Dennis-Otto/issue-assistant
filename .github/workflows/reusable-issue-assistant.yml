@@ -33,6 +33,15 @@ on:
       ANTHROPIC_API_KEY:
         description: The API key of Anthropic, for the engine claude
         required: false
+      OPENAI_API_KEY:
+        description: The API key of OpenAI, for the engine codex
+        required: false
+      GEMINI_API_KEY:
+        description: The API key of the Gemini API, for the engine gemini
+        required: false
+      COPILOT_GITHUB_TOKEN:
+        description: A fine-grained token with the permission Copilot Requests, for the engine copilot
+        required: false
 
 permissions: {}
 
@@ -115,7 +124,7 @@ jobs:
     outputs:
       engine: ${{ steps.engine.outputs.engine }}
       # One answer per engine step; only the chosen engine runs.
-      answer: ${{ steps.claude.outputs.structured_output }}
+      answer: ${{ steps.claude.outputs.structured_output || steps.codex.outputs.final-message || steps.gemini.outputs.answer || steps.copilot.outputs.answer }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -147,7 +156,12 @@ jobs:
           command: engine
           mode: ${{ needs.event.outputs.mode }}
           # One entry per engine: its key when its secret exists.
-          ready-engines: ${{ (secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '') && 'claude' || '' }}
+          ready-engines: >-
+            ${{ format('{0},{1},{2},{3}',
+            (secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '') && 'claude' || '',
+            (secrets.OPENAI_API_KEY != '') && 'codex' || '',
+            (secrets.GEMINI_API_KEY != '') && 'gemini' || '',
+            (secrets.COPILOT_GITHUB_TOKEN != '') && 'copilot' || '') }}
       - name: Collect the issue, earlier issues and discussions
         id: context
         if: steps.engine.outputs.ready == 'true'
@@ -157,8 +171,8 @@ jobs:
           issue: ${{ needs.event.outputs.issue }}
           mode: ${{ needs.event.outputs.mode }}
 
-      # The engines. Each one gets the rules as its system prompt, the task and the
-      # JSON schema, may only read files of the checkout and returns the JSON answer.
+      # The engines. Each one gets the rules before its task and the JSON schema,
+      # may only read files of the checkout and returns the JSON answer.
 
       - name: Analyze with Claude
         id: claude
@@ -193,6 +207,55 @@ jobs:
             --max-budget-usd ${{ steps.engine.outputs.budget }}
             ${{ steps.engine.outputs.effort && format('--effort {0}', steps.engine.outputs.effort) || '' }}
             --json-schema '${{ steps.context.outputs.schema }}'
+      - name: Analyze with Codex
+        id: codex
+        if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'codex'
+        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1.13
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          # renovate: datasource=npm depName=@openai/codex
+          codex-version: "0.162.0"
+          # Issues come from people without write access. The sandbox of the
+          # profile :read-only lets Codex read files but neither write them nor
+          # reach the network, and drop-sudo leaves the API key to the proxy of the
+          # action, out of Codex's reach. The context step's arguments give it the
+          # rules as its developer instructions and turn off its web search, and
+          # its strict schema shapes the answer.
+          allow-users: "*"
+          permission-profile: ":read-only"
+          safety-strategy: drop-sudo
+          prompt-file: .issue-assistant/prompt.md
+          output-schema-file: .issue-assistant/schema.json
+          codex-args: ${{ steps.context.outputs.engine-args }}
+          model: ${{ steps.engine.outputs.model }}
+          effort: ${{ steps.engine.outputs.effort }}
+      # The Gemini CLI and the Copilot CLI have no action that keeps them to reading,
+      # so the issue assistant runs them, with only their tools that read files of
+      # the checkout and no token of GitHub (decision 0017).
+      - name: Analyze with Gemini
+        id: gemini
+        if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'gemini'
+        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        with:
+          command: analyze
+          mode: ${{ needs.event.outputs.mode }}
+          engine: gemini
+          # renovate: datasource=npm depName=@google/gemini-cli
+          engine-version: "0.63.0"
+      - name: Analyze with Copilot
+        id: copilot
+        if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'copilot'
+        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        with:
+          command: analyze
+          mode: ${{ needs.event.outputs.mode }}
+          engine: copilot
+          # renovate: datasource=npm depName=@github/copilot
+          engine-version: "1.0.95"
       # Numbers alone, also after a failure: the turns, time, cost and tokens of
       # the run, in the summary of the job.
       - name: Report what the analysis cost

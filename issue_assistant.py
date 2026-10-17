@@ -28,6 +28,7 @@ import sys
 import tempfile
 import time
 import tomllib
+import unicodedata
 from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Iterator
 from copy import deepcopy
@@ -616,6 +617,50 @@ def command(name: str, message: str) -> None:
 # Engines
 
 
+# How an engine gets the JSON schema of its answer: it enforces the schema as it is;
+# it enforces a strict form, in which every field is required and one that the
+# answer may leave out may be null, as some APIs of structured outputs want; or the
+# task asks for it, in a file of the context folder. apply checks every answer
+# against the schema itself, whichever way the engine got it.
+ENFORCED, STRICT, IN_PROMPT = "enforced", "strict", "in the prompt"
+# The limits of [engine] that an engine can stop at on its own; at the others, only
+# the time of the job stops it.
+STOPS = ("max_turns", "max_budget_usd")
+
+
+@dataclass(frozen=True)
+class Cli:
+    """The command line of an engine that `analyze` runs, for an engine without an
+    action that keeps it to reading.
+
+    `analyze` installs `package` at the version that the workflow pins, without the
+    scripts of its packages, and runs `command` in a home of its own with the
+    secret of the engine alone, no token of GitHub and no other variable of the job:
+    the prompt after `prompt`, the model after `--model`, the effort after `effort`
+    when the task has one, and `arguments`, which leave it only tools that read
+    files of the checkout.
+    """
+
+    package: str
+    command: str
+    arguments: tuple[str, ...]
+    prompt: str = "--prompt"
+    effort: str = ""
+    # Settings that come before those of the user and of the repository, in a file
+    # that the variable `settings_variable` names, with the turns of the task at the
+    # dotted key `turns`.
+    settings: dict[str, Any] = field(default_factory=dict)
+    settings_variable: str = ""
+    turns: str = ""
+    # Further variables, such as those that turn off telemetry and updates.
+    variables: dict[str, str] = field(default_factory=dict)
+    # The field of the JSON that it prints that holds the answer, next to a field
+    # error with a message; empty for one that prints the answer alone.
+    answer: str = ""
+    # The status with which it stops at its turns.
+    at_turns: int = -1
+
+
 @dataclass(frozen=True)
 class Engine:
     """An AI engine that can write the analysis, named in its comments."""
@@ -624,9 +669,20 @@ class Engine:
     vendor: str
     model: str
     # The names of the secrets in the environment issue-assistant that the engine's
-    # step reads, the one that `install --setup` asks for first. Only names: the
-    # values never pass through the script.
+    # step reads, the one that `install --setup` asks for first. install and check
+    # handle only names; `analyze` passes the value of the engine that it runs to its
+    # command line, and no other.
     credentials: tuple[str, ...]
+    schema: str = ENFORCED
+    # The levels of effort that it takes; none for an engine without the setting.
+    efforts: tuple[str, ...] = EFFORTS
+    # Which of STOPS it stops at.
+    stops_at: tuple[str, ...] = STOPS
+    # The arguments that its action adds to the command line, as the context step
+    # writes them for it, with "{rules}" for the rules as a string of TOML; none for
+    # an engine that takes the rules otherwise.
+    action_arguments: tuple[str, ...] = ()
+    cli: Cli | None = None
 
 
 # The engines the workflow template has a step for; .github/issue-assistant/config.toml
@@ -637,7 +693,112 @@ ENGINES = {
         "Anthropic",
         "claude-opus-5-5",
         ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"),
-    )
+    ),
+    # The Codex action runs Codex in a sandbox that reads files but neither writes
+    # them nor reaches the network, and enforces the strict schema. Its arguments
+    # give it the rules as developer instructions, which come before the task as a
+    # system prompt does, and turn off web search, which would read the web and
+    # send what an issue asks for through OpenAI; Codex reads a value of --config
+    # as TOML.
+    "codex": Engine(
+        "Codex",
+        "OpenAI",
+        "gpt-6.1-sol",
+        ("OPENAI_API_KEY",),
+        schema=STRICT,
+        stops_at=(),
+        action_arguments=(
+            "--config",
+            'web_search="disabled"',
+            "--config",
+            "developer_instructions={rules}",
+        ),
+    ),
+    # The Gemini CLI and the Copilot CLI take no system prompt, so the prompt has
+    # the rules first, and "auto" lets each choose its model.
+    "gemini": Engine(
+        "Gemini",
+        "Google",
+        "auto",
+        ("GEMINI_API_KEY",),
+        schema=IN_PROMPT,
+        efforts=(),
+        stops_at=("max_turns",),
+        cli=Cli(
+            package="@google/gemini-cli",
+            command="gemini",
+            # Nobody can answer its question whether it trusts the workspace, which
+            # would stop it; its system settings keep it to reading all the same.
+            arguments=("--skip-trust", "--output-format", "json"),
+            # The tools that read files of its workspace, the checkout, and no
+            # other: no shell, no writing or editing files, no web, agents, MCP
+            # servers, extensions, skills, hooks or tools that a command finds. The
+            # context folder is in .gitignore, which its tools would follow.
+            settings={
+                "tools": {
+                    "core": ["read_file", "list_directory", "glob", "grep_search"],
+                    "exclude": [
+                        "run_shell_command",
+                        "write_file",
+                        "replace",
+                        "web_fetch",
+                        "google_web_search",
+                    ],
+                    "discoveryCommand": "",
+                    "callCommand": "",
+                },
+                "admin": {
+                    "extensions": {"enabled": False},
+                    "mcp": {"enabled": False},
+                    "skills": {"enabled": False},
+                },
+                "experimental": {"enableAgents": False},
+                "skills": {"enabled": False},
+                "hooksConfig": {"enabled": False},
+                "general": {"checkpointing": {"enabled": False}},
+                "privacy": {"usageStatisticsEnabled": False},
+                "telemetry": {"enabled": False},
+                "context": {"fileFiltering": {"respectGitIgnore": False}},
+            },
+            settings_variable="GEMINI_CLI_SYSTEM_SETTINGS_PATH",
+            turns="model.maxSessionTurns",
+            variables={"GEMINI_TELEMETRY_ENABLED": "false"},
+            answer="response",
+            at_turns=53,
+        ),
+    ),
+    "copilot": Engine(
+        "Copilot",
+        "GitHub",
+        "auto",
+        ("COPILOT_GITHUB_TOKEN",),
+        schema=IN_PROMPT,
+        stops_at=(),
+        cli=Cli(
+            package="@github/copilot",
+            command="copilot",
+            # The tools that read files, the only ones the model gets, without the
+            # built-in MCP server of GitHub, the temporary folder, questions,
+            # updates and remote control; the answer alone on its output.
+            arguments=(
+                "--available-tools",
+                "view,glob,grep",
+                "--allow-tool",
+                "read",
+                "--disable-builtin-mcps",
+                "--disallow-temp-dir",
+                "--no-ask-user",
+                "--no-auto-update",
+                "--no-remote",
+                "--silent",
+                "--no-color",
+                "--stream",
+                "off",
+            ),
+            effort="--effort",
+            variables={"COPILOT_AUTO_UPDATE": "false"},
+        ),
+    ),
 }
 DEFAULT_ENGINE = "claude"
 # The workflow passes the model to the engine's command line without quotes. The
@@ -699,6 +860,15 @@ def engine_problems(config: Config) -> list[str]:
                 str(config.effort),
                 EFFORTS,
             )
+        )
+    elif (
+        config.effort
+        and (engine := ENGINES.get(config.engine))
+        and config.effort not in engine.efforts
+    ):
+        takes = ", ".join(engine.efforts) or "none, so leave it out"
+        problems.append(
+            f"{where}: {engine.name} takes no effort {config.effort!r}; it takes {takes}"
         )
     return problems
 
@@ -3226,14 +3396,55 @@ def write_context(
         # Last, so that braces in the project's own text stay as they are.
         return text.replace("{project}", config.project)
 
+    engine = ENGINES[engine_named(config.engine)]
     rules, task = render("rules.md"), render(f"{mode}.md")
-    schema = schema_json(mode, config)
+    if engine.schema == IN_PROMPT:
+        # An engine that can't enforce the schema reads it in the folder.
+        task = f"{task.rstrip()}\n\n{render('answer.md')}"
+    schema = schema_json(mode, config, strict=engine.schema == STRICT)
     # The rules come before everything else as the engine's system prompt, apart
     # from its task and from the texts of GitHub that it reads in the folder.
     (folder / "rules.md").write_text(rules, encoding="utf-8")
     (folder / "prompt.md").write_text(task, encoding="utf-8")
     (folder / "schema.json").write_text(schema, encoding="utf-8")
-    return {"prompt": f"{rules}\n\n{task}", "task": task, "schema": schema}
+    return {
+        "prompt": f"{rules}\n\n{task}",
+        "task": task,
+        "schema": schema,
+        "engine-args": engine_arguments(engine, rules),
+    }
+
+
+def toml_string(text: str) -> str:
+    """The text as a basic string of TOML, which takes no control character as it is."""
+    escapes = {"\\": "\\\\", '"': '\\"', "\n": "\\n", "\t": "\\t", "\r": "\\r"}
+    return (
+        '"'
+        + "".join(
+            escapes.get(character)
+            or (
+                f"\\u{ord(character):04x}"
+                if unicodedata.category(character) == "Cc"
+                else character
+            )
+            for character in text
+        )
+        + '"'
+    )
+
+
+def engine_arguments(engine: Engine, rules: str) -> str:
+    """The arguments that the engine's action adds to its command line, as JSON,
+    with the rules as a string of TOML; empty for an engine without any."""
+    if not engine.action_arguments:
+        return ""
+    rules_toml = toml_string(rules)
+    return json.dumps(
+        [
+            argument.replace("{rules}", rules_toml)
+            for argument in engine.action_arguments
+        ]
+    )
 
 
 def write_related(
@@ -3424,15 +3635,39 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
     )
 
 
-def schema_json(mode: str, config: Config) -> str:
-    """The schema of the answer as one line of JSON, for the engine's command line.
+def strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """The schema for an engine that wants every field of an object required, as the
+    structured outputs of some APIs do: a field that the answer may leave out may be
+    null instead, which parse_answer drops again, and every list names its items."""
+    result = dict(schema)
+    if "properties" in schema:
+        result["properties"] = {
+            key: strict_schema(value)
+            if key in schema["required"]
+            else {"anyOf": [strict_schema(value), {"type": "null"}]}
+            for key, value in schema["properties"].items()
+        }
+        result["required"] = list(schema["properties"])
+    if schema.get("type") == "array":
+        # The items of a list that must stay empty, such as the areas of a
+        # repository that has none.
+        result["items"] = strict_schema(schema.get("items", {"type": "string"}))
+    return result
+
+
+def schema_json(mode: str, config: Config, *, strict: bool = False) -> str:
+    """The schema of the answer as one line of JSON, for the engine's command line;
+    `strict` gives its strict form.
 
     The workflow puts it between single quotes, which an apostrophe in a label name,
     as in "area: user's guide", would end. As the escape \\u0027, the apostrophe ends
     nothing and reads back as the same JSON.
     """
-    schema = json.dumps(answer_schema(mode, config), separators=(",", ":"))
-    return schema.replace("'", "\\u0027")
+    schema = answer_schema(mode, config)
+    text = json.dumps(
+        strict_schema(schema) if strict else schema, separators=(",", ":")
+    )
+    return text.replace("'", "\\u0027")
 
 
 # The names of the fields of the schema; any other key is the engine's.
@@ -3557,15 +3792,44 @@ def looks_secret(text: str, files: Collection[str] = ()) -> bool:
     )
 
 
-def parse_answer(mode: str, raw: str, config: Config) -> dict[str, Any]:
+def answer_json(raw: str) -> Any:
+    """The JSON of the engine's answer. An engine that can't enforce the schema may
+    wrap it in a code fence, or write a sentence before or after it."""
     text = raw.strip()
-    # An engine that can't enforce the schema may wrap its JSON in a code fence.
     if fenced := re.fullmatch(r"```(?:json)?[ \t]*\n(.*)\n```", text, re.DOTALL):
         text = fenced[1]
     try:
-        answer = json.loads(text)
+        return json.loads(text)
     except ValueError as error:
-        raise AssistantError(f"The engine's answer is no JSON: {error}") from error
+        problem = error
+    start, end = text.find("{"), text.rfind("}")
+    if 0 <= start < end:
+        try:
+            return json.loads(text[start : end + 1])
+        except ValueError:
+            pass
+    raise AssistantError(f"The engine's answer is no JSON: {problem}") from problem
+
+
+def without_nulls(schema: dict[str, Any], value: Any) -> Any:
+    """The answer without the null of a field that it may leave out, which an engine
+    with the strict schema writes; a null in a required field stays, for `validate`
+    to refuse."""
+    if schema.get("type") == "object" and isinstance(value, dict):
+        fields = schema["properties"]
+        return {
+            key: without_nulls(fields[key], item) if key in fields else item
+            for key, item in value.items()
+            if item is not None or key in schema["required"]
+        }
+    if schema.get("type") == "array" and isinstance(value, list) and "items" in schema:
+        return [without_nulls(schema["items"], item) for item in value]
+    return value
+
+
+def parse_answer(mode: str, raw: str, config: Config) -> dict[str, Any]:
+    schema = answer_schema(mode, config)
+    answer = without_nulls(schema, answer_json(raw))
     # Before the checks, so that no invisible character splits a token that the
     # check would find, and nothing that GitHub doesn't show reaches it.
     visible = Visible()
@@ -3575,7 +3839,7 @@ def parse_answer(mode: str, raw: str, config: Config) -> dict[str, Any]:
             "notice",
             f"Removed {visible.removed} invisible characters from the engine's answer.",
         )
-    problems = validate(answer_schema(mode, config), answer)
+    problems = validate(schema, answer)
     if problems:
         raise AssistantError(
             "The engine's answer breaks the schema: " + "; ".join(problems)
@@ -6467,6 +6731,41 @@ def check_forms(config: Config) -> list[str]:
     return problems
 
 
+# A block of hosts in the firewall template that belongs to one engine starts with
+# this comment; the other blocks hold the hosts that every engine needs.
+ENGINE_BLOCK = re.compile(r" *# Engine ([a-z][a-z0-9]*):")
+
+
+def firewall_policy(engine: str) -> str:
+    """The firewall template for one engine: its header, the blocks of hosts that
+    every engine needs and those of `engine`, each after a blank line."""
+    template = (TEMPLATES / FIREWALL).read_text(encoding="utf-8")
+    head, _, hosts = template.partition("\nallow:\n")
+    blocks = [
+        block.rstrip("\n")
+        for block in hosts.split("\n\n")
+        if (owner := ENGINE_BLOCK.match(block)) is None or owner[1] == engine
+    ]
+    return f"{head}\nallow:\n" + "\n\n".join(blocks) + "\n"
+
+
+def allowed_hosts(policy: str) -> set[str]:
+    """The hosts of a firewall policy in the form of the template."""
+    return set(re.findall(r"(?m)^ +- (\S+)$", policy))
+
+
+def configured_engine(root: Path) -> str:
+    """The engine that config.toml of a repository names; the default one without
+    the file, or for one that names no engine that the assistant knows, which
+    check reports."""
+    try:
+        settings = tomllib.loads((root / SETTINGS / "config.toml").read_text("utf-8"))
+        name = settings["engine"]["name"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return DEFAULT_ENGINE
+    return name if name in ENGINES else DEFAULT_ENGINE
+
+
 def check_workflows(config: Config) -> list[str]:
     problems: list[str] = []
     for name in TEMPLATE_WORKFLOWS:
@@ -6488,7 +6787,8 @@ def check_workflows(config: Config) -> list[str]:
         problems.append(f"{FIREWALL} is missing; {reinstall()}")
     else:
         policy = load_yaml(firewall, str(FIREWALL))
-        needed = set(load_yaml(TEMPLATES / FIREWALL)["allow"])
+        engine = config.engine if config.engine in ENGINES else DEFAULT_ENGINE
+        needed = allowed_hosts(firewall_policy(engine))
         hosts = set(policy.get("allow") or [])
         if policy.get("mode") != "enforce":
             problems.append(f"{FIREWALL}: mode must be enforce")
@@ -7000,10 +7300,11 @@ def install(root: Path, ref: str, version: str) -> list[str]:
         done.append(f"wrote {WORKFLOWS / name}")
     firewall = root / FIREWALL
     if firewall.is_file():
-        done.append(f"kept {FIREWALL}; check that it allows the template's hosts")
+        done.append(f"kept {FIREWALL}; check names each host of the engine it lacks")
     else:
-        shutil.copyfile(TEMPLATES / FIREWALL, firewall)
-        done.append(f"wrote {FIREWALL}")
+        engine = configured_engine(root)
+        firewall.write_text(firewall_policy(engine), encoding="utf-8", newline="\n")
+        done.append(f"wrote {FIREWALL} for the engine {engine}")
     starter_labels = not (root / LABELS_FILE).is_file()
     for starter in STARTERS:
         target = root / starter
@@ -7106,9 +7407,13 @@ def set_up_github(github: GitHub, config: Config, *, ask: bool) -> Iterator[str]
     if present & set(engine.credentials):
         yield f"kept the secret of {engine.name} in the environment {ENVIRONMENT}"
     elif not ask:
-        yield f"left for you: {command_line}, or set {others} instead"
+        yield f"left for you: {command_line}" + (
+            f", or set {others} instead" if others else ""
+        )
     else:
-        yield f"{command_line}: paste the secret of {engine.name}, or {others} later"
+        yield f"{command_line}: paste the secret of {engine.name}" + (
+            f", or {others} later" if others else ""
+        )
         asked = subprocess.run(
             ["gh", "secret", "set", engine.credentials[0], "--env", ENVIRONMENT]
             + ["--repo", github.repository],
@@ -7198,6 +7503,154 @@ def choose_engine(config: Config, ready: str) -> tuple[str, bool]:
             "the issue assistant only sets labels and keeps the lifecycle.",
         )
     return key, available
+
+
+# The engines that `analyze` runs, those with a Cli in ENGINES.
+
+# A version of an engine's command line as the workflow pins it, such as 1.2.3.
+CLI_VERSION = re.compile(r"\d+\.\d+\.\d+")
+# The most minutes that an engine's command line runs; the job stops at 20.
+ENGINE_MINUTES = 15
+
+
+def cli_settings(cli: Cli, run: Run) -> dict[str, Any]:
+    """The settings of the command line for the run of a task: its turns at the key
+    `turns`."""
+    settings = deepcopy(cli.settings)
+    if cli.turns:
+        *path, last = cli.turns.split(".")
+        place = settings
+        for key in path:
+            place = place.setdefault(key, {})
+        place[last] = run.turns
+    return settings
+
+
+def cli_command(cli: Cli, command_path: str, run: Run, prompt: str) -> list[str]:
+    """The command line of an engine that `analyze` runs, for the prompt of a task."""
+    effort = [cli.effort, run.effort] if cli.effort and run.effort else []
+    return [command_path, cli.prompt, prompt, "--model", run.model, *effort] + list(
+        cli.arguments
+    )
+
+
+def cli_environment(
+    engine: Engine, cli: Cli, home: Path, settings: Path
+) -> dict[str, str]:
+    """The variables of an engine's command line: a home of its own, outside the
+    checkout, its settings, and of the job's variables only the engine's secret."""
+    variables = {
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": str(home),
+        "LANG": "C.UTF-8",
+        "NO_COLOR": "1",
+        **cli.variables,
+    }
+    if cli.settings_variable:
+        variables[cli.settings_variable] = str(settings)
+    variables |= {
+        name: os.environ[name] for name in engine.credentials if os.environ.get(name)
+    }
+    return variables
+
+
+def install_cli(cli: Cli, version: str, folder: Path) -> str:
+    """Install the engine's command line at `version` into `folder` and return the
+    path of its command."""
+    if not CLI_VERSION.fullmatch(version):
+        raise AssistantError(
+            f"engine-version must be a version such as 1.2.3, not {version!r}."
+        )
+    npm = shutil.which("npm")
+    if npm is None:
+        raise AssistantError("analyze needs npm, which GitHub's runners have.")
+    result = subprocess.run(
+        [npm, "install", "--prefix", str(folder), "--no-save", "--no-package-lock"]
+        + ["--ignore-scripts", "--no-audit", "--no-fund", "--loglevel", "error"]
+        + [f"{cli.package}@{version}"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode:
+        raise AssistantError(
+            f"npm installed no {cli.package}@{version}: "
+            f"{one_line(result.stderr)[-300:] or 'no message'}"
+        )
+    return str(folder / "node_modules" / ".bin" / cli.command)
+
+
+def cli_answer(
+    engine: Engine, cli: Cli, result: subprocess.CompletedProcess[str]
+) -> str:
+    """The answer in the output of an engine's command line."""
+    if result.returncode == cli.at_turns:
+        raise AssistantError(
+            f"{engine.name} stopped at the turns of the task, before it answered; "
+            f"max_turns under [engine] in {SETTINGS / 'config.toml'} gives it more."
+        )
+    reason: object = None
+    answer: object = result.stdout
+    if cli.answer:
+        try:
+            printed = json.loads(result.stdout)
+        except ValueError:
+            printed = None
+        report = printed if isinstance(printed, dict) else {}
+        error = report.get("error")
+        reason = error.get("message") if isinstance(error, dict) else None
+        answer = report.get(cli.answer)
+    if result.returncode or not isinstance(answer, str) or not answer.strip():
+        message = one_line(str(reason or result.stderr))[-300:] or "no answer"
+        raise AssistantError(f"{engine.name} failed: {message}")
+    return answer
+
+
+def analyze(
+    config: Config, mode: str | None, key: str, version: str, work: Path
+) -> str:
+    """Run the engine of config.toml that has no action of its own on the task of
+    the context folder, with tools that only read the checkout, and return its
+    answer, which `apply` checks like any other."""
+    runs = {name: cli for name, engine in ENGINES.items() if (cli := engine.cli)}
+    if key not in runs:
+        raise AssistantError(
+            f"analyze runs the engines {', '.join(runs)}, not {key or 'none'}."
+        )
+    if key != engine_named(config.engine):
+        raise AssistantError(
+            f"The step of {key} ran, but config.toml names the engine {config.engine}."
+        )
+    engine, cli = ENGINES[key], runs[key]
+    run = task_run(config, mode)
+    folder = config.root / CONTEXT
+    prompt = "\n\n".join(
+        (folder / name).read_text(encoding="utf-8")
+        for name in ("rules.md", "prompt.md")
+    )
+    command_path = install_cli(cli, version, work / "cli")
+    home, settings = work / "home", work / "settings.json"
+    home.mkdir(parents=True, exist_ok=True)
+    settings.write_text(json.dumps(cli_settings(cli, run)), encoding="utf-8")
+    try:
+        result = subprocess.run(
+            cli_command(cli, command_path, run, prompt),
+            cwd=config.root,
+            env=cli_environment(engine, cli, home, settings),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=ENGINE_MINUTES * 60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise AssistantError(
+            f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."
+        ) from None
+    return cli_answer(engine, cli, result)
 
 
 # How a run of the engine ended, by the subtype of the result in its execution file;
@@ -7356,6 +7809,11 @@ def main(argv: list[str] | None = None) -> int:
             "effort of the task",
         ),
         ("context", "write the files the engine reads"),
+        (
+            "analyze",
+            "run the command line of the engine of config.toml, for an engine without "
+            "an action of its own, with tools that only read",
+        ),
         ("apply", "check the engine's answer in RESULT and apply it"),
         (
             "usage",
@@ -7443,10 +7901,11 @@ def main(argv: list[str] | None = None) -> int:
                 "push, and try it under Actions > Issue assistant > Run workflow"
             )
             return 0
-        # check, engine and usage read only the checkout, so they run anywhere, also
-        # on a computer without GH_REPO; the other commands call GitHub.
+        # check, engine, analyze and usage read only the checkout, so they run
+        # anywhere, also on a computer without GH_REPO; the other commands call
+        # GitHub.
         repository = repository_of_run(
-            needed=arguments.command not in {"check", "engine", "usage"}
+            needed=arguments.command not in {"check", "engine", "analyze", "usage"}
         )
         if arguments.command == "check":
             problems = check(load_config(root, repository, lenient=True))
@@ -7464,6 +7923,27 @@ def main(argv: list[str] | None = None) -> int:
             output("turns", str(run.turns))
             output("budget", run.budget)
             output("effort", run.effort)
+            return 0
+        if arguments.command == "analyze":
+            key = os.environ.get("ENGINE", "")
+            work = Path(
+                tempfile.mkdtemp(
+                    prefix="issue-assistant-", dir=os.environ.get("RUNNER_TEMP") or None
+                )
+            )
+            answer = analyze(
+                load_config(root, repository),
+                arguments.mode,
+                key,
+                os.environ.get("ENGINE_VERSION", ""),
+                work,
+            )
+            output("answer", answer)
+            command(
+                "notice",
+                f"{ENGINES[key].name} answered; the job apply checks the answer "
+                "before anything is written.",
+            )
             return 0
         if arguments.command == "usage":
             run = task_run(load_config(root, repository), arguments.mode)
@@ -7515,6 +7995,7 @@ def main(argv: list[str] | None = None) -> int:
             output("prompt", written["prompt"])
             output("task", written["task"])
             output("schema", written["schema"])
+            output("engine-args", written["engine-args"])
             return 0
         if arguments.command == "event":
             name = os.environ["GITHUB_EVENT_NAME"]

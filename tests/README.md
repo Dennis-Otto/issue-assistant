@@ -14,6 +14,7 @@
 | `oracle.py`, `test_oracle.py` | The Markdown parser that judges the cleaning, held to what GitHub's renderer does |
 | `test_findings.py` | The findings of code scanning |
 | `test_setup.py`, `test_templates.py` | `install`, `check`, the settings and the workflow templates |
+| `test_engines.py` | The engines next to Claude: their schemas, rules and firewall policies, and the command lines that `analyze` runs |
 | `test_docs.py` | The website and the README |
 | `conftest.py`, `sample/` | The sample repository with the assistant installed, which most tests read |
 | `fixtures/` | The issue that the canary analyzes |

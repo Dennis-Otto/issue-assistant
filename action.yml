@@ -10,14 +10,14 @@ branding:
 
 inputs:
   command:
-    description: event, engine, context, apply, usage, sweep, sync-labels, findings or check
+    description: event, engine, context, analyze, apply, usage, sweep, sync-labels, findings or check
     required: true
   issue:
     description: Number of the issue, for context, apply and usage
     required: false
     default: ""
   mode:
-    description: Task of the engine (triage, follow-up, maintainer-reply, release-reply or maintainer-question), for engine, context, apply and usage
+    description: Task of the engine (triage, follow-up, maintainer-reply, release-reply or maintainer-question), for engine, context, analyze, apply and usage
     required: false
     default: ""
   answer:
@@ -25,7 +25,11 @@ inputs:
     required: false
     default: ""
   engine:
-    description: The engine that wrote the answer, for apply
+    description: The engine that wrote the answer, for apply, or that analyze runs
+    required: false
+    default: ""
+  engine-version:
+    description: The version of the engine's command line that analyze installs, such as 1.2.3
     required: false
     default: ""
   ready-engines:
@@ -77,8 +81,14 @@ outputs:
     description: The rules and the task in one prompt, for templates before the rules became a system prompt
     value: ${{ steps.run.outputs.prompt }}
   schema:
-    description: The JSON schema of the engine's answer
+    description: The JSON schema of the engine's answer, in its strict form for an engine that wants one
     value: ${{ steps.run.outputs.schema }}
+  engine-args:
+    description: The arguments that the engine's action adds to its command line, such as the rules, as JSON; empty for an engine without any
+    value: ${{ steps.run.outputs.engine-args }}
+  answer:
+    description: The engine's answer, from analyze
+    value: ${{ steps.run.outputs.answer }}
 
 runs:
   using: composite
@@ -91,6 +101,7 @@ runs:
         MODE: ${{ inputs.mode }}
         RESULT: ${{ inputs.answer }}
         ENGINE: ${{ inputs.engine }}
+        ENGINE_VERSION: ${{ inputs.engine-version }}
         READY_ENGINES: ${{ inputs.ready-engines }}
         EXECUTION_FILE: ${{ inputs.execution-file }}
         DRY_RUN: ${{ inputs.dry-run }}

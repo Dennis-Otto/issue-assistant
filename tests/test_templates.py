@@ -143,7 +143,156 @@ ENGINE_RULES = {
         # The inputs that let a run of the Canary that a bot started use the engine.
         "canary": {"allowed_bots": "*"},
     },
+    "codex": {
+        "action": "openai/codex-action",
+        "secrets": ("OPENAI_API_KEY",),
+        "output": "final-message",
+        "host": "api.openai.com",
+        "reads_only": lambda step: codex_reads_only(step),
+        "canary": {},
+    },
+    "gemini": {
+        "action": TOOL,
+        "secrets": ("GEMINI_API_KEY",),
+        "output": "answer",
+        "host": "generativelanguage.googleapis.com",
+        "reads_only": lambda step: cli_reads_only("gemini", step),
+        # The Canary's task is always an analysis.
+        "canary": {"mode": "triage"},
+    },
+    "copilot": {
+        "action": TOOL,
+        "secrets": ("COPILOT_GITHUB_TOKEN",),
+        "output": "answer",
+        "host": "api.githubcopilot.com",
+        "reads_only": lambda step: cli_reads_only("copilot", step),
+        "canary": {"mode": "triage"},
+    },
 }
+
+# The arguments of `codex exec` that would let Codex write, run commands outside its
+# sandbox, reach the web or read another configuration.
+CODEX_FORBIDDEN = (
+    "--sandbox",
+    "-s",
+    "--full-auto",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--yolo",
+    "--search",
+    "--add-dir",
+    "--profile",
+    "-p",
+    "--cd",
+    "-C",
+    "--skip-git-repo-check",
+)
+
+
+def codex_reads_only(step):
+    """Codex reads through commands in the read-only sandbox of its action, which
+    lets them read files but neither write them nor reach the network."""
+    inputs = step["with"]
+    assert inputs["openai-api-key"] == "${{ secrets.OPENAI_API_KEY }}"
+    # Issues come from people without write access; no other user list.
+    assert inputs["allow-users"] == "*"
+    assert "allow-bots" not in inputs and "allow-bot-users" not in inputs
+    assert inputs["permission-profile"] == ":read-only"
+    assert "sandbox" not in inputs
+    # sudo goes before Codex starts, so it can't read the key of the proxy.
+    assert inputs["safety-strategy"] == "drop-sudo"
+    assert "codex-user" not in inputs and "codex-home" not in inputs
+    assert "responses-api-endpoint" not in inputs and "working-directory" not in inputs
+    assert re.fullmatch(r"\d+\.\d+\.\d+", inputs["codex-version"])
+    # The task alone; the rules come as developer instructions, before it.
+    assert inputs["prompt-file"] == f"{assistant.CONTEXT}/prompt.md"
+    assert inputs["output-schema-file"] == f"{assistant.CONTEXT}/schema.json"
+    assert inputs["codex-args"] == "${{ steps.context.outputs.engine-args }}"
+    assert inputs["model"] == "${{ steps.engine.outputs.model }}"
+    assert inputs["effort"] == "${{ steps.engine.outputs.effort }}"
+    assert set(inputs) == {
+        "openai-api-key",
+        "codex-version",
+        "allow-users",
+        "permission-profile",
+        "safety-strategy",
+        "prompt-file",
+        "output-schema-file",
+        "codex-args",
+        "model",
+        "effort",
+    }
+    arguments = json.loads(
+        assistant.engine_arguments(assistant.ENGINES["codex"], "The rules.")
+    )
+    assert arguments == [
+        "--config",
+        'web_search="disabled"',
+        "--config",
+        'developer_instructions="The rules."',
+    ]
+    assert not set(arguments) & set(CODEX_FORBIDDEN)
+
+
+def cli_reads_only(engine, step):
+    """The Gemini CLI and the Copilot CLI run in the action, with the engine's secret
+    alone and only tools that read files of the checkout."""
+    cli = assistant.ENGINES[engine].cli
+    assert step["uses"] == TOOL
+    assert step["env"] == {
+        secret: f"${{{{ secrets.{secret} }}}}"
+        for secret in assistant.ENGINES[engine].credentials
+    }
+    assert step["with"] == {
+        "command": "analyze",
+        "mode": "${{ needs.event.outputs.mode }}",
+        "engine": engine,
+        "engine-version": step["with"]["engine-version"],
+    }
+    assert re.fullmatch(r"\d+\.\d+\.\d+", step["with"]["engine-version"])
+    run = assistant.Run("a-model", 7, "1", "high")
+    command = assistant.cli_command(cli, "cli", run, "The prompt.")
+    for forbidden in (
+        "--yolo",
+        "-y",
+        "--approval-mode",
+        "--allowed-tools",
+        "--allow-all",
+        "--allow-all-tools",
+        "--allow-all-paths",
+        "--allow-all-urls",
+        "--allow-url",
+        "--add-dir",
+        "--include-directories",
+        "--trust-folder",
+        "--plugin-dir",
+        "--extensions",
+        "-e",
+        "--share",
+        "--share-gist",
+    ):
+        assert forbidden not in command, (engine, forbidden)
+    if engine == "gemini":
+        settings = assistant.cli_settings(cli, run)
+        tools = settings["tools"]
+        assert tools["core"] == ["read_file", "list_directory", "glob", "grep_search"]
+        assert {"run_shell_command", "write_file", "replace", "web_fetch"} <= set(
+            tools["exclude"]
+        )
+        assert tools["discoveryCommand"] == tools["callCommand"] == ""
+        assert settings["admin"]["mcp"] == {"enabled": False}
+        assert settings["experimental"]["enableAgents"] is False
+        assert settings["hooksConfig"]["enabled"] is False
+        assert settings["privacy"]["usageStatisticsEnabled"] is False
+        assert settings["model"]["maxSessionTurns"] == 7
+        assert cli.settings_variable == "GEMINI_CLI_SYSTEM_SETTINGS_PATH"
+    else:
+        tools = command[command.index("--available-tools") + 1]
+        assert tools == "view,glob,grep"
+        assert command[command.index("--allow-tool") + 1] == "read"
+        assert command.count("--allow-tool") == 1
+        assert "--disable-builtin-mcps" in command
+        assert "--disallow-temp-dir" in command
+        assert "--deny-tool" not in command
 
 
 def steps(path):
@@ -687,13 +836,23 @@ def test_each_engine_can_only_read_the_checkout(engine):
     ENGINE_RULES[engine]["reads_only"](STEPS[engine])
 
 
+def runs_an_engine(step):
+    """Whether the step runs an engine: an engine's action, or the action's command
+    analyze, which runs an engine's command line."""
+    actions = {rules["action"] for rules in ENGINE_RULES.values()} - {TOOL}
+    uses = step.get("uses", "")
+    return uses.split("@")[0] in actions or (
+        uses == TOOL and step["with"]["command"] == "analyze"
+    )
+
+
 def test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions():
-    actions = {rules["action"] for rules in ENGINE_RULES.values()}
     runs_engine = {
-        name
-        for name, job in JOBS.items()
-        if any(step.get("uses", "").split("@")[0] in actions for step in job["steps"])
+        name for name, job in JOBS.items() if any(map(runs_an_engine, job["steps"]))
     }
+    assert [step.get("id") for step in ANALYZE["steps"] if runs_an_engine(step)] == (
+        list(ENGINE_RULES)
+    )
     assert runs_engine == {"analyze"}
     assert ANALYZE["permissions"] == {
         "contents": "read",
@@ -707,6 +866,24 @@ def test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions():
         for rules in ENGINE_RULES.values():
             for secret in rules["secrets"]:
                 assert secret not in yaml.safe_dump(JOBS[name])
+
+
+def test_the_command_line_of_every_engine_is_pinned_for_renovate():
+    """Each engine's command line runs at a version that the workflow pins, below a
+    line that lets Renovate update it, in the Canary as in every repository."""
+    packages = [("@openai/codex", "codex-version")] + [
+        (engine.cli.package, "engine-version")
+        for engine in assistant.ENGINES.values()
+        if engine.cli
+    ]
+    for path in (reusable("issue-assistant.yml"), OWN / "canary.yml"):
+        text = path.read_text(encoding="utf-8")
+        for package, key in packages:
+            pin = (
+                rf"# renovate: datasource=npm depName={re.escape(package)}\n"
+                rf' +{key}: "\d+\.\d+\.\d+"\n'
+            )
+            assert len(re.findall(pin, text)) == 1, (path.name, package)
 
 
 def test_the_engine_is_chosen_before_the_context_and_the_engines():
@@ -977,7 +1154,7 @@ def test_this_repository_s_own_settings_fit(tmp_path):
     queue = f"let actionlint ignore the queue of issue-assistant.yml in {assistant.ACTIONLINT}"
     assert [line for line in done if line != queue] == [
         f"wrote {assistant.WORKFLOWS / name}" for name in NAMES
-    ] + [f"wrote {assistant.FIREWALL}"]
+    ] + [f"wrote {assistant.FIREWALL} for the engine {config.engine}"]
     assert assistant.check(dataclasses.replace(config, root=own)) == []
     defined = {label.name for label in config.labels}
     # The labels that the release bot, the branch bot and Dependabot set.

@@ -1,0 +1,24 @@
+flowchart TB
+  accTitle: Which step runs the engine of config.toml
+  accDescr: The engine command reads the name under [engine] in config.toml and whether the engine's secret is in the environment issue-assistant. Without the secret, no engine runs, and labels and the lifecycle go on. With it, the context command writes the rules, the task and the schema of the answer, and one step of the job analyze runs the engine: Claude in the Claude Code action, with Read, Grep and Glob alone; Codex in the Codex action, in a sandbox that reads but neither writes nor reaches the network; Gemini or Copilot in the analyze command, which runs the vendor's command line with only its tools that read and without a token of GitHub. Every answer goes the same way to the job apply, which checks it before anything is written.
+  config[("config.toml<br>[engine] name")] --> engine["`**engine**<br>the engine and<br>whether its secret is there`"]
+  secret[("its secret in the<br>environment<br>issue-assistant")] --> engine
+  engine -- "no secret" --> paused["no AI: labels and<br>the lifecycle go on"]
+  engine -- "its secret" --> context["`**context**<br>the rules, the task<br>and the schema`"]
+  context --> claude["`**claude**<br>the Claude Code action:<br>Read, Grep and Glob`"]
+  context --> codex["`**codex**<br>the Codex action:<br>a sandbox that reads,<br>no network`"]
+  context --> cli["`**gemini, copilot**<br>analyze runs the CLI:<br>only tools that read,<br>no token of GitHub`"]
+  claude --> answer["the answer, JSON"]
+  codex --> answer
+  cli --> answer
+  answer --> apply["`**apply**<br>checks the answer,<br>then writes`"]
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  class config,secret trigger
+  class engine,context job
+  class claude,codex,cli ai
+  class answer,apply safe
+  class paused stop
