@@ -146,7 +146,7 @@ def test_claude_takes_the_task_and_the_schema_as_before(config, root):
         "Plain rules.",
         'Quotes " and backslashes \\ and \\n as text',
         "Lines\nand\ttabs\r\nand a bell \a, a delete \x7f and \x00",
-        "Ümlaute, emoji 🎉 and ‮ the controls of direction",
+        "Ümlaute, emoji 🎉 and \u202e the controls of direction",
     ],
 )
 def test_the_rules_reach_codex_as_they_are(text):
