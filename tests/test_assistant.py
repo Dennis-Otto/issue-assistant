@@ -8016,6 +8016,15 @@ def test_a_morning_sweep_reads_the_comments_and_events_of_an_issue_once(
     """The digest lists the issues that wait for their reporters with what the
     sweep's own step just read: the token's requests per hour are few."""
     github = digest_github(config)
+
+    class Frozen(datetime):
+        """The day of the issues' dates, so the digest doesn't age with the clock."""
+
+        @classmethod
+        def now(cls, tz=None):
+            return NOW.astimezone(tz)
+
+    monkeypatch.setattr(assistant, "datetime", Frozen)
     code, _, summary = run_main(
         monkeypatch,
         tmp_path,

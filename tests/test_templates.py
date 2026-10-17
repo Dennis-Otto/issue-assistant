@@ -91,6 +91,11 @@ def claude_reads_only(step):
     assert "--restricted" in arguments
     assert arguments[arguments.index("--tools") + 1] == "Read,Grep,Glob"
     assert arguments[arguments.index("--permission-prompts") + 1] == "none"
+    # The issue assistant's own checkout lies in the context folder; a deny rule
+    # for Read keeps Grep and Glob out of it too, so the script, the prompts of
+    # other tasks and the starter templates never mislead the analysis.
+    denied = arguments[arguments.index("--disallowedTools") + 1]
+    assert denied == f"Read({TOOL}/**)"
     rules = arguments[arguments.index("--append-system-prompt-file") + 1]
     assert rules == f"{assistant.CONTEXT}/rules.md"
     assert "--system-prompt" not in arguments
@@ -387,21 +392,22 @@ def test_the_canary_runs_the_ai_as_the_template_does():
         assert analyze[key] == ANALYZE[key], key
     assert analyze["if"] == "github.event_name != 'push'"
     steps = {step.get("id"): step for step in analyze["steps"]}
-    assert analyze["steps"][0] == ANALYZE["steps"][0]
+    # The same checkout of the tool as in every repository, so that the release,
+    # which waits for the canary, runs the path of production.
+    assert analyze["steps"][:2] == ANALYZE["steps"][:2]
+    assert analyze["steps"][1]["with"] == TOOL_CHECKOUT
     for engine, rules in ENGINE_RULES.items():
         inputs = dict(STEPS[engine]["with"], **rules["canary"])
         assert steps[engine] == dict(STEPS[engine], **{"with": inputs}), engine
     engine_inputs = dict(STEPS["engine"]["with"], mode="triage")
-    assert steps["engine"] == dict(
-        STEPS["engine"], uses="./", **{"with": engine_inputs}
-    )
+    assert steps["engine"] == dict(STEPS["engine"], **{"with": engine_inputs})
     usage_inputs = {
         key: value for key, value in STEPS["usage"]["with"].items() if key != "issue"
     }
     usage_inputs["mode"] = "triage"
-    assert steps["usage"] == dict(STEPS["usage"], uses="./", **{"with": usage_inputs})
+    assert steps["usage"] == dict(STEPS["usage"], **{"with": usage_inputs})
     context = steps["context"]
-    assert context["uses"] == "./" and context["if"] == STEPS["context"]["if"]
+    assert context["uses"] == TOOL and context["if"] == STEPS["context"]["if"]
     assert context["with"] == {"command": "context", "mode": "triage"}
     assert context["env"] == {assistant.FIXTURE_VARIABLE: CANARY_ISSUE}
     order = [step.get("id") for step in analyze["steps"]]
@@ -438,8 +444,9 @@ def test_the_canary_checks_the_answer_as_apply_does_and_writes_nothing():
     assert apply["runs-on"] == template["runs-on"]
     # The template's job may write to the issue; the canary's can only read.
     assert apply["permissions"] == dict(template["permissions"], issues="read")
-    assert apply["steps"][0] == template["steps"][0]
-    (step,) = [step for step in apply["steps"] if step.get("uses") == "./"]
+    assert apply["steps"][:3] == template["steps"][:3]
+    assert apply["steps"][2]["with"] == TOOL_CHECKOUT
+    (step,) = [step for step in apply["steps"] if step.get("uses") == TOOL]
     assert step["with"] == {
         "command": "apply",
         "mode": "triage",

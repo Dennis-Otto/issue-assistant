@@ -178,12 +178,14 @@ jobs:
           prompt: ${{ steps.context.outputs.task }}
           # --restricted removes every tool that runs code or reaches the network,
           # ignores settings files and confines the file tools to the checkout;
-          # --tools leaves only the reading tools, and nothing ever prompts. The
-          # rules come first, as the system prompt, and the task stops at its turns
-          # and dollars.
+          # --tools leaves only the reading tools, which never see the issue
+          # assistant's own checkout, and nothing ever prompts. The rules come
+          # first, as the system prompt, and the task stops at its turns and
+          # dollars.
           claude_args: |
             --restricted
             --tools "Read,Grep,Glob"
+            --disallowedTools "Read(./.issue-assistant/action/**)"
             --permission-prompts none
             --append-system-prompt-file .issue-assistant/rules.md
             --model ${{ steps.engine.outputs.model }}

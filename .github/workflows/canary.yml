@@ -98,9 +98,9 @@ jobs:
 
   # The job analyze of the reusable workflow; a test keeps its runner, environment,
   # permissions, outputs and engine steps equal to those of the reusable workflow.
-  # The steps of the issue assistant run the action of this commit, as ./:
-  # actionlint doesn't know the self-repository syntax $/ yet, which zizmor asks
-  # for.
+  # The steps of the issue assistant run the action of this commit from the same
+  # sparse checkout in the context folder as there, so a pattern that leaves out a
+  # file the action needs fails here before a release.
   analyze:
     name: Analyze the canary's issue with the AI engine
     if: github.event_name != 'push'
@@ -125,9 +125,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # As in the reusable workflow, which every repository runs: here
+      # job.workflow_* are this repository and the commit of this run.
+      - name: Check out the issue assistant of this workflow
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          path: .issue-assistant/action
+          # Only what the action runs: the engine reads the context folder, and the
+          # docs and tests of the issue assistant would only mislead it there.
+          sparse-checkout: |
+            /action.yml
+            /issue_assistant.py
+            /version.txt
+            /prompts/
+            /locales/
+            /templates/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - name: Choose the engine and check its secret
         id: engine
-        uses: ./ # zizmor: ignore[self-repository]
+        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         with:
           command: engine
           mode: triage
@@ -145,7 +164,7 @@ jobs:
       - name: Collect the canary's issue, earlier issues and discussions
         id: context
         if: steps.engine.outputs.ready == 'true'
-        uses: ./ # zizmor: ignore[self-repository]
+        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         env:
           ISSUE_ASSISTANT_FIXTURE: tests/fixtures/canary-issue.json
         with:
@@ -176,12 +195,14 @@ jobs:
           prompt: ${{ steps.context.outputs.task }}
           # --restricted removes every tool that runs code or reaches the network,
           # ignores settings files and confines the file tools to the checkout;
-          # --tools leaves only the reading tools, and nothing ever prompts. The
-          # rules come first, as the system prompt, and the task stops at its turns
-          # and dollars.
+          # --tools leaves only the reading tools, which never see the issue
+          # assistant's own checkout, and nothing ever prompts. The rules come
+          # first, as the system prompt, and the task stops at its turns and
+          # dollars.
           claude_args: |
             --restricted
             --tools "Read,Grep,Glob"
+            --disallowedTools "Read(./.issue-assistant/action/**)"
             --permission-prompts none
             --append-system-prompt-file .issue-assistant/rules.md
             --model ${{ steps.engine.outputs.model }}
@@ -194,7 +215,7 @@ jobs:
       - name: Report what the analysis cost
         id: usage
         if: always() && steps.claude.outputs.execution_file != ''
-        uses: ./ # zizmor: ignore[self-repository]
+        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         with:
           command: usage
           mode: triage
@@ -235,8 +256,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # As in the reusable workflow, which every repository runs: here
+      # job.workflow_* are this repository and the commit of this run.
+      - name: Check out the issue assistant of this workflow
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          path: .issue-assistant/action
+          # Only what the action runs: the engine reads the context folder, and the
+          # docs and tests of the issue assistant would only mislead it there.
+          sparse-checkout: |
+            /action.yml
+            /issue_assistant.py
+            /version.txt
+            /prompts/
+            /locales/
+            /templates/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - name: Check the engine's answer and show the comment
-        uses: ./ # zizmor: ignore[self-repository]
+        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         env:
           ISSUE_ASSISTANT_FIXTURE: tests/fixtures/canary-issue.json
         with:
