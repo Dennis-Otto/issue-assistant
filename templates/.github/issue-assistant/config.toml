@@ -29,10 +29,12 @@ release_replies = 2
 # What the AI reads besides the issue, for an analysis and a follow-up: every open
 # issue, the max_issues closed issues that changed last, and the max_discussions
 # discussions that changed last. An analysis also reads the older issues that a
-# search for the words of the new issue finds. A reply to a comment reads only the
-# issue and that comment.
+# search for the words of the new issue finds, and what the maintainers corrected
+# of the analyses of the max_analyzed issues analyzed last. A reply to a comment
+# reads only the issue and that comment.
 max_issues = 1000
 max_discussions = 1000
+max_analyzed = 30
 
 [links]
 # Hosts that links in the assistant's comments may lead to, besides this repository.

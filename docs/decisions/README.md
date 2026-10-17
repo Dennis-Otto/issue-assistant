@@ -21,3 +21,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0013](0013-a-catalog-for-each-language.md) | A catalog for each language of the comments, and English around any other | accepted |
 | [0014](0014-bound-every-run-and-put-the-rules-first.md) | Bound every run of the AI by its task, put the rules in the system prompt, and show what each run cost | accepted |
 | [0015](0015-reusable-workflows.md) | The templates call the jobs as reusable workflows of a release, so an update is a move of the pins | accepted |
+| [0016](0016-learn-from-the-history-on-github.md) | Learn from the maintainers' corrections as they stand on GitHub, as data of the context | accepted |

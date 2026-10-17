@@ -7,6 +7,7 @@ All notable changes of the issue assistant. The complete notes of every version,
 ### Added
 
 - Updates without `install`. The four workflows that `install` writes are short now: what starts them, the permissions that their jobs need at most, and one pin of a reusable workflow of the issue assistant, which has the jobs and runs the action of the same release. A release reaches your repository as a pull request of Dependabot or Renovate that moves the pins, and only a release that changes a template needs `install` again. **Run `install` of this release once**, as step 1 of the set-up shows; your secret, variables and firewall policy stay as they are. `.github/actionlint.yaml` no longer needs the runner `ubuntu-24.04-firewall`, which is now in the reusable workflow.
+- The assistant learns from your corrections. Every first analysis reads what the maintainers corrected of the analyses of the 30 issues analyzed last: the labels you removed or added, the duplicate notices that someone objected to, and the analyses that one of you gave a 👎, and the AI avoids those choices on an issue like them. GitHub keeps all of it, so correcting the issue is all it takes. The AI gets the corrections as data, one line per issue with its number, title and labels; reading them costs one call to GitHub for each issue and a few more, and `[context] max_analyzed` in `config.toml` sets the number of issues, `0` none.
 
 ## [1.5.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.4.0...v1.5.0) (2026-10-14)
 

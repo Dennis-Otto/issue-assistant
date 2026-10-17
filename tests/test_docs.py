@@ -1272,6 +1272,7 @@ SETTINGS = {
     "[engine] release_replies": ("release_replies", 0),
     "[context] max_issues": ("max_issues", 300),
     "[context] max_discussions": ("max_discussions", 0),
+    "[context] max_analyzed": ("max_analyzed", 0),
     "[links] hosts": ("hosts", ["docs.example.com"]),
     "[forms] area_field": ("area_field", "Component"),
     "[forms] unmapped_options": ("unmapped_options", ["None"]),

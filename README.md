@@ -214,11 +214,12 @@ Each task reads what it needs and no more, from the files that the `context` ste
 - **Every task reads the issue** with all its comments, in `issue.md`.
 - **A first analysis and a follow-up read a window of the repository:** every open issue and the 1,000 closed ones that changed last, each with an excerpt of 400 characters in `issues.jsonl` and its whole text in `issues/<number>.md`, the 1,000 discussions that changed last and the labels. GitHub's GraphQL API lists a hundred issues a page and no pull request, so a repository with 50,000 issues and pull requests costs a few calls instead of five hundred, and the context keeps its size. `[context]` in `config.toml` sets both numbers.
 - **A first analysis also searches.** Up to 30 older issues that GitHub's search finds for the names of errors in the new issue, such as `TypeError` or `ECONNREFUSED`, and the words of its title join the window, so that an old duplicate is found beyond it. A search that fails leaves the window, with a warning.
+- **A first analysis learns from the maintainers' corrections.** `corrections.md` lists what the maintainers corrected of the analyses of the 30 issues analyzed last: a label of the AI that a maintainer removed within 14 days, one that a maintainer added within 7 days of the analysis, a duplicate notice that someone objected to and that didn't close, and an analysis that someone who may push gave a 👎. The prompt asks the AI not to repeat such a choice on an issue like it. GitHub is the record, so correcting the issue is all it takes, and the AI learns of nothing else: one line per issue with its number, its title as a JSON string and the labels of `labels.md`, in a fence that no title can close. The issues come from the 500 newest comments of the repository and from the window above, so the AI can read each of them; their events are read once each, and the reactions only of an analysis with a 👎. `[context] max_analyzed` sets the number, `0` turns it off, and GitHub failing it is a warning.
 - **A reply judges the comment of its event.** `maintainer-reply`, `release-reply` and `maintainer-question` read the issue and `comment.md`, the comment whose event started the run, and nothing of the rest of the repository. A run can wait behind others for minutes, and a "still broken for me too" of someone else that comes in meanwhile never reopens an issue whose reporter just confirmed the fix. The `apply` job reads that comment again and acts only when it is the reporter's, after a release, or a maintainer's, and for an answer a maintainer's `/assistant ask`. A run by hand judges the newest such comment.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/what-the-ai-reads-for-each-task.dark.svg">
-  <img src="docs/images/diagrams/what-the-ai-reads-for-each-task.svg" alt="What the AI reads for each task: Every task reads issue.md, the issue with all its comments. A first analysis and a follow-up also read the labels, every open issue, the closed issues that changed last up to max_issues and the discussions that changed last up to max_discussions, from GitHub's GraphQL API, which lists no pull request; each issue has an excerpt in issues.jsonl and its whole text in issues/. A first analysis adds up to 30 older issues that a search for the names of errors and the words of the title finds. A reply, maintainer-reply, release-reply or maintainer-question, reads comment.md instead: the comment whose event started the run, not a newer one that came in while the run waited. The apply job acts only when that comment is the reporter's or a maintainer's, or a maintainer's question.">
+  <img src="docs/images/diagrams/what-the-ai-reads-for-each-task.svg" alt="What the AI reads for each task: Every task reads issue.md, the issue with all its comments. A first analysis and a follow-up also read the labels, every open issue, the closed issues that changed last up to max_issues and the discussions that changed last up to max_discussions, from GitHub's GraphQL API, which lists no pull request; each issue has an excerpt in issues.jsonl and its whole text in issues/. A first analysis adds up to 30 older issues that a search for the names of errors and the words of the title finds, and corrections.md: what the maintainers corrected of the analyses of up to max_analyzed issues analyzed last, which it learns from. A reply, maintainer-reply, release-reply or maintainer-question, reads comment.md instead: the comment whose event started the run, not a newer one that came in while the run waited. The apply job acts only when that comment is the reporter's or a maintainer's, or a maintainer's question.">
 </picture>
 
 ### Languages
@@ -514,6 +515,7 @@ release_replies = 2             # comments of the reporter after each release th
 [context]
 max_issues = 1000               # closed issues that an analysis reads besides every open one: those that changed last
 max_discussions = 1000          # discussions that an analysis reads: those that changed last
+max_analyzed = 30               # issues analyzed last whose corrections by the maintainers a first analysis learns from; 0: none
 
 [links]
 hosts = ["docs.example.com"]    # besides this repository
@@ -670,6 +672,10 @@ Yes, with `[lifecycle]` in `.github/issue-assistant/config.toml`: the days until
 ### Which languages does it answer in?
 
 Every language. English, German, French, Spanish, Portuguese, Italian and Dutch have a catalog of the assistant's own words, and in any other language the AI writes its part in the reporter's language between headings and a footer in English. One more file in `locales/` adds a language, as [Languages](https://github.com/Dennis-Otto/issue-assistant#languages) describes.
+
+### Does the assistant learn from its mistakes?
+
+Yes, from yours: correct the issue, and the next analysis knows. Every first analysis reads what the maintainers changed of the analyses of the 30 issues analyzed last: the labels they removed or added, the duplicate notices that someone objected to, and the analyses with a 👎 of someone who may push. It needs no store of its own, since GitHub keeps all of it, and `[context] max_analyzed = 0` turns it off; [What the AI reads](https://github.com/Dennis-Otto/issue-assistant#what-the-ai-reads) has the details.
 
 ### How do I know whether the assistant does well?
 

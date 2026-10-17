@@ -46,6 +46,7 @@ The group `lifecycle` needs the seven labels that the assistant sets: `needs-tri
 | `[engine] release_replies` | integer | `2` | How many comments of the reporter the AI reads after each release that closed their issue | A whole number, 0 or more |
 | `[context] max_issues` | integer | `1000` | How many closed issues an analysis and a follow-up read besides every open one: those that changed last; see [what the AI reads](how-it-works.md#what-the-ai-reads) | A whole number, 0 or more |
 | `[context] max_discussions` | integer | `1000` | How many discussions an analysis and a follow-up read: those that changed last; `0` reads none | A whole number, 0 or more |
+| `[context] max_analyzed` | integer | `30` | How many of the issues analyzed last a first analysis [learns from](how-it-works.md#what-the-ai-reads): the labels that the maintainers removed or added, the duplicates that someone objected to and the analyses that a maintainer gave a 👎; `0` learns from none | A whole number, 0 or more |
 | `[links] hosts` | list of strings | `[]` | The hosts that links in the comments may lead to, besides the repository itself | Each is a host name, such as `docs.example.com` |
 | `[forms] area_field` | string | `"Area"` | The dropdown of the issue forms whose answer chooses an area label | Each of its options belongs to one label, or to `unmapped_options` |
 | `[forms] unmapped_options` | list of strings | `["Other"]` | Answers of that dropdown that choose no label | A list of strings |
