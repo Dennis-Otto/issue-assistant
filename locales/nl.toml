@@ -103,6 +103,32 @@ feedback = "Een 👍 of 👎 op deze reactie laat de maintainers weten of ze geh
   <sub>🤖 Automatisch antwoord door {engine}, op basis van de code, de documentatie en \
   dit issue. Het kan fout zijn; controleer het voordat je erop vertrouwt. \
   {feedback}</sub>"""
+"discussion.intro" = """\
+  Bedankt voor je vraag, @{author}! Ik ben de issue-assistent van deze repository en \
+  heb een eerste antwoord geschreven. De maintainers en de community lezen mee en \
+  vullen het misschien aan."""
+"discussion.bug" = """\
+  Dit klinkt als een bug. Meld hem door [een issue te openen]({form}), zodat de \
+  maintainers hem kunnen volgen."""
+"discussion.feature" = """\
+  Dit klinkt als een verzoek om een nieuwe functie. Stel die voor door [een issue te \
+  openen]({form}), zodat de maintainers het kunnen volgen."""
+"discussion.missing.intro" = """\
+  Vul om nauwkeuriger te kunnen antwoorden het volgende aan in een reactie:"""
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> Deze discussie lijkt een geheim te tonen, zoals een token, een \
+  sleutel of een wachtwoord. Verwijder het door het bericht te bewerken, verwijder de \
+  eerdere versie uit de bewerkingsgeschiedenis en vervang het geheim, want anderen \
+  kunnen het gezien hebben."""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> Deze discussie lijkt persoonsgegevens te tonen, zoals een e-mailadres, \
+  een openbaar IP-adres of het adres van een privéserver. Wil je ze liever niet tonen, \
+  bewerk dan het bericht en verwijder de eerdere versie uit de bewerkingsgeschiedenis."""
+"discussion.footer" = """\
+  <sub>🤖 Automatisch eerste antwoord door {engine}, op basis van de code, de \
+  documentatie en eerdere issues en discussies. Het kan fout zijn; controleer het \
+  voordat je erop vertrouwt.{answerable} {feedback}</sub>"""
+"discussion.answerable" = " Als het je vraag beantwoordt, kun je het als antwoord markeren."
 reminder = """\
   @{author}, een vriendelijke herinnering: dit issue wacht nog op je antwoord op \
   {questions}. Zonder antwoord wordt het op {date} automatisch gesloten. Een korte \

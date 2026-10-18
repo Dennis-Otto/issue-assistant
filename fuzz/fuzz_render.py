@@ -93,7 +93,10 @@ class Choices:
 
 
 def test_one_input(data: bytes) -> None:
-    mode = "follow-up" if data[:1] and data[0] & 1 else "triage"
+    # The first byte chooses the comment: triage, follow-up, or, for 2 and 3 in its
+    # lowest bits, the first answer to a discussion.
+    first = data[0] & 3 if data[:1] else 0
+    mode = ("triage", "follow-up", "discussion-answer", "discussion-answer")[first]
     count = data[1] if len(data) > 1 else 0
     text = data[2 + count :].decode("utf-8", "replace")
     choices = Choices(data[2 : 2 + count], text)

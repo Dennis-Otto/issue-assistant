@@ -103,6 +103,33 @@ feedback = "Un 👍 o un 👎 en este comentario indica a los mantenedores si ha
   <sub>🤖 Respuesta automática de {engine}, basada en el código, la documentación y \
   esta incidencia. Puede equivocarse; compruébala antes de fiarte de ella. \
   {feedback}</sub>"""
+"discussion.intro" = """\
+  ¡Gracias por tu pregunta, @{author}! Soy el asistente de incidencias de este \
+  repositorio y he escrito una primera respuesta. Los mantenedores y la comunidad \
+  también la leen y pueden completarla."""
+"discussion.bug" = """\
+  Parece un error. Para informar de él, [abre una incidencia]({form}), para que los \
+  mantenedores puedan seguirlo."""
+"discussion.feature" = """\
+  Parece una petición de una función nueva. Para proponerla, [abre una \
+  incidencia]({form}), para que los mantenedores puedan seguirla."""
+"discussion.missing.intro" = """\
+  Para responder con más precisión, añade lo siguiente en un comentario:"""
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> Esta discusión parece mostrar un secreto, como un token, una clave o \
+  una contraseña. Quítalo editando la publicación, borra la versión anterior de su \
+  historial de ediciones y cambia el secreto, porque otras personas pueden haberlo \
+  visto."""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> Esta discusión parece mostrar datos personales, como una dirección de \
+  correo electrónico, una dirección IP pública o la dirección de un servidor privado. \
+  Si prefieres no mostrarlos, edita la publicación y borra la versión anterior de su \
+  historial de ediciones."""
+"discussion.footer" = """\
+  <sub>🤖 Primera respuesta automática de {engine}, basada en el código, la \
+  documentación e incidencias y discusiones anteriores. Puede equivocarse; compruébala \
+  antes de fiarte de ella.{answerable} {feedback}</sub>"""
+"discussion.answerable" = " Si responde a tu pregunta, puedes marcarla como respuesta."
 reminder = """\
   @{author}, un recordatorio amable: esta incidencia sigue esperando tu respuesta a \
   {questions}. Sin respuesta, se cerrará automáticamente el {date}. Basta un \

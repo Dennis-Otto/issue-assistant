@@ -249,7 +249,7 @@ def test_unknown_keys_are_named_with_the_key_they_probably_mean(
         f"{CONFIG}: unknown section [release]; did you mean [releases]?",
         f"{CONFIG}: unknown key hots in [links]; did you mean hosts?",
         f"{CONFIG}: unknown section [colours]; known: [engine], [context], [related], "
-        "[links], [forms], [transparency], [releases], [lifecycle]",
+        "[discussions], [links], [forms], [transparency], [releases], [lifecycle]",
     ]
     # The other commands keep the defaults and warn.
     config = assistant.load_config(root, REPOSITORY)
@@ -326,6 +326,10 @@ def test_install_and_check_read_the_templates_from_templates_alone(
     monkeypatch.setattr(assistant, "TOOL", tmp_path / "no-tool-folder")
     root = tmp_path / "project"
     shutil.copytree(SAMPLE, root)
+    # With every workflow, the one of the discussions too.
+    settings = root / assistant.SETTINGS / "config.toml"
+    with settings.open("a", encoding="utf-8") as file:
+        file.write('\n[discussions]\nanswer_categories = ["Q&A"]\n')
     assistant.install(root, REF, "v1.0.0")
     for name in assistant.TEMPLATE_WORKFLOWS:
         template = assistant.TEMPLATES / assistant.WORKFLOWS / name
@@ -1293,6 +1297,14 @@ def test_actions_must_be_pinned_to_a_commit(config, root):
 def test_newer_pins_of_the_same_actions_fit(config, root):
     """A move of the pins, as Renovate or Dependabot makes it, is all an update of
     the issue assistant needs, when its release changed no template."""
+    # The workflow of the discussions too, which the sample doesn't need.
+    discussions = (
+        assistant.TEMPLATES / assistant.WORKFLOWS / assistant.DISCUSSION_WORKFLOW
+    )
+    (root / ".github/workflows" / assistant.DISCUSSION_WORKFLOW).write_text(
+        assistant.pinned(discussions.read_text("utf-8"), REF, "v1.0.0"),
+        encoding="utf-8",
+    )
     for name in assistant.TEMPLATE_WORKFLOWS:
         path = root / ".github/workflows" / name
         text = path.read_text("utf-8").replace(f"{REF} # v1.0.0", f"{'f' * 40} # v9")

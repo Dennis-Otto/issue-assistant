@@ -154,6 +154,59 @@ DISCUSSION = {
         "createdAt": "2026-09-02T12:00:00Z",
     },
 }
+# A discussion with its comments and their replies, as GitHub holds it: a deleted
+# account is no author, and Actor is an interface, whose type GitHub answers.
+ASKER = {"__typename": "User", "login": "asker"}
+THREAD = {
+    "id": "D_kwDOMpLSs84AdQ1x",
+    "number": 5,
+    "title": "How do I hide the live card?",
+    "body": "It shows in every view.",
+    "createdAt": "2026-10-07T11:00:00Z",
+    "closed": False,
+    "locked": False,
+    "isAnswered": False,
+    "authorAssociation": "NONE",
+    "author": ASKER,
+    "category": {"name": "Q&A", "isAnswerable": True},
+    "comments": {
+        "totalCount": 1,
+        "nodes": [
+            {
+                "body": "Me too.",
+                "createdAt": "2026-10-07T11:30:00Z",
+                "authorAssociation": "NONE",
+                "author": None,
+                "replies": {
+                    "nodes": [
+                        {
+                            "body": "Turn it off in the options.",
+                            "createdAt": "2026-10-07T11:40:00Z",
+                            "authorAssociation": "OWNER",
+                            "author": {"__typename": "User", "login": "owner"},
+                        }
+                    ]
+                },
+            }
+        ],
+    },
+}
+OF_THE_DAY = [
+    {
+        "number": 9,
+        "createdAt": "2026-10-07T11:00:00Z",
+        "authorAssociation": "NONE",
+        "author": {"__typename": "Bot", "login": "github-actions"},
+        "category": {"name": "Q&A"},
+    },
+    {
+        "number": 6,
+        "createdAt": "2026-10-05T11:00:00Z",
+        "authorAssociation": "NONE",
+        "author": ASKER,
+        "category": {"name": "General"},
+    },
+]
 CLOSED = {"closeIssue": {"issue": {"number": 12}}}
 PAGE = {"hasNextPage": False, "endCursor": "Y3Vyc29yOjE="}
 
@@ -413,6 +466,66 @@ REQUESTS = {
             closed_as_rest(6, user={"login": "ghost", "type": "User"}),
         ],
     ),
+    "a discussion with its comments": Request(
+        lambda github: github.discussion(5),
+        {"repository": {"discussion": THREAD}},
+        {
+            "node_id": "D_kwDOMpLSs84AdQ1x",
+            "number": 5,
+            "title": "How do I hide the live card?",
+            "user": {"login": "asker", "type": "User"},
+            "author_association": "NONE",
+            "created_at": "2026-10-07T11:00:00Z",
+            "body": "It shows in every view.",
+            "state": "open",
+            "locked": False,
+            "answered": False,
+            "category": {"name": "Q&A", "is_answerable": True},
+            "comment_count": 1,
+            "comments": [
+                {
+                    "user": {"login": "ghost", "type": "User"},
+                    "author_association": "NONE",
+                    "created_at": "2026-10-07T11:30:00Z",
+                    "body": "Me too.",
+                    "replies": [
+                        {
+                            "user": {"login": "owner", "type": "User"},
+                            "author_association": "OWNER",
+                            "created_at": "2026-10-07T11:40:00Z",
+                            "body": "Turn it off in the options.",
+                        }
+                    ],
+                }
+            ],
+        },
+    ),
+    "no discussion by that number": Request(
+        lambda github: github.discussion(4),
+        {"repository": {"discussion": None}},
+        None,
+    ),
+    # The newest first; the second is older than the day and ends the list.
+    "the discussions opened since a moment": Request(
+        lambda github: github.discussions_since(datetime(2026, 10, 6, 12, tzinfo=UTC)),
+        {"repository": {"discussions": {"pageInfo": PAGE, "nodes": OF_THE_DAY}}},
+        [
+            {
+                "number": 9,
+                "category": {"name": "Q&A"},
+                "user": {"login": "github-actions[bot]", "type": "Bot"},
+                "author_association": "NONE",
+                "created_at": "2026-10-07T11:00:00Z",
+                "body": None,
+            }
+        ],
+    ),
+    "a comment on a discussion": Request(
+        lambda github: github.answer_discussion(
+            {"number": 5, "node_id": "D_kwDOMpLSs84AdQ1x"}, "A first answer."
+        ),
+        {"addDiscussionComment": {"comment": {"id": "DC_kwDOMpLSs84Aq9Zy"}}},
+    ),
     "a discussion that exists": Request(
         lambda github: github.discussion_exists(3),
         {"repository": {"discussion": {"number": 3}}},
@@ -594,6 +707,18 @@ def test_a_duplicate_is_closed_with_its_original_and_others_without(
         )
 
 
+def test_the_answer_to_a_discussion_is_one_comment_on_it(monkeypatch, schema):
+    """addDiscussionComment with the node of the discussion and the text alone: no
+    reply to another comment, and nothing that marks it as the answer."""
+    _, (sent,) = send(monkeypatch, schema, REQUESTS["a comment on a discussion"])
+    assert sent["variables"] == {
+        "discussion": "D_kwDOMpLSs84AdQ1x",
+        "body": "A first answer.",
+    }
+    source = Path(assistant.__file__).read_text(encoding="utf-8")
+    assert "markDiscussionCommentAsAnswer" not in source
+
+
 def test_every_graphql_document_of_the_script_is_checked(monkeypatch, schema):
     """A new document needs a request above, or this test fails."""
     nodes = list(calls_in_the_script("graphql"))
@@ -605,7 +730,7 @@ def test_every_graphql_document_of_the_script_is_checked(monkeypatch, schema):
         for request in REQUESTS.values()
         for sent in send(monkeypatch, schema, request)[1]
     }
-    assert len(documents) == 13
+    assert len(documents) == 16
     assert documents == checked
 
 

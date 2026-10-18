@@ -1025,7 +1025,7 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
 
         monkeypatch.setattr(assistant, name, record)
     shown = hooks.examples()
-    assert called == set(writers) and len(writers) == 12
+    assert called == set(writers) and len(writers) == 13
     assert [example.kind for example in shown] == list(hooks.KINDS)
     for example in shown:
         for language in hooks.LANGUAGES:
@@ -1038,6 +1038,8 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
                 "personal": "analysis",
                 "security": "analysis",
                 "reopened-release": "reopened",
+                "discussion-bug": "discussion-answer",
+                "discussion-feature": "discussion-answer",
             }.get(example.kind, example.kind)
             assert text.startswith(f"<!-- issue-assistant:{kind}"), example.kind
             if "lang=" in text.splitlines()[0]:
@@ -1052,6 +1054,11 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
     assert (
         "### Summary" not in english["security"] and "[!CAUTION]" in english["security"]
     )
+    # A bug in Discussions links the bug report form, a feature request the forms.
+    issues = f"https://github.com/{hooks.DEMO}/issues/new"
+    assert f"({issues}?template=bug_report.yml)" in english["discussion-bug"]
+    assert f"({issues}/choose)" in english["discussion-feature"]
+    assert "mark it as the answer" in english["discussion-answer"]
 
 
 def test_the_hook_loads_the_assistant_of_the_commit_it_builds(monkeypatch):
@@ -1275,6 +1282,7 @@ SETTINGS = {
     "[context] max_discussions": ("max_discussions", 0),
     "[context] max_analyzed": ("max_analyzed", 0),
     "[related] repositories": ("related_repositories", ["owner/server"]),
+    "[discussions] answer_categories": ("answer_categories", ["Q&A"]),
     "[links] hosts": ("hosts", ["docs.example.com"]),
     "[forms] area_field": ("area_field", "Component"),
     "[forms] unmapped_options": ("unmapped_options", ["None"]),

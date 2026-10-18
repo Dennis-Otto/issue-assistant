@@ -101,6 +101,31 @@ feedback = "A 👍 or 👎 on this comment tells the maintainers whether it help
 "answer.footer" = """\
   <sub>🤖 Automated answer by {engine}, based on the code, the documentation and this \
   issue. It can be wrong; check it before you rely on it. {feedback}</sub>"""
+"discussion.intro" = """\
+  Thanks for your question, @{author}! I'm the issue assistant of this repository and \
+  wrote a first answer. The maintainers and the community read along and may add to \
+  it."""
+"discussion.bug" = """\
+  This sounds like a bug. To report it, please [open an issue]({form}), so that the \
+  maintainers can track it."""
+"discussion.feature" = """\
+  This sounds like a request for a new feature. To propose it, please [open an \
+  issue]({form}), so that the maintainers can track it."""
+"discussion.missing.intro" = """\
+  To answer more precisely, please add the following in a comment:"""
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> This discussion seems to show a secret, such as a token, a key or a \
+  password. Please remove it by editing the post, delete the earlier version from its \
+  edit history, and replace the secret, because others may have seen it."""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> This discussion seems to show personal data, such as an e-mail address, \
+  a public IP address or the address of a private server. If you'd rather not show it, \
+  edit the post and delete the earlier version from its edit history."""
+"discussion.footer" = """\
+  <sub>🤖 Automated first answer by {engine}, based on the code, the documentation and \
+  earlier issues and discussions. It can be wrong; check it before you rely on \
+  it.{answerable} {feedback}</sub>"""
+"discussion.answerable" = " If it answers your question, you can mark it as the answer."
 reminder = """\
   @{author}, a friendly reminder: this issue is still waiting for your answer to \
   {questions}. Without an answer, it closes automatically on {date}. A short comment \

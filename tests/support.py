@@ -5,6 +5,7 @@ The fake answers the REST and GraphQL calls of the script, so the real request c
 runs; only `gh` itself is replaced. tests/README.md explains all three.
 """
 
+import dataclasses
 import difflib
 import json
 import os
@@ -165,6 +166,109 @@ def event(action, issue, sender="reporter", comment=None, changes=None):
     if changes is not None:
         payload["changes"] = changes
     return payload
+
+
+def author_node(name):
+    """An author as GitHub's GraphQL gives it: the bot github-actions for "bot", a
+    deleted account for None, and otherwise a person."""
+    if name is None:
+        return None
+    if name == "bot":
+        return {"__typename": "Bot", "login": "github-actions"}
+    return {"__typename": "User", "login": name}
+
+
+def make_discussion(
+    number=5,
+    *,
+    author="asker",
+    association="NONE",
+    category="Q&A",
+    answerable=True,
+    comments=(),
+    days_ago=0.01,
+    **extra,
+):
+    """A discussion as GitHub's GraphQL gives it, with every field that the
+    assistant reads of one, in a list or alone, and its comments."""
+    return {
+        "id": f"D_{number}",
+        "number": number,
+        "title": "How do I hide the live card?",
+        "body": "The live card shows in every view. Can I hide it in some of them?",
+        "createdAt": at(days_ago),
+        "closed": False,
+        "locked": False,
+        "isAnswered": False,
+        "authorAssociation": association,
+        "author": author_node(author),
+        "category": {"name": category, "isAnswerable": answerable},
+        "answer": None,
+        "comments": {"totalCount": len(comments), "nodes": list(comments)},
+        **extra,
+    }
+
+
+def discussion_comment(author, body, days_ago=0.0, association="NONE", replies=()):
+    """A comment of a discussion as GraphQL gives it, with its replies, which are
+    comments without replies of their own."""
+    return {
+        "author": author_node(author),
+        "authorAssociation": association,
+        "createdAt": at(days_ago),
+        "body": body,
+        "replies": {"nodes": list(replies)},
+    }
+
+
+def discussion_reply(author, body, days_ago=0.0, association="NONE"):
+    reply = discussion_comment(author, body, days_ago, association)
+    del reply["replies"]
+    return reply
+
+
+def discussion_event(discussion, action="created", sender=None):
+    """The payload of GitHub's event discussion for a discussion of make_discussion,
+    sent by its author unless `sender` names someone else."""
+    rest = assistant.discussion_as_rest(discussion)
+    name = sender or rest["user"]["login"]
+    return {
+        "action": action,
+        "discussion": {
+            "number": rest["number"],
+            "title": rest["title"],
+            "body": rest["body"],
+            "user": rest["user"],
+            "author_association": rest["author_association"],
+            "created_at": rest["created_at"],
+            "state": rest["state"],
+            "locked": rest["locked"],
+            "category": rest["category"],
+        },
+        "sender": {
+            "login": name,
+            "type": "Bot" if name.endswith("[bot]") else "User",
+        },
+    }
+
+
+def make_discussion_answer(**changes):
+    """An answer of the engine to a discussion that fits its schema."""
+    return {
+        "language": "en",
+        "kind": "question",
+        "answer": "Turn off `live.everywhere` in the options of the card; see #7.",
+        "missing_information": [],
+        "references": [
+            {
+                "path": "README.md",
+                "anchor": "configuration",
+                "reason": "The options of the card.",
+            }
+        ],
+        "sensitive_data": "none",
+        "security_report": False,
+    } | changes
 
 
 def make_answer(**changes):
@@ -816,11 +920,16 @@ class FakeGitHub(assistant.GitHub):
             raise assistant.GitHubError(self.graphql_error)
         if "discussions(" in query:
             # A repository without discussions has none, as GitHub answers; a page
-            # of them after the cursor, by their last update.
-            assert "orderBy: {field: UPDATED_AT, direction: DESC}" in query
+            # of them after the cursor, by their last update, as the store holds
+            # them, or the newest first.
+            created = "orderBy: {field: CREATED_AT, direction: DESC}" in query
+            assert created or "orderBy: {field: UPDATED_AT, direction: DESC}" in query
             self.discussion_pages += 1
             assert self.discussion_pages <= 50, "endless paging of the discussions"
-            nodes, info = page_of(self.discussion_store or [], variables)
+            items = self.discussion_store or []
+            if created:
+                items = sorted(items, key=lambda item: item["createdAt"], reverse=True)
+            nodes, info = page_of(items, variables)
             return {"repository": {"discussions": {"pageInfo": info, "nodes": nodes}}}
         if "duplicateOf" in query:
             # The closed issues of evaluate, the newest first, a page of a hundred.
@@ -871,7 +980,26 @@ class FakeGitHub(assistant.GitHub):
                     f"{variables['number']}.",
                     types={"NOT_FOUND"},
                 )
-            return {"repository": {"discussion": found[0]}}
+            node = deepcopy(found[0])
+            if "comments(first: 50)" in query:
+                # The first 50 comments, each with its first 20 replies, as the
+                # document asks.
+                node["comments"]["nodes"] = node["comments"]["nodes"][:50]
+                for comment in node["comments"]["nodes"]:
+                    comment["replies"]["nodes"] = comment["replies"]["nodes"][:20]
+            return {"repository": {"discussion": node}}
+        if "addDiscussionComment" in query:
+            (found,) = [
+                item
+                for item in self.discussion_store or []
+                if item["id"] == variables["discussion"]
+            ]
+            assert set(variables) == {"discussion", "body"}, variables
+            comment = discussion_comment("bot", variables["body"])
+            comment["createdAt"] = self.time()
+            found["comments"]["nodes"].append(comment)
+            found["comments"]["totalCount"] += 1
+            return {"addDiscussionComment": {"comment": {"id": "DC_1"}}}
         if "pullRequests(states: MERGED" in query:
             # This repository's merged pull requests, by their last update, a page of
             # them after the cursor, which is the place in the list.
@@ -1079,6 +1207,16 @@ class FakeGitHub(assistant.GitHub):
             if comment["user"] == BOT_USER and comment["created_at"] == self.time()
         ]
 
+    def answers_posted(self, number):
+        """The comments that the assistant posted on the discussion now."""
+        (found,) = [item for item in self.discussion_store if item["number"] == number]
+        return [
+            comment["body"]
+            for comment in found["comments"]["nodes"]
+            if comment["author"] == author_node("bot")
+            and comment["createdAt"] == self.time()
+        ]
+
     def writes_made(self):
         return [
             call
@@ -1101,8 +1239,10 @@ def posted_comments(config, mode, answer, sha=REF):
     a whole.
 
     A follow-up answers the reporter, who answered the questions of the analysis,
-    and an answer the question of a maintainer, comment 2. The first related
-    repository is public, with the same issues, and any other private.
+    and an answer the question of a maintainer, comment 2. The first answer to a
+    discussion goes to #12 as a discussion of the reporter, in a category that gets
+    answers. The first related repository is public, with the same issues, and any
+    other private.
     """
     github = FakeGitHub(
         config,
@@ -1127,6 +1267,10 @@ def posted_comments(config, mode, answer, sha=REF):
         github.comment_store[12] = [
             make_comment(2, "maintainer", "/assistant ask Why?", 0.5, "OWNER")
         ]
+    discussion = mode in assistant.DISCUSSION_MODES
+    if discussion:
+        github.discussion_store = [make_discussion(12, author="reporter")]
+        config = dataclasses.replace(config, answer_categories=("Q&A",))
     try:
         assistant.apply_answer(github, mode, 12, json.dumps(answer), config, sha)
     except assistant.AssistantError:
@@ -1141,7 +1285,8 @@ def posted_comments(config, mode, answer, sha=REF):
         for method, path, _ in (github.sibling_store[names[0]].calls if names else [])
         if method == "GET" and (match := re.fullmatch(r"issues/(\d+)", path))
     }
-    return github.posted(12), ((looked_up & set(ISSUES)) - {12}) | elsewhere
+    posted = github.answers_posted(12) if discussion else github.posted(12)
+    return posted, ((looked_up & set(ISSUES)) - {12}) | elsewhere
 
 
 def own_details(body):
@@ -1158,10 +1303,16 @@ def stray_problems(body, numbers, config, author="reporter", *, security=False):
     """What the oracle finds in a comment of the assistant beyond its own words: its
     marker, the thanks that mention the reporter, the HTML of its footer and of the
     fold of its links and, in the comment on a possible security report, the link to
-    the security policy, and in an answer, the link to the question of #12 that it
-    answers, each once at most."""
+    the security policy, in an answer, the link to the question of #12 that it
+    answers, and in the first answer to a bug or a feature request in Discussions,
+    the link to the form of an issue, each once at most."""
     marker = body.partition("\n")[0]
     question = re.match(r"<!-- issue-assistant:answer .*?\bto=(\d+)", marker)
+    # The first answer to a bug or a feature request in Discussions links the form
+    # of an issue.
+    asked = re.match(
+        r"<!-- issue-assistant:discussion-answer .*?\btype=(bug|feature)\b", marker
+    )
     own = Counter(
         [
             f"HTML {marker!r}",
@@ -1170,6 +1321,11 @@ def stray_problems(body, numbers, config, author="reporter", *, security=False):
             "HTML '</sub>'",
             *own_details(body),
             *([f"link to {config.policy}"] if security else []),
+            *(
+                [f"link to {assistant.issue_form(config, asked[1])}"]
+                if asked and not security
+                else []
+            ),
             *(
                 [f"link to {WEB}/issues/12#issuecomment-{question[1]}"]
                 if question

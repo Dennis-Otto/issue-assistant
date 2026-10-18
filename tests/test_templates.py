@@ -44,6 +44,10 @@ def reusable(name):
 
 ASSISTANT = load(TEMPLATES / "issue-assistant.yml")
 JOBS = load(reusable("issue-assistant.yml"))["jobs"]
+DISCUSSIONS = load(TEMPLATES / assistant.DISCUSSION_WORKFLOW)
+DISCUSSION_JOBS = load(reusable(assistant.DISCUSSION_WORKFLOW))["jobs"]
+# The templates whose jobs run an engine, with the secrets that the caller passes.
+WITH_ENGINE = ("issue-assistant.yml", assistant.DISCUSSION_WORKFLOW)
 ANALYZE = JOBS["analyze"]
 STEPS = {step.get("id"): step for step in ANALYZE["steps"]}
 ACTION = load(ROOT / "action.yml")
@@ -318,8 +322,10 @@ def workflow_id(path):
 
 def test_the_templates_are_the_workflows_that_install_writes():
     assert sorted(path.name for path in TEMPLATES.iterdir()) == sorted(NAMES)
-    # This repository looks after its own issues with them as well.
-    assert set(NAMES) <= {path.name for path in OWN.glob("*.yml")}
+    # This repository looks after its own issues with them as well; its settings
+    # answer no discussions, which need the workflow of the discussions.
+    own = set(NAMES) - {assistant.DISCUSSION_WORKFLOW}
+    assert own <= {path.name for path in OWN.glob("*.yml")}
     # Each one calls a reusable workflow of this repository, which nothing else
     # starts.
     assert sorted(OWN.glob(f"{assistant.REUSABLE_PREFIX}*.yml")) == sorted(
@@ -379,18 +385,20 @@ def test_templates_start_without_permissions_and_not_in_forks(name):
 
 
 def test_only_the_job_of_the_ai_gets_the_engine_s_secrets():
-    """The template passes each engine's secrets by name; the job analyze, in the
-    environment issue-assistant, gets their values, and no other job names them."""
-    (job,) = ASSISTANT["jobs"].values()
-    declared = load(reusable("issue-assistant.yml"))[True]["workflow_call"]["secrets"]
+    """The templates of the issues and of the discussions pass each engine's secrets
+    by name; the job analyze, in the environment issue-assistant, gets their values,
+    and no other job names them."""
     secrets = [secret for rules in ENGINE_RULES.values() for secret in rules["secrets"]]
-    assert job["secrets"] == {
-        secret: f"${{{{ secrets.{secret} }}}}" for secret in secrets
-    }
-    assert list(declared) == secrets
-    assert all(declared[secret]["required"] is False for secret in secrets)
+    for name in WITH_ENGINE:
+        (job,) = load(TEMPLATES / name)["jobs"].values()
+        declared = load(reusable(name))[True]["workflow_call"]["secrets"]
+        assert job["secrets"] == {
+            secret: f"${{{{ secrets.{secret} }}}}" for secret in secrets
+        }
+        assert list(declared) == secrets
+        assert all(declared[secret]["required"] is False for secret in secrets)
     for name in NAMES:
-        if name != "issue-assistant.yml":
+        if name not in WITH_ENGINE:
             (other,) = load(TEMPLATES / name)["jobs"].values()
             assert "secrets" not in other, name
             assert "secrets" not in load(reusable(name))[True]["workflow_call"]
@@ -761,6 +769,8 @@ def test_actions_are_pinned_and_checkouts_keep_no_credentials(path):
     privileged = not {
         "issues",
         "issue_comment",
+        "discussion",
+        "discussion_comment",
         "pull_request_target",
         "workflow_run",
     }.isdisjoint([events] if isinstance(events, str) else events)
@@ -880,7 +890,11 @@ def test_the_command_line_of_every_engine_is_pinned_for_renovate():
         for engine in assistant.ENGINES.values()
         if engine.cli
     ]
-    for path in (reusable("issue-assistant.yml"), OWN / "canary.yml"):
+    for path in (
+        reusable("issue-assistant.yml"),
+        reusable(assistant.DISCUSSION_WORKFLOW),
+        OWN / "canary.yml",
+    ):
         text = path.read_text(encoding="utf-8")
         for package, key in packages:
             pin = (
@@ -948,7 +962,14 @@ def test_the_answer_reaches_github_only_through_the_checks():
 
 def test_the_manual_run_offers_every_task_and_starts_as_a_dry_run():
     inputs = ASSISTANT[True]["workflow_dispatch"]["inputs"]
-    assert inputs["mode"]["options"] == list(assistant.MODES)
+    assert inputs["mode"]["options"] == [
+        mode for mode in assistant.MODES if mode not in assistant.DISCUSSION_MODES
+    ]
+    assert inputs["dry_run"]["default"] is True
+    # The discussions have one task, for the number of a discussion.
+    inputs = DISCUSSIONS[True]["workflow_dispatch"]["inputs"]
+    assert list(inputs) == ["discussion", "dry_run"]
+    assert inputs["discussion"]["type"] == "number"
     assert inputs["dry_run"]["default"] is True
     assert LIFECYCLE[True]["workflow_dispatch"]["inputs"]["dry_run"]["default"] is True
 
@@ -960,6 +981,61 @@ def test_the_events_the_assistant_handles_trigger_it():
     condition = " ".join(JOBS["event"]["if"].split())
     assert "!github.event.issue.pull_request" in condition
     assert "github.event.sender.type != 'Bot'" in condition
+
+
+def test_the_discussions_analyze_as_the_issues_do():
+    """The job analyze of the discussions is the one of the issues, as YAML: every
+    rule above that keeps the engine to reading holds for both."""
+    assert DISCUSSION_JOBS["analyze"] == ANALYZE
+    issues = load(reusable("issue-assistant.yml"))[True]
+    assert load(reusable(assistant.DISCUSSION_WORKFLOW))[True] == issues
+    assert list(DISCUSSION_JOBS) == ["event", "analyze", "apply"]
+    assert DISCUSSION_JOBS["apply"]["needs"] == ["event", "analyze"]
+    assert DISCUSSION_JOBS["apply"]["if"] == JOBS["apply"]["if"]
+    # Their event and apply jobs run the same commands of the action.
+    for name in ("event", "apply"):
+        (ours,) = [
+            step for step in DISCUSSION_JOBS[name]["steps"] if step.get("uses") == TOOL
+        ]
+        (theirs,) = [step for step in JOBS[name]["steps"] if step.get("uses") == TOOL]
+        assert ours["with"] == theirs["with"], name
+
+
+def test_only_the_apply_job_of_the_discussions_writes_to_discussions():
+    """A called job gets at most what its caller grants, and a workflow whose job
+    asks for more doesn't start: the jobs of the issues, which a repository may call
+    with an older template that grants discussions only reading, never ask for
+    more, and the discussions' jobs write nothing else."""
+    writers = {
+        (path.name, job_name)
+        for path in OWN.glob(f"{assistant.REUSABLE_PREFIX}*.yml")
+        for job_name, job in load(path)["jobs"].items()
+        if job["permissions"].get("discussions") == "write"
+    }
+    assert writers == {(reusable(assistant.DISCUSSION_WORKFLOW).name, "apply")}
+    assert {name: job["permissions"] for name, job in DISCUSSION_JOBS.items()} == {
+        "event": {"contents": "read", "issues": "read", "discussions": "read"},
+        "analyze": {"contents": "read", "issues": "read", "discussions": "read"},
+        "apply": {"contents": "read", "issues": "read", "discussions": "write"},
+    }
+    # The event job of the issues counts the new discussions for the limits.
+    assert JOBS["event"]["permissions"]["discussions"] == "read"
+    (caller,) = ASSISTANT["jobs"].values()
+    assert caller["permissions"]["discussions"] == "read"
+
+
+def test_a_new_discussion_triggers_the_workflow_of_the_discussions():
+    assert DISCUSSIONS[True]["discussion"] == {"types": ["created"]}
+    assert set(DISCUSSIONS[True]) == {"discussion", "workflow_dispatch"}
+    condition = " ".join(DISCUSSION_JOBS["event"]["if"].split())
+    assert "github.event.sender.type != 'Bot'" in condition
+    # The runs of one discussion one after the other; issues and discussions share
+    # their numbers, so the group names the workflow.
+    assert DISCUSSIONS["concurrency"] == {
+        "group": "discussion-assistant-${{ github.event.discussion.number || "
+        "inputs.discussion }}",
+        "cancel-in-progress": False,
+    }
 
 
 def test_the_events_of_an_issue_wait_their_turn_instead_of_being_dropped():
@@ -1156,8 +1232,11 @@ def test_this_repository_s_own_settings_fit(tmp_path):
     # and the runner in actionlint's settings are all there already; the settings
     # of the blueprint may not ignore the queue of issue-assistant.yml yet.
     queue = f"let actionlint ignore the queue of issue-assistant.yml in {assistant.ACTIONLINT}"
+    # Its settings answer no discussions, so it gets no workflow of the discussions.
     assert [line for line in done if line != queue] == [
-        f"wrote {assistant.WORKFLOWS / name}" for name in NAMES
+        f"wrote {assistant.WORKFLOWS / name}"
+        for name in NAMES
+        if name != assistant.DISCUSSION_WORKFLOW
     ] + [f"wrote {assistant.FIREWALL} for the engine {config.engine}"]
     assert assistant.check(dataclasses.replace(config, root=own)) == []
     defined = {label.name for label in config.labels}

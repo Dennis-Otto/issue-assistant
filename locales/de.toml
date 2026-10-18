@@ -104,6 +104,33 @@ feedback = """\
   <sub>🤖 Automatische Antwort von {engine} auf Grundlage des Codes, der Dokumentation \
   und dieses Issues. Sie kann falsch sein; prüfe sie, bevor du dich darauf verlässt. \
   {feedback}</sub>"""
+"discussion.intro" = """\
+  Danke für deine Frage, @{author}! Ich bin der Issue-Assistent dieses Repositorys und \
+  habe eine erste Antwort geschrieben. Die Maintainer und die Community lesen mit und \
+  ergänzen sie vielleicht."""
+"discussion.bug" = """\
+  Das klingt nach einem Fehler. Um ihn zu melden, [eröffne bitte ein Issue]({form}), \
+  damit die Maintainer ihn verfolgen können."""
+"discussion.feature" = """\
+  Das klingt nach dem Wunsch nach einer neuen Funktion. Um sie vorzuschlagen, [eröffne \
+  bitte ein Issue]({form}), damit die Maintainer sie verfolgen können."""
+"discussion.missing.intro" = """\
+  Damit ich genauer antworten kann, ergänze bitte Folgendes in einem Kommentar:"""
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> Diese Diskussion scheint ein Geheimnis zu zeigen, etwa ein Token, \
+  einen Schlüssel oder ein Passwort. Bitte entferne es, indem du den Beitrag \
+  bearbeitest, lösche die frühere Fassung aus dem Bearbeitungsverlauf und ersetze das \
+  Geheimnis, denn andere könnten es gesehen haben."""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> Diese Diskussion scheint persönliche Daten zu zeigen, etwa eine \
+  E-Mail-Adresse, eine öffentliche IP-Adresse oder die Adresse eines privaten Servers. \
+  Wenn du sie lieber nicht zeigen willst, bearbeite den Beitrag und lösche die frühere \
+  Fassung aus dem Bearbeitungsverlauf."""
+"discussion.footer" = """\
+  <sub>🤖 Automatische erste Antwort von {engine} auf Grundlage des Codes, der \
+  Dokumentation und früherer Issues und Diskussionen. Sie kann falsch sein; prüfe sie, \
+  bevor du dich darauf verlässt.{answerable} {feedback}</sub>"""
+"discussion.answerable" = " Wenn sie deine Frage beantwortet, kannst du sie als Antwort markieren."
 reminder = """\
   @{author}, eine freundliche Erinnerung: Dieses Issue wartet noch auf deine Antwort \
   auf {questions}. Ohne Antwort wird es am {date} automatisch geschlossen. Ein kurzer \

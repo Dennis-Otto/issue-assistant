@@ -16,11 +16,11 @@ name = "claude"
 max_turns = 40
 max_budget_usd = 1.00
 # The most AI runs that people who don't maintain the repository start: analyses
-# of new issues, follow-ups and replies after a release in 24 hours, analyses of
-# one reporter's new issues in 24 hours, and comments of a reporter after a release
-# closed their issue that the AI reads. Over
-# a limit, the issue gets its labels and waits for the maintainer; 0 lets only
-# maintainers start the AI, by hand.
+# of new issues, first answers to discussions, follow-ups and replies after a
+# release in 24 hours, analyses and first answers of one person's new issues and
+# discussions in 24 hours, and comments of a reporter after a release closed their
+# issue that the AI reads. Over a limit, the issue gets its labels and waits for the
+# maintainer; 0 lets only maintainers start the AI, by hand.
 max_per_day = 20
 max_per_author_per_day = 3
 release_replies = 2
@@ -41,6 +41,13 @@ max_analyzed = 30
 # to 5. A first analysis also searches their issues, links those that help, and says
 # when an issue may belong in one of them; a maintainer transfers it by hand.
 repositories = []
+
+[discussions]
+# The categories of GitHub Discussions whose new discussions get a first answer from
+# the AI, checked as every analysis, which install sets up with the workflow
+# discussion-assistant.yml; [] answers none. The answers count toward the limits of
+# [engine], as new issues do.
+answer_categories = ["Q&A"]
 
 [links]
 # Hosts that links in the assistant's comments may lead to, besides this repository.

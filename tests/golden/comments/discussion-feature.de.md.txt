@@ -1,0 +1,13 @@
+<!-- issue-assistant:discussion-answer lang=de type=feature questions=0 engine=claude -->
+
+Danke für deine Frage, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe eine erste Antwort geschrieben. Die Maintainer und die Community lesen mit und ergänzen sie vielleicht.
+
+> [!NOTE]
+> Diese Diskussion scheint persönliche Daten zu zeigen, etwa eine E-Mail-Adresse, eine öffentliche IP-Adresse oder die Adresse eines privaten Servers. Wenn du sie lieber nicht zeigen willst, bearbeite den Beitrag und lösche die frühere Fassung aus dem Bearbeitungsverlauf.
+
+Noch nicht: Das Dashboard zeigt die Warnungen zu trockenen Pflanzen nur auf seinem eigenen Bildschirm und hat keine Einstellungen für einen Mailserver. Bis dahin kann der Webhook des Hubs einen Dienst aufrufen, der die E-Mail sendet.
+
+Das klingt nach dem Wunsch nach einer neuen Funktion. Um sie vorzuschlagen, [eröffne bitte ein Issue](https://github.com/demo-org/plant-monitor/issues/new/choose), damit die Maintainer sie verfolgen können.
+
+<sub>🤖 Automatische erste Antwort von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues und Diskussionen. Sie kann falsch sein; prüfe sie, bevor du dich darauf verlässt. Wenn sie deine Frage beantwortet, kannst du sie als Antwort markieren. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+

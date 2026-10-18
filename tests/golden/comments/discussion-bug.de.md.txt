@@ -1,0 +1,13 @@
+<!-- issue-assistant:discussion-answer lang=de type=bug questions=0 engine=claude -->
+
+Danke für deine Frage, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe eine erste Antwort geschrieben. Die Maintainer und die Community lesen mit und ergänzen sie vielleicht.
+
+> [!WARNING]
+> Diese Diskussion scheint ein Geheimnis zu zeigen, etwa ein Token, einen Schlüssel oder ein Passwort. Bitte entferne es, indem du den Beitrag bearbeitest, lösche die frühere Fassung aus dem Bearbeitungsverlauf und ersetze das Geheimnis, denn andere könnten es gesehen haben.
+
+Das sieht nach dem Wiederverbinden des Hubs um Mitternacht aus: Danach kehrt `ChartFeed.start()` sofort zurück, und das Diagramm bleibt leer, obwohl der Hub weiter Daten sendet. Bis ein Fix erscheint, füllt ein Neuladen des Dashboards das Diagramm wieder.
+
+Das klingt nach einem Fehler. Um ihn zu melden, [eröffne bitte ein Issue](https://github.com/demo-org/plant-monitor/issues/new?template=bug_report.yml), damit die Maintainer ihn verfolgen können.
+
+<sub>🤖 Automatische erste Antwort von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues und Diskussionen. Sie kann falsch sein; prüfe sie, bevor du dich darauf verlässt. Wenn sie deine Frage beantwortet, kannst du sie als Antwort markieren. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+

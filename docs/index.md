@@ -68,6 +68,12 @@ hide:
 
     A comment such as `/assistant again`, `/assistant ask` and a question, `/assistant duplicate #12` or `/assistant mute` steers the assistant on its issue. Maintainers give every command; the reporter can ask once for a new analysis.
 
+- :material-forum-outline:{ .lg .middle } **A first answer in Discussions**
+
+    ---
+
+    Where `config.toml` names categories, such as `Q&A`, a new question there gets an answer of the same AI with the same checks, never marked as the answer; a bug or a feature request gets the link to an issue form.
+
 - :material-shield-search:{ .lg .middle } **Findings of code scanning**
 
     ---

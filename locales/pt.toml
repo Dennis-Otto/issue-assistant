@@ -100,6 +100,31 @@ feedback = "Um 👍 ou um 👎 neste comentário diz aos mantenedores se ele aju
 "answer.footer" = """\
   <sub>🤖 Resposta automática por {engine}, com base no código, na documentação e nesta \
   issue. Ela pode estar errada; confira antes de confiar nela. {feedback}</sub>"""
+"discussion.intro" = """\
+  Obrigado pela pergunta, @{author}! Sou o assistente de issues deste repositório e \
+  escrevi uma primeira resposta. Os mantenedores e a comunidade também a leem e podem \
+  completá-la."""
+"discussion.bug" = """\
+  Isso parece um bug. Para relatá-lo, [abra uma issue]({form}), para que os \
+  mantenedores possam acompanhá-lo."""
+"discussion.feature" = """\
+  Isso parece um pedido de um novo recurso. Para propô-lo, [abra uma issue]({form}), \
+  para que os mantenedores possam acompanhá-lo."""
+"discussion.missing.intro" = """\
+  Para responder com mais precisão, adicione o seguinte em um comentário:"""
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> Esta discussão parece mostrar um segredo, como um token, uma chave \
+  ou uma senha. Remova-o editando a publicação, apague a versão anterior do histórico \
+  de edições e troque o segredo, porque outras pessoas podem tê-lo visto."""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> Esta discussão parece mostrar dados pessoais, como um endereço de \
+  e-mail, um endereço IP público ou o endereço de um servidor privado. Se preferir não \
+  mostrá-los, edite a publicação e apague a versão anterior do histórico de edições."""
+"discussion.footer" = """\
+  <sub>🤖 Primeira resposta automática por {engine}, com base no código, na \
+  documentação e em issues e discussões anteriores. Ela pode estar errada; confira \
+  antes de confiar nela.{answerable} {feedback}</sub>"""
+"discussion.answerable" = " Se ela responder à sua pergunta, você pode marcá-la como resposta."
 reminder = """\
   @{author}, um lembrete amigável: esta issue ainda espera sua resposta a {questions}. \
   Sem resposta, ela será fechada automaticamente em {date}. Um comentário curto basta \

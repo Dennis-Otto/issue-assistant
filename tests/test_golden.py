@@ -24,12 +24,15 @@ from support import (
     analysis,
     assert_golden,
     at,
+    discussion_comment,
+    discussion_reply,
     event,
     files_of,
     golden_files,
     make_alert,
     make_answer,
     make_comment,
+    make_discussion,
     make_issue,
     make_release,
     run_main,
@@ -89,6 +92,23 @@ def test_the_context_of_each_task_reads_as_its_golden_file(config, mode):
             "answer": None,
         }
     ]
+    if mode in assistant.DISCUSSION_MODES:
+        # The discussion #12, with a comment, its reply and a deleted account.
+        github.discussion_store.append(
+            make_discussion(
+                12,
+                body="The card <!-- hidden --> is empty. Which setting fills it?",
+                comments=[
+                    discussion_comment(
+                        "maintainer",
+                        "Which version?",
+                        association="OWNER",
+                        replies=[discussion_reply("asker", "1.9.0")],
+                    ),
+                    discussion_comment(None, "Same here"),
+                ],
+            )
+        )
     github.comment_store[12] = [
         analysis(questions=1, days_ago=2),
         make_comment(2, "maintainer", "Which version?", 1.5, "OWNER"),

@@ -106,6 +106,34 @@ feedback = "Un 👍 ou un 👎 sur ce commentaire indique aux mainteneurs s'il a
   <sub>🤖 Réponse automatique par {engine}, fondée sur le code, la documentation et ce \
   ticket. Elle peut se tromper\u00A0; vérifiez-la avant de vous y fier. \
   {feedback}</sub>"""
+"discussion.intro" = """\
+  Merci pour votre question, @{author}\u00A0! Je suis l'assistant de tickets de ce \
+  dépôt et j'ai écrit une première réponse. Les mainteneurs et la communauté la lisent \
+  aussi et pourront la compléter."""
+"discussion.bug" = """\
+  Cela ressemble à un bug. Pour le signaler, merci d'[ouvrir un ticket]({form}), afin \
+  que les mainteneurs puissent le suivre."""
+"discussion.feature" = """\
+  Cela ressemble à une demande de nouvelle fonctionnalité. Pour la proposer, merci \
+  d'[ouvrir un ticket]({form}), afin que les mainteneurs puissent la suivre."""
+"discussion.missing.intro" = """\
+  Pour répondre plus précisément, merci d'ajouter les éléments suivants dans un \
+  commentaire\u00A0:"""
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> Cette discussion semble montrer un secret, comme un jeton, une clé \
+  ou un mot de passe. Merci de le retirer en modifiant le message, de supprimer \
+  l'ancienne version de son historique des modifications et de remplacer le secret, \
+  car d'autres ont pu le voir."""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> Cette discussion semble montrer des données personnelles, comme une \
+  adresse e-mail, une adresse IP publique ou l'adresse d'un serveur privé. Si vous \
+  préférez ne pas les montrer, modifiez le message et supprimez l'ancienne version de \
+  son historique des modifications."""
+"discussion.footer" = """\
+  <sub>🤖 Première réponse automatique par {engine}, fondée sur le code, la \
+  documentation et les tickets et discussions précédents. Elle peut se tromper\u00A0; \
+  vérifiez-la avant de vous y fier.{answerable} {feedback}</sub>"""
+"discussion.answerable" = " Si elle répond à votre question, vous pouvez la marquer comme réponse."
 reminder = """\
   @{author}, un petit rappel\u00A0: ce ticket attend toujours votre réponse à \
   {questions}. Sans réponse, il sera fermé automatiquement le {date}. Un court \

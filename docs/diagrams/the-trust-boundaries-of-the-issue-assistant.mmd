@@ -1,6 +1,6 @@
 flowchart TB
   accTitle: The trust boundaries of the issue assistant
-  accDescr: Anyone can write an issue, its comments, other issues and discussions, and a pull request. The text reaches the event job, which runs no AI and chooses the task, and, as data in files, the job analyze: the first boundary. There the AI reads with tools that only read, behind a firewall, with a read-only token or none and the engine's secret. Its answer in JSON crosses the second boundary into the job apply, which runs no AI and holds no secret. Its checks want the schema, labels and issues that exist, and no secret, mention, image, HTML or foreign link. When they fail, nothing is posted; when they pass, apply writes to GitHub, only to the issue of the event: the third boundary. A merged pull request starts issue-lifecycle.yml on the default branch, without AI, which learns only the issues that it fixes, the fourth boundary, and writes to GitHub.
+  accDescr: Anyone can write an issue, its comments, other issues and discussions, and a pull request. The text reaches the event job, which runs no AI and chooses the task, and, as data in files, the job analyze: the first boundary. There the AI reads with tools that only read, behind a firewall, with a read-only token or none and the engine's secret. Its answer in JSON crosses the second boundary into the job apply, which runs no AI and holds no secret. Its checks want the schema, labels and issues that exist, and no secret, mention, image, HTML or foreign link. When they fail, nothing is posted; when they pass, apply writes to GitHub, only to the issue or the discussion of the event: the third boundary. A merged pull request starts issue-lifecycle.yml on the default branch, without AI, which learns only the issues that it fixes, the fourth boundary, and writes to GitHub.
   text["issue, comments,<br>other issues, discussions"]
   merged(["merged pull request"])
   event["`**event**<br>no AI`"]
@@ -16,7 +16,7 @@ flowchart TB
   event -- "the task" --> firewall
   firewall -- "2 · an answer in JSON" --> checked
   checks -- "fails" --> refused
-  checks -- "3 · passes: only the<br>issue of the event" --> github[("GitHub")]
+  checks -- "3 · passes: only the<br>issue or the discussion<br>of the event" --> github[("GitHub")]
   merged -- "4 · only the issues it fixes" --> lifecycle["`**issue-lifecycle.yml**<br>the default branch, no AI`"]
   lifecycle --> github
   classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px

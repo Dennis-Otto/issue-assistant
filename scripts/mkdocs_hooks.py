@@ -351,6 +351,8 @@ DEMO_FILES = {
     "log of the hub with `log_level: debug`.\n",
     "SUPPORT.md": "# Support\n\n## What happens with your issue\n\nThe issue "
     "assistant, which uses Claude, an AI by Anthropic, takes a first look.\n",
+    # The bug report form, which the answer to a bug in Discussions links.
+    ".github/ISSUE_TEMPLATE/bug_report.yml": "name: Bug report\n",
 }
 # What the AI writes in the examples; everything else is the assistant's own text.
 WORDS: dict[str, dict[str, Any]] = {
@@ -405,6 +407,22 @@ WORDS: dict[str, dict[str, Any]] = {
         "reconnect, which confirms the cause above. A fix would end the subscription "
         "in `on_disconnect()`, so that `start()` subscribes again.",
         "still_missing": ["The version of the dashboard app, under Settings → About."],
+        "question": "Yes. Add both sensors to `chart.sensors`, and the chart draws a "
+        "line for each, in the colour of its plant; since 1.3, a click on a name in "
+        "the legend hides its line. With more than four lines, a second chart reads "
+        "better, as #17 shows.",
+        "question_missing": [
+            "The version of the dashboard, under Settings → About: the legend needs "
+            "1.3 or newer."
+        ],
+        "question_reason": "Draws one line for each sensor of `chart.sensors`.",
+        "bug": "This looks like the reconnect of the hub at midnight: after it, "
+        "`ChartFeed.start()` returns early, so the chart stays empty while the hub "
+        "still sends data. Until a fix ships, reloading the dashboard fills the chart "
+        "again.",
+        "feature": "Not yet: the dashboard shows the alerts of dry plants on its own "
+        "screen only, and has no settings for a mail server. Until then, the webhook "
+        "of the hub can call a service that sends the e-mail.",
         "answer": "Only the chart. `ChartFeed.start()` subscribes once and returns "
         "early while `subscribed` is set, and nothing clears it after a reconnect. The "
         "current value subscribes in `ValueFeed`, which starts anew each time, so it "
@@ -466,6 +484,23 @@ WORDS: dict[str, dict[str, Any]] = {
         "Wiederverbinden, was die Ursache oben bestätigt. Ein Fix würde das Abonnement "
         "in `on_disconnect()` beenden, damit `start()` neu abonniert.",
         "still_missing": ["Die Version der Dashboard-App, unter Einstellungen → Über."],
+        "question": "Ja. Trag beide Sensoren in `chart.sensors` ein, dann zeichnet das "
+        "Diagramm für jeden eine Linie, in der Farbe seiner Pflanze; seit 1.3 blendet "
+        "ein Klick auf einen Namen in der Legende seine Linie aus. Bei mehr als vier "
+        "Linien liest sich ein zweites Diagramm besser, wie #17 zeigt.",
+        "question_missing": [
+            "Die Version des Dashboards, unter Einstellungen → Über: Die Legende "
+            "braucht 1.3 oder neuer."
+        ],
+        "question_reason": "Zeichnet eine Linie für jeden Sensor aus `chart.sensors`.",
+        "bug": "Das sieht nach dem Wiederverbinden des Hubs um Mitternacht aus: Danach "
+        "kehrt `ChartFeed.start()` sofort zurück, und das Diagramm bleibt leer, "
+        "obwohl der Hub weiter Daten sendet. Bis ein Fix erscheint, füllt ein "
+        "Neuladen des Dashboards das Diagramm wieder.",
+        "feature": "Noch nicht: Das Dashboard zeigt die Warnungen zu trockenen "
+        "Pflanzen nur auf seinem eigenen Bildschirm und hat keine Einstellungen für "
+        "einen Mailserver. Bis dahin kann der Webhook des Hubs einen Dienst aufrufen, "
+        "der die E-Mail sendet.",
         "answer": "Nur das Diagramm. `ChartFeed.start()` abonniert einmal und kehrt "
         "früh zurück, solange `subscribed` gesetzt ist, und nach dem Wiederverbinden "
         "setzt es nichts zurück. Der aktuelle Wert abonniert in `ValueFeed`, das jedes "
@@ -584,6 +619,28 @@ KINDS = {
         "{reopen_after_release} days after a release, gets this line and is locked "
         "as resolved, unless it is exempt or someone unlocked it before.",
     ),
+    "discussion-answer": (
+        "A first answer in Discussions",
+        "Only where `[discussions]` of `config.toml` names categories, such as "
+        "`Q&A`: a new discussion there of someone who doesn't maintain the "
+        "repository gets a first answer of the AI, from the code, the documentation, "
+        "the issues and the other discussions, checked and cleaned as every analysis "
+        "and counted in the limits of the day. The assistant never marks it as the "
+        "answer, which the asker can do, and stays out of a discussion that a "
+        "maintainer joined first.",
+    ),
+    "discussion-bug": (
+        "A bug in Discussions",
+        "When the question reports a bug, the answer ends with a link to the bug "
+        "report form, so that the maintainers can track it. Here the discussion also "
+        "shows a token, which gets the warning at the top.",
+    ),
+    "discussion-feature": (
+        "A feature request in Discussions",
+        "A request for a new feature gets what exists today and a link to the forms "
+        "of the issues. Here the discussion also shows an e-mail address, which gets "
+        "the note at the top.",
+    ),
 }
 # The part of a page that the comments replace; on GitHub, it says where they are.
 REGION = re.compile(
@@ -676,16 +733,28 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
             "security_report": False,
         } | changes
 
-    def references(items: list[dict[str, Any]]) -> list[str]:
+    def link(item: dict[str, Any]) -> str:
         # As references() of issue_assistant.py makes them, with the files of the
         # demo project for those that git tracks.
-        found = []
-        for item, reason in zip(items, words["references"], strict=False):
-            link = ia.reference_link(item, tracked, DEMO_SHA, language, config)
-            if not link:
-                raise ValueError(f"the demo project has nothing for {item}")
-            found.append(f"{link}: {reason}")
-        return found
+        found = ia.reference_link(item, tracked, DEMO_SHA, language, config)
+        if not found:
+            raise ValueError(f"the demo project has nothing for {item}")
+        return str(found)
+
+    def references(items: list[dict[str, Any]]) -> list[str]:
+        return [
+            f"{link(item)}: {reason}"
+            for item, reason in zip(items, words["references"], strict=False)
+        ]
+
+    def discussion(kind: str, text: str, **changes: Any) -> dict[str, Any]:
+        return {
+            "language": language,
+            "kind": kind,
+            "answer": text,
+            "sensitive_data": "none",
+            "security_report": False,
+        } | changes
 
     line = {"path": CHART, "line": 52}
     anchor = {"path": TROUBLESHOOTING, "anchor": ia.slug("The chart stays empty")}
@@ -796,6 +865,28 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
         "reopened-release": ia.render_reopened_release(REPORTER, language),
         "locked": ia.render_locked(
             language, ia.Lifecycle(lock_closed_after_days=LOCK_EXAMPLE)
+        ),
+        "discussion-answer": ia.render_discussion_answer(
+            discussion("question", words["question"]),
+            REPORTER,
+            [f"{link(line)}: {words['question_reason']}"],
+            words["question_missing"],
+            config,
+            numbers={17},
+        ),
+        "discussion-bug": ia.render_discussion_answer(
+            discussion("bug", words["bug"], sensitive_data="secret"),
+            REPORTER,
+            [],
+            [],
+            config,
+        ),
+        "discussion-feature": ia.render_discussion_answer(
+            discussion("feature", words["feature"], sensitive_data="personal"),
+            REPORTER,
+            [],
+            [],
+            config,
         ),
     }
 
