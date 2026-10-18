@@ -27,6 +27,7 @@ from support import (
     make_issue,
     not_found,
     run_main,
+    stray_problems,
 )
 
 MODE = "discussion-answer"
@@ -386,9 +387,10 @@ def test_the_text_of_the_ai_is_cleaned_as_every_analysis(answering):
     )
     apply(github, answering, answer)
     (body,) = github.answers_posted(5)
-    assert "@someone" not in body.replace("`@someone`", "")
-    assert "<b>" not in body
-    assert "](https://evil.example" not in body and "https://evil.example" in body
+    # As GitHub shows it, the comment mentions only the asker, in the assistant's
+    # own words, and links nowhere else; the oracle of tests/oracle.py judges it.
+    assert stray_problems(body, set(), answering, "asker") == []
+    assert "`@someone`" in body and "<b>" not in body
 
 
 def test_an_answer_with_something_like_a_secret_is_never_posted(answering):
