@@ -7,7 +7,7 @@ What the issue assistant protects, what it trusts and which risks remain. [SECUR
 ## What you can expect
 
 - The AI only reads: the checkout of the default branch and the context that the assistant writes for it. It runs no commands but those of Codex, in a sandbox that only reads, opens no web pages and reads no files outside the checkout, on a runner whose network allows only the hosts of `.github/egress-firewall.yaml`.
-- Nothing the AI writes reaches GitHub unchecked. A job that runs no AI and never sees its secret checks the answer and writes it, only to the issue of the event.
+- Nothing the AI writes reaches GitHub unchecked. A job that runs no AI and never sees its secret checks the answer and writes it, only to the issue or the discussion of the event.
 - No comment of the assistant mentions anyone, links to a site that `config.toml` doesn't allow, to another repository, other than an issue that exists in a public repository of `[related]`, or to an e-mail address, shows an image or HTML, or contains something that looks like a token or a key. What counts is the whole comment as GitHub shows it, not each field alone: the text of a field is as safe under a heading as in a list or behind an issue number.
 - The same holds for the AI's words outside its comments: in the log of the run, in its summary and in the reasons for labels and duplicates that GitHub shows on the timeline of the issue. They stay on one line there, and no answer can run a workflow command, such as `::add-mask::` or `::stop-commands::`.
 - No issue can stall the assistant. It reads every text in time that grows only with the length of the text, and no more of a text than GitHub keeps, 65,536 characters.

@@ -352,7 +352,7 @@ def test_the_first_answer_is_checked_and_posted_once(answering):
     assert "markDiscussionCommentAsAnswer" not in str(github.calls)
     # A run again of the same event posts nothing more.
     assert apply(github, answering) == [
-        "Discussion #5 has its first answer; nothing posted."
+        "Discussion #5 has an answer of the assistant; nothing posted."
     ]
     assert len(github.answers_posted(5)) == 1
 
@@ -519,6 +519,25 @@ def test_the_answer_waits_for_nothing_that_happened_meanwhile(
     assert github.writes_made() == []
 
 
+def test_an_issue_converted_into_a_discussion_gets_no_second_answer(answering):
+    """A maintainer who converts an issue creates the discussion, and its comments,
+    with the assistant's analysis, come along."""
+    triage = discussion_comment(
+        "github-actions[bot]", "<!-- issue-assistant:triage lang=en -->\n\nA summary"
+    )
+    converted = make_discussion(comments=[triage])
+    github = with_discussions(answering, converted)
+    plan = planned(github, answering, discussion_event(converted, sender="owner"))
+    assert (plan.mode, plan.notes) == (
+        "none",
+        ["Created by someone else than its author: no answer."],
+    )
+    assert apply(github, answering) == [
+        "Discussion #5 has an answer of the assistant; nothing posted."
+    ]
+    assert github.writes_made() == []
+
+
 def test_a_run_by_hand_answers_again_but_never_a_closed_discussion(answering):
     answered = make_discussion(
         isAnswered=True,
@@ -682,6 +701,34 @@ def test_the_notice_names_the_categories_that_get_answers(config, language):
     assert words[language] in assistant.notice(answering, engine, language)
     assert "Discussions**" not in assistant.notice(config, engine, language)
     assert "{categories}" not in assistant.notice(answering, engine, language)
+
+
+def test_install_adds_the_discussions_to_a_notice_written_before(tmp_path):
+    """A repository that used the assistant before it named categories has a
+    notice without them; install adds the line once."""
+    assistant.install(tmp_path, REF, "v1.0.0")
+    settings = tmp_path / assistant.SETTINGS / "config.toml"
+    starter = settings.read_text("utf-8")
+    support = tmp_path / "SUPPORT.md"
+    settings.write_text(starter.replace('answer_categories = ["Q&A"]', ""), "utf-8")
+    support.unlink()
+    assistant.add_notices(tmp_path)
+    before = support.read_text("utf-8")
+    assert "Questions in Discussions" not in before
+    assert assistant.add_notices(tmp_path) == []
+    settings.write_text(starter, "utf-8")
+    assert assistant.add_notices(tmp_path) == [
+        "added the answers in Discussions to SUPPORT.md; adapt it"
+    ]
+    after = support.read_text("utf-8")
+    assert after.startswith(before.rstrip())
+    assert after.endswith(
+        "\n\n- **Questions in Discussions** in Q&A get a first answer from the "
+        "assistant, with the same checks and the same AI, which can be wrong there "
+        "too. If it answers your question, you can mark it as the answer; the "
+        "maintainers and the community read along.\n"
+    )
+    assert assistant.add_notices(tmp_path) == []
 
 
 def test_the_comments_of_a_discussion_read_as_the_rest_api_names_them():

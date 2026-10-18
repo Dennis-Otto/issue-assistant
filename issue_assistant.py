@@ -3165,6 +3165,11 @@ def handle_discussion(github: GitHub, payload: dict[str, Any], config: Config) -
         return Plan(number, notes=[f"Event discussion.{action} is not handled."])
     if is_bot(payload.get("sender")):
         return Plan(number, notes=["Bot: nothing to do."])
+    if login(payload.get("sender")) != login(discussion.get("user")):
+        # Someone else created it, as a maintainer who converts an issue does.
+        return Plan(
+            number, notes=["Created by someone else than its author: no answer."]
+        )
     category = str((discussion.get("category") or {}).get("name") or "")
     if not answers_category(config, category):
         return Plan(
@@ -6168,8 +6173,11 @@ def apply_discussion_answer(
     if not repeat:
         comments = discussion["comments"]
         thread = [*comments, *(reply for item in comments for reply in item["replies"])]
-        if any(kind_of(item) == "discussion-answer" for item in comments):
-            return [f"Discussion #{number} has its first answer; nothing posted."]
+        # An issue converted into a discussion keeps the assistant's analysis.
+        if any(marker(item) is not None for item in comments):
+            return [
+                f"Discussion #{number} has an answer of the assistant; nothing posted."
+            ]
         if discussion["answered"] or any(map(is_maintainer, thread)):
             return [
                 f"Discussion #{number} has an answer or a maintainer's comment "
@@ -8493,15 +8501,31 @@ def notice(config: Config, engine: Engine, language: str) -> str:
         and (lifecycle.lock_closed_after_days or "{lock_days}" not in line)
         and (config.answer_categories or "{categories}" not in line)
     ]
+    return filled("".join(lines), config, engine, language)
+
+
+def filled(text_: str, config: Config, engine: Engine, language: str) -> str:
+    """A text of the notice with the engine, the periods and the categories."""
     values = {
         "engine": engine.name,
         "vendor": engine.vendor,
         "categories": ", ".join(config.answer_categories),
     }
-    text_ = "".join(lines)
-    for key, value in (values | lifecycle.text(language)).items():
+    for key, value in (values | config.lifecycle.text(language)).items():
         text_ = text_.replace(f"{{{key}}}", value)
     return text_
+
+
+def discussions_line(text_: str, config: Config, engine: Engine, language: str) -> str:
+    """The line of the notice about the answers in Discussions, for a notice that
+    was written before the repository named categories; empty where it has one."""
+    template = (TEMPLATES / (NOTICE_DE if language == "de" else NOTICE)).read_text(
+        encoding="utf-8"
+    )
+    line = next(line for line in template.splitlines() if "{categories}" in line)
+    if not config.answer_categories or line.split("{categories}")[0] in text_:
+        return ""
+    return filled(line, config, engine, language)
 
 
 def add_notices(root: Path) -> list[str]:
@@ -8520,9 +8544,15 @@ def add_notices(root: Path) -> list[str]:
             done.append(f"kept {name}, which is outside the repository")
             continue
         text = path.read_text(encoding="utf-8") if path.is_file() else "# Support\n"
-        if engine.name in text and engine.vendor in text:
-            continue
         language = "de" if name.casefold().endswith(".de.md") else "en"
+        if engine.name in text and engine.vendor in text:
+            line = discussions_line(text, config, engine, language)
+            if line:
+                path.write_text(
+                    f"{text.rstrip()}\n\n{line}\n", encoding="utf-8", newline="\n"
+                )
+                done.append(f"added the answers in Discussions to {name}; adapt it")
+            continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             f"{text.rstrip()}\n\n{notice(config, engine, language)}",
