@@ -9,6 +9,11 @@ name: Action test
 # that only read run against GitHub itself, and every week the GraphQL documents of
 # the script meet GitHub's schema of that day, so that a field that GitHub
 # deprecates fails here months before GitHub removes it.
+#
+# Each part of a job runs also when one before it failed, so that the check reports
+# every failure at once, and the last step of each job lets the PR coach explain each
+# part that failed, from .github/checks.project.toml: in the summary of the check, as
+# its annotation and in the one comment on the pull request, also on one from a fork.
 # https://github.com/Dennis-Otto/repo-blueprint
 
 on:
@@ -33,12 +38,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        id: checkout
         with:
           persist-credentials: false
       # The Lint workflow lints this repository's own workflows only. actionlint
       # 1.7.12, the newest release, doesn't know the queue of a concurrency group,
       # which GitHub has documented since 2026-05-07; only that message is ignored.
       - name: Lint the templates
+        id: template-lint
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         env:
           ACTIONLINT: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         run: |
@@ -51,18 +59,24 @@ jobs:
       # The log names the files of a finding; annotations would name them relative
       # to templates/, as this repository's own workflows.
       - name: Check the security of the templates
+        id: template-security
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
           inputs: templates
           config: .github/zizmor.yml
           advanced-security: false
       - name: Install the action into the sample repository
+        id: sample-install
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         env:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
         run: |
           cp -r tests/sample "$ISSUE_ASSISTANT_ROOT"
           python3 issue_assistant.py install --ref "$GITHUB_SHA" --version smoke-test
       - name: Check the sample's set-up through the action
+        id: sample-check
+        if: ${{ !cancelled() && steps.sample-install.outcome == 'success' }}
         uses: ./
         env:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
@@ -74,6 +88,8 @@ jobs:
       # set-up as the blueprint brings it with the next release: with the templates
       # of this commit, so that a change of a template never fails this check.
       - name: Install the templates of this commit into a copy of this repository
+        id: own-install
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         env:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/own
         run: |
@@ -81,11 +97,28 @@ jobs:
           rm "$ISSUE_ASSISTANT_ROOT/.github/egress-firewall.yaml"
           python3 issue_assistant.py install --ref "$GITHUB_SHA" --version smoke-test
       - name: Check this repository's set-up through the action
+        id: own-check
+        if: ${{ !cancelled() && steps.own-install.outcome == 'success' }}
         uses: ./
         env:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/own
         with:
           command: check
+      # The PR coach: what failed, why it matters and how to fix it, in the summary
+      # of the check and as its annotation, from .github/checks.project.toml: each
+      # part of the job that failed, or the job itself when none of them did.
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: action
+          FAILED: |
+            ${{ steps.template-lint.outcome == 'failure' && 'template-lint' || '' }}
+            ${{ steps.template-security.outcome == 'failure' && 'template-security' || '' }}
+            ${{ (steps.sample-install.outcome == 'failure' || steps.sample-check.outcome == 'failure') && 'sample-setup' || '' }}
+            ${{ (steps.own-install.outcome == 'failure' || steps.own-check.outcome == 'failure') && 'own-setup' || '' }}
+        run: |
+          mapfile -t parts < <(grep . <<<"$FAILED" || true)
+          python3 .github/blueprint.py coach explain "$CHECK" --parts "${parts[@]}"
 
   # The action of this commit against GitHub itself, behind the egress block of the
   # templates, with a token that can only read: dry runs of the commands that read
@@ -111,14 +144,19 @@ jobs:
             api.github.com:443
             github.com:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        id: checkout
         with:
           persist-credentials: false
       - name: Remind and close, as a dry run
+        id: sweep
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         uses: ./
         with:
           command: sweep
           dry-run: true
       - name: Create and update the labels, as a dry run
+        id: sync-labels
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         uses: ./
         with:
           command: sync-labels
@@ -129,6 +167,8 @@ jobs:
       # discussions too: an error of it fails context, and an empty answer fails the
       # check of discussions.jsonl.
       - name: Write the context of a real issue
+        id: context
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: Dennis-Otto/ha-autodarts
@@ -147,6 +187,17 @@ jobs:
             exit 1
           fi
           wc -l .issue-assistant/*.jsonl
+      # The PR coach, as in the job action.
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: action behind the egress block
+          FAILED: |
+            ${{ (steps.sweep.outcome == 'failure' || steps.sync-labels.outcome == 'failure') && 'egress-dry-runs' || '' }}
+            ${{ steps.context.outcome == 'failure' && 'egress-context' || '' }}
+        run: |
+          mapfile -t parts < <(grep . <<<"$FAILED" || true)
+          python3 .github/blueprint.py coach explain "$CHECK" --parts "${parts[@]}"
 
   # GitHub changes its API without a release of the action. The tests check the
   # GraphQL documents of the script against the copy of GitHub's schema in
@@ -198,3 +249,9 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+      # The PR coach, as in the job action; this job has no parts.
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: GraphQL against GitHub's current schema
+        run: python3 .github/blueprint.py coach explain "$CHECK"

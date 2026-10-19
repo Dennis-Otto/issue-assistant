@@ -14,22 +14,220 @@
 # the commands that fix what it finds, or the reason why no command can. The fix bot
 # commits only the fixes of the runs of Lint and of the CI, not yet those of a
 # workflow of the project's own (Dennis-Otto/repo-blueprint#225), so a person runs
-# the commands of such a check:
-# [check."e2e (*)"]
-# title = "The end-to-end tests"
-# problem = """A test of the whole app in a real browser failed; the summary of the
-# check names the test, and its trace shows each step."""
-# why = """These tests use the app as its users do, in a real browser."""
-# fix = """Run the test that failed on your machine, fix what it shows, and push."""
-# commands = ["bash tests/e2e/run.sh"]
-# docs = "CONTRIBUTING.md#checks"
-# autofix = """A test in a browser that fails needs a person, who knows what the app
-# should do."""
+# the commands of such a check.
+#
+# Each job of the Action test, .github/workflows/action-test.yml, ends with the step
+# "Explain the failure": it explains each of its parts that failed, by the keys below,
+# and the job itself only when none of them did, as lint explains each linter.
+# tests/test_coach.py checks that every job, every part and every command of a part
+# fit the workflow, so that an explanation can't drift from what its check runs.
 
-# A step of scripts/check.sh by the name that it prints, such as the step that runs
-# scripts/check-project.sh, to explain the checks of this project there:
-# [step."Checks of this project"]
-# problem = """..."""
-# why = """..."""
-# fix = """..."""
-# autofix = ["npm run lint -- --fix"]
+# ---------------------------------------------------------------- the job action
+
+[check.action]
+title = "The test of the action"
+problem = """A step of the test of the action failed before its parts ran, such as the
+checkout of the pull request. When a part fails, the PR coach explains that part
+instead: the workflows of the templates, their security, or the set-up of the sample
+repository or of this repository through the action."""
+why = """The job runs the action as the repositories that use it run it, with the
+templates that the next release brings them: what fails here fails for them."""
+fix = """Run the check again; if it fails at the same step, the log of the check says
+why."""
+docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
+autofix = """A step that fails before the parts needs a look at its log; each part
+says in its own explanation how it is fixed."""
+
+[check.template-lint]
+title = "The workflows of the templates (actionlint)"
+problem = """A workflow in `templates/.github/workflows/`, which `install` writes into
+every repository that uses the action, breaks a rule of actionlint, such as an
+expression with a mistake, an input or an output that doesn't exist, or a shell script
+that ShellCheck flags; the log of the step names the file and the line."""
+why = """The Lint workflow lints the workflows of this repository only, whose copies of
+the templates are those of the last release. A mistake in a template fails only when
+it runs, in every repository that installed it."""
+fix = """Fix each line that the log names, in `templates/`, never in the copies in
+`.github/`. actionlint runs on your machine with Docker, as the check runs it:"""
+commands = [
+  "docker run --rm -v \"$PWD:/repo\" -w /repo rhysd/actionlint:latest -config-file .github/actionlint.yaml -ignore 'unexpected key \"queue\" for \"concurrency\" section' templates/.github/workflows/*.yml",
+]
+docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
+autofix = """A mistake of a workflow needs a person, who knows what the template should
+do, and no bot writes a template that every repository runs."""
+
+[check.template-security]
+title = "The security of the templates (zizmor)"
+problem = """zizmor found a security problem in a workflow in
+`templates/.github/workflows/`, such as an expression of the event in a script, the
+credentials that a checkout keeps or an action that isn't pinned to a commit; the log
+of the step names the file, the line and the audit."""
+why = """Every repository that uses the action runs these workflows with its own token,
+on issues that anyone can write: a weakness in a template gives an issue the power to
+change each of them. The Workflow security workflow reports the findings of the
+workflows of this repository to code scanning; this step stops a finding in a
+template before any repository gets it."""
+fix = """Open the documentation of the audit that the log names, which shows the fix,
+and fix the template in `templates/`. A finding that the project accepts on purpose
+goes into `.github/zizmor.yml` with the reason. zizmor runs on your machine as well:"""
+commands = ["pipx run zizmor --config .github/zizmor.yml templates"]
+docs = "https://docs.zizmor.sh/audits/"
+autofix = """A weakness of a template needs a person, and no bot writes a template that
+every repository runs."""
+
+[check.sample-setup]
+title = "The set-up of the sample repository"
+problem = """`install` of this commit couldn't set up the sample repository in
+`tests/sample/`, or `check` of the action found a problem in the set-up that `install`
+wrote; the annotations of the step name each problem."""
+why = """The sample is a repository that uses the action, set up as a new user sets it
+up. When `check` rejects what `install` writes, every repository that runs `install`
+after the next release gets a set-up that its own check rejects."""
+fix = """Fix `install` or `check` in `issue_assistant.py`, with a test in
+`tests/test_setup.py`, or the template in `templates/` that the problem names. The
+step runs on your machine as it runs in the check, in a copy of the sample:"""
+commands = [
+  'export ISSUE_ASSISTANT_ROOT="$(mktemp -d)"',
+  'cp -r tests/sample/. "$ISSUE_ASSISTANT_ROOT"',
+  'python3 issue_assistant.py install --ref "$(git rev-parse HEAD)" --version smoke-test',
+  "python3 issue_assistant.py check",
+]
+docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
+autofix = """What `install` writes and what `check` accepts are rules of the action,
+which a person decides."""
+
+[check.own-setup]
+title = "The set-up of this repository with the templates of this commit"
+problem = """With the templates of this commit installed into a copy of this
+repository, `check` of the action found a problem in its set-up, such as a label of
+`.github/labels.toml`, a setting of `.github/issue-assistant/config.toml` or an issue
+form that the templates no longer fit; the annotations of the step name each
+problem."""
+why = """The blueprint brings the templates of the next release into this repository,
+as into every repository made from it: a set-up that `check` rejects with them fails
+the check issue-assistant of that update, here and in each of them."""
+fix = """Fix the file that the problem names, here or in `templates/`, or `check` in
+`issue_assistant.py`, with a test in `tests/test_setup.py`. The step runs on your
+machine as it runs in the check, in a copy of the repository:"""
+commands = [
+  'export ISSUE_ASSISTANT_ROOT="$(mktemp -d)"',
+  'cp -r . "$ISSUE_ASSISTANT_ROOT"',
+  'rm "$ISSUE_ASSISTANT_ROOT/.github/egress-firewall.yaml"',
+  'python3 issue_assistant.py install --ref "$(git rev-parse HEAD)" --version smoke-test',
+  "python3 issue_assistant.py check",
+]
+docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
+autofix = """Whether the set-up of this repository or a template gives way is the
+decision of a maintainer."""
+
+# ---------------------------------------------------------------- the job egress
+
+[check."action behind the egress block"]
+title = "The action against GitHub, behind the egress block"
+problem = """A step of the job failed before its parts ran, such as the egress block of
+Harden-Runner or the checkout of the pull request. When a part fails, the PR coach
+explains that part instead: the dry runs of `sweep` and `sync-labels`, or the context
+of a real issue."""
+why = """The job runs the action of the pull request against GitHub itself, behind the
+egress block of the templates and with a token that can only read: a request that
+GitHub refuses, or a host that the action starts to need, fails here before a release
+brings it to every repository."""
+fix = """Run the check again; if it fails at the same step, the log of the check says
+why."""
+docs = "docs/architecture.md#how-the-requests-to-github-are-tested"
+autofix = """A step that fails before the parts needs a look at its log; each part
+says in its own explanation how it is fixed."""
+
+[check.egress-dry-runs]
+title = "The dry runs of sweep and sync-labels against GitHub"
+problem = """A dry run of `sweep` or of `sync-labels`, which read the issues, the pull
+requests and the labels of this repository, failed. Either GitHub refused a request,
+and the log shows its answer, or the egress block stopped a host other than
+`api.github.com` and `github.com`, and the log names the host that the step couldn't
+reach."""
+why = """Every repository that uses the action runs these commands every morning,
+behind the same block and with the same requests. A request that fails here fails
+there after the next release, and its issues are no longer reminded, closed or
+labeled."""
+fix = """For a refused request, fix it in `issue_assistant.py`, with its case in
+`tests/test_graphql_contract.py` or `tests/test_assistant.py`. For a blocked host, find
+what calls it and make the action reach GitHub alone, as it turns off the telemetry of
+the GitHub CLI; a new host for good is a change of the security design in
+`docs/security.md`, which a maintainer decides. The dry runs run on your machine with
+the GitHub CLI signed in:"""
+commands = [
+  "DRY_RUN=true GH_REPO={repo} python3 issue_assistant.py sweep",
+  "DRY_RUN=true GH_REPO={repo} python3 issue_assistant.py sync-labels",
+]
+docs = "docs/architecture.md#how-the-requests-to-github-are-tested"
+autofix = """A request that GitHub refuses, or a host that the block stops, needs a
+person, who knows what the action should ask of GitHub."""
+
+[check.egress-context]
+title = "The context of a real issue"
+problem = """`context` failed for a closed issue of a public repository that uses the
+action, wrote one of its files empty, or found that GitHub failed while it read the
+corrections of the maintainers; the log names the file or the error."""
+why = """`context` writes all that the AI reads for an issue: the issue, its labels,
+the other issues and the discussions, the corrections and the rules. A file that comes
+out empty here comes out empty for every first analysis after the next release, and
+the AI answers without what it needs."""
+fix = """Read the error in the log, and fix `context` in `issue_assistant.py`, with a
+test in `tests/test_assistant.py`. It runs on your machine with the GitHub CLI signed
+in, and writes its files into `.issue-assistant/`:"""
+commands = [
+  "GH_REPO=Dennis-Otto/ha-autodarts python3 issue_assistant.py context --issue 105 --mode triage",
+]
+docs = "docs/architecture.md#how-the-requests-to-github-are-tested"
+autofix = """What the AI should read of an issue is the decision of a person."""
+
+# ---------------------------------------------------------------- the job schema
+
+[check."GraphQL against GitHub's current schema"]
+title = "The GraphQL documents against GitHub's schema of today"
+problem = """A GraphQL document of `issue_assistant.py` uses a field, an argument or a
+value of an enum that GitHub's schema of today deprecates or no longer has, as the log
+of `tests/test_graphql_contract.py` names it, or the download of the schema from
+docs.github.com failed. The summary of the job shows what changed in the schema since
+the copy in `tests/github/`."""
+why = """GitHub deprecates a part of its API months before it removes it. The weekly
+run turns red as soon as the action uses something deprecated, while it still works,
+so that a release moves away from it before every repository that uses the action
+breaks."""
+fix = """When the download failed, run the job again. Otherwise refresh the copy of
+the schema, run the test, and change each document that it names as GitHub's
+changelog of the schema recommends, in one pull request:"""
+commands = [
+  "curl --fail --silent --show-error --location --output tests/github/schema.docs.graphql https://docs.github.com/public/fpt/schema.docs.graphql",
+  "python3 -m pytest tests/test_graphql_contract.py",
+]
+docs = "docs/architecture.md#how-the-requests-to-github-are-tested"
+autofix = """A document that GitHub's schema no longer takes needs a person, who
+chooses what replaces the field; a fresh copy of the schema alone would only move the
+failure into the required check."""
+
+# ---------------------------------------------------------------- the fuzzing
+
+[check.fuzz]
+title = "The fuzzing"
+problem = """Atheris found an input that one of the targets in `fuzz/` fails on: the
+reading of issues, the cleaning of the AI's text or a whole comment raises an
+exception, lets through a text that `tests/oracle.py` judges unsafe, or stays busy for
+too long. The log of the target shows the input, also as Base64, and the
+traceback."""
+why = """Anyone can write an issue, and the AI's answer is untrusted too: an input that
+crashes the reading or the cleaning stops the analysis of that issue, and one that
+slips past the cleaning reaches a comment."""
+fix = """Write the input of the log into a file, run the target that the log names
+with it to see the failure, and fix the code. Add the input to a test in
+`tests/test_properties.py` or `tests/test_assistant.py`, so that the failure can't come
+back, and to the seeds of the target in `fuzz/corpus/` when it helps the fuzzing. The
+targets run on your machine with Atheris, on Python 3.12:"""
+commands = [
+  "pip install --require-hashes -r requirements-fuzz.txt",
+  "echo 'the Base64 of the log' | base64 -d > crash",
+  "python fuzz/fuzz_sanitize.py crash  # or the target that the log names",
+]
+docs = "https://github.com/google/atheris"
+autofix = """A failure that fuzzing finds needs a fix of the code, and a test with its
+input, by a person."""
