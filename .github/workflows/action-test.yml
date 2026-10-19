@@ -44,12 +44,19 @@ jobs:
       # The Lint workflow lints this repository's own workflows only. actionlint
       # 1.7.12, the newest release, doesn't know the queue of a concurrency group,
       # which GitHub has documented since 2026-05-07; only that message is ignored.
+      # actionlint's problem matcher, as in the Lint workflow, shows each error as an
+      # annotation at its line, in the files of the pull request and in the comment
+      # of the PR coach too.
       - name: Lint the templates
         id: template-lint
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         env:
           ACTIONLINT: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         run: |
+          cat > "$RUNNER_TEMP/actionlint.json" <<'EOF'
+          {"problemMatcher": [{"owner": "actionlint", "pattern": [{"regexp": "^(.+?):(\\d+):(\\d+): (.+) \\[(.+)\\]$", "file": 1, "line": 2, "column": 3, "message": 4, "code": 5}]}]}
+          EOF
+          echo "::add-matcher::$RUNNER_TEMP/actionlint.json"
           docker run --rm --volume "$PWD:/repo" --workdir /repo "$ACTIONLINT" \
             -config-file .github/actionlint.yaml \
             -ignore 'TEMPORARY to see the PR coach' \
