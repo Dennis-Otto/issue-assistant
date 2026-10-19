@@ -4,6 +4,13 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.6.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.6.0...v1.6.1) (2026-10-19)
+
+
+### Bug fixes
+
+* sync-labels accepts a label another workflow just created ([#162](https://github.com/Dennis-Otto/issue-assistant/issues/162)) ([88e7af1](https://github.com/Dennis-Otto/issue-assistant/commit/88e7af1e38c1736859f3f4ab5107f2050f28ec90))
+
 ## [1.6.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.5.0...v1.6.0) (2026-10-19)
 
 ### Added
