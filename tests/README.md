@@ -18,6 +18,8 @@
 | `test_engines.py` | The engines next to Claude: their schemas, rules and firewall policies, and the command lines that `analyze` runs |
 | `test_evaluate.py` | `evaluate`: the choice of the closed issues, GitHub as it was when each was opened, the replays with a fake engine, the precision and recall and the report |
 | `test_docs.py` | The website and the README |
+| `test_coach.py` | The explanations of the checks of this project, which the PR coach shows when a job of the Action test fails |
+| `test_repository_settings.py` | The settings as code of this repository: every action that a workflow runs is one that `[actions.selected]` allows |
 | `conftest.py`, `sample/` | The sample repository with the assistant installed, which most tests read |
 | `fixtures/` | The issue that the canary analyzes |
 

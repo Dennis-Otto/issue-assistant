@@ -1,0 +1,23 @@
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
+flowchart TB
+  accTitle: How a failed job of the Action test explains itself
+  accDescr: Each part of a job of the Action test runs also when one before it failed. When a part failed, the last step of the job asks blueprint.py for the explanation of each part that failed, from .github/checks.project.toml, and writes it into the summary of the check and as its annotation. After the checks, the PR coach reads the annotations from the API and keeps one comment on the pull request up to date, also on a pull request from a fork, with what failed, why it matters and the commands that run the part on your machine.
+  job["`**A job of the Action test**<br>each part runs,<br>also after one failed`"]
+  catalog[(".github/checks.project.toml<br>what is wrong, why it matters,<br>how to fix it, the commands")]
+  explain["Explain the failure<br>blueprint.py coach explain<br>with the parts that failed"]
+  summary["The summary of the check<br>and its annotation"]
+  report(["The PR coach after the checks<br>one comment on the pull request,<br>also from a fork"])
+  job -- "a part failed" --> explain
+  catalog --> explain
+  explain --> summary
+  summary -- "the annotations,<br>read from the API" --> report
+  classDef code fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
+  classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+  class job,catalog code
+  class explain,report bot
+  class summary person
