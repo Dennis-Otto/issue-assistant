@@ -86,7 +86,7 @@ jobs:
           conclusion=$(gh run view "$run" --json conclusion --jq .conclusion)
           case "$conclusion" in
             success) echo "The canary passed." ;;
-            # The analysis of a later push's canary took the place of its waiting one.
+            # A later push's canary took the place of this waiting one.
             cancelled) echo "::notice::The canary was cancelled; a later one checks main: $url" ;;
             *)
               echo "::error::The canary ended as $conclusion: $url"
