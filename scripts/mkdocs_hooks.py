@@ -94,17 +94,20 @@ NO_LIGHTBOX = "off-glb"
 # The <img> of the pictures of a diagram, as scripts/diagrams.sh --extract writes it:
 # docs/images/diagrams/NAME.svg, from the folder of the page.
 DRAWN = re.compile(r'\bsrc="(?:[^"]*/)?images/diagrams/[\w.-]+\.svg"')
-DIAGRAM = re.compile(r'<pre class="mermaid">.*?</pre>', re.S)
+# Its attributes, such as the data-search-exclude of the blueprint's hook, stay.
+DIAGRAM = re.compile(r'<pre class="mermaid"[^>]*>.*?</pre>', re.S)
 # What the script of the Material theme does on the first visit, when no theme is
-# stored: it takes the first one of the switch whose media query holds. Without it, a
+# stored: it takes the first one of the switch whose media query holds, past the
+# automatic one, which always holds and names no scheme of its own. Without it, a
 # page starts light until the script has loaded.
 SCHEME = (
     '<script>try{if(!__md_get("__palette"))'
-    'for(var input of document.querySelectorAll("input[data-md-color-media]"))'
-    'if(matchMedia(input.getAttribute("data-md-color-media")).matches){'
+    'for(var input of document.querySelectorAll("input[data-md-color-media]")){'
+    'var media=input.getAttribute("data-md-color-media");'
+    'if(media!=="(prefers-color-scheme)"&&matchMedia(media).matches){'
     'for(var key of["media","scheme","primary","accent"])'
     'document.body.setAttribute("data-md-color-"+key,'
-    'input.getAttribute("data-md-color-"+key));break}}catch(error){}</script>'
+    'input.getAttribute("data-md-color-"+key));break}}}catch(error){}</script>'
 )
 
 

@@ -439,7 +439,12 @@ def test_the_website_draws_each_diagram_live_and_lets_it_scroll(tmp_path: Path):
     blueprint = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(blueprint)
     page = SimpleNamespace(
-        file=SimpleNamespace(url="architecture.html", src_uri="architecture.md")
+        file=SimpleNamespace(
+            url="architecture.html",
+            src_uri="architecture.md",
+            dest_uri="architecture.html",
+        ),
+        meta={},
     )
     folder = "docs/images/diagrams/"
     html = PICTURE.format(dark=f"{folder}a-b.dark.svg", light=f"{folder}a-b.svg")
@@ -447,11 +452,11 @@ def test_the_website_draws_each_diagram_live_and_lets_it_scroll(tmp_path: Path):
         f"<p>{html}</p>", page, {"docs_dir": str(tmp_path)}, None
     )
     content = blueprint.on_page_content(
-        content, page, SimpleNamespace(docs_dir=str(tmp_path)), None
+        content, page, SimpleNamespace(docs_dir=str(tmp_path), plugins={}), []
     )
     assert hooks.on_post_page(content, None, None) == (
-        '<div class="diagram" tabindex="0"><pre class="mermaid"><code>flowchart TB\n'
-        "  a --&gt; b\n</code></pre></div>"
+        '<div class="diagram" tabindex="0"><pre class="mermaid" data-search-exclude>'
+        "<code>flowchart TB\n  a --&gt; b\n</code></pre></div>"
     )
 
 
@@ -482,6 +487,9 @@ def test_the_theme_of_the_system_applies_before_the_pictures_load():
     # A theme chosen with the switch stays the stored one.
     assert hooks.SCHEME.startswith('<script>try{if(!__md_get("__palette"))')
     assert "matchMedia" in hooks.SCHEME and hooks.SCHEME.endswith("</script>")
+    # The automatic entry of the switch always holds and names no scheme; the
+    # entry for the scheme of the system that holds comes after it.
+    assert 'media!=="(prefers-color-scheme)"&&matchMedia(media)' in hooks.SCHEME
     assert hooks.on_post_page("<p>No header</p>", None, None) == "<p>No header</p>"
 
 
@@ -785,6 +793,9 @@ def test_every_test_that_the_documentation_names_exists():
         for document in (*DOCUMENTS, ROOT / "CONTRIBUTING.md")
     ]
     named = {name for text in texts for name in re.findall(r"`(test_\w+)`", text)}
+    # The answers of the blueprint, such as `test_workflows`, are no tests.
+    answers = (ROOT / ".copier-answers.yml").read_text("utf-8")
+    named -= set(re.findall(r"^(test_\w+):", answers, re.MULTILINE))
     assert (
         "test_the_prompt_keeps_the_text_of_issues_apart_from_its_instructions" in named
     )

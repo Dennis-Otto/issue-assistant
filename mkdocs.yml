@@ -17,12 +17,18 @@ copyright: "© 2026 Dennis Otto"
 # The brand: the speech bubble of the social preview as the logo and the icon of the
 # tab, and the violet of the badge of the action for the header, the links and the
 # preview cards; docs/stylesheets/brand.css has the colours. The palette replaces
-# that of the blueprint, so it repeats its switch between light and dark, with the
-# colours of the brand.
+# that of the blueprint, so it repeats its switch between the scheme of the system,
+# light and dark, with the colours of the brand.
 theme:
   logo: assets/logo.svg
   favicon: assets/logo.svg
   palette:
+    - media: "(prefers-color-scheme)"
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: custom
@@ -36,7 +42,7 @@ theme:
       accent: custom
       toggle:
         icon: material/weather-sunny
-        name: Switch to light mode
+        name: Switch to the scheme of the system
 plugins:
   social:
     cards_layout_options:

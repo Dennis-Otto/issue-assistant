@@ -22,7 +22,9 @@ jobs:
   check:
     name: check (github-action)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # A few times its longest run, so that a run that hangs ends early; a step that
+    # installs, builds or downloads ends after five minutes.
+    timeout-minutes: 8
     steps:
       - name: Record the network traffic of the job
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -30,14 +32,39 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The merge of a pull request into main, and its head as the second
+          # parent, onto which the fix bot commits.
+          fetch-depth: 2
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        timeout-minutes: 5
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
+      # uv installs the hash-pinned tools in seconds and checks the hash of each
+      # package. Its cache keeps only the wheels that it built from source, under a
+      # key of the lock file: pre-built ones download faster than a cache restores
+      # them.
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        timeout-minutes: 5
+        with:
+          # renovate: datasource=pypi depName=uv
+          version: "0.13.0"
+          enable-cache: true
+          prune-cache: true
+          cache-dependency-glob: requirements-dev.txt
       - name: Install the hash-pinned tools
-        run: pip install --require-hashes -r requirements-dev.txt
+        timeout-minutes: 5
+        run: uv pip install --system --require-hashes -r requirements-dev.txt
+      # mypy starts from what it knew of the code at the last run that passed, and
+      # checks again what changed and what depends on it. It keeps no module with an
+      # error, so the cache hides no finding.
+      - name: Restore the cache of mypy
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: .mypy_cache
+          key: mypy-${{ runner.os }}-${{ hashFiles('requirements*.txt') }}-${{ hashFiles('**/*.py') }}
+          restore-keys: mypy-${{ runner.os }}-${{ hashFiles('requirements*.txt') }}-
       - name: Run the checks
         run: bash scripts/check.sh
       - name: Show the coverage
@@ -52,3 +79,43 @@ jobs:
           name: coverage
           path: ${{ runner.temp }}/coverage.xml
           retention-days: 14
+      # The fix bot: the commands of autofix in .github/checks.toml fix what they
+      # can of what the checks found, on the head of the pull request or on main.
+      # After the checks, the bot commits the files that they changed onto a branch
+      # of this repository, suggests them on a pull request from a fork, or keeps one
+      # pull request with the fixes of main.
+      - name: Fix what a command can fix
+        id: fix
+        if: failure() && contains(fromJSON('["pull_request", "push"]'), github.event_name)
+        env:
+          CHECK: "check (github-action)"
+          EVENT: ${{ github.event_name }}
+        run: |
+          # The head of the pull request, onto which the bot commits, not its merge
+          # into main.
+          if [[ "$EVENT" == pull_request ]]; then
+            git checkout --quiet --force --detach HEAD^2
+          fi
+          script=.github/blueprint.py
+          [[ -f "$script" ]] || script=blueprint.py
+          python3 "$script" fix run "$CHECK" --keep "$RUNNER_TEMP/fixes" >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the fixes for the fix bot
+        if: failure() && steps.fix.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fixes-check
+          path: ${{ runner.temp }}/fixes/
+          # Fixes of files in .github/ as well.
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 3
+      # The PR coach: what failed, why it matters and how to fix it, in the summary
+      # of the check and as its annotation, from .github/checks.toml.
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: "check (github-action)"
+        run: |
+          script=.github/blueprint.py
+          [[ -f "$script" ]] || script=blueprint.py
+          python3 "$script" coach explain "$CHECK"
