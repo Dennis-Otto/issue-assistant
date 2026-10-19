@@ -824,8 +824,9 @@ class FakeGitHub(assistant.GitHub):
                 # GitHub ignores the case of label names.
                 if self._label(data["name"]):
                     raise assistant.GitHubError(
-                        "gh api: Validation Failed: already_exists (HTTP 422)",
+                        "gh api: Validation Failed (HTTP 422)",
                         status=422,
+                        codes={"already_exists"},
                     )
                 self.label_store.append({**data, "node_id": f"L_{data['name']}"})
                 return data

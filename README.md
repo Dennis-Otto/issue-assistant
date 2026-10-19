@@ -698,7 +698,7 @@ The action runs `issue_assistant.py` with one command:
 | `usage` | analyze | writes the turns, time, cost and tokens of Claude's run into the summary of the job, numbers only, and a warning when the run stopped at its turns or its dollars |
 | `apply` | apply | checks the AI's answer and posts it, on the issue or the discussion |
 | `sweep` | lifecycle | reminds, closes unanswered issues and duplicates, marks fixed issues and closes them with the release |
-| `sync-labels` | labels | creates and updates the labels, renames those that the repository has in another case, and warns of owners whom GitHub can't assign and of issue types that the repository lacks |
+| `sync-labels` | labels | creates and updates the labels, renames those that the repository has in another case, updates one that another workflow created a moment before, such as the settings bot of the blueprint, and warns of owners whom GitHub can't assign and of issue types that the repository lacks |
 | `findings` | findings | dismisses the accepted findings of code scanning and fails while others are open; needs no other settings |
 | `check` | your CI | checks labels, issue forms, workflows, firewall, settings, the description of the project and the notice to reporters, and names every key it doesn't know |
 | `evaluate` | your computer | replays the first analysis of closed issues, each as it was a minute after it was opened, with the engine's command line, and reports how often its labels, duplicates and questions match the maintainers' |
