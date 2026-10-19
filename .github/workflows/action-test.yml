@@ -52,7 +52,7 @@ jobs:
         run: |
           docker run --rm --volume "$PWD:/repo" --workdir /repo "$ACTIONLINT" \
             -config-file .github/actionlint.yaml \
-            -ignore 'unexpected key "queue" for "concurrency" section' \
+            -ignore 'TEMPORARY to see the PR coach' \
             templates/.github/workflows/*.yml
       # The Workflow security workflow reports zizmor's findings to code scanning;
       # a finding in the templates fails this check, before any repository gets it.
