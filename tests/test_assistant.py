@@ -1015,6 +1015,22 @@ def test_mute_creates_its_label_where_it_is_missing(config):
     assert assistant.muted_label(labeled) is own
 
 
+def test_mute_uses_its_label_that_another_mute_created_a_moment_before(config):
+    github = FakeGitHub(config, make_issue())
+    github.labels()
+    github.label_store.append(
+        {
+            "name": "assistant-muted",
+            "color": "ffffff",
+            "description": "",
+            "node_id": "L",
+        }
+    )
+    plan, reactions = command_event(config, github, "/assistant mute")
+    assert (github.labels_of(12) >= {"assistant-muted"}, reactions) == (True, ["eyes"])
+    assert github.label_store[-1]["color"] == assistant.muted_label(config).color
+
+
 def test_waiting_marks_an_issue_that_waits_already_once(config):
     github = FakeGitHub(config, make_issue(labels=("bug", "needs-info")))
     plan, reactions = command_event(config, github, "/assistant waiting")
@@ -6961,6 +6977,46 @@ def test_a_label_that_differs_only_in_case_is_renamed(config, capsys):
     assert "Label Bug" not in out
 
 
+def test_a_label_that_another_workflow_just_created_is_updated(config):
+    """A push that changes labels.toml starts the settings bot of the blueprint as
+    well, which may create a label after sync-labels read the labels."""
+    github = FakeGitHub(config)
+    cards = next(
+        label for label in github.label_store if label["name"] == "area: cards"
+    )
+    github.label_store.remove(cards)
+    github.labels()
+    # The settings bot creates it, with a color of its own.
+    github.label_store.append(
+        {"name": "area: cards", "color": "ffffff", "description": "", "node_id": "L_a"}
+    )
+    assert assistant.sync_labels(github, config) == ["updated area: cards"]
+    assert [call[:2] for call in github.writes_made()] == [
+        ("POST", "labels"),
+        ("PATCH", "labels/area%3A%20cards"),
+    ]
+    assert github.writes == ["create label area: cards", "update label area: cards"]
+    assert github.label_store[-1] == cards | {"node_id": "L_a"}
+    # The labels read before lack it.
+    assert github.labels()[-1]["name"] == "area: cards"
+
+
+def test_a_label_that_github_refuses_for_another_reason_still_fails(config):
+    github = FakeGitHub(config)
+    github.label_store = [
+        label for label in github.label_store if label["name"] != "area: cards"
+    ]
+    github.fail(
+        "POST labels",
+        assistant.GitHubError(
+            "gh api: Validation Failed (HTTP 422)", status=422, codes={"invalid"}
+        ),
+    )
+    with pytest.raises(assistant.GitHubError, match="Validation Failed"):
+        assistant.sync_labels(github, config)
+    assert github.writes == ["Failed: create label area: cards"]
+
+
 # The gh calls: the real subprocess.run starts tests/fake_gh.py in place of gh
 
 
@@ -7261,6 +7317,36 @@ def test_a_gh_error_knows_github_s_status_and_error_types(
     error = caught.value
     assert (error.status, set(error.types), error.missing()) == (status, types, missing)
     assert str(error).startswith(f"gh repos/{REPOSITORY}/issues/1: ")
+
+
+def refused(code):
+    """GitHub's answer to a write whose fields it refused, as gh prints it."""
+    body = {
+        "message": "Validation Failed",
+        "errors": [{"resource": "Label", "code": code, "field": "name"}, "text"],
+        "documentation_url": "https://docs.github.com/rest/issues/labels",
+        "status": "422",
+    }
+    return Completed(json.dumps(body), "gh: Validation Failed (HTTP 422)\n", 1)
+
+
+@pytest.mark.parametrize(
+    ("result", "codes", "exists"),
+    [
+        (refused("already_exists"), {"already_exists"}, True),
+        (refused("invalid"), {"invalid"}, False),
+        (NOT_FOUND, set(), False),
+        # A GraphQL error has a type, and no code of REST.
+        (NO_DISCUSSION, set(), False),
+    ],
+)
+def test_a_gh_error_knows_the_codes_of_a_refused_write(
+    monkeypatch, tmp_path, result, codes, exists
+):
+    gh_answers(monkeypatch, tmp_path, result)
+    with pytest.raises(assistant.GitHubError) as caught:
+        assistant.GitHub(REPOSITORY).rest("labels", method="POST", data={})
+    assert (set(caught.value.codes), caught.value.already_exists()) == (codes, exists)
 
 
 def test_a_read_that_github_failed_runs_again_after_2_4_and_8_seconds(
