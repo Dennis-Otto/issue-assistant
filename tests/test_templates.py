@@ -83,12 +83,26 @@ HARDEN_RUNNER = "step-security/harden-runner"
 # Harden-Runner allows the hosts of the runner itself, such as those of the logs.
 GITHUB_HOSTS = ["api.github.com:443", "github.com:443"]
 
+# The Canary of this repository, .github/workflows/canary.yml, calls the reusable
+# workflow of the issues with the input canary, for the issue of a file.
+CANARY_INPUT = "canary"
+CANARY_ISSUE = "tests/fixtures/canary-issue.json"
+
+
+def only_in_the_canary(value):
+    """An expression that is `value` in a run of the Canary and empty in every
+    repository's run, which never passes the input canary."""
+    return f"${{{{ inputs.{CANARY_INPUT} && {value} || '' }}}}"
+
 
 def claude_reads_only(step):
     inputs = step["with"]
     assert inputs["github_token"] == "${{ github.token }}"
     assert inputs["allowed_non_write_users"] == "*"
-    assert "allowed_bots" not in inputs
+    # A bot may start a run of the Canary: the job start of canary.yml, or an app
+    # that last changed its schedule. Every repository's run passes "", the
+    # action's default, which lets no bot start the engine.
+    assert inputs["allowed_bots"] == only_in_the_canary("'*'")
     # The task alone; the rules come before it as the system prompt.
     assert inputs["prompt"] == "${{ steps.context.outputs.task }}"
     arguments = shlex.split(inputs["claude_args"])
@@ -144,8 +158,6 @@ ENGINE_RULES = {
         "output": "structured_output",
         "host": "api.anthropic.com",
         "reads_only": claude_reads_only,
-        # The inputs that let a run of the Canary that a bot started use the engine.
-        "canary": {"allowed_bots": "*"},
     },
     "codex": {
         "action": "openai/codex-action",
@@ -153,7 +165,6 @@ ENGINE_RULES = {
         "output": "final-message",
         "host": "api.openai.com",
         "reads_only": lambda step: codex_reads_only(step),
-        "canary": {},
     },
     "gemini": {
         "action": TOOL,
@@ -161,8 +172,6 @@ ENGINE_RULES = {
         "output": "answer",
         "host": "generativelanguage.googleapis.com",
         "reads_only": lambda step: cli_reads_only("gemini", step),
-        # The Canary's task is always an analysis.
-        "canary": {"mode": "triage"},
     },
     "copilot": {
         "action": TOOL,
@@ -170,7 +179,6 @@ ENGINE_RULES = {
         "output": "answer",
         "host": "api.githubcopilot.com",
         "reads_only": lambda step: cli_reads_only("copilot", step),
-        "canary": {"mode": "triage"},
     },
 }
 
@@ -360,7 +368,13 @@ def test_each_template_calls_its_reusable_workflow_with_what_its_jobs_need(name)
     # A manual run may be a dry run; every other event runs for real.
     assert job["with"] == {"dry_run": "${{ inputs.dry_run || false }}"}
     dry_run = workflow[True]["workflow_dispatch"]["inputs"]["dry_run"]
-    assert load(reusable(name))[True]["workflow_call"]["inputs"] == {
+    inputs = dict(load(reusable(name))[True]["workflow_call"]["inputs"])
+    # Only the Canary of this repository passes the input canary, to the issues'.
+    if name == "issue-assistant.yml":
+        canary = inputs.pop(CANARY_INPUT)
+        assert canary["type"] == "boolean" and canary["default"] is False
+        assert canary["description"].startswith("Only for the Canary")
+    assert inputs == {
         "dry_run": {
             "description": dry_run["description"],
             "type": "boolean",
@@ -535,103 +549,229 @@ def test_the_graphql_documents_meet_github_s_schema_of_the_day_every_week():
     assert check["run"].endswith("tests/test_graphql_contract.py")
 
 
-# The Canary runs the AI's path of the template every week, for an issue of a file.
+# The Canary runs the AI's path of every repository every week, for an issue of a
+# file: it calls the reusable workflow of the issues as the template does.
 CANARY = load(OWN / "canary.yml")
-CANARY_ISSUE = "tests/fixtures/canary-issue.json"
+FIXTURE_OF_THE_CANARY = only_in_the_canary(f"'{CANARY_ISSUE}'")
+SETTINGS = tomllib.loads((ROOT / ".github/repository.toml").read_text(encoding="utf-8"))
 
 
-def canary_tool_checkout(step, production):
-    """The Canary's checkout of the tool is production's, at the commit of its own
-    run, which is the checkout's default: job.workflow_sha is that commit there."""
-    assert production["with"] == TOOL_CHECKOUT
-    inputs = {
-        key: value
-        for key, value in TOOL_CHECKOUT.items()
-        if key not in ("repository", "ref")
-    }
-    return step == dict(production, **{"with": inputs})
+def test_the_canary_calls_the_reusable_workflow_as_every_repository_does():
+    """The Canary's job is the template's call: its name, its permissions and the
+    engine's secrets passed by name, whose values only the job analyze gets, from
+    the environment issue-assistant.
 
-
-def test_the_canary_runs_the_ai_as_the_template_does():
-    """The Canary's job analyze is the template's: the runner, the environment, the
-    permissions, the outputs and the steps of the engines.
-
-    So an update of an engine's action that renames its output or needs another
-    host, or a secret that expired, fails there before a release brings it to every
-    repository. Only the steps of the issue assistant run the action of this commit.
+    So a secret that expired or no longer reaches the called job, a variable of the
+    caller that the called workflow doesn't see, a renamed output of the engine's
+    action or a host that the firewall blocks fails there before a release brings
+    it to every repository. Only the path of the workflow, at the commit of the
+    run, and the input canary differ.
     """
-    analyze = CANARY["jobs"]["analyze"]
-    for key in ("runs-on", "timeout-minutes", "environment", "permissions", "outputs"):
-        assert analyze[key] == ANALYZE[key], key
-    assert analyze["if"] == "github.event_name != 'push'"
-    steps = {step.get("id"): step for step in analyze["steps"]}
-    # The same checkout of the tool as in every repository, so that the release,
-    # which waits for the canary, runs the path of production.
-    assert analyze["steps"][0] == ANALYZE["steps"][0]
-    assert canary_tool_checkout(analyze["steps"][1], ANALYZE["steps"][1])
-    for engine, rules in ENGINE_RULES.items():
-        inputs = dict(STEPS[engine]["with"], **rules["canary"])
-        assert steps[engine] == dict(STEPS[engine], **{"with": inputs}), engine
-    engine_inputs = dict(STEPS["engine"]["with"], mode="triage")
-    assert steps["engine"] == dict(STEPS["engine"], **{"with": engine_inputs})
-    usage_inputs = {
-        key: value for key, value in STEPS["usage"]["with"].items() if key != "issue"
-    }
-    usage_inputs["mode"] = "triage"
-    assert steps["usage"] == dict(STEPS["usage"], **{"with": usage_inputs})
-    context = steps["context"]
-    assert context["uses"] == TOOL and context["if"] == STEPS["context"]["if"]
-    assert context["with"] == {"command": "context", "mode": "triage"}
-    assert context["env"] == {assistant.FIXTURE_VARIABLE: CANARY_ISSUE}
-    order = [step.get("id") for step in analyze["steps"]]
-    assert (
-        order.index("engine")
-        < order.index("context")
-        < min(order.index(engine) for engine in ENGINE_RULES)
-    )
-    # Where a repository's run skips the AI, without its secret or without an
-    # answer, the canary fails.
-    (unready,) = [
-        step
-        for step in analyze["steps"]
-        if step.get("if") == "steps.engine.outputs.ready != 'true'"
-    ]
-    assert unready["run"].rstrip().endswith("exit 1")
-    answered = analyze["steps"][-1]
-    assert answered["env"] == {"ANSWER": ANALYZE["outputs"]["answer"]}
-    assert '[[ -z "$ANSWER" ]]' in answered["run"]
-
-
-def test_the_canary_checks_the_answer_as_apply_does_and_writes_nothing():
-    assert CANARY["permissions"] == {}
+    (template,) = ASSISTANT["jobs"].values()
     jobs = CANARY["jobs"]
-    # Only the job start may write, and only to start the canary.
-    assert jobs["start"]["permissions"] == {"actions": "write"}
-    for name, job in jobs.items():
-        if name != "start":
-            assert "write" not in job["permissions"].values(), name
+    # No job of the canary runs an engine or names a secret itself.
+    assert list(jobs) == ["start", "assistant"]
+    call = jobs["assistant"]
+    path = reusable("issue-assistant.yml").relative_to(ROOT).as_posix()
+    assert call["uses"] == f"./{path}"
+    for key in ("name", "permissions", "secrets"):
+        assert call[key] == template[key], key
+    # The canary's issue, as a dry run.
+    assert call["with"] == {CANARY_INPUT: True, "dry_run": True}
+    assert call["if"] == "github.event_name != 'push'"
+    # One canary at a time; the job, not the run, waits, so that a push never
+    # waits for a canary to start the next one.
+    assert call["concurrency"] == {"group": "canary", "cancel-in-progress": False}
+    assert set(call) == set(template) | {"if", "concurrency"}
+    # No other workflow passes the input canary.
+    callers = [
+        (path.name, job_name)
+        for path in WORKFLOWS
+        for job_name, job in load(path)["jobs"].items()
+        if CANARY_INPUT in (job.get("with") or {})
+    ]
+    assert callers == [("canary.yml", "assistant")]
+
+
+def test_the_canary_writes_nothing():
+    """The job start may only start workflows. The jobs of the call get what a
+    repository grants, but the job event sets no labels for the canary's issue, and
+    with a fixture apply is a dry run, whatever dry-run says."""
+    assert CANARY["permissions"] == {}
+    assert CANARY["jobs"]["start"]["permissions"] == {"actions": "write"}
+    for name, job in CANARY["jobs"].items():
         assert "id-token" not in job["permissions"], name
-    apply = CANARY["jobs"]["apply"]
-    template = JOBS["apply"]
-    assert apply["needs"] == "analyze"
-    assert apply["runs-on"] == template["runs-on"]
-    # The template's job may write to the issue; the canary's can only read.
-    assert apply["permissions"] == dict(template["permissions"], issues="read")
-    assert apply["steps"][:2] == template["steps"][:2]
-    assert canary_tool_checkout(apply["steps"][2], template["steps"][2])
-    (step,) = [step for step in apply["steps"] if step.get("uses") == TOOL]
-    assert step["with"] == {
-        "command": "apply",
-        "mode": "triage",
-        "engine": "${{ needs.analyze.outputs.engine }}",
-        "answer": "${{ needs.analyze.outputs.answer }}",
-        "dry-run": True,
+    event = {step.get("id"): step for step in JOBS["event"]["steps"]}["event"]
+    assert event["if"] == f"${{{{ !inputs.{CANARY_INPUT} }}}}"
+    (apply,) = [step for step in JOBS["apply"]["steps"] if step.get("uses") == TOOL]
+    assert apply["env"] == {assistant.FIXTURE_VARIABLE: FIXTURE_OF_THE_CANARY}
+    assert apply["with"]["dry-run"] == "${{ inputs.dry_run }}"
+
+
+def test_only_context_and_apply_read_the_canary_s_issue():
+    """The script refuses a fixture for every other command, and every repository's
+    run gives them none."""
+    assert (ROOT / CANARY_ISSUE).is_file()
+    readers = []
+    for job_name, job in JOBS.items():
+        for step in job["steps"]:
+            env = step.get("env") or {}
+            if assistant.FIXTURE_VARIABLE in env:
+                assert step["uses"] == TOOL, job_name
+                assert env[assistant.FIXTURE_VARIABLE] == FIXTURE_OF_THE_CANARY
+                readers.append((job_name, step["with"]["command"]))
+    assert readers == [("analyze", "context"), ("apply", "apply")]
+
+
+def canary_step(job):
+    """The step of the job `job` of the issues' reusable workflow that only the
+    Canary runs."""
+    condition = f"inputs.{CANARY_INPUT}"
+    (step,) = [step for step in JOBS[job]["steps"] if step.get("if") == condition]
+    return step
+
+
+def run_step(step, tmp_path, **env):
+    """The exit code and output of the script of `step`, and what it wrote to
+    GITHUB_OUTPUT."""
+    output = tmp_path / "output"
+    output.touch()
+    result = subprocess.run(
+        [shutil.which("bash"), "-e", "-c", step["run"]],
+        env={**env, "GITHUB_OUTPUT": str(output)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result, output.read_text(encoding="utf-8")
+
+
+def test_the_job_event_takes_the_canary_s_issue():
+    """With the input canary, the job event chooses an analysis of the issue of the
+    Canary's file in place of the task of an event, also when GitHub names a bot as
+    the one who started a scheduled run, and sets no labels."""
+    event = JOBS["event"]
+    condition = " ".join(event["if"].split())
+    assert condition.startswith(
+        f"!github.event.repository.fork && (inputs.{CANARY_INPUT} || "
+    )
+    step = canary_step("event")
+    assert step["id"] == "canary"
+    assert step["env"] == {
+        "CALLER": "${{ github.repository }}",
+        "WORKFLOW": "${{ fromJSON(toJSON(job)).workflow_repository }}",
+        "AI": "${{ vars.ISSUE_ASSISTANT_AI }}",
     }
-    assert step["env"] == {assistant.FIXTURE_VARIABLE: CANARY_ISSUE}
-    assert "environment" not in apply
-    for rules in ENGINE_RULES.values():
-        for secret in rules["secrets"]:
-            assert secret not in yaml.safe_dump(apply)
+    order = [step.get("id") for step in event["steps"]]
+    assert order.index("canary") == order.index("event") - 1
+    # context takes the number of the fixture's issue when the job names none.
+    assert event["outputs"] == {
+        "issue": "${{ steps.event.outputs.issue }}",
+        "mode": "${{ steps.event.outputs.mode || steps.canary.outputs.mode }}",
+    }
+
+
+@pytest.mark.parametrize(
+    ("caller", "ai", "code", "says"),
+    [
+        ("Dennis-Otto/issue-assistant", "on", 0, "The canary analyzes "),
+        # GitHub keeps the case of a name as its owner typed it.
+        ("dennis-otto/Issue-Assistant", "on", 0, "The canary analyzes "),
+        # Only this repository has the canary's issue.
+        (
+            "octo/app",
+            "on",
+            1,
+            "::error::Only the Canary of Dennis-Otto/issue-assistant may pass the "
+            "input canary, not octo/app.",
+        ),
+        # The variables of the caller don't reach the called workflow.
+        (
+            "Dennis-Otto/issue-assistant",
+            "",
+            1,
+            "::error::The called workflow doesn't see the variable ISSUE_ASSISTANT_AI",
+        ),
+        # A repository's run would skip the AI, which the canary is there to run.
+        (
+            "Dennis-Otto/issue-assistant",
+            "off",
+            1,
+            "::error::ISSUE_ASSISTANT_AI is off, which skips the AI",
+        ),
+    ],
+)
+def test_the_canary_runs_in_this_repository_alone_and_sees_its_variable(
+    tmp_path, caller, ai, code, says
+):
+    """The settings bot sets ISSUE_ASSISTANT_AI to "on" here, so a called workflow
+    that sees no value doesn't see the variables of its caller."""
+    assert SETTINGS["variables"]["ISSUE_ASSISTANT_AI"] == "on"
+    result, output = run_step(
+        canary_step("event"),
+        tmp_path,
+        CALLER=caller,
+        WORKFLOW="Dennis-Otto/issue-assistant",
+        AI=ai,
+    )
+    assert result.returncode == code, result.stdout + result.stderr
+    assert says in result.stdout
+    assert output == ("mode=triage\n" if code == 0 else "")
+
+
+def test_the_canary_fails_where_a_repository_s_run_skips_the_ai():
+    """A repository's run skips apply without the engine's secret or without an
+    answer; the canary fails, last in the job analyze, since either is what it
+    watches for."""
+    step = canary_step("analyze")
+    assert step is ANALYZE["steps"][-1]
+    assert step["env"] == {
+        "READY": "${{ steps.engine.outputs.ready }}",
+        "ENGINE": "${{ steps.engine.outputs.engine }}",
+        "ANSWER": ANALYZE["outputs"]["answer"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("ready", "answer", "code", "says"),
+    [
+        ("true", '{"summary": "A cause"}', 0, "The engine answered with 22 characters"),
+        # No secret reached the job: it expired, or the caller no longer passes it.
+        ("false", "", 1, "::error::The job analyze got no secret of the engine claude"),
+        # A renamed output of the engine's action, or an engine that failed.
+        ("true", "", 1, "::error::The engine gave no structured answer"),
+    ],
+)
+def test_the_canary_checks_that_the_engine_answered(
+    tmp_path, ready, answer, code, says
+):
+    result, _ = run_step(
+        canary_step("analyze"), tmp_path, READY=ready, ENGINE="claude", ANSWER=answer
+    )
+    assert result.returncode == code, result.stdout + result.stderr
+    assert says in result.stdout
+
+
+def without_the_canary(job):
+    """A job of the issues' reusable workflow as every repository's run has it:
+    without the steps that only the Canary runs and the values that only it sets."""
+    steps = []
+    for step in job["steps"]:
+        if step.get("if") == f"inputs.{CANARY_INPUT}":
+            continue
+        step = dict(step)
+        for key in ("with", "env"):
+            kept = {
+                name: value
+                for name, value in step.get(key, {}).items()
+                if not str(value).startswith(f"${{{{ inputs.{CANARY_INPUT} && ")
+            }
+            if kept:
+                step[key] = kept
+            else:
+                step.pop(key, None)
+        steps.append(step)
+    return dict(job, steps=steps)
 
 
 def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
@@ -646,10 +786,8 @@ def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
     assert start["runs-on"] == RUNNER
     assert start["steps"][0] == JOBS["event"]["steps"][0]
     assert "actions/workflows/canary.yml/dispatches" in start_script()
-    # It waits for the canary's analysis, which may wait for an earlier one, and
-    # for its apply.
-    jobs = CANARY["jobs"]
-    waits = 2 * jobs["analyze"]["timeout-minutes"] + jobs["apply"]["timeout-minutes"]
+    # It waits for the jobs of the canary, which may wait for an earlier canary's.
+    waits = 2 * sum(job["timeout-minutes"] for job in JOBS.values())
     assert start["timeout-minutes"] >= waits
     paths = triggers["push"]["paths"]
     for path in (
@@ -884,7 +1022,7 @@ def test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions():
 
 def test_the_command_line_of_every_engine_is_pinned_for_renovate():
     """Each engine's command line runs at a version that the workflow pins, below a
-    line that lets Renovate update it, in the Canary as in every repository."""
+    line that lets Renovate update it; the Canary runs the issues' workflow."""
     packages = [("@openai/codex", "codex-version")] + [
         (engine.cli.package, "engine-version")
         for engine in assistant.ENGINES.values()
@@ -893,7 +1031,6 @@ def test_the_command_line_of_every_engine_is_pinned_for_renovate():
     for path in (
         reusable("issue-assistant.yml"),
         reusable(assistant.DISCUSSION_WORKFLOW),
-        OWN / "canary.yml",
     ):
         text = path.read_text(encoding="utf-8")
         for package, key in packages:
@@ -986,9 +1123,14 @@ def test_the_events_the_assistant_handles_trigger_it():
 def test_the_discussions_analyze_as_the_issues_do():
     """The job analyze of the discussions is the one of the issues, as YAML: every
     rule above that keeps the engine to reading holds for both."""
-    assert DISCUSSION_JOBS["analyze"] == ANALYZE
-    issues = load(reusable("issue-assistant.yml"))[True]
-    assert load(reusable(assistant.DISCUSSION_WORKFLOW))[True] == issues
+    assert DISCUSSION_JOBS["analyze"] == without_the_canary(ANALYZE)
+    issues = load(reusable("issue-assistant.yml"))[True]["workflow_call"]
+    inputs = {
+        name: value for name, value in issues["inputs"].items() if name != CANARY_INPUT
+    }
+    assert load(reusable(assistant.DISCUSSION_WORKFLOW))[True] == {
+        "workflow_call": dict(issues, inputs=inputs)
+    }
     assert list(DISCUSSION_JOBS) == ["event", "analyze", "apply"]
     assert DISCUSSION_JOBS["apply"]["needs"] == ["event", "analyze"]
     assert DISCUSSION_JOBS["apply"]["if"] == JOBS["apply"]["if"]

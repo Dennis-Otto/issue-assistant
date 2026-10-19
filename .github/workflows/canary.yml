@@ -1,22 +1,21 @@
 name: Canary
 
-# The path of an issue through the AI, end to end, as the reusable workflow
-# .github/workflows/reusable-issue-assistant.yml runs it in every repository that
-# uses the action: the engine on GitHub's egress-firewall runner with the secret of
-# the environment issue-assistant, its structured answer, and apply, which checks
-# that answer. The tests and the Action test reach neither the engine, the outputs
-# of its action, the hosts of the firewall nor the secret, and this repository gets
-# few issues, so a broken path would show first as issues without an answer in
-# every repository that uses the action.
+# The path of an issue through the AI, end to end, as every repository that uses
+# the action runs it: a call of the reusable workflow
+# .github/workflows/reusable-issue-assistant.yml that passes the engine's secrets by
+# name, its job analyze with their values from the environment issue-assistant and
+# the variable ISSUE_ASSISTANT_AI of the repository, the engine on GitHub's
+# egress-firewall runner, its structured answer, and apply, which checks that
+# answer. The tests and the Action test reach neither the engine, the outputs of its
+# action, the hosts of the firewall, the secret nor the variables of a caller, and
+# this repository gets few issues, so a broken path would show first as issues
+# without an answer in every repository that uses the action.
 #
-# Its copy of analyze reads the secret of the environment directly. How a caller
-# passes the secret through workflow_call and the variables of its repository into
-# the called job rests on GitHub's documentation, not on this run (decision 0015).
-#
-# The issue is tests/fixtures/canary-issue.json, which exists nowhere on GitHub:
-# ISSUE_ASSISTANT_FIXTURE gives it to context and apply in place of a real one, and
-# makes apply a dry run, whose summary shows the comment it would post. Nothing is
-# written to an issue: the tokens of analyze and apply only read.
+# The issue is tests/fixtures/canary-issue.json, which exists nowhere on GitHub: the
+# input canary of the reusable workflow, which only this repository may pass, gives
+# it to context and apply in place of a real one through ISSUE_ASSISTANT_FIXTURE,
+# which makes apply a dry run whose summary shows the comment it would post. The job
+# event sets no labels for it, so nothing is written to an issue.
 #
 # Every Monday, after every change on main of what the path runs, and by hand. Only
 # main may use the secret of the environment, so no pull request runs the canary;
@@ -56,9 +55,8 @@ jobs:
     name: Start the canary for the new main and wait for its result
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
-    # Long enough for an analysis that waits for an earlier one, then its own
-    # analysis and apply.
-    timeout-minutes: 60
+    # Long enough for a canary that waits for an earlier one, then its own jobs.
+    timeout-minutes: 70
     permissions:
       actions: write
     steps:
@@ -88,7 +86,7 @@ jobs:
           conclusion=$(gh run view "$run" --json conclusion --jq .conclusion)
           case "$conclusion" in
             success) echo "The canary passed." ;;
-            # The analysis of a later push's canary took the place of its waiting one.
+            # A later push's canary took the place of this waiting one.
             cancelled) echo "::notice::The canary was cancelled; a later one checks main: $url" ;;
             *)
               echo "::error::The canary ended as $conclusion: $url"
@@ -96,250 +94,35 @@ jobs:
               ;;
           esac
 
-  # The job analyze of the reusable workflow; a test keeps its runner, environment,
-  # permissions, outputs and engine steps equal to those of the reusable workflow.
-  # The steps of the issue assistant run the action of this commit from the same
-  # sparse checkout in the context folder as there, so a pattern that leaves out a
-  # file the action needs fails here before a release.
-  analyze:
-    name: Analyze the canary's issue with the AI engine
+  # The call of the template templates/.github/workflows/issue-assistant.yml, as in
+  # every repository that uses the action: its name, its permissions and the
+  # engine's secrets by name, which a test keeps equal to the template's. Only the
+  # workflow is that of this commit, and the input canary gives its jobs the issue
+  # of the file, makes apply a dry run and fails where a repository's run would
+  # skip the AI. The token of apply may write, as everywhere, but writes nothing.
+  assistant:
+    name: Issue assistant
     if: github.event_name != 'push'
-    runs-on: ubuntu-24.04-firewall
-    timeout-minutes: 20
-    # One analysis at a time; the job, not the run, waits, so that a push never
-    # waits for an analysis to start the next one.
+    # One canary at a time; the job, not the run, waits, so that a push never waits
+    # for a canary to start the next one.
     concurrency:
       group: canary
       cancel-in-progress: false
-    environment:
-      name: issue-assistant
-      deployment: false
     permissions:
       contents: read
-      issues: read
+      issues: write
       discussions: read
-    outputs:
-      engine: ${{ steps.engine.outputs.engine }}
-      answer: ${{ steps.claude.outputs.structured_output || steps.codex.outputs.final-message || steps.gemini.outputs.answer || steps.copilot.outputs.answer }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      # The same sparse checkout into the context folder as in the reusable
-      # workflow, which every repository runs; there it takes job.workflow_sha,
-      # here that is the commit of this run, the checkout's default.
-      - name: Check out the issue assistant of this workflow
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: .issue-assistant/action
-          # Only what the action runs: the engine reads the context folder, and the
-          # docs and tests of the issue assistant would only mislead it there.
-          sparse-checkout: |
-            /action.yml
-            /issue_assistant.py
-            /version.txt
-            /prompts/
-            /locales/
-            /templates/
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
-      - name: Choose the engine and check its secret
-        id: engine
-        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
-        with:
-          command: engine
-          mode: triage
-          # One entry per engine: its key when its secret exists.
-          ready-engines: >-
-            ${{ format('{0},{1},{2},{3}',
-            (secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '') && 'claude' || '',
-            (secrets.OPENAI_API_KEY != '') && 'codex' || '',
-            (secrets.GEMINI_API_KEY != '') && 'gemini' || '',
-            (secrets.COPILOT_GITHUB_TOKEN != '') && 'copilot' || '') }}
-      # In a repository, the AI is off without its secret; here that would hide the
-      # path that the canary watches.
-      - name: Fail without the engine's secret
-        if: steps.engine.outputs.ready != 'true'
-        env:
-          ENGINE: ${{ steps.engine.outputs.engine }}
-        run: |
-          echo "::error::The canary needs the secret of the engine $ENGINE in the environment issue-assistant."
-          exit 1
-      - name: Collect the canary's issue, earlier issues and discussions
-        id: context
-        if: steps.engine.outputs.ready == 'true'
-        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
-        env:
-          ISSUE_ASSISTANT_FIXTURE: tests/fixtures/canary-issue.json
-        with:
-          command: context
-          mode: triage
-
-      # The engines, as in the template, but they also run when a bot started the
-      # run: the job start starts it as github-actions[bot], and GitHub may name an
-      # app that changed this file as the one who started a scheduled run. No event
-      # from outside this repository starts the canary.
-
-      - name: Analyze with Claude
-        id: claude
-        if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'claude'
-        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
-        env:
-          DISABLE_TELEMETRY: "1"
-          DISABLE_ERROR_REPORTING: "1"
-          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Issues come from people without write access. The token is the job's
-          # read-only GITHUB_TOKEN, and Claude can only read files of the checkout.
-          github_token: ${{ github.token }}
-          allowed_non_write_users: "*"
-          allowed_bots: "*"
-          prompt: ${{ steps.context.outputs.task }}
-          # --restricted removes every tool that runs code or reaches the network,
-          # ignores settings files and confines the file tools to the checkout;
-          # --tools leaves only the reading tools, which never see the issue
-          # assistant's own checkout, and nothing ever prompts. The rules come
-          # first, as the system prompt, and the task stops at its turns and
-          # dollars.
-          claude_args: |
-            --restricted
-            --tools "Read,Grep,Glob"
-            --disallowedTools "Read(./.issue-assistant/action/**)"
-            --permission-prompts none
-            --append-system-prompt-file .issue-assistant/rules.md
-            --model ${{ steps.engine.outputs.model }}
-            --max-turns ${{ steps.engine.outputs.turns }}
-            --max-budget-usd ${{ steps.engine.outputs.budget }}
-            ${{ steps.engine.outputs.effort && format('--effort {0}', steps.engine.outputs.effort) || '' }}
-            --json-schema '${{ steps.context.outputs.schema }}'
-      - name: Analyze with Codex
-        id: codex
-        if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'codex'
-        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1.13
-        # The action prints what Codex prints into the log, where the runner reads
-        # each line that starts with :: as a workflow command. With --json from the
-        # context step, Codex prints only JSON events, one per line, and RUST_LOG
-        # turns off its log, so no text of an issue or of Codex starts a line.
-        env:
-          RUST_LOG: "off"
-        with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          # renovate: datasource=npm depName=@openai/codex
-          codex-version: "0.162.1"
-          # Issues come from people without write access. The sandbox of the
-          # profile :read-only lets Codex read files but neither write them nor
-          # reach the network, and drop-sudo leaves the API key to the proxy of the
-          # action, out of Codex's reach. The context step's arguments give it the
-          # rules as its developer instructions and turn off its web search, and
-          # its strict schema shapes the answer.
-          allow-users: "*"
-          permission-profile: ":read-only"
-          safety-strategy: drop-sudo
-          prompt-file: .issue-assistant/prompt.md
-          output-schema-file: .issue-assistant/schema.json
-          codex-args: ${{ steps.context.outputs.engine-args }}
-          model: ${{ steps.engine.outputs.model }}
-          effort: ${{ steps.engine.outputs.effort }}
-      # The Gemini CLI and the Copilot CLI have no action that keeps them to reading,
-      # so the issue assistant runs them, with only their tools that read files of
-      # the checkout and no token of GitHub (decision 0017).
-      - name: Analyze with Gemini
-        id: gemini
-        if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'gemini'
-        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        with:
-          command: analyze
-          mode: triage
-          engine: gemini
-          # renovate: datasource=npm depName=@google/gemini-cli
-          engine-version: "0.63.0"
-      - name: Analyze with Copilot
-        id: copilot
-        if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'copilot'
-        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
-        env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-        with:
-          command: analyze
-          mode: triage
-          engine: copilot
-          # renovate: datasource=npm depName=@github/copilot
-          engine-version: "1.0.95"
-      # Numbers alone, also after a failure: the turns, time, cost and tokens of
-      # the run, in the summary of the job.
-      - name: Report what the analysis cost
-        id: usage
-        if: always() && steps.claude.outputs.execution_file != ''
-        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
-        with:
-          command: usage
-          mode: triage
-          execution-file: ${{ steps.claude.outputs.execution_file }}
-
-      # The template skips apply without an answer; here no answer is the failure
-      # the canary is for, such as a renamed output of the engine's action.
-      - name: Check that the engine answered
-        env:
-          ANSWER: ${{ steps.claude.outputs.structured_output || steps.codex.outputs.final-message || steps.gemini.outputs.answer || steps.copilot.outputs.answer }}
-        run: |
-          if [[ -z "$ANSWER" ]]; then
-            echo "::error::The engine gave no structured answer; did its action rename its output, or did it fail?"
-            exit 1
-          fi
-          echo "The engine answered with ${#ANSWER} characters of JSON."
-
-  # The job apply of the template, as a dry run with a token that can only read: it
-  # checks the answer as for a real issue, and its summary shows the comment.
-  apply:
-    name: Check the answer and show the comment
-    needs: analyze
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      issues: read
-      discussions: read
-    steps:
-      - name: Block every host but GitHub's
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-        with:
-          egress-policy: block
-          disable-sudo-and-containers: true
-          allowed-endpoints: >-
-            api.github.com:443
-            github.com:443
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      # The same sparse checkout into the context folder as in the reusable
-      # workflow, which every repository runs; there it takes job.workflow_sha,
-      # here that is the commit of this run, the checkout's default.
-      - name: Check out the issue assistant of this workflow
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: .issue-assistant/action
-          # Only what the action runs: the engine reads the context folder, and the
-          # docs and tests of the issue assistant would only mislead it there.
-          sparse-checkout: |
-            /action.yml
-            /issue_assistant.py
-            /version.txt
-            /prompts/
-            /locales/
-            /templates/
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
-      - name: Check the engine's answer and show the comment
-        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
-        env:
-          ISSUE_ASSISTANT_FIXTURE: tests/fixtures/canary-issue.json
-        with:
-          command: apply
-          mode: triage
-          engine: ${{ needs.analyze.outputs.engine }}
-          answer: ${{ needs.analyze.outputs.answer }}
-          dry-run: true
+    # The workflow of this commit; actionlint doesn't know the self-repository
+    # syntax $/ yet (decision 0015).
+    uses: ./.github/workflows/reusable-issue-assistant.yml # zizmor: ignore[self-repository]
+    with:
+      canary: true
+      dry_run: true
+    # Passed by name: only the job analyze sees their values, those of the
+    # environment issue-assistant, which only the default branch may use.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}

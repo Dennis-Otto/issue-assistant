@@ -16,12 +16,23 @@ name: Issue assistant
 # environments, its runners and its firewall policy. Each job runs the issue
 # assistant of this workflow's own commit, which it checks out next to the
 # repository; decision 0015 says why.
+#
+# The Canary of the issue assistant, .github/workflows/canary.yml, calls it as every
+# repository does, with the input canary: the issue of tests/fixtures/canary-issue.json
+# in place of that of an event, no labels, apply as a dry run, and a failure wherever
+# a repository's run would skip the AI. Every step and value of the canary names
+# inputs.canary, which every other caller leaves false; docs/architecture.md
+# describes it.
 
 on:
   workflow_call:
     inputs:
       dry_run:
         description: Only show what the assistant would do
+        type: boolean
+        default: false
+      canary:
+        description: Only for the Canary of the issue assistant, in its own repository; analyze the issue of tests/fixtures/canary-issue.json as a dry run, and fail where a run would skip the AI
         type: boolean
         default: false
     # The caller passes the engine's secrets by name. Only the job analyze sees their
@@ -48,9 +59,10 @@ permissions: {}
 jobs:
   event:
     name: Handle the event
+    # The canary runs for a schedule too, whose sender GitHub may name a bot.
     if: >-
       !github.event.repository.fork &&
-      (github.event_name == 'workflow_dispatch' ||
+      (inputs.canary || github.event_name == 'workflow_dispatch' ||
         (!github.event.issue.pull_request &&
          github.event.sender.type != 'Bot' &&
          (github.event.action != 'edited' ||
@@ -64,8 +76,9 @@ jobs:
       issues: write
       discussions: read
     outputs:
+      # The canary names no issue: context and apply take that of its file.
       issue: ${{ steps.event.outputs.issue }}
-      mode: ${{ steps.event.outputs.mode }}
+      mode: ${{ steps.event.outputs.mode || steps.canary.outputs.mode }}
     steps:
       - name: Block every host but GitHub's
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -99,8 +112,35 @@ jobs:
             /templates/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      # The canary's task is an analysis of the issue of its file, which only the
+      # issue assistant's own repository has. The settings bot sets the variable to
+      # on there, so a called workflow that sees no value doesn't see the variables
+      # of its caller.
+      - name: Take the canary's issue
+        id: canary
+        if: inputs.canary
+        env:
+          CALLER: ${{ github.repository }}
+          WORKFLOW: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          AI: ${{ vars.ISSUE_ASSISTANT_AI }}
+        run: |
+          if [[ "${CALLER,,}" != "${WORKFLOW,,}" ]]; then
+            echo "::error::Only the Canary of $WORKFLOW may pass the input canary, not $CALLER."
+            exit 1
+          fi
+          if [[ -z "$AI" ]]; then
+            echo "::error::The called workflow doesn't see the variable ISSUE_ASSISTANT_AI of $CALLER, which its settings set to on: do the variables of a caller still reach a reusable workflow?"
+            exit 1
+          fi
+          if [[ "$AI" == off ]]; then
+            echo "::error::ISSUE_ASSISTANT_AI is off, which skips the AI that the canary runs; set it to on in .github/repository.toml."
+            exit 1
+          fi
+          echo "The canary analyzes the issue of tests/fixtures/canary-issue.json."
+          echo "mode=triage" >> "$GITHUB_OUTPUT"
       - name: Set labels and choose the next task
         id: event
+        if: ${{ !inputs.canary }}
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         with:
           command: event
@@ -169,6 +209,9 @@ jobs:
         id: context
         if: steps.engine.outputs.ready == 'true'
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
+        # The canary's issue in place of one on GitHub; empty, the variable is unset.
+        env:
+          ISSUE_ASSISTANT_FIXTURE: ${{ inputs.canary && 'tests/fixtures/canary-issue.json' || '' }}
         with:
           command: context
           issue: ${{ needs.event.outputs.issue }}
@@ -192,6 +235,10 @@ jobs:
           # read-only GITHUB_TOKEN, and Claude can only read files of the checkout.
           github_token: ${{ github.token }}
           allowed_non_write_users: "*"
+          # A bot may start the canary: its job start, or an app that last changed
+          # its schedule. No bot starts the engine of any other run, the default of
+          # the action.
+          allowed_bots: ${{ inputs.canary && '*' || '' }}
           prompt: ${{ steps.context.outputs.task }}
           # --restricted removes every tool that runs code or reaches the network,
           # ignores settings files and confines the file tools to the checkout;
@@ -276,6 +323,26 @@ jobs:
           issue: ${{ needs.event.outputs.issue }}
           mode: ${{ needs.event.outputs.mode }}
           execution-file: ${{ steps.claude.outputs.execution_file }}
+      # A repository's run skips apply without the engine's secret or without an
+      # answer; the canary fails, since either is what it watches for: a secret
+      # that expired or no longer reaches this job, or a renamed output of the
+      # engine's action.
+      - name: Check that the engine answered the canary
+        if: inputs.canary
+        env:
+          READY: ${{ steps.engine.outputs.ready }}
+          ENGINE: ${{ steps.engine.outputs.engine }}
+          ANSWER: ${{ steps.claude.outputs.structured_output || steps.codex.outputs.final-message || steps.gemini.outputs.answer || steps.copilot.outputs.answer }}
+        run: |
+          if [[ "$READY" != true ]]; then
+            echo "::error::The job analyze got no secret of the engine $ENGINE from the environment issue-assistant, which the caller passes by name."
+            exit 1
+          fi
+          if [[ -z "$ANSWER" ]]; then
+            echo "::error::The engine gave no structured answer; did its action rename its output, or did it fail?"
+            exit 1
+          fi
+          echo "The engine answered with ${#ANSWER} characters of JSON."
 
   apply:
     name: Check and post the analysis
@@ -318,6 +385,9 @@ jobs:
           persist-credentials: false
       - name: Check the engine's answer and post it
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
+        # With the canary's issue, apply is a dry run whose summary shows the comment.
+        env:
+          ISSUE_ASSISTANT_FIXTURE: ${{ inputs.canary && 'tests/fixtures/canary-issue.json' || '' }}
         with:
           command: apply
           issue: ${{ needs.event.outputs.issue }}

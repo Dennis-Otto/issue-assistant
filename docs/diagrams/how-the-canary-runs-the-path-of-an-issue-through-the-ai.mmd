@@ -1,11 +1,15 @@
 flowchart TB
   accTitle: How the Canary runs the path of an issue through the AI
-  accDescr: The Canary starts every Monday, after a change on main of the script, the prompts, the action, the workflow template, the firewall policy, the settings or the canary's issue, and by hand. Its job analyze is that of the template: on the firewall runner, with the engine's secret of the environment issue-assistant, context reads the issue of tests/fixtures/canary-issue.json instead of one on GitHub, and the engine answers with JSON. Without the secret or without an answer, the canary fails. Its job apply checks the answer as for a real issue, as a dry run with a token that can only read: an answer that breaks a check fails the canary, and one that passes shows the comment it would post in the summary.
-  start(["every Monday, a change<br>on main, or by hand"]) --> analyze
+  accDescr: The Canary starts every Monday, after a change on main of the script, the prompts, the action, the reusable workflow, the firewall policy, the settings or the canary's issue, and by hand. It calls the reusable workflow as every repository does, with the permissions of the template, the engine's secrets passed by name and the input canary. Its job event takes the canary's issue and sets no labels; outside this repository, or when the called workflow doesn't see the variable ISSUE_ASSISTANT_AI set to on, the canary fails. Its job analyze runs on the firewall runner with the engine's secret of the environment issue-assistant, context reads the issue of tests/fixtures/canary-issue.json instead of one on GitHub, and the engine answers with JSON. Without the secret or without an answer, the canary fails. Its job apply checks the answer as for a real issue, as a dry run: an answer that breaks a check fails the canary, and one that passes shows the comment it would post in the summary.
+  start(["every Monday, a change<br>on main, or by hand"]) --> caller
+  caller["`**the call of the template**:<br>its permissions, the secrets<br>by name, canary: true`"] --> event
+  event["`**event**: the canary's issue,<br>no labels`"] --> seen{"this repository,<br>ISSUE_ASSISTANT_AI on?"}
+  seen -- "no" --> red["the canary fails:<br>no release"]
+  seen -- "yes" --> analyze
   fixture[("tests/fixtures/<br>canary-issue.json")] --> analyze
-  analyze["`**analyze**, as in the template:<br>the firewall runner,<br>the secret, the engine`"] --> answered{"a structured<br>answer?"}
-  answered -- "no" --> red["the canary fails:<br>no release"]
-  answered -- "yes" --> apply["`**apply**, a dry run<br>with a token that only reads:<br>the checks of every answer`"]
+  analyze["`**analyze**: the firewall runner,<br>the secret of the environment,<br>the engine`"] --> answered{"a secret and a<br>structured answer?"}
+  answered -- "no" --> red
+  answered -- "yes" --> apply["`**apply**, a dry run:<br>the checks of every answer`"]
   apply -- "a check fails" --> red
   apply -- "it passes" --> green["the comment it would post,<br>in the summary"]
   classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
@@ -13,8 +17,8 @@ flowchart TB
   classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
   classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
-  class start,fixture,answered trigger
+  class start,fixture,seen,answered trigger
   class analyze ai
-  class apply job
+  class caller,event,apply job
   class green safe
   class red untrusted
