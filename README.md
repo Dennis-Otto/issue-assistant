@@ -894,7 +894,7 @@ See [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/C
 
 The tests check every GraphQL request of the script against GitHub's schema, and every pull request runs the commands that only read against GitHub itself; [the architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md#how-the-requests-to-github-are-tested) shows how.
 
-Every week, and after every change on `main` of the path of an issue through the AI, the Canary runs that whole path, with the engine on the firewall runner and an issue that exists nowhere, as a dry run that writes nothing; [the architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md#the-canary) shows how.
+Every week, and after every change on `main` of the path of an issue through the AI, the Canary runs that whole path as every repository calls it, with the engine's secret passed by name, the engine on the firewall runner and an issue that exists nowhere, as a dry run that writes nothing; [the architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md#the-canary) shows how.
 
 The templates that `install` writes are in `templates/`, and the jobs that they call in `.github/workflows/reusable-*.yml`. This repository's own copies of the templates in `.github/` come from the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint) with the release that it pins, so a pull request changes only `templates/` and the reusable workflows; [the architecture](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories) shows how a change of a template reaches every repository.
 
