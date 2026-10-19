@@ -13,7 +13,7 @@ The issue assistant is maintained by Dennis Otto.
 | Role | Who | Responsibilities |
 | --- | --- | --- |
 | Maintainer | the people in the table above | Reads every issue and has the last word on it. Reviews the pull requests of others and merges pull requests. Answers vulnerability reports within the times of [SECURITY.md](SECURITY.md) and publishes their advisories. Merges the release pull requests that wait for a person. Keeps the secrets, the settings as code and the accepted findings current, and the documentation true to the latest release. |
-| Contributor | everybody who opens a pull request | Follows [CONTRIBUTING.md](CONTRIBUTING.md): tests for every new function and every fix, the coding standards, a sign-off on every commit and an entry under *Unreleased* for every change for users. |
+| Contributor | everybody who opens a pull request | Follows [CONTRIBUTING.md](CONTRIBUTING.md): tests for every new function and every fix, the coding standards, a sign-off on every commit and an entry in the changelog for every change for users, a fragment in `changelog.d/` or a line under *Unreleased*. |
 | Reporter | everybody who opens an issue or reports a vulnerability | Names the release, the set-up and the steps to reproduce, answers the questions in the issue, and reports a vulnerability only privately. |
 | Bots | the workflows in `.github/workflows/` | Do the routine work that [Automation](#automation) describes, each with the least permissions it needs. What they don't merge or publish on their own waits for the maintainer. |
 
@@ -31,7 +31,7 @@ Bots do the routine work, each with the least permissions it needs:
 
 - **Renovate** updates the dependencies, the actions and the images, and Dependabot the Features of the dev container; routine updates merge on their own when every check passes.
 - **The release bot** keeps a pull request for the next release, from the titles of the merged pull requests. A release of dependency updates merges and publishes itself; every other release waits for the maintainer.
-- **The branch bot** brings every pull request that waits for auto-merge up to date after each change of `main`, so that it merges once its checks pass again.
+- **The branch bot** brings the pull requests that wait for auto-merge up to date with `main` one at a time, in the order in which their auto-merge was turned on, so that each merges once its checks pass again.
 - **The issue assistant** analyzes new issues, keeps their labels and lifecycle, and closes fixed issues with the release that ships the fix.
 - **The Findings workflow** keeps the findings of code scanning either fixed or accepted with a reason.
 

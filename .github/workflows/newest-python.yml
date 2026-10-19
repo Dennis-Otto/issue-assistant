@@ -4,8 +4,8 @@ name: Newest Python
 # early of what the next Python of the runners breaks: after every change of main and
 # every week. Not in pull requests: a new Python breaks main and every pull request
 # alike, and no pull request waits for this check. A workflow of its own, so that its
-# warning leaves the CI of main green, whose coverage the coverage bot compares every
-# pull request with. Since no pull request shows the warning, a failure keeps one issue
+# warning leaves the CI of main green, whose coverage the report of the PR coach
+# compares every pull request with. Since no pull request shows the warning, a failure keeps one issue
 # open, which the weekly run closes once the checks pass again.
 # https://github.com/Dennis-Otto/repo-blueprint
 

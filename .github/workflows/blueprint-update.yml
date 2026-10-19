@@ -1,7 +1,8 @@
 name: Blueprint update
 
 # The blueprint bot. Every week, and on demand, it brings the repository up to the
-# latest published release of the blueprint with `copier update` and keeps one pull
+# latest published release of the blueprint with `copier update`, once it has verified
+# that the release workflow of the blueprint made that release, and keeps one pull
 # request for it as the release app, so that its checks run: a newer release moves
 # that pull request on. Without conflicts, it merges itself once every check passes;
 # conflicts stay in it as markers for the maintainer, with auto-merge off. Once the
@@ -36,6 +37,30 @@ jobs:
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
+      # The release app of the owner pushes the update, whose workflows the token of a
+      # job may not change, and opens its pull request, whose checks only then run.
+      # Without it, the run says what to set up rather than fail at the token.
+      - name: Check that the release app is set up
+        env:
+          CLIENT_ID: ${{ vars.RELEASE_AUTOMATION_CLIENT_ID }}
+          KEY_SET: ${{ secrets.RELEASE_AUTOMATION_PRIVATE_KEY != '' }}
+        run: |
+          if [[ -z "$CLIENT_ID" ]]; then
+            missing="names no release app in the variable RELEASE_AUTOMATION_CLIENT_ID"
+          elif [[ "$KEY_SET" != true ]]; then
+            missing="has no private key of its release app in the secret RELEASE_AUTOMATION_PRIVATE_KEY of the environment release"
+          else
+            exit 0
+          fi
+          echo "::error::This repository $missing, which the blueprint bot needs to push an update and open its pull request; nothing has changed."
+          {
+            echo "### The blueprint bot needs the release app of the owner"
+            echo
+            echo "This repository $missing. The bot pushes an update as the release app of the owner, a GitHub App whose token may change the workflows that an update brings and starts the checks of its pull request, which the token of a job can't. Nothing has changed."
+            echo
+            echo "\`python3 .github/blueprint.py checklist\` shows the steps: a link that registers the app with its permissions filled in, the update of the answers of the blueprint that names it in \`.github/repository.toml\`, the settings and its private key. The next run updates the repository."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
       - name: Create a token of the release app
         id: app
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -62,13 +87,19 @@ jobs:
         run: |
           # The blueprint that Copier updates from, as the answers name it: a fork
           # perhaps, which has releases of its own.
-          source="$(sed -n 's/^_src_path: *//p' .copier-answers.yml)"
-          source="${source#gh:}"
+          path="$(sed -n 's/^_src_path: *//p' .copier-answers.yml)"
+          source="${path#gh:}"
           source="${source#https://github.com/}"
+          source="${source#git@github.com:}"
           source="${source%.git}"
+          # The release is verified on GitHub, so a blueprint elsewhere can't be.
           if [[ ! "$source" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
-            source=Dennis-Otto/repo-blueprint
+            echo "::error::The blueprint $path is not a repository on GitHub; the bot updates only to a release that it can verify there."
+            exit 1
           fi
+          # GitHub takes a name in any case, but the signature of a tag names the
+          # repository as GitHub spells it.
+          source="$(gh api "repos/$source" --jq .full_name)"
           # Not the newest tag: the Release workflow pushes the tag before it publishes
           # the release, which may stay a draft or fail.
           tag="$(gh release view --repo "$source" --json tagName --jq .tagName)"
@@ -78,6 +109,89 @@ jobs:
           fi
           echo "source=$source" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      # Whoever can push a tag to the blueprint could otherwise bring workflows of their
+      # own to every repository made from it, and the update would merge them. So the
+      # bot takes only a release that the release workflow of the blueprint made: an
+      # immutable release, on a commit of its main, and with a tag that the workflow
+      # signed, as .github/sign-tag.sh checks the tags of this repository.
+      - name: Verify the release before updating to it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE: ${{ steps.release.outputs.source }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # GitHub fails for a moment now and then, so every question is asked three
+          # times; a question still without an answer fails the run, but refuses nothing.
+          # gh prints the body of an error as well, so only an answer gets through.
+          ask() {
+            local attempt answer
+            for attempt in 1 2 3; do
+              if answer="$(gh api "$@")"; then
+                printf '%s\n' "$answer"
+                return 0
+              fi
+              if ((attempt == 3)); then
+                return 1
+              fi
+              sleep $((attempt * 10))
+            done
+          }
+          # Stops the run with the reason, as an annotation and in the summary, which
+          # says what it means and what to do.
+          refuse() {
+            echo "::error::$1"
+            {
+              echo "### The blueprint bot refused the release $TAG of $SOURCE"
+              echo
+              echo "$1"
+              echo
+              echo "The bot updates only to a release that the release workflow of the blueprint made: an immutable release whose tag points at a commit of its \`main\` no older than the version this repository has and that its release workflow signed. Otherwise, whoever could push a tag could bring workflows of their own to this repository, or take it back to an older blueprint. Nothing has changed here. If $SOURCE didn't publish this release with its release workflow, tell its maintainers; the next release that passes lets the bot update again. [Verify a release](https://github.com/$SOURCE/blob/main/SECURITY.md#verify-a-release) shows how to check one yourself."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+          immutable="$(ask "repos/$SOURCE/releases/tags/$TAG" --jq .immutable)"
+          if [[ "$immutable" != true ]]; then
+            refuse "The release $TAG of $SOURCE is not immutable; the bot updates only to an immutable release."
+          fi
+          commit="$(ask "repos/$SOURCE/commits/$TAG" --jq .sha)"
+          # identical: main is at the release; ahead: main has moved on from it.
+          status="$(ask "repos/$SOURCE/compare/$commit...main" --jq .status)"
+          if [[ "$status" != identical && "$status" != ahead ]]; then
+            refuse "The tag $TAG of $SOURCE points at $commit, which is not on its main ($status)."
+          fi
+          # Nor an older commit of main under a newer version: whoever could sign a tag
+          # as the release workflow could otherwise take every repository back to a
+          # blueprint without its later fixes. Copier names the version that this
+          # repository has as git describe does: v1.2.0, or v1.2.0-3-gabc1234 past a tag.
+          old="$(sed -n 's/^_commit: *//p' .copier-answers.yml)"
+          if [[ "$old" =~ -[0-9]+-g([0-9a-f]+)$ ]]; then
+            old="${BASH_REMATCH[1]}"
+          fi
+          if [[ -z "$old" ]]; then
+            echo "::error::.copier-answers.yml doesn't name the version of the blueprint that this repository has, so the bot can't tell whether $TAG comes after it; nothing has changed."
+            exit 1
+          fi
+          if ! since="$(ask "repos/$SOURCE/compare/$old...$commit" --jq .status)"; then
+            echo "::error::GitHub could not compare $old, the version of $SOURCE that this repository has, with the tag $TAG; nothing has changed, and the next run asks again."
+            exit 1
+          fi
+          # identical: this repository has the release already; ahead: it comes after.
+          if [[ "$since" != identical && "$since" != ahead ]]; then
+            refuse "The tag $TAG of $SOURCE points at $commit, which doesn't come after $old, the version this repository has ($since)."
+          fi
+          # .github/sign-tag.sh names what is wrong with the tag, and exits with 2 when
+          # it could not check it, without gitsign or an answer of GitHub or Sigstore;
+          # it tries three times too.
+          verified=0
+          bash .github/sign-tag.sh verify "$TAG" "$commit" "$SOURCE" || verified=$?
+          if ((verified == 1)); then
+            refuse "The tag $TAG of $SOURCE is not one that its release workflow signed at $commit."
+          elif ((verified != 0)); then
+            echo "::error::The signature of the release $TAG of $SOURCE could not be checked; nothing has changed, and the next run checks it again."
+            exit 1
+          fi
+          echo "The release $TAG of $SOURCE is immutable, on its main, no older than $old and signed by its release workflow." >> "$GITHUB_STEP_SUMMARY"
       - name: Update to the latest release of the blueprint
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
