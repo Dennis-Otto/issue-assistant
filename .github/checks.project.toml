@@ -50,7 +50,7 @@ it runs, in every repository that installed it."""
 fix = """Fix each line that the log names, in `templates/`, never in the copies in
 `.github/`. actionlint runs on your machine with Docker, as the check runs it:"""
 commands = [
-  "docker run --rm -v \"$PWD:/repo\" -w /repo rhysd/actionlint:latest -config-file .github/actionlint.yaml -ignore 'unexpected key \"queue\" for \"concurrency\" section' templates/.github/workflows/*.yml",
+  "docker run --rm -v \"$PWD:/repo\" -w /repo rhysd/actionlint:1.7.12 -config-file .github/actionlint.yaml -ignore 'unexpected key \"queue\" for \"concurrency\" section' templates/.github/workflows/*.yml",
 ]
 docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
 autofix = """A mistake of a workflow needs a person, who knows what the template should
@@ -87,10 +87,10 @@ fix = """Fix `install` or `check` in `issue_assistant.py`, with a test in
 `tests/test_setup.py`, or the template in `templates/` that the problem names. The
 step runs on your machine as it runs in the check, in a copy of the sample:"""
 commands = [
-  'export ISSUE_ASSISTANT_ROOT="$(mktemp -d)"',
-  'cp -r tests/sample/. "$ISSUE_ASSISTANT_ROOT"',
-  'python3 issue_assistant.py install --ref "$(git rev-parse HEAD)" --version smoke-test',
-  "python3 issue_assistant.py check",
+  'root="$(mktemp -d)"',
+  'cp -r tests/sample/. "$root"',
+  'ISSUE_ASSISTANT_ROOT="$root" python3 issue_assistant.py install --ref "$(git rev-parse HEAD)" --version smoke-test',
+  'ISSUE_ASSISTANT_ROOT="$root" python3 issue_assistant.py check',
 ]
 docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
 autofix = """What `install` writes and what `check` accepts are rules of the action,
@@ -110,11 +110,11 @@ fix = """Fix the file that the problem names, here or in `templates/`, or `check
 `issue_assistant.py`, with a test in `tests/test_setup.py`. The step runs on your
 machine as it runs in the check, in a copy of the repository:"""
 commands = [
-  'export ISSUE_ASSISTANT_ROOT="$(mktemp -d)"',
-  'cp -r . "$ISSUE_ASSISTANT_ROOT"',
-  'rm "$ISSUE_ASSISTANT_ROOT/.github/egress-firewall.yaml"',
-  'python3 issue_assistant.py install --ref "$(git rev-parse HEAD)" --version smoke-test',
-  "python3 issue_assistant.py check",
+  'root="$(mktemp -d)"',
+  'cp -r . "$root"',
+  'rm "$root/.github/egress-firewall.yaml"',
+  'ISSUE_ASSISTANT_ROOT="$root" python3 issue_assistant.py install --ref "$(git rev-parse HEAD)" --version smoke-test',
+  'ISSUE_ASSISTANT_ROOT="$root" python3 issue_assistant.py check',
 ]
 docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
 autofix = """Whether the set-up of this repository or a template gives way is the

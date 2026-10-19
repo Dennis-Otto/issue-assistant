@@ -178,3 +178,19 @@ def test_each_explanation_of_the_project_is_for_a_check_that_exists():
         (ROOT / ".github" / "workflows" / "fuzz.yml").read_text(encoding="utf-8")
     )["jobs"]["fuzz"]
     assert sorted(CATALOG) == sorted(jobs | parts | {fuzz["name"]})
+
+
+def test_the_explanation_of_the_template_lint_runs_the_actionlint_of_the_check():
+    """The command that the explanation gives runs the same actionlint as the step,
+    so that a contributor sees what the check saw; a bump of the step by Renovate
+    fails here until the explanation follows."""
+    step = next(
+        step
+        for step in JOBS["action"]["steps"]
+        if step.get("id") in parts_of(JOBS["action"])["template-lint"]
+        and "ACTIONLINT" in step.get("env", {})
+    )
+    image = step["env"]["ACTIONLINT"].split("@")[0]
+    assert any(
+        f" {image} " in command for command in CATALOG["template-lint"]["commands"]
+    )
