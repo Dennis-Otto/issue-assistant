@@ -27,6 +27,13 @@ topics = [
 # [branch]
 # required_checks = ["e2e"]
 
+# Actions that only the workflows of this project run; `blueprint.py settings check`
+# names each one that the list lacks. The Codex engine runs openai/codex-action in
+# reusable-issue-assistant.yml, reusable-discussion-assistant.yml and canary.yml; the
+# actions that it runs in turn are GitHub's own, which github_owned_allowed allows.
+[actions.selected]
+patterns_allowed = ["openai/codex-action@*"]
+
 # An environment of this project and the secrets it needs:
 # [environments.deploy]
 # secrets = ["DEPLOY_TOKEN"]
