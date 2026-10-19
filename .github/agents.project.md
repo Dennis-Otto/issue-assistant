@@ -9,3 +9,4 @@ This file belongs to the project: the blueprint wrote it once, and its updates l
 - The action is defined in `action.yml` and runs `issue_assistant.py`.
 - `README.md` documents installation, configuration and use, `docs/` holds the pages of the website, and `CHANGELOG.md` lists the changes of every release.
 - The tests are in `tests/`; `scripts/check.sh` runs every check.
+- The Action test, `.github/workflows/action-test.yml`, runs the action as its users run it. Each of its jobs ends with the step *Explain the failure*, and each step of a job belongs to a part that the PR coach explains from `.github/checks.project.toml`; a new job, step or part comes with its explanation, which `tests/test_coach.py` checks.
