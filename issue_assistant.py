@@ -564,7 +564,8 @@ RATE_LIMIT_WAIT = 60
 
 
 class GitHubError(Exception):
-    """A gh call failed, with the HTTP status and the GraphQL error types of GitHub.
+    """A gh call failed, with the HTTP status of GitHub, the types of its GraphQL
+    errors and the codes of the fields that it refused in a REST call.
 
     Only a thing that doesn't exist is an answer about the thing. A rate limit or a
     server error says nothing about it: read as "missing", it would change what the
@@ -572,11 +573,17 @@ class GitHubError(Exception):
     """
 
     def __init__(
-        self, message: str, *, status: int | None = None, types: Iterable[str] = ()
+        self,
+        message: str,
+        *,
+        status: int | None = None,
+        types: Iterable[str] = (),
+        codes: Iterable[str] = (),
     ) -> None:
         super().__init__(message)
         self.status = status
         self.types = frozenset(types)
+        self.codes = frozenset(codes)
 
     @classmethod
     def of(cls, args: list[str], stdout: str, stderr: str) -> GitHubError:
@@ -588,22 +595,33 @@ class GitHubError(Exception):
             body = None
         # A paginated call answers with a list of pages.
         pages = body if isinstance(body, list) else [body]
-        types = {
-            error["type"]
+        errors = [
+            error
             for page in pages
             if isinstance(page, dict)
             for error in page.get("errors") or []
-            if isinstance(error, dict) and isinstance(error.get("type"), str)
-        }
+            if isinstance(error, dict)
+        ]
+
+        def named(key: str) -> set[str]:
+            return {error[key] for error in errors if isinstance(error.get(key), str)}
+
         return cls(
             f"gh {args[1] if len(args) > 1 else ''}: {(stderr or stdout).strip()}",
             status=int(statuses[-1]) if statuses else None,
-            types=types,
+            # GraphQL names the kind of an error its type, REST its code.
+            types=named("type"),
+            codes=named("code"),
         )
 
     def missing(self) -> bool:
         """Whether GitHub said that the thing doesn't exist, or no longer does."""
         return self.status in {404, 410} or "NOT_FOUND" in self.types
+
+    def already_exists(self) -> bool:
+        """Whether GitHub refused to create the thing because it has one of that
+        name, such as a label that another workflow created a moment before."""
+        return "already_exists" in self.codes
 
     def rate_limited(self) -> bool:
         """Whether GitHub refused the call for a minute: a secondary rate limit.
@@ -2699,28 +2717,51 @@ class GitHub:
             ),
         )
 
-    def create_label(self, label: Label) -> None:
-        self._write(
-            f"create label {label.name}",
-            lambda: self.rest(
-                "labels",
-                method="POST",
-                data={
-                    "name": label.name,
-                    "color": label.color,
-                    "description": label.description,
-                },
-            ),
-        )
+    def create_label(self, label: Label) -> bool:
+        """Create a label, and say whether this call created it.
+
+        Another workflow may have created it after the labels were read, such as the
+        settings bot of the blueprint, which a push that changes labels.toml starts
+        as well. GitHub refuses to create it again, so the label then gets its color
+        and its description as one that existed, and the run goes on.
+        """
+        exists = False
+
+        def create() -> None:
+            nonlocal exists
+            try:
+                self.rest(
+                    "labels",
+                    method="POST",
+                    data={
+                        "name": label.name,
+                        "color": label.color,
+                        "description": label.description,
+                    },
+                )
+            except GitHubError as error:
+                if not error.already_exists():
+                    raise
+                exists = True
+
+        self._write(f"create label {label.name}", create)
         # The labels read before lack it.
         self._labels = None
+        if exists:
+            # GitHub created nothing, so the summary does not say so.
+            self.writes[-1] = f"found label {label.name}, created a moment before"
+            # The other workflow may have created it in another case.
+            self.update_label(label, rename=True)
+        return not exists
 
-    def update_label(self, label: Label, current: str | None = None) -> None:
+    def update_label(
+        self, label: Label, current: str | None = None, *, rename: bool = False
+    ) -> None:
         """Set the color and the description of a label, and its name where GitHub
-        has it as `current`, in another case."""
+        has it as `current`, in another case, or may have it so (`rename`)."""
         name = current or label.name
         data = {"color": label.color, "description": label.description}
-        if name != label.name:
+        if rename or name != label.name:
             data["new_name"] = label.name
         self._write(
             f"update label {name}",
@@ -7652,8 +7693,8 @@ def sync_labels(github: GitHub, config: Config) -> list[str]:
     for label in config.labels:
         current = existing.get(label.name.casefold())
         if current is None:
-            github.create_label(label)
-            done.append(f"created {label.name}")
+            created = github.create_label(label)
+            done.append(f"{'created' if created else 'updated'} {label.name}")
         elif current["name"] != label.name:
             github.update_label(label, current["name"])
             done.append(f"renamed {current['name']} to {label.name}")
