@@ -6,10 +6,9 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## [1.6.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.6.0...v1.6.1) (2026-10-19)
 
+### Fixed
 
-### Bug fixes
-
-* sync-labels accepts a label another workflow just created ([#162](https://github.com/Dennis-Otto/issue-assistant/issues/162)) ([88e7af1](https://github.com/Dennis-Otto/issue-assistant/commit/88e7af1e38c1736859f3f4ab5107f2050f28ec90))
+- The Labels workflow no longer fails when another workflow created a label a moment before, such as the settings bot of Repo Blueprint, which the same push starts when it changes `.github/labels.toml`, as the first push of a new repository always does. `sync-labels` then gives the label the color and the description of `labels.toml`, as any label that exists, and `/assistant mute` does the same for its label.
 
 ## [1.6.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.5.0...v1.6.0) (2026-10-19)
 
