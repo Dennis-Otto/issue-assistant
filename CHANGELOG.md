@@ -4,6 +4,8 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.6.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.5.0...v1.6.0) (2026-10-19)
+
 ### Added
 
 - Updates without `install`. The four workflows that `install` writes are short now: what starts them, the permissions that their jobs need at most, and one pin of a reusable workflow of the issue assistant, which has the jobs and runs the action of the same release. A release reaches your repository as a pull request of Dependabot or Renovate that moves the pins, and only a release that changes a template needs `install` again. **Run `install` of this release once**, as step 1 of the set-up shows; your secret, variables and firewall policy stay as they are. `.github/actionlint.yaml` no longer needs the runner `ubuntu-24.04-firewall`, which is now in the reusable workflow.
@@ -13,19 +15,6 @@ All notable changes of the issue assistant. The complete notes of every version,
 - Measure how accurate the assistant is in your repository before you switch it on. `evaluate` replays the first analysis of the closed issues that your maintainers labelled after they were opened or closed as a duplicate, 50 unless `--issues` asks for another number, each as it was a minute after it was opened, with the engine's command line on your computer, logged in as you, and writes a Markdown report: the precision and recall of the types, areas, topics and priorities, of the duplicates and of the questions for more information, and a line for each issue. It writes nothing on GitHub. The new page [How accurate is it?](https://dennis-otto.github.io/issue-assistant/accuracy.html) explains the numbers and will have those of the repositories that use the assistant.
 - Related issues from sibling repositories. Name up to 5 public repositories that share your users, such as an app and its server, in `[related] repositories` of `config.toml`, and every first analysis searches their issues too, links those that help under *Related* once it checked that they exist, and says in one sentence when an issue may belong in one of them, which the summary of the run names as well. Nothing moves or closes on its own: you transfer the issue by hand, and an issue of another repository is never a duplicate. A repository that isn't public is left out with a warning, since its issues would show in a public comment.
 - A first answer to questions in Discussions. Name the categories in `[discussions] answer_categories` of `config.toml`, such as `answer_categories = ["Q&A"]`, and run `install` of this release once: it writes the workflow `discussion-assistant.yml`, and every new discussion of those categories gets an answer of the AI from the code, the documentation, the issues and the other discussions, checked and cleaned as every analysis. The assistant posts one comment and never marks it as the answer, which the asker can do; it stays out of a discussion that a maintainer joined first, and a bug or a feature request gets a link to the form of an issue. The answers count toward `max_per_day` and `max_per_author_per_day` together with the new issues. Without a category, as before, nothing changes, also for a repository that only moves its pins: the new workflow is the only one that may write to discussions. The starter `config.toml` of a new set-up names `Q&A`, and the notice to reporters that `install` writes names the categories.
-
-## [1.6.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.5.0...v1.6.0) (2026-10-19)
-
-
-### Features
-
-* a checked first answer for Q&A discussions ([#144](https://github.com/Dennis-Otto/issue-assistant/issues/144)) ([55da4ff](https://github.com/Dennis-Otto/issue-assistant/commit/55da4ff20c4cba35c84fe7300694f859cf37eac3))
-* an evaluate command that measures label and duplicate accuracy on closed issues ([#142](https://github.com/Dennis-Otto/issue-assistant/issues/142)) ([01c8429](https://github.com/Dennis-Otto/issue-assistant/commit/01c842972124b005f4b3d837e149fef36e8a2ce3))
-* Codex, Gemini and Copilot as read-only engines next to Claude ([#136](https://github.com/Dennis-Otto/issue-assistant/issues/136)) ([a467a73](https://github.com/Dennis-Otto/issue-assistant/commit/a467a738780c2d49420f90017b65a7d2b4249069))
-* learn from the maintainers' corrections of earlier analyses ([#132](https://github.com/Dennis-Otto/issue-assistant/issues/132)) ([ab7a273](https://github.com/Dennis-Otto/issue-assistant/commit/ab7a273bd6fd6b5a2d3459e6b9a417686055161c))
-* optional priority labels, area owners and native issue types ([#137](https://github.com/Dennis-Otto/issue-assistant/issues/137)) ([d6175d5](https://github.com/Dennis-Otto/issue-assistant/commit/d6175d525b3a01a2aab1c0be900d357430d1a6f7))
-* related issues from sibling repositories and a hint when an issue belongs elsewhere ([#141](https://github.com/Dennis-Otto/issue-assistant/issues/141)) ([7409122](https://github.com/Dennis-Otto/issue-assistant/commit/7409122e4a99bc5f619b09763bfa02acb89c6e0a))
-* ship the issue workflows as reusable workflows, so repositories update them with a pin bump ([#128](https://github.com/Dennis-Otto/issue-assistant/issues/128)) ([9465a79](https://github.com/Dennis-Otto/issue-assistant/commit/9465a794a24b5ff83f98964e1f2ad6e9c259852d))
 
 ## [1.5.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.4.0...v1.5.0) (2026-10-14)
 
