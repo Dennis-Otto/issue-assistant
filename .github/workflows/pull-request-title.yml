@@ -86,28 +86,10 @@ jobs:
             if [[ "$want" == false && "$has" == true ]]; then gh pr edit "$NUMBER" --remove-label "$label"; fi
           done
           echo "Labels: ${wanted[*]}" >> "$GITHUB_STEP_SUMMARY"
-<<<<<<< before updating
-
-  changelog:
-    name: changelog
-    if: ${{ !github.event.repository.fork }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      pull-requests: read
-    steps:
-      - name: Record the network traffic of the job
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-        with:
-          egress-policy: audit
-      # No checkout: the files of the pull request come from the API.
-      - name: Require an entry under Unreleased for a change for users
-=======
       # The files of the pull request come from the API.
       - name: Require an entry in the changelog for a change for users
         id: entry
         if: ${{ !cancelled() }}
->>>>>>> after updating
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}

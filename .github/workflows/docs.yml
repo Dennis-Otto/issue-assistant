@@ -155,20 +155,6 @@ jobs:
         if: steps.site.outputs.build == 'true'
         timeout-minutes: 5
         run: mkdocs build --strict
-<<<<<<< before updating
-
-  pages:
-    name: build the website
-    needs: docs
-    if: needs.docs.outputs.publish == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Record the network traffic of the job
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-=======
       # What the hooks of .github/mkdocs_blueprint.py promise, in the files that the
       # real plugins wrote, so that a new version of Material or of the i18n plugin
       # that breaks a hook fails here, before the website is published: a sitemap in
@@ -207,7 +193,6 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         timeout-minutes: 5
->>>>>>> after updating
         with:
           workingDirectory: site
           args: --offline --include-fragments --root-dir ${{ runner.temp }}/address --no-progress '**/*.html'

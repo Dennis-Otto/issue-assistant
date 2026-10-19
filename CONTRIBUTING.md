@@ -70,7 +70,6 @@ Git runs the hook only when its file is executable. Windows has no such mode and
 
 The dev container in `.devcontainer/` has all of this set up, for VS Code and for GitHub Codespaces: open the repository in it, and `bash scripts/check.sh` runs.
 
-<<<<<<< before updating
 Update `requirements-dev.txt` with `pip-compile --generate-hashes --allow-unsafe requirements-dev.in`.
 
 The cleaning of the AI's text has two more guards, which judge the result with an oracle of their own, `tests/oracle.py`: a CommonMark parser with a model of what GitHub adds, its tables, autolinks, mentions and references, which shares no code with the cleaning and which `tests/test_oracle.py` holds to what GitHub's renderer does. Property tests with Hypothesis in `tests/test_properties.py`, part of the test suite, judge cleaned text and whole comments, built from the schema of the answer; for a longer search, run them with the profile `nightly`, which tries fifty times as many examples. Coverage-guided fuzzing with Atheris, which the Fuzzing workflow runs for a minute on every change and for a quarter of an hour every week, fuzzes the cleaning and whole comments, each with its dictionary `fuzz/<target>.dict` and its seeds in `fuzz/corpus/<target>/`:
@@ -83,7 +82,7 @@ The cleaning of the AI's text has two more guards, which judge the result with a
 ```
 
 A finding of either becomes an example in `test_tricky_text_is_cleaned_safely` in `tests/test_assistant.py` with its fix, and a seed of the fuzzers: the text after three bytes for `fuzz_sanitize`, such as `printf '\0\0\377%s' "$text"`, and after two for `fuzz_render`, `printf '\0\0%s' "$text"`. A text that GitHub renders differently from the oracle becomes an example in `tests/test_oracle.py`, with what `gh api markdown -f mode=gfm -f text=...` made of it.
-=======
+
 ## When a check fails
 
 A check that fails explains itself. The PR coach writes what the check found, why that matters and how to fix it, with the commands to run, into the summary of the check and as its annotation; the pull request also shows the annotations of a tool at the lines that it names. After the checks, the coach keeps one comment on the pull request up to date with a section for each check that failed, also on a pull request from a fork, and a title that is no Conventional Commit gets one that passes. The comment follows every push and says so once every check passes. On a pull request of a person, the same comment also says what the merge makes: the next version, from the title and a `BREAKING CHANGE:` or `Release-As:` line of the description; the entry that it adds to the changelog; the coverage of the tests against that of `main`, file by file; and, when it changes the website, a link to the website that the check *docs* built, with the address of each page that it changes. While the checks pass, it comments only when it has something of this to say. On your machine, `scripts/check.sh` explains the step that stopped it in the same words.
@@ -95,7 +94,6 @@ The explanations are in `.github/checks.toml`, which the blueprint keeps current
 What a command can fix, a pull request fixes by itself. When a check fails, its job runs the commands of `autofix` from `.github/checks.toml` on the head of the pull request, such as the fix of the text files or of the format of the code, and keeps the files that they changed. After the checks, the fix bot commits them as one commit onto a branch of this repository, also one of Renovate, and the checks run again: pull the branch before you push again. On a pull request from a fork, it suggests the fixes at their lines, and **Commit suggestion** takes each. A pull request with the label `no-bot-fixes` gets no commit of the bot. On your machine, `python3 .github/blueprint.py fix run` runs the same commands, and `python3 .github/blueprint.py fix text` fixes the text files alone.
 
 Every explanation says in `autofix` how its check fixes itself: the commands, a list in which `{blueprint}` stands for `python3 .github/blueprint.py`, or a sentence with the reason why no command can; `python3 .github/blueprint.py coach verify` lists each explanation without one. The fix bot takes the fixes of the runs of Lint and of the CI alone: a check in a workflow of this project's own names its commands in `autofix` for a person, and the bot doesn't commit them yet ([Dennis-Otto/repo-blueprint#225](https://github.com/Dennis-Otto/repo-blueprint/issues/225)). The bot runs nothing of a pull request with a token that can write, and commits only text files that the commit has already, outside `.git` and the workflows.
->>>>>>> after updating
 
 ## Website
 
@@ -181,11 +179,7 @@ The GitHub app, the stores of the projects and other renderers of Markdown show 
 
 ## Releases
 
-<<<<<<< before updating
-The release bot keeps a pull request titled `chore: release x.y.z` with the next version, up to date with `main` and decided anew with every merge. Its section of the changelog is the text of Unreleased; without one, it lists the pull requests. Merging it creates the release with its package, SBOM and signed provenance, and delivers it by moving the major tag, such as `v1`. A release of dependency updates merges and publishes itself. Repositories that use the action receive the release as a Dependabot pull request.
-=======
-The release bot keeps a pull request titled `chore: release x.y.z` with the next version, up to date with `main` and decided anew with every merge. Its section of the changelog is the text of the fragments in `changelog.d/` and of Unreleased, and it deletes the fragments; without such text, it lists the pull requests. Merging it creates the release with its package, SBOM and signed provenance, and delivers it by moving the major tag, such as `v1`. A release of dependency updates merges and publishes itself.
->>>>>>> after updating
+The release bot keeps a pull request titled `chore: release x.y.z` with the next version, up to date with `main` and decided anew with every merge. Its section of the changelog is the text of the fragments in `changelog.d/` and of Unreleased, and it deletes the fragments; without such text, it lists the pull requests. Merging it creates the release with its package, SBOM and signed provenance, and delivers it by moving the major tag, such as `v1`. A release of dependency updates merges and publishes itself. Repositories that use the action receive the release as a Dependabot pull request.
 
 A line `Release-As: 2.0.0-beta.1` in the description of a pull request sets the version of the next release, for a prerelease for example. A prerelease leaves the fragments and the text of Unreleased to the release that follows it.
 
