@@ -1029,6 +1029,9 @@ def test_mute_uses_its_label_that_another_mute_created_a_moment_before(config):
     plan, reactions = command_event(config, github, "/assistant mute")
     assert (github.labels_of(12) >= {"assistant-muted"}, reactions) == (True, ["eyes"])
     assert github.label_store[-1]["color"] == assistant.muted_label(config).color
+    # The summary does not claim that this mute created it.
+    assert "create label assistant-muted" not in github.writes
+    assert "found label assistant-muted, created a moment before" in github.writes
 
 
 def test_waiting_marks_an_issue_that_waits_already_once(config):
@@ -6986,16 +6989,19 @@ def test_a_label_that_another_workflow_just_created_is_updated(config):
     )
     github.label_store.remove(cards)
     github.labels()
-    # The settings bot creates it, with a color of its own.
+    # The settings bot creates it, in another case and with a color of its own.
     github.label_store.append(
-        {"name": "area: cards", "color": "ffffff", "description": "", "node_id": "L_a"}
+        {"name": "Area: Cards", "color": "ffffff", "description": "", "node_id": "L_a"}
     )
     assert assistant.sync_labels(github, config) == ["updated area: cards"]
     assert [call[:2] for call in github.writes_made()] == [
         ("POST", "labels"),
         ("PATCH", "labels/area%3A%20cards"),
     ]
-    assert github.writes == ["create label area: cards", "update label area: cards"]
+    assert github.writes == [
+        "found label area: cards, created a moment before",
+        "update label area: cards",
+    ]
     assert github.label_store[-1] == cards | {"node_id": "L_a"}
     # The labels read before lack it.
     assert github.labels()[-1]["name"] == "area: cards"

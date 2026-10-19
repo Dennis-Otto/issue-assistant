@@ -2748,15 +2748,20 @@ class GitHub:
         # The labels read before lack it.
         self._labels = None
         if exists:
-            self.update_label(label)
+            # GitHub created nothing, so the summary does not say so.
+            self.writes[-1] = f"found label {label.name}, created a moment before"
+            # The other workflow may have created it in another case.
+            self.update_label(label, rename=True)
         return not exists
 
-    def update_label(self, label: Label, current: str | None = None) -> None:
+    def update_label(
+        self, label: Label, current: str | None = None, *, rename: bool = False
+    ) -> None:
         """Set the color and the description of a label, and its name where GitHub
-        has it as `current`, in another case."""
+        has it as `current`, in another case, or may have it so (`rename`)."""
         name = current or label.name
         data = {"color": label.color, "description": label.description}
-        if name != label.name:
+        if rename or name != label.name:
             data["new_name"] = label.name
         self._write(
             f"update label {name}",
