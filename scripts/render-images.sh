@@ -2,10 +2,14 @@
 # Renders the pictures of the documentation into docs/images, light and dark: the
 # issue of a demo project from its opening to the release as an animation, wide and
 # upright for phones and each also still, a first analysis, what the checks make of a
-# steered answer, a dry run and a failing Findings run. scripts/images/render.py
-# builds them from demo data with the texts of issue_assistant.py itself, so that
-# they show what the assistant posts; run this after a change of those texts or of
-# the pictures.
+# steered answer, issues that try to steer the AI, a dry run and a failing Findings
+# run. scripts/images/pages.py builds their pages from demo data with the texts of
+# issue_assistant.py itself, so that they show what the assistant posts, and
+# scripts/images/render.py takes the pictures and writes scripts/images/manifest.json.
+# Run this after a change of those texts or of the pictures, and commit docs/images
+# and the manifest with it: test_the_pictures_show_what_the_assistant_posts fails
+# until then. scripts/screenshots.sh runs it for the screenshot bot, which renders
+# the pictures anew after a new version of the tools.
 #
 # It needs Docker: the headless Chromium of the image of the social preview renders
 # them, with the tools of requirements-images.txt.
@@ -19,7 +23,10 @@ export MSYS_NO_PATHCONV=1
 root="$(pwd -W 2>/dev/null || pwd)"
 
 # The pictures belong to whoever runs this, not to the root user of the container.
-docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp \
+# Chromium keeps the pixels of a page in shared memory, and the 64 MB that Docker
+# gives a container by default are too few for a picture at twice its size: the
+# browser crashes.
+docker run --rm --shm-size=1g --user "$(id -u):$(id -g)" --env HOME=/tmp \
   --volume "$root:/work" --workdir /work "$image" sh -c '
   pip install --quiet --user --no-warn-script-location --disable-pip-version-check \
     --break-system-packages --require-hashes -r requirements-images.txt &&

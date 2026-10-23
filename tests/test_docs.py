@@ -10,6 +10,7 @@ import sys
 import textwrap
 import tomllib
 from datetime import date
+from html import escape as html_escape
 from operator import attrgetter
 from pathlib import Path
 from types import SimpleNamespace
@@ -63,6 +64,15 @@ _spec = importlib.util.spec_from_file_location(
 assert _spec and _spec.loader
 hooks = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(hooks)
+# The pages of the pictures in docs/images, which scripts/images/render.py takes in a
+# browser: built here without one.
+_spec = importlib.util.spec_from_file_location(
+    "pages", ROOT / "scripts" / "images" / "pages.py"
+)
+assert _spec and _spec.loader
+pages = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(pages)
+RENDER = "run bash scripts/render-images.sh and commit docs/images and scripts/images/manifest.json"
 
 
 # The headers of pictures, as far as the hook reads them.
@@ -208,6 +218,92 @@ def test_only_the_heroes_move_and_the_still_pictures_are_lossless():
             assert not animated, f"{picture.name} moves"
             # Lossless WebP keeps every pixel of the screenshot, as a PNG does.
             assert b"VP8L" in data[12:40] and b"VP8 " not in data, picture.name
+
+
+def stale_pictures() -> list[str]:
+    committed = json.loads(pages.MANIFEST.read_text("utf-8"))
+    current = pages.manifest(pages.sources(), pages.CAMERA.read_text("utf-8"))
+    return pages.stale(committed, current)
+
+
+def test_the_pictures_show_what_the_assistant_posts():
+    # The pages of the pictures come from the texts of the assistant, its cleaning,
+    # pages.py and style.css, and render.py takes them: when one of them changed since
+    # the pictures were rendered, they show what the assistant no longer posts.
+    text = pages.MANIFEST.read_text("utf-8")
+    current = pages.manifest_text(pages.sources(), pages.CAMERA.read_text("utf-8"))
+    stale = pages.stale(json.loads(text), json.loads(current))
+    assert not stale, (
+        f"The pictures of {', '.join(stale)} in docs/images were rendered from "
+        f"other texts or pages than this commit has: {RENDER}."
+    )
+    # As render.py writes it.
+    assert text == current
+
+
+def test_a_changed_text_of_the_assistant_leaves_its_picture_behind(monkeypatch):
+    monkeypatch.setitem(assistant.TEXT["en"], "fixed", "Fixed by #{pull}.")
+    assert stale_pictures() == ["hero"]
+
+
+def test_a_changed_cleaning_leaves_the_pictures_of_steered_answers_behind(
+    monkeypatch,
+):
+    monkeypatch.setattr(assistant, "sanitize", lambda text, *_: text)
+    assert stale_pictures() == ["cleaning", "steered"]
+
+
+def test_the_manifest_names_what_differs():
+    current = {"camera": "a", "pages": {"analysis": "b", "steered": "c"}}
+    assert pages.stale(current, current) == []
+    assert pages.stale({}, current) == ["analysis", "steered", "render.py"]
+    committed = {"camera": "a", "pages": {"analysis": "b", "old": "d"}}
+    assert pages.stale(committed, current) == ["old", "steered"]
+    assert pages.manifest({"analysis": "x\r\ny"}, "z") == pages.manifest(
+        {"analysis": "x\ny"}, "z"
+    )
+
+
+def test_every_picture_belongs_to_a_page_of_the_manifest():
+    names = json.loads(pages.MANIFEST.read_text("utf-8"))["pages"]
+    for picture in SCREENSHOTS:
+        page = re.sub(r"(-mobile)?(-still)?-(light|dark)\.webp$", "", picture.name)
+        assert page in names, (
+            f"no page of scripts/images/pages.py renders {picture.name}"
+        )
+    for name in names:
+        assert (IMAGES / f"{name}-light.webp").is_file(), f"{name}: {RENDER}"
+
+
+def test_the_pages_are_built_without_a_browser():
+    # The tests build the pages with the tools of requirements-dev.txt; only render.py
+    # needs Pillow and Playwright, in the image of scripts/render-images.sh.
+    source = (ROOT / "scripts" / "images" / "pages.py").read_text("utf-8")
+    assert not re.search(r"^\s*(from|import) (PIL|playwright)\b", source, re.M)
+    camera = pages.CAMERA.read_text("utf-8")
+    assert "import pages" in camera and "pages.sources()" in camera
+
+
+def test_the_steered_issues_show_what_the_ai_reads_and_what_is_posted():
+    found = pages.sources()["steered"]
+    # The HTML comment never reaches the AI, and nothing that apply posts links
+    # elsewhere or mentions anyone.
+    assert pages.read_by_the_ai(pages.STEERED[0][1]) == (
+        "The export of the history stops after 30 seconds."
+    )
+    for _, issue, answer, _ in pages.STEERED:
+        assert html_escape(issue) in found and html_escape(answer) in found
+    posted = re.findall(r'class="cell posted"><div class="markdown">(.*?)</div>', found)
+    assert len(posted) == len(pages.STEERED)
+    assert not any("<a " in text or "mention" in text for text in posted)
+    assert "<code>@sam-demo</code>" in posted[1]
+
+
+def test_the_demo_token_must_look_like_a_secret(monkeypatch, tmp_path):
+    config = pages.demo_repository(tmp_path)
+    monkeypatch.setattr(assistant, "looks_secret", lambda *_: False)
+    with pytest.raises(SystemExit, match="no longer looks like a secret"):
+        pages.cleaning(config)
 
 
 def test_phones_get_a_portrait_hero_and_less_motion_a_still_one():
