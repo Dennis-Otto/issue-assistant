@@ -1,0 +1,14 @@
+# The files whose change can change the pictures of scripts/screenshots.sh: after a
+# change of main that touches one, the screenshot bot renders them anew. One pattern
+# on each line, as the paths of a workflow: * within a folder, ** through folders, and
+# one that starts with ! leaves files out. The script and this list count on their
+# own. The blueprint brought it once; it belongs to this project.
+#
+# The texts of the assistant and the pages of the pictures are not listed:
+# test_the_pictures_show_what_the_assistant_posts makes the pull request that changes
+# them render the pictures anew. Listed are the tools, which no test sees.
+.github/social-preview.html
+.github/social-preview/Dockerfile
+scripts/social-preview.sh
+scripts/render-images.sh
+requirements-images.txt

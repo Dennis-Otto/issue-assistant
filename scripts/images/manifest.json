@@ -1,0 +1,11 @@
+{
+  "camera": "2abcdac943f3e9e0b06dbc228a873ed3dd90e4987daa3d23250f2a63b81b5e3e",
+  "pages": {
+    "analysis": "3b7ea39fdbfdc51b0e048b9530859eaa0131aa4cadb9e420481cec7b906ccfa4",
+    "cleaning": "e6ad2b63fe7f6d9e52276862927f1b9ca4834683cc2ae0d2e207b3700ed44c8a",
+    "dry-run": "8b2c026c93f7f9549559706786bdd192be1c00d915f96a9751033bee31ec14f4",
+    "findings": "2b0eebdff7e5b96c4c105aa34f982b25ad158da52ec490ea39a81ea9f6971dae",
+    "hero": "d3b944a0dea9e649333eb3c8aaf896db6a701875343d3e2aa8ffb503a7efa325",
+    "steered": "ea0bc6061cf01ae74d7258da1c695470654020c29e8eab4ccf21811752557189"
+  }
+}

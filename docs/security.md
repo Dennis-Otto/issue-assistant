@@ -27,6 +27,13 @@ What the checks make of an answer that an issue steered, in a demo project:
   <img src="images/cleaning-light.webp" alt="What the apply job makes of an answer that an issue steered: a mention becomes code, a link to another site keeps only its text, an image keeps only its description, HTML is removed, unknown issue numbers become code, links into the repository and to existing issues stay links, and an answer with something like a token is refused as a whole">
 </picture>
 
+Three issues that try to steer the AI, in the same demo project: what each one says, what the AI reads of it, what the AI could answer, and what `apply` posts of that answer:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/steered-dark.webp">
+  <img src="images/steered-light.webp" alt="Three issues that try to steer the AI. Instructions in an HTML comment never reach the AI, which reads the text without HTML, so its answer only helps with the issue. A message that poses as the system reaches the AI as the reporter's text; should the AI follow it, the link to another site keeps only its text and the mention becomes code. A flood of mentions and links: the mentions become code and notify nobody, issue numbers that the checks didn't find become code, and the addresses lead nowhere else">
+</picture>
+
 ## Against PromptPwnd and Comment and Control
 
 Two published attacks show what goes wrong when an AI in GitHub Actions reads text that anyone can write:
