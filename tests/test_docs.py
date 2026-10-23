@@ -299,9 +299,8 @@ def test_the_steered_issues_show_what_the_ai_reads_and_what_is_posted():
     assert "<code>@sam-demo</code>" in posted[1]
 
 
-def test_the_demo_token_must_look_like_a_secret(monkeypatch):
-    with pages.tempfile.TemporaryDirectory() as folder:
-        config = pages.demo_repository(Path(folder))
+def test_the_demo_token_must_look_like_a_secret(monkeypatch, tmp_path):
+    config = pages.demo_repository(tmp_path)
     monkeypatch.setattr(assistant, "looks_secret", lambda *_: False)
     with pytest.raises(SystemExit, match="no longer looks like a secret"):
         pages.cleaning(config)
