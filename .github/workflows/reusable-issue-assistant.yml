@@ -299,7 +299,7 @@ jobs:
           mode: ${{ needs.event.outputs.mode }}
           engine: gemini
           # renovate: datasource=npm depName=@google/gemini-cli
-          engine-version: "0.63.0"
+          engine-version: "0.64.0"
       - name: Analyze with Copilot
         id: copilot
         if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'copilot'
@@ -311,7 +311,7 @@ jobs:
           mode: ${{ needs.event.outputs.mode }}
           engine: copilot
           # renovate: datasource=npm depName=@github/copilot
-          engine-version: "1.0.95"
+          engine-version: "1.0.97"
       # Numbers alone, also after a failure: the turns, time, cost and tokens of
       # the run, in the summary of the job.
       - name: Report what the analysis cost
