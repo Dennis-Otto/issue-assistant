@@ -1,10 +1,12 @@
-"""Builders for issues, comments and answers, a fake of the GitHub API, a fake gh
-and the golden files of what the assistant writes.
+"""Builders for issues, comments and answers, a fake of the GitHub API, a fake gh,
+the golden files of what the assistant writes and the code of the script without
+the mutants of the Mutation workflow.
 
 The fake answers the REST and GraphQL calls of the script, so the real request code
 runs; only `gh` itself is replaced. tests/README.md explains all three.
 """
 
+import ast
 import dataclasses
 import difflib
 import json
@@ -13,6 +15,7 @@ import re
 import subprocess
 import sys
 from collections import Counter
+from collections.abc import Iterator
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -67,6 +70,25 @@ def earlier_form_fields(body):
         value = match[2].strip()
         fields[match[1].strip()] = "" if value == "_No response_" else value
     return fields
+
+
+# The Mutation workflow runs the tests on a copy of the script in which every
+# function has mutants beside it: xǁGitHubǁclose__mutmut_1, _2, … and the original,
+# xǁGitHubǁclose__mutmut_orig.
+MUTANT = re.compile(r"__mutmut_\d+$")
+
+
+def without_mutants(source: str) -> Iterator[ast.AST]:
+    """Every node of the code, but none in the mutants that the Mutation workflow
+    puts beside each function: their strings and calls are none that the script
+    has, so a test that reads the code finds the same in both copies."""
+    nodes: list[ast.AST] = [ast.parse(source)]
+    while nodes:
+        node = nodes.pop()
+        if isinstance(node, ast.FunctionDef) and MUTANT.search(node.name):
+            continue
+        yield node
+        nodes.extend(ast.iter_child_nodes(node))
 
 
 def at(days_ago: float = 0) -> str:
