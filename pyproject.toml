@@ -5,6 +5,12 @@
 testpaths = ["tests"]
 pythonpath = [".", "tests"]
 addopts = "--strict-markers"
+markers = [
+    # The Mutation workflow runs the tests with -m "not mutation_unsafe" in mutmut's
+    # copy, mutants/, which holds every mutant of a function beside it; see
+    # tests/test_mutation_safety.py.
+    "mutation_unsafe: can't pass in mutmut's copy of the repository, because it reads the script as text, asks Git or starts the tool",
+]
 
 [tool.coverage.run]
 branch = true

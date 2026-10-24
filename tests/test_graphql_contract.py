@@ -20,7 +20,6 @@ day, which GRAPHQL_SCHEMA names. Refresh the copy here with
 import ast
 import json
 import os
-import re
 import subprocess
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -51,10 +50,6 @@ ORIGINAL = {"number": 7, "node_id": "I_kwDOMpLSs86Xa9Zz"}
 REASONS = ("COMPLETED", "NOT_PLANNED", "DUPLICATE")
 # GitHub deprecates a field, an argument or a value months before it removes it.
 RULES = (*specified_rules, NoDeprecatedCustomRule)
-# The Mutation workflow runs the tests on a copy of the script in which every
-# function has mutants beside it: xǁGitHubǁclose__mutmut_1, _2, … and the original,
-# xǁGitHubǁclose__mutmut_orig.
-MUTANT = re.compile(r"__mutmut_\d+$")
 
 
 @pytest.fixture(scope="module")
@@ -646,22 +641,19 @@ def normal(document: str) -> str:
 
 
 def calls(source: str, name: str) -> Iterator[ast.Call]:
-    """The calls of a method by that name in the source, without those of mutants."""
-    nodes: list[ast.AST] = [ast.parse(source)]
-    while nodes:
-        node = nodes.pop()
-        if isinstance(node, ast.FunctionDef) and MUTANT.search(node.name):
-            continue
+    """The calls of a method by that name in the source."""
+    for node in ast.walk(ast.parse(source)):
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == name
         ):
             yield node
-        nodes.extend(ast.iter_child_nodes(node))
 
 
 def calls_in_the_script(name: str) -> Iterator[ast.Call]:
+    """The calls in the script as it is; a test that reads them is mutation_unsafe,
+    because mutmut's copy holds every mutant beside its function."""
     return calls(Path(assistant.__file__).read_text(encoding="utf-8"), name)
 
 
@@ -715,10 +707,15 @@ def test_the_answer_to_a_discussion_is_one_comment_on_it(monkeypatch, schema):
         "discussion": "D_kwDOMpLSs84AdQ1x",
         "body": "A first answer.",
     }
+
+
+@pytest.mark.mutation_unsafe
+def test_the_script_never_marks_a_comment_as_the_answer():
     source = Path(assistant.__file__).read_text(encoding="utf-8")
     assert "markDiscussionCommentAsAnswer" not in source
 
 
+@pytest.mark.mutation_unsafe
 def test_every_graphql_document_of_the_script_is_checked(monkeypatch, schema):
     """A new document needs a request above, or this test fails."""
     nodes = list(calls_in_the_script("graphql"))
@@ -734,6 +731,7 @@ def test_every_graphql_document_of_the_script_is_checked(monkeypatch, schema):
     assert documents == checked
 
 
+@pytest.mark.mutation_unsafe
 def test_every_reason_for_closing_is_checked():
     reasons = {
         node.args[1].value
@@ -741,27 +739,6 @@ def test_every_reason_for_closing_is_checked():
         if len(node.args) > 1 and isinstance(node.args[1], ast.Constant)
     }
     assert reasons == set(REASONS)
-
-
-def test_the_mutants_of_the_mutation_workflow_are_not_the_script():
-    """mutmut keeps each original beside its mutants, which break what they like."""
-    source = """
-def x_close__mutmut_orig(self, issue):
-    self.graphql("query { viewer { login } }", {})
-    github.close(issue, "COMPLETED", "Done.")
-def x_close__mutmut_1(self, issue):
-    self.graphql(None, {})
-    github.close(issue, "XXCOMPLETEDXX", "Done.")
-def x_close__mutmut_2(self, issue):
-    self.graphql({})
-    github.close(issue, None, "Done.")
-"""
-    assert [ast.literal_eval(node.args[0]) for node in calls(source, "graphql")] == [
-        "query { viewer { login } }"
-    ]
-    assert [ast.literal_eval(node.args[1]) for node in calls(source, "close")] == [
-        "COMPLETED"
-    ]
 
 
 def test_a_field_that_github_does_not_know_fails(monkeypatch, schema):

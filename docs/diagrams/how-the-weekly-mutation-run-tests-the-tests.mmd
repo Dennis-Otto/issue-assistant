@@ -1,0 +1,21 @@
+flowchart TB
+  accTitle: How the weekly mutation run tests the tests
+  accDescr: In every pull request, tests/test_mutation_safety.py fails for a test that reads issue_assistant.py as text without the marker mutation_unsafe, and names the fix. Every Saturday the Mutation workflow copies the repository into mutants/, where each function of the script has its mutants beside it, and runs the tests there without the marked ones, first without any mutant; a test that fails then stops the whole run. Then each mutant runs against the tests that call its function, and the report lists the mutants that no test noticed.
+  pr(["a pull request"]) --> reads{"a test reads<br>issue_assistant.py as text<br>without mutation_unsafe?"}
+  reads -- "yes" --> fix["test_mutation_safety.py<br>fails and names the fix"]
+  reads -- "no" --> weekly(["the weekly Mutation run"])
+  weekly --> copy[("mutants/: each function<br>with its mutants beside it")]
+  copy --> clean{"every test passes<br>without a mutant?"}
+  clean -- "no" --> stops["the run stops<br>and measures nothing"]
+  clean -- "yes" --> each["each mutant against the tests<br>that call its function"]
+  each --> score[("the score and the mutants<br>that no test noticed")]
+  classDef source fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class pr,weekly source
+  class reads,clean question
+  class fix,stops stop
+  class copy,each job
+  class score safe
