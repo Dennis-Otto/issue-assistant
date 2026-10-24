@@ -4713,7 +4713,7 @@ def test_a_summary_for_the_maintainers_of_more_than_700_characters_is_refused(co
         ("pt-BR", 'did you mean "pt"?'),
         ("de_CH", 'did you mean "de"?'),
         ("EN", 'did you mean "en"?'),
-        ("ja", 'known: "de", "en", "es", "fr", "it", "nl", "pt"'),
+        ("ja", "known: " + ", ".join(f'"{c}"' for c in assistant.LANGUAGES)),
     ],
 )
 def test_check_names_a_language_of_the_maintainers_without_a_catalog(
