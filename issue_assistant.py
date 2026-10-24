@@ -1165,6 +1165,9 @@ class Config:
     # The categories of GitHub Discussions whose new discussions get a first answer;
     # none answers no discussion. See answers_category.
     answer_categories: tuple[str, ...] = ()
+    # The language that the maintainers read, the code of a catalog in locales/: a
+    # comment in another one folds a summary for them in it. See maintainers.
+    maintainer_language: str = "en"
     # What `check` reports of labels.toml and config.toml beyond its own checks: the
     # values that the assistant can't use and the keys that it doesn't know.
     problems: tuple[str, ...] = ()
@@ -1244,6 +1247,7 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
     },
     "related": {"repositories": Key("related_repositories", list, tuple)},
     "discussions": {"answer_categories": Key("answer_categories", list, tuple)},
+    "maintainers": {"language": Key("maintainer_language", str)},
     "links": {"hosts": Key("hosts", list, frozenset)},
     "forms": {
         "area_field": Key("area_field", str),
@@ -1516,6 +1520,13 @@ def answers_category(config: Config, category: str) -> bool:
     return bool(wanted) and any(
         name.strip().casefold() == wanted for name in config.answer_categories
     )
+
+
+def maintainers(config: Config) -> str:
+    """The language of the maintainers, [maintainers] language: the code of a catalog
+    in locales/, or English for a code without one, which `check` names."""
+    code = config.maintainer_language
+    return code if code in LOCALES else "en"
 
 
 def siblings(config: Config) -> list[str]:
@@ -4084,6 +4095,8 @@ def write_context(
         "max_discussions": str(config.max_discussions),
         "max_analyzed": str(config.max_analyzed),
         "languages": language_list(),
+        "maintainers": LOCALES[maintainers(config)].name,
+        "maintainers_code": maintainers(config),
         "priority": PRIORITY_RULE if config.group("priority") else "",
         **related_rules(config),
     }
@@ -4323,6 +4336,11 @@ def record(properties: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# The longest summary for the maintainers in their language, which an answer in
+# another language folds below its text; see for_maintainers.
+MAINTAINER_SUMMARY = 700
+
+
 def many(values: list[str], items: int) -> dict[str, Any]:
     if not values:
         return {"type": "array", "maxItems": 0}
@@ -4371,6 +4389,7 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
                 "language": choice(ANSWER_LANGUAGES),
                 "kind": choice(DISCUSSION_KINDS),
                 "answer": text(3000),
+                "maintainer_summary": text(MAINTAINER_SUMMARY),
                 "missing_information": strings(400, 5),
                 "references": {"type": "array", "items": reference, "maxItems": 6},
                 "sensitive_data": choice(SENSITIVE),
@@ -4394,6 +4413,7 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
             common
             | {
                 "reply": text(1500),
+                "maintainer_summary": text(MAINTAINER_SUMMARY),
                 "missing_information": strings(400, 5),
                 "references": {"type": "array", "items": reference, "maxItems": 6},
                 "sensitive_data": choice(SENSITIVE),
@@ -4415,6 +4435,7 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
         common
         | {
             "summary": text(700),
+            "maintainer_summary": text(MAINTAINER_SUMMARY),
             "analysis": text(2500),
             "next_steps": strings(400, 5),
             "missing_information": strings(400, 5),
@@ -4656,6 +4677,16 @@ def parse_answer(mode: str, raw: str, config: Config) -> dict[str, Any]:
                 "The engine's answer contains text that looks like a token or key; "
                 "nothing was posted."
             )
+    # A summary for the maintainers is for an answer that they can't read: in their
+    # own language, it would only repeat the answer to them.
+    own = maintainers(config)
+    if answer.get("maintainer_summary", "").strip() and answer["language"] == own:
+        command(
+            "notice",
+            "Left out the engine's summary for the maintainers: its answer is in "
+            f"their language, {LOCALES[own].name}, already.",
+        )
+        answer["maintainer_summary"] = ""
     result: dict[str, Any] = answer
     return result
 
@@ -5196,6 +5227,31 @@ def invitation(language: str, config: Config, *, duplicate: bool = False) -> str
     return f"{say(language, 'about', notice=notice)} · {ask}" if notice else ask
 
 
+def for_maintainers(
+    answer: dict[str, Any], config: Config, numbers: Iterable[Checked] = ()
+) -> str:
+    """The AI's summary for the maintainers, folded under a line in their language,
+    when it answers in another one; empty for an answer in theirs or without a
+    summary. `numbers` are the issues and discussions that its text may link."""
+    own = maintainers(config)
+    if answer["language"] == own:
+        return ""
+    summary = sanitize(answer.get("maintainer_summary", ""), config, numbers)
+    if not summary:
+        return ""
+    # The blank lines let GitHub read the Markdown inside the HTML.
+    return (
+        f"<details><summary>{say(own, 'maintainers')}</summary>\n\n"
+        f"{summary}\n\n</details>"
+    )
+
+
+def maintainer_mark(folded: str, config: Config) -> dict[str, str]:
+    """The attribute of a comment's marker that records the language of its summary
+    for the maintainers, such as maint=en; none for a comment without one."""
+    return {"maint": maintainers(config)} if folded else {}
+
+
 def render_analysis(
     answer: dict[str, Any],
     author: str,
@@ -5212,10 +5268,15 @@ def render_analysis(
     def clean(value: str) -> str:
         return sanitize(value, config, numbers)
 
+    # Nothing about a possible vulnerability is repeated, not even for them.
+    folded = (
+        "" if answer["security_report"] else for_maintainers(answer, config, numbers)
+    )
     parts = [
         render_marker(
             "analysis",
             lang=language,
+            **maintainer_mark(folded, config),
             questions=int(bool(asks)),
             engine=engine,
             **(
@@ -5262,6 +5323,8 @@ def render_analysis(
         links = link_sections(language, findings.related, findings.references)
         if links:
             parts.append(links)
+        if folded:
+            parts.append(folded)
     shown = ", ".join(f"`{name}`" for name in labels)
     parts.append(
         say(
@@ -5287,9 +5350,14 @@ def render_follow_up(
     """The follow-up on an answer of the reporter; `numbers` are the issues and
     discussions that exist, which its text may link."""
     language = answer["language"]
+    folded = for_maintainers(answer, config, numbers)
     parts = [
         render_marker(
-            "follow-up", lang=language, questions=int(bool(asks)), engine=engine
+            "follow-up",
+            lang=language,
+            **maintainer_mark(folded, config),
+            questions=int(bool(asks)),
+            engine=engine,
         ),
         say(language, "follow-up.thanks", author=author),
     ]
@@ -5306,6 +5374,8 @@ def render_follow_up(
     links = link_sections(language, [], references)
     if links:
         parts.append(links)
+    if folded:
+        parts.append(folded)
     parts.append(
         say(
             language,
@@ -5382,10 +5452,13 @@ def render_discussion_answer(
     in this category. A possible security report gets only the pointer to the
     security policy."""
     language = answer["language"]
+    security = answer["security_report"]
+    folded = "" if security else for_maintainers(answer, config, numbers)
     parts = [
         render_marker(
             "discussion-answer",
             lang=language,
+            **maintainer_mark(folded, config),
             type=answer["kind"],
             questions=int(bool(asks)),
             engine=engine,
@@ -5394,7 +5467,6 @@ def render_discussion_answer(
     ]
     if answer["sensitive_data"] != "none":
         parts.append(say(language, f"discussion.sensitive.{answer['sensitive_data']}"))
-    security = answer["security_report"]
     if security:
         parts.append(say(language, "security", policy=config.policy))
     else:
@@ -5416,6 +5488,8 @@ def render_discussion_answer(
         links = link_sections(language, [], references)
         if links:
             parts.append(links)
+        if folded:
+            parts.append(folded)
     parts.append(
         say(
             language,
@@ -5693,6 +5767,7 @@ def check_findings(
             related.append((item["number"], item["kind"], item["reason"]))
     texts = [
         answer["summary"],
+        answer["maintainer_summary"],
         answer["analysis"],
         *answer["next_steps"],
         *answer["missing_information"],
@@ -6039,6 +6114,7 @@ def apply_answer(
             number,
             [
                 answer["reply"],
+                answer["maintainer_summary"],
                 *asks,
                 *(item["reason"] for item in answer["references"]),
             ],
@@ -6239,7 +6315,8 @@ def apply_discussion_answer(
     if not answer["security_report"]:
         asks = [ask.strip() for ask in answer["missing_information"] if ask.strip()]
         reasons = [item["reason"] for item in answer["references"]]
-        numbers = named_numbers(github, number, [answer["answer"], *asks, *reasons], ())
+        texts = [answer["answer"], answer["maintainer_summary"], *asks, *reasons]
+        numbers = named_numbers(github, number, texts, ())
         links = references(
             answer["references"], sha, answer["language"], config, numbers
         )
@@ -8077,6 +8154,18 @@ def check_config(config: Config) -> list[str]:
         f"{name!r} {problem}"
         for name, problem in category_problems(config)
     ]
+    if config.maintainer_language not in LOCALES:
+        # A regional code, such as pt-BR or de_CH, means the language of its catalog.
+        code = re.split(r"[-_]", config.maintainer_language.casefold())[0]
+        problems.append(
+            did_you_mean(
+                f"{SETTINGS / 'config.toml'}: [maintainers] language "
+                f"{config.maintainer_language!r} is no code of a catalog in locales/",
+                code,
+                LANGUAGES,
+                '"{}"',
+            )
+        )
     problems += engine_problems(config)
     for key in (*LIMITS, *CONTEXT_LIMITS):
         try:

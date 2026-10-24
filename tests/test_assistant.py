@@ -4551,6 +4551,195 @@ def test_a_dry_run_only_previews_the_comment(config):
     assert github.previews[0].startswith("<!-- issue-assistant:analysis")
 
 
+# The summary for the maintainers: an answer in a language that they don't read,
+# [maintainers] language, folds one in theirs below its text.
+
+JAPANESE = make_answer(
+    language="other",
+    summary="スローの後、ライブカードが空のままです。",
+    analysis="カードはおそらく `throw` イベントを受け取っていません。",
+    missing_information=["どのバージョンを使っていますか?"],
+    maintainer_summary="The reporter writes in Japanese: the live card stays empty "
+    "after a throw, as @octocat saw in #3. The card probably misses the `throw` "
+    "event; the analysis asks for the version.",
+)
+
+
+def test_an_issue_in_japanese_gets_a_folded_summary_in_english(config):
+    github = FakeGitHub(config, make_issue(3), make_issue())
+    assistant.apply_answer(github, "triage", 12, json.dumps(JAPANESE), config, "abc")
+    (body,) = github.posted(12)
+    assert body.startswith(
+        "<!-- issue-assistant:analysis lang=other maint=en questions=1 engine=claude"
+    )
+    fold = body.index("<details><summary>For the maintainers, in English</summary>\n\n")
+    assert body.index("### Information needed") < fold
+    # Its text is cleaned as every text of the AI, and the issue that it names, and
+    # that exists, stays a link.
+    assert (
+        "after a throw, as `@octocat` saw in #3. The card probably misses the "
+        "`throw` event; the analysis asks for the version.\n\n</details>\n\n<sub>"
+    ) in body
+    assert stray_problems(body, {3}, config) == []
+
+
+def test_the_summary_for_the_maintainers_is_in_their_language(config):
+    """Maintainers who read German get the fold in German, also below an analysis
+    in English, and the marker records their language."""
+    german = dataclasses.replace(config, maintainer_language="de")
+    answer = make_answer(maintainer_summary="Die Karte bleibt nach einem Wurf leer.")
+    body = assistant.render_analysis(
+        answer, "reporter", assistant.Findings(), [], ["bug"], german
+    )
+    assert body.startswith("<!-- issue-assistant:analysis lang=en maint=de ")
+    assert "### Summary\n\n" in body
+    assert (
+        "<details><summary>Für die Maintainer, auf Deutsch</summary>\n\n"
+        "Die Karte bleibt nach einem Wurf leer.\n\n</details>\n\n<sub>"
+    ) in body
+
+
+def test_an_answer_in_the_maintainers_language_gets_no_summary(config, capsys):
+    """A German issue in a repository whose maintainers read German: the summary
+    would only repeat the analysis, so the apply job leaves it out and says so."""
+    german = dataclasses.replace(config, maintainer_language="de")
+    github = FakeGitHub(german, make_issue())
+    answer = make_answer(
+        language="de",
+        summary="Die Karte bleibt leer.",
+        maintainer_summary="Die Karte bleibt nach einem Wurf leer.",
+    )
+    assistant.apply_answer(github, "triage", 12, json.dumps(answer), german, "abc")
+    (body,) = github.posted(12)
+    assert "<details>" not in body and "Wurf" not in body
+    assert "maint=" not in body.partition("\n")[0]
+    assert (
+        "::notice::Left out the engine's summary for the maintainers: its answer is "
+        "in their language, German, already.\n"
+    ) in capsys.readouterr().out
+    # Nor does a comment rendered from such an answer without the checks fold it.
+    assert assistant.for_maintainers(answer, german) == ""
+
+
+@pytest.mark.parametrize("language", ["pt", "other"])
+def test_an_empty_summary_for_the_maintainers_folds_nothing(config, capsys, language):
+    answer = make_answer(language=language, maintainer_summary=" \n ")
+    assert assistant.parse_answer("triage", json.dumps(answer), config) == answer
+    body = assistant.render_analysis(
+        answer, "reporter", assistant.Findings(), [], [], config
+    )
+    assert "<details>" not in body and "maint=" not in body
+    assert capsys.readouterr().out == ""
+
+
+def test_a_possible_vulnerability_gets_no_summary_for_the_maintainers(config):
+    answer = make_answer(
+        language="pt",
+        security_report=True,
+        maintainer_summary="The token leaks in the log of the hub.",
+    )
+    body = assistant.render_analysis(
+        answer, "reporter", assistant.Findings(), [], ["bug"], config
+    )
+    assert "[!CAUTION]" in body and "leaks" not in body
+    assert "maint=" not in body.partition("\n")[0]
+
+
+def test_a_follow_up_in_another_language_folds_the_summary_too(config):
+    github = FakeGitHub(config, make_issue())
+    github.comment_store[12] = [
+        analysis(questions=1),
+        make_comment(2, "reporter", "O log está abaixo.", 0),
+    ]
+    answer = make_follow_up(
+        language="pt",
+        reply="O log mostra que o evento chega.",
+        references=FIVE_REFERENCES,
+        maintainer_summary="The reporter sent the log, which shows that the event "
+        "arrives.",
+    )
+    assistant.apply_answer(github, "follow-up", 12, json.dumps(answer), config, "abc")
+    (body,) = github.posted(12)
+    assert body.startswith(
+        "<!-- issue-assistant:follow-up lang=pt maint=en questions=0 engine=claude"
+    )
+    links = body.index("<details><summary>Onde olhar: 5 links</summary>")
+    fold = body.index("<details><summary>For the maintainers, in English</summary>")
+    assert links < fold
+    assert "which shows that the event arrives.\n\n</details>\n\n<sub>" in body
+    assert stray_problems(body, set(), config) == []
+
+
+def test_the_fold_of_the_summary_shows_as_github_reads_it(config):
+    """GitHub reads the Markdown inside the fold, between the blank lines."""
+    answer = make_answer(language="fr", maintainer_summary="See `chart.refresh`.")
+    tokens = MarkdownIt("commonmark").parse(assistant.for_maintainers(answer, config))
+    assert [token.type for token in tokens] == [
+        "html_block",
+        "paragraph_open",
+        "inline",
+        "paragraph_close",
+        "html_block",
+    ]
+
+
+@pytest.mark.parametrize("mode", assistant.MODES)
+def test_the_answers_that_reporters_read_have_a_summary_for_the_maintainers(
+    config, mode
+):
+    """Only the answers that the assistant posts in the reporter's language: an
+    analysis, a follow-up and a first answer in Discussions. A maintainer's question
+    gets its answer in the language of the question."""
+    schema = assistant.answer_schema(mode, config)
+    if mode in {"triage", "follow-up", "discussion-answer"}:
+        assert schema["properties"]["maintainer_summary"] == {
+            "type": "string",
+            "maxLength": 700,
+        }
+        assert "maintainer_summary" in schema["required"]
+    else:
+        assert "maintainer_summary" not in schema["properties"]
+
+
+def test_a_summary_for_the_maintainers_of_more_than_700_characters_is_refused(config):
+    answer = make_answer(language="pt", maintainer_summary="x" * 701)
+    with pytest.raises(assistant.AssistantError, match="maintainer_summary"):
+        assistant.parse_answer("triage", json.dumps(answer), config)
+
+
+@pytest.mark.parametrize(
+    ("code", "hint"),
+    [
+        ("pt-BR", 'did you mean "pt"?'),
+        ("de_CH", 'did you mean "de"?'),
+        ("EN", 'did you mean "en"?'),
+        ("ja", "known: " + ", ".join(f'"{c}"' for c in assistant.LANGUAGES)),
+    ],
+)
+def test_check_names_a_language_of_the_maintainers_without_a_catalog(
+    config, code, hint
+):
+    custom = dataclasses.replace(config, maintainer_language=code)
+    assert assistant.check_config(custom) == [
+        f".github/issue-assistant/config.toml: [maintainers] language {code!r} is "
+        f"no code of a catalog in locales/; {hint}"
+    ]
+    # Until it is fixed, the other commands write for maintainers who read English.
+    assert assistant.maintainers(custom) == "en"
+    german = dataclasses.replace(config, maintainer_language="de")
+    assert assistant.maintainers(german) == "de"
+    assert assistant.check_config(german) == []
+
+
+def test_the_prompt_names_the_language_of_the_maintainers(config, root):
+    german = dataclasses.replace(config, maintainer_language="de")
+    assistant.write_context(FakeGitHub(german, make_issue()), 12, "triage", german)
+    rules = (german.root / ".issue-assistant" / "rules.md").read_text("utf-8")
+    assert "The maintainers read German, which may not be" in rules
+    assert 'and `language` is not `"de"`, write it in German, for' in rules
+    assert "{maintainers" not in rules
+
+
 # Runs again after GitHub failed
 
 

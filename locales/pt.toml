@@ -68,6 +68,7 @@ discussion = "discussão"
   mantenedor pode transferir a issue para lá."""
 references = "Onde olhar"
 links = "Onde olhar: {count} links"
+maintainers = "Para os mantenedores, em português"
 "sensitive.secret" = """\
   > [!WARNING]\n> Esta issue parece mostrar um segredo, como um token, uma chave ou \
   uma senha. Remova-o editando a publicação, apague a versão anterior do histórico de \

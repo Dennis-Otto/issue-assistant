@@ -293,6 +293,17 @@ The assistant answers every reporter in their language. Its own words, from the 
 - **The comments without AI keep it.** The hidden marker of an analysis or a follow-up records the language, such as `lang=fr`, and the reminder, the closing, the closing of a duplicate and the comment of a release read it there. Before the first analysis, such as on an issue that a maintainer marks as a duplicate, the reporter's own words decide: the language of the catalog whose stopwords they use most, English on a tie or when no other language has at least two.
 - **Each catalog is complete.** The tests hold every catalog to English: the same texts, the same placeholders in braces, twelve months and stopwords that no other catalog has. A text that a catalog still lacks comes from English, so that a comment never fails for want of one. The English and German texts are written by hand; the French, Spanish, Portuguese, Italian and Dutch ones are machine drafts, which native speakers are welcome to improve. The section *What happens with your issue* that `install` writes comes in English and German.
 
+**A summary for the maintainers.** The maintainers may not read the reporter's language. `[maintainers] language` of `config.toml` names theirs, as the code of a catalog, `en` if left out. When the AI answers in another language, in a first analysis, a follow-up or a first answer in Discussions, it also writes a summary for them in theirs: the key facts of the issue in a faithful translation, such as the versions, the error and what the reporter tried, and the gist of its answer, in at most 700 characters. So a maintainer who reads only English can triage an issue in Japanese and check what the AI claims, without a translator and without a second comment, which a translating action would post.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/when-a-comment-folds-a-summary-for-the-maintainers.dark.svg">
+  <img src="docs/images/diagrams/when-a-comment-folds-a-summary-for-the-maintainers.svg" alt="When a comment folds a summary for the maintainers: The AI answers in the reporter's language and also writes a summary for the maintainers in the language of [maintainers] language, English by default. When the answer is in the maintainers' language, the apply job leaves the summary out and says so in the log; so does an empty summary, and the comment on a possible vulnerability never has one. Otherwise the comment ends with the summary, cleaned as every text of the AI, folded under a line from the maintainers' catalog, such as For the maintainers, in English, and its hidden marker records maint=en.">
+</picture>
+
+- **It stays out of the reporter's way.** The comment folds the summary below its text, under a line from the maintainers' catalog, such as *For the maintainers, in English*, so the reporter sees one short, labelled line. The summary is cleaned as every text of the AI, and the hidden marker of the comment records its language, such as `maint=en`.
+- **Only where it helps.** In the maintainers' own language a summary would only repeat the answer: the apply job leaves it out and says so in the log, as it leaves out an empty one. The comment on a possible vulnerability has none, because it repeats nothing of the issue. The page *What reporters see* of the website shows one, for maintainers who read English and for those who read German.
+- **A code without a catalog,** such as `ja` or `pt-BR`, makes `check` fail with the code that it probably means, such as `pt`; until then the other commands write the summary in English.
+
 **To add a language,** copy `locales/en.toml` to `locales/<code>.toml`, named after the code of the language in ISO 639-1, such as `pl.toml`. Translate each text and keep its placeholders, such as `{author}`, and set the name of the language in English, how it addresses a reporter, how it writes a day, its twelve months and at least twenty stopwords: frequent words of the language that no other catalog has. Nothing else changes: the prompt, the schema of the answer and the guess of a reporter's language take the new file. `bash scripts/check.sh` runs the tests that check it.
 
 ### Limits of the AI runs
@@ -580,6 +591,9 @@ repositories = ["owner/server"] # public repositories whose issues a first analy
 [discussions]
 answer_categories = ["Q&A"]     # categories whose new discussions get a first answer; [] if left out: none
 
+[maintainers]
+language = "en"                 # the language the maintainers read, a code of locales/; a comment in another one folds a summary for them
+
 [links]
 hosts = ["docs.example.com"]    # besides this repository
 
@@ -792,6 +806,10 @@ Yes, with `[lifecycle]` in `.github/issue-assistant/config.toml`: the days until
 ### Which languages does it answer in?
 
 Every language. English, German, French, Spanish, Portuguese, Italian and Dutch have a catalog of the assistant's own words, and in any other language the AI writes its part in the reporter's language between headings and a footer in English. One more file in `locales/` adds a language, as [Languages](https://github.com/Dennis-Otto/issue-assistant#languages) describes.
+
+### Can the maintainers read an issue in a language they don't know?
+
+Yes. An analysis, a follow-up or a first answer in Discussions in another language than the maintainers' folds a summary for them in theirs, English unless `[maintainers] language` of `config.toml` names another one: what the issue reports and the gist of the answer, inside the one comment that the assistant posts. [A summary for the maintainers](https://github.com/Dennis-Otto/issue-assistant#languages) tells when it comes.
 
 ### Does the assistant learn from its mistakes?
 

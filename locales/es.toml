@@ -68,6 +68,7 @@ discussion = "discusión"
   mantenedor puede transferir la incidencia allí."""
 references = "Dónde mirar"
 links = "Dónde mirar: {count} enlaces"
+maintainers = "Para los mantenedores, en español"
 "sensitive.secret" = """\
   > [!WARNING]\n> Esta incidencia parece mostrar un secreto, como un token, una clave \
   o una contraseña. Quítalo editando la publicación, borra la versión anterior de su \

@@ -71,6 +71,7 @@ discussion = "discussion"
   y transférer le ticket."""
 references = "Où regarder"
 links = "Où regarder\u00A0: {count} liens"
+maintainers = "Pour les mainteneurs, en français"
 "sensitive.secret" = """\
   > [!WARNING]\n> Ce ticket semble montrer un secret, comme un jeton, une clé ou un \
   mot de passe. Merci de le retirer en modifiant le message, de supprimer l'ancienne \

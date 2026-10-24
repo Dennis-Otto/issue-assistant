@@ -49,6 +49,12 @@ repositories = []
 # [engine], as new issues do.
 answer_categories = ["Q&A"]
 
+[maintainers]
+# The language that the maintainers read, as the code of a catalog of the assistant
+# in its locales/ folder, such as de or en. An analysis, a follow-up or a first answer in another
+# language, such as Japanese, folds a summary in it for them below its text.
+language = "en"
+
 [links]
 # Hosts that links in the assistant's comments may lead to, besides this repository.
 hosts = []

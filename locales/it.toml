@@ -69,6 +69,7 @@ discussion = "discussione"
   manutentore può trasferirvi la segnalazione."""
 references = "Dove guardare"
 links = "Dove guardare: {count} link"
+maintainers = "Per i manutentori, in italiano"
 "sensitive.secret" = """\
   > [!WARNING]\n> Questa segnalazione sembra mostrare un segreto, come un token, una \
   chiave o una password. Rimuovilo modificando il messaggio, elimina la versione \

@@ -69,6 +69,7 @@ discussion = "discussie"
   issue daarheen overzetten."""
 references = "Waar te kijken"
 links = "Waar te kijken: {count} links"
+maintainers = "Voor de maintainers, in het Nederlands"
 "sensitive.secret" = """\
   > [!WARNING]\n> Dit issue lijkt een geheim te tonen, zoals een token, een sleutel of \
   een wachtwoord. Verwijder het door het bericht te bewerken, verwijder de eerdere \
