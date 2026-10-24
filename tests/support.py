@@ -9,13 +9,13 @@ runs; only `gh` itself is replaced. tests/README.md explains all three.
 import ast
 import dataclasses
 import difflib
+import functools
 import json
 import os
 import re
 import subprocess
 import sys
 from collections import Counter
-from collections.abc import Iterator
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -78,17 +78,32 @@ def earlier_form_fields(body):
 MUTANT = re.compile(r"__mutmut_\d+$")
 
 
-def without_mutants(source: str) -> Iterator[ast.AST]:
-    """Every node of the code, but none in the mutants that the Mutation workflow
-    puts beside each function: their strings and calls are none that the script
-    has, so a test that reads the code finds the same in both copies."""
-    nodes: list[ast.AST] = [ast.parse(source)]
+def without_mutants(source: str) -> ast.Module:
+    """The code without the mutants that the Mutation workflow puts beside each
+    function: their strings and calls are none that the script has, so a test
+    that reads the code finds the same in that copy as in the script."""
+    tree = ast.parse(source)
+    nodes: list[ast.AST] = [tree]
     while nodes:
         node = nodes.pop()
-        if isinstance(node, ast.FunctionDef) and MUTANT.search(node.name):
-            continue
-        yield node
+        for name, value in ast.iter_fields(node):
+            if isinstance(value, list):
+                kept = [item for item in value if not is_a_mutant(item)]
+                setattr(node, name, kept)
         nodes.extend(ast.iter_child_nodes(node))
+    return tree
+
+
+def is_a_mutant(node: object) -> bool:
+    return isinstance(node, ast.FunctionDef) and bool(MUTANT.search(node.name))
+
+
+@functools.cache
+def the_script() -> ast.Module:
+    """The code of the script without its mutants, parsed once: the copy of the
+    Mutation workflow holds a hundred times as much code, and its parse takes
+    minutes."""
+    return without_mutants(Path(assistant.__file__).read_text(encoding="utf-8"))
 
 
 def at(days_ago: float = 0) -> str:

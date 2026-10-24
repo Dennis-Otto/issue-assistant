@@ -39,7 +39,7 @@ from graphql import (
 from graphql.validation import NoDeprecatedCustomRule, specified_rules
 
 import issue_assistant as assistant
-from support import REF, REPOSITORY, without_mutants
+from support import REF, REPOSITORY, the_script, without_mutants
 
 SCHEMA = Path(
     os.environ.get("GRAPHQL_SCHEMA")
@@ -640,9 +640,9 @@ def normal(document: str) -> str:
     return print_ast(parse(document))
 
 
-def calls(source: str, name: str) -> Iterator[ast.Call]:
-    """The calls of a method by that name in the source, without those of mutants."""
-    for node in without_mutants(source):
+def calls(code: ast.AST, name: str) -> Iterator[ast.Call]:
+    """The calls of a method by that name in the code."""
+    for node in ast.walk(code):
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -652,7 +652,7 @@ def calls(source: str, name: str) -> Iterator[ast.Call]:
 
 
 def calls_in_the_script(name: str) -> Iterator[ast.Call]:
-    return calls(Path(assistant.__file__).read_text(encoding="utf-8"), name)
+    return calls(the_script(), name)
 
 
 @pytest.mark.parametrize("name", REQUESTS)
@@ -746,10 +746,11 @@ def x_close__mutmut_2(self, issue):
     self.graphql({})
     github.close(issue, None, "Done.")
 """
-    assert [ast.literal_eval(node.args[0]) for node in calls(source, "graphql")] == [
+    code = without_mutants(source)
+    assert [ast.literal_eval(node.args[0]) for node in calls(code, "graphql")] == [
         "query { viewer { login } }"
     ]
-    assert [ast.literal_eval(node.args[1]) for node in calls(source, "close")] == [
+    assert [ast.literal_eval(node.args[1]) for node in calls(code, "close")] == [
         "COMPLETED"
     ]
 

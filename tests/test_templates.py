@@ -20,7 +20,7 @@ import pytest
 import yaml
 
 import issue_assistant as assistant
-from support import without_mutants
+from support import the_script, without_mutants
 
 ROOT = Path(assistant.__file__).parent
 # The workflows that install writes into a repository: the triggers, the permissions
@@ -447,8 +447,7 @@ def test_the_tool_checkout_holds_what_the_action_reads_and_nothing_more():
     only what the action runs: never the docs and tests of the issue assistant,
     whose texts would only mislead the engine."""
     checked_out = TOOL_CHECKOUT["sparse-checkout"].splitlines()
-    source = (ROOT / "issue_assistant.py").read_text(encoding="utf-8")
-    read = {"/action.yml"} | {f"/{path}" for path in read_from_the_tool(source)}
+    read = {"/action.yml"} | {f"/{path}" for path in read_from_the_tool(the_script())}
     action = (ROOT / "action.yml").read_text(encoding="utf-8")
     read |= {
         f"/{path}" for path in re.findall(r"\$GITHUB_ACTION_PATH/(\S+?)\"", action)
@@ -457,12 +456,12 @@ def test_the_tool_checkout_holds_what_the_action_reads_and_nothing_more():
     assert all((ROOT / path.strip("/")).exists() for path in checked_out)
 
 
-def read_from_the_tool(source: str) -> set[str]:
+def read_from_the_tool(code: ast.AST) -> set[str]:
     """The paths that the code reads from the checkout of the tool, `TOOL / "path"`,
-    also in an f-string; never those of a mutant."""
+    also in an f-string."""
     return {
         node.right.value
-        for node in without_mutants(source)
+        for node in ast.walk(code)
         if isinstance(node, ast.BinOp)
         and isinstance(node.op, ast.Div)
         and isinstance(node.left, ast.Name)
@@ -483,7 +482,7 @@ def x_main__mutmut_1():
 def x_main__mutmut_2():
     return f"python3 {(TOOL / 'ISSUE_ASSISTANT.PY').as_posix()} check", TOOL / "A"
 """
-    assert read_from_the_tool(source) == {"issue_assistant.py", "a"}
+    assert read_from_the_tool(without_mutants(source)) == {"issue_assistant.py", "a"}
 
 
 # Every job of the templates, as (workflow, job name, job).
