@@ -1132,8 +1132,13 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
             return _original(*args, **kwargs)
 
         monkeypatch.setattr(assistant, name, record)
-    shown = hooks.examples()
+    hooks.examples()
     assert called == set(writers) and len(writers) == 13
+
+
+def test_the_comments_page_examples_carry_their_marker_and_language():
+    # The checks of the texts run against the mutants too: they read no source.
+    shown = hooks.examples()
     assert [example.kind for example in shown] == list(hooks.KINDS)
     for example in shown:
         for language in hooks.LANGUAGES:

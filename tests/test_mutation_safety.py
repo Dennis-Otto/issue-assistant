@@ -8,8 +8,10 @@ notice a mutant, and it fails without any, which stops the whole weekly run befo
 it measures anything. Such a test gets the marker, and the checks of behaviour that
 it made move into a test of their own, which the mutants run against.
 
-This guard finds each such test with `ast`, so that one added later fails here, in
-every pull request, and not only in the next weekly run.
+This guard finds each such test with `ast`, following the helpers, fixtures and
+constants of the test's own module (not those of conftest.py or support.py), so
+that one added later fails here, in every pull request, and not only in the next
+weekly run.
 """
 
 import ast
