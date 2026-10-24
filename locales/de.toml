@@ -68,6 +68,7 @@ discussion = "Diskussion"
   dorthin übertragen."""
 references = "Zum Nachlesen"
 links = "Zum Nachlesen: {count} Links"
+maintainers = "Für die Maintainer, auf Deutsch"
 "sensitive.secret" = """\
   > [!WARNING]\n> Dieses Issue scheint ein Geheimnis zu zeigen, etwa ein Token, einen \
   Schlüssel oder ein Passwort. Bitte entferne es, indem du den Beitrag bearbeitest, \

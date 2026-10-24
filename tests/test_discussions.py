@@ -445,6 +445,46 @@ def test_a_possible_vulnerability_is_not_discussed_in_public(answering):
     assert not any(call[0] == "GET" for call in github.calls)
 
 
+def test_a_question_in_another_language_folds_a_summary_for_the_maintainers(
+    answering,
+):
+    """A question in Portuguese gets its answer in Portuguese, and the maintainers,
+    who read English, a summary of both in English below it."""
+    github = with_discussions(answering, make_discussion(), issues=[make_issue(7)])
+    answer = make_discussion_answer(
+        language="pt",
+        answer="Desative `live.everywhere` nas opções do cartão.",
+        maintainer_summary="The asker wants the live card on one dashboard only; "
+        "the answer turns off `live.everywhere`, as in #7.",
+    )
+    apply(github, answering, answer)
+    (body,) = github.answers_posted(5)
+    assert body.startswith(
+        "<!-- issue-assistant:discussion-answer lang=pt maint=en type=question "
+    )
+    assert (
+        "<details><summary>For the maintainers, in English</summary>\n\nThe asker "
+        "wants the live card on one dashboard only; the answer turns off "
+        "`live.everywhere`, as in #7.\n\n</details>\n\n<sub>"
+    ) in body
+    assert stray_problems(body, {7}, answering, "asker") == []
+
+
+def test_a_possible_vulnerability_gets_no_summary_for_the_maintainers(answering):
+    github = with_discussions(answering, make_discussion())
+    answer = make_discussion_answer(
+        language="pt",
+        kind="bug",
+        security_report=True,
+        answer="O token vaza no log.",
+        maintainer_summary="The token leaks in the log of the hub.",
+    )
+    apply(github, answering, answer)
+    (body,) = github.answers_posted(5)
+    assert "[!CAUTION]" in body and "leaks" not in body and "<details>" not in body
+    assert "maint=" not in body.partition("\n")[0]
+
+
 @pytest.mark.parametrize(
     ("data", "alert"),
     [

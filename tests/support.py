@@ -258,6 +258,7 @@ def make_discussion_answer(**changes):
         "language": "en",
         "kind": "question",
         "answer": "Turn off `live.everywhere` in the options of the card; see #7.",
+        "maintainer_summary": "",
         "missing_information": [],
         "references": [
             {
@@ -279,6 +280,7 @@ def make_answer(**changes):
         "topics": [],
         "label_rationale": "The live card shows nothing after a throw.",
         "summary": "The live card stays empty after a throw.",
+        "maintainer_summary": "",
         "analysis": "The card probably misses the `throw` event.",
         "next_steps": ["Reload the dashboard."],
         "missing_information": [],
@@ -300,6 +302,7 @@ def make_follow_up(**changes):
         "topics": [],
         "label_rationale": "Still a bug of the live card.",
         "reply": "The log shows that the event arrives.",
+        "maintainer_summary": "",
         "missing_information": [],
         "references": [],
         "sensitive_data": "none",
@@ -1291,19 +1294,24 @@ def posted_comments(config, mode, answer, sha=REF):
 
 
 def own_details(body):
-    """The HTML that folds the links of a comment, as the assistant writes it."""
-    folds = "|".join(
-        re.escape(texts["links"]).replace(r"\{count\}", r"\d+")
-        for texts in assistant.TEXT.values()
-    )
-    opening = re.search(rf"^<details><summary>(?:{folds})</summary>$", body, re.M)
-    return [f"HTML {opening[0]!r}", "HTML '</details>'"] if opening else []
+    """The HTML that folds the links of a comment and the one that folds its summary
+    for the maintainers, each once at most, as the assistant writes them."""
+    found = []
+    for key in ("links", "maintainers"):
+        folds = "|".join(
+            re.escape(texts[key]).replace(r"\{count\}", r"\d+")
+            for texts in assistant.TEXT.values()
+        )
+        opening = re.search(rf"^<details><summary>(?:{folds})</summary>$", body, re.M)
+        if opening:
+            found += [f"HTML {opening[0]!r}", "HTML '</details>'"]
+    return found
 
 
 def stray_problems(body, numbers, config, author="reporter", *, security=False):
     """What the oracle finds in a comment of the assistant beyond its own words: its
-    marker, the thanks that mention the reporter, the HTML of its footer and of the
-    fold of its links and, in the comment on a possible security report, the link to
+    marker, the thanks that mention the reporter, the HTML of its footer, of the
+    fold of its links and of its summary for the maintainers and, in the comment on a possible security report, the link to
     the security policy, in an answer, the link to the question of #12 that it
     answers, and in the first answer to a bug or a feature request in Discussions,
     the link to the form of an issue, each once at most."""

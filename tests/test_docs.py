@@ -1153,10 +1153,16 @@ def test_the_comments_page_examples_carry_their_marker_and_language():
                 "reopened-release": "reopened",
                 "discussion-bug": "discussion-answer",
                 "discussion-feature": "discussion-answer",
+                "maintainers": "analysis",
             }.get(example.kind, example.kind)
             assert text.startswith(f"<!-- issue-assistant:{kind}"), example.kind
-            if "lang=" in text.splitlines()[0]:
+            # The tabs of the summary for the maintainers show their language, that
+            # of the rest the reporter's.
+            if example.kind == "maintainers":
+                assert f"lang=pt maint={language} " in text.splitlines()[0]
+            elif "lang=" in text.splitlines()[0]:
                 assert f"lang={language}" in text.splitlines()[0]
+                assert "maint=" not in text.splitlines()[0]
     german = {example.kind: example.texts["de"] for example in shown}
     assert "Danke für deine Meldung" in german["analysis"]
     assert "Zeile 52" in german["analysis"] and "line 52" not in german["analysis"]
@@ -1396,6 +1402,7 @@ SETTINGS = {
     "[context] max_analyzed": ("max_analyzed", 0),
     "[related] repositories": ("related_repositories", ["owner/server"]),
     "[discussions] answer_categories": ("answer_categories", ["Q&A"]),
+    "[maintainers] language": ("maintainer_language", "de"),
     "[links] hosts": ("hosts", ["docs.example.com"]),
     "[forms] area_field": ("area_field", "Component"),
     "[forms] unmapped_options": ("unmapped_options", ["None"]),

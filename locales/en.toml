@@ -69,6 +69,7 @@ discussion = "discussion"
   the issue there."""
 references = "Where to look"
 links = "Where to look: {count} links"
+maintainers = "For the maintainers, in English"
 "sensitive.secret" = """\
   > [!WARNING]\n> This issue seems to show a secret, such as a token, a key or a \
   password. Please remove it by editing the post, delete the earlier version from its \

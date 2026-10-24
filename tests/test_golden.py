@@ -65,6 +65,33 @@ def test_every_comment_reads_as_its_golden_file(name):
     assert_golden(name, comment_files()[name])
 
 
+# The comments page shows the summary for the maintainers below an analysis in
+# Portuguese, a language of the catalogs; here it is below one in Japanese, which
+# has none, so the assistant's own words around the AI's are English.
+OTHER = "comments/maintainers.other.md.txt"
+
+
+def test_a_summary_below_an_answer_in_a_language_without_a_catalog(config):
+    answer = make_answer(
+        language="other",
+        summary="スローの後、ライブカードが空のままです。",
+        analysis="カードは `throw` イベントを受け取っていません。",
+        next_steps=[],
+        maintainer_summary="The reporter writes in Japanese: the live card stays "
+        "empty after a throw. The card probably misses the `throw` event; the "
+        "analysis asks for the version of the card.",
+    )
+    body = assistant.render_analysis(
+        answer,
+        "reporter",
+        assistant.Findings(),
+        ["カードのバージョン。"],
+        ["bug"],
+        config,
+    )
+    assert_golden(OTHER, body)
+
+
 # The context of each task
 
 
@@ -399,6 +426,7 @@ def test_each_job_summary_reads_as_its_golden_file(
 def test_every_golden_file_has_its_test():
     names = {
         *comment_files(),
+        OTHER,
         *(f"context/{mode}.txt" for mode in assistant.MODES),
         "context/triage-related.txt",
         *(f"events/{case.replace(' ', '-')}.json.txt" for case in EVENTS),

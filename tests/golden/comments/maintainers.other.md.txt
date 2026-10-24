@@ -1,0 +1,28 @@
+<!-- issue-assistant:analysis lang=other maint=en questions=1 engine=claude -->
+
+Thanks for the report, @reporter! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
+
+### Summary
+
+スローの後、ライブカードが空のままです。
+
+### First analysis
+
+カードは `throw` イベントを受け取っていません。
+
+### Information needed
+
+To continue, please add the following, in a comment or by editing the issue:
+
+- カードのバージョン。
+
+Without an answer, a reminder follows after 15 days and the issue closes after 30 days. If it closes, an answer reopens it.
+
+<details><summary>For the maintainers, in English</summary>
+
+The reporter writes in Japanese: the live card stays empty after a throw. The card probably misses the `throw` event; the analysis asks for the version of the card.
+
+</details>
+
+<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `bug`. [How the assistant works](https://github.com/owner/project/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+

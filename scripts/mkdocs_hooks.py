@@ -61,6 +61,7 @@ import re
 import sys
 import tempfile
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from types import ModuleType
@@ -431,6 +432,11 @@ WORDS: dict[str, dict[str, Any]] = {
         "current value subscribes in `ValueFeed`, which starts anew each time, so it "
         "recovers. A fix would clear `subscribed` in `on_disconnect()`; no test covers "
         "a reconnect yet.",
+        "maintainers": "The reporter writes in Portuguese: after the sensor "
+        "reconnects, the moisture chart stays empty, while the current value keeps "
+        "updating. The analysis finds that `ChartFeed.start()` returns early after a "
+        "reconnect, because `subscribed` is still true, and asks for the firmware "
+        "version of the sensor.",
     },
     "de": {
         "summary": "Nachdem sich der Sensor wieder verbunden hat, bleibt das "
@@ -509,7 +515,24 @@ WORDS: dict[str, dict[str, Any]] = {
         "setzt es nichts zurück. Der aktuelle Wert abonniert in `ValueFeed`, das jedes "
         "Mal neu startet, und erholt sich deshalb. Ein Fix würde `subscribed` in "
         "`on_disconnect()` zurücksetzen; noch prüft kein Test ein Wiederverbinden.",
+        "maintainers": "Die Meldung ist auf Portugiesisch: Nachdem sich der Sensor "
+        "wieder verbunden hat, bleibt das Feuchtigkeitsdiagramm leer, während der "
+        "aktuelle Wert weiter aktualisiert wird. Die Analyse findet, dass "
+        "`ChartFeed.start()` nach dem Wiederverbinden sofort zurückkehrt, weil "
+        "`subscribed` noch gesetzt ist, und fragt nach der Firmware-Version des "
+        "Sensors.",
     },
+}
+# What the AI writes for a reporter in Portuguese, a language that the maintainers of
+# the example don't read: they get their summary of WORDS in their own language.
+PORTUGUESE = {
+    "summary": "Depois que o sensor se reconecta, o gráfico de umidade fica vazio, "
+    "enquanto o valor atual continua sendo atualizado.",
+    "analysis": "O gráfico assina o fluxo do histórico uma única vez. Depois de uma "
+    "reconexão, `ChartFeed.start()` retorna cedo porque `subscribed` ainda é "
+    "verdadeiro, e o gráfico nunca recebe o novo fluxo. O valor atual tem uma "
+    "assinatura própria e se recupera.",
+    "missing": ["A versão do firmware do sensor."],
 }
 # Each comment of the page: its heading, and when the assistant posts it. The
 # fields in braces are the timing rules of issue_assistant.py, see timings().
@@ -523,6 +546,16 @@ KINDS = {
         "{open_links} links to issues and files fold into one line, and the footer "
         "links the notice to reporters and asks for a 👍 or 👎, which the summary of "
         "the daily sweep counts.",
+    ),
+    "maintainers": (
+        "A summary for the maintainers",
+        "When the AI answers in a language other than the one that the maintainers "
+        "read, `[maintainers] language` of `config.toml`, here a reporter in "
+        "Portuguese, the comment ends with a folded summary for them in their "
+        "language: what the issue reports and the gist of the analysis. The tabs show "
+        "it for maintainers who read English and for those who read German. A comment "
+        "in the maintainers' own language has none, nor has one on a possible "
+        "vulnerability; follow-ups and first answers in Discussions get it too.",
     ),
     "duplicate": (
         "A sure duplicate",
@@ -787,6 +820,20 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
             words["missing"],
             ["connectivity"],
             config,
+        ),
+        "maintainers": ia.render_analysis(
+            answer(
+                "bug",
+                PORTUGUESE["summary"],
+                PORTUGUESE["analysis"],
+                language="pt",
+                maintainer_summary=words["maintainers"],
+            ),
+            REPORTER,
+            ia.Findings(),
+            PORTUGUESE["missing"],
+            ["bug"],
+            replace(config, maintainer_language=language),
         ),
         "duplicate": ia.render_analysis(
             answer("enhancement", *words["duplicate"][:2]),
