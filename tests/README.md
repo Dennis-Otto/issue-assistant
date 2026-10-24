@@ -4,7 +4,7 @@
 
 | File | What it holds |
 | --- | --- |
-| `support.py` | Builders of issues, comments and answers, the fake GitHub, the fake `gh` and `assert_golden` |
+| `support.py` | Builders of issues, comments and answers, the fake GitHub, the fake `gh`, `assert_golden` and `without_mutants` |
 | `fake_gh.py` | The program that the tests of the class `GitHub` start in place of `gh` |
 | `golden/` | What the assistant writes, word for word: comments, contexts, plans and job summaries |
 | `test_golden.py` | The tests that compare those texts with their golden files |
@@ -59,3 +59,7 @@ git diff tests/golden/
 The names end in `.txt`, so that the checks of Markdown and of links leave the texts alone: a comment links the demo project of the website, which doesn't exist. `UPDATE_GOLDEN` refuses to run in CI, where it would let every text pass, and `test_every_golden_file_has_its_test` fails for a file that no test compares any more, such as one of a comment that was renamed.
 
 The comments come from the examples of the page *What reporters see* of the website, in `scripts/mkdocs_hooks.py`, so a new kind of comment gets its golden files with its example.
+
+## Tests that read the code
+
+The *Mutation* workflow runs the tests in `mutants/`, a copy of the repository whose `issue_assistant.py` holds every mutant of a function beside its original: `x_main__mutmut_1`, `_2`, … beside `x_main__mutmut_orig`. A test that reads the code itself, such as the one that holds the sparse checkout of the tool to the paths that the script reads from it, or the one that finds every GraphQL document of the script, walks it with `without_mutants` from `support.py`. A regular expression over the text would find the strings of the mutants too, such as `'XXissue_assistant.pyXX'`, and fail in that copy only, before mutmut tries a single mutant. A test that can't pass in that copy at all, because it asks Git or starts the tool, gets `@pytest.mark.mutation_unsafe`, as `CONTRIBUTING.md` says.

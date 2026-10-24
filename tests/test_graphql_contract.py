@@ -20,7 +20,6 @@ day, which GRAPHQL_SCHEMA names. Refresh the copy here with
 import ast
 import json
 import os
-import re
 import subprocess
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -40,7 +39,7 @@ from graphql import (
 from graphql.validation import NoDeprecatedCustomRule, specified_rules
 
 import issue_assistant as assistant
-from support import REF, REPOSITORY
+from support import REF, REPOSITORY, without_mutants
 
 SCHEMA = Path(
     os.environ.get("GRAPHQL_SCHEMA")
@@ -51,10 +50,6 @@ ORIGINAL = {"number": 7, "node_id": "I_kwDOMpLSs86Xa9Zz"}
 REASONS = ("COMPLETED", "NOT_PLANNED", "DUPLICATE")
 # GitHub deprecates a field, an argument or a value months before it removes it.
 RULES = (*specified_rules, NoDeprecatedCustomRule)
-# The Mutation workflow runs the tests on a copy of the script in which every
-# function has mutants beside it: xǁGitHubǁclose__mutmut_1, _2, … and the original,
-# xǁGitHubǁclose__mutmut_orig.
-MUTANT = re.compile(r"__mutmut_\d+$")
 
 
 @pytest.fixture(scope="module")
@@ -647,18 +642,13 @@ def normal(document: str) -> str:
 
 def calls(source: str, name: str) -> Iterator[ast.Call]:
     """The calls of a method by that name in the source, without those of mutants."""
-    nodes: list[ast.AST] = [ast.parse(source)]
-    while nodes:
-        node = nodes.pop()
-        if isinstance(node, ast.FunctionDef) and MUTANT.search(node.name):
-            continue
+    for node in without_mutants(source):
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == name
         ):
             yield node
-        nodes.extend(ast.iter_child_nodes(node))
 
 
 def calls_in_the_script(name: str) -> Iterator[ast.Call]:

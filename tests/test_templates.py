@@ -5,6 +5,7 @@ engine a write permission, a tool that runs code or reaches the network, when an
 engine has no rules here, or when untrusted text reaches a shell script.
 """
 
+import ast
 import dataclasses
 import json
 import re
@@ -19,6 +20,7 @@ import pytest
 import yaml
 
 import issue_assistant as assistant
+from support import without_mutants
 
 ROOT = Path(assistant.__file__).parent
 # The workflows that install writes into a repository: the triggers, the permissions
@@ -446,15 +448,42 @@ def test_the_tool_checkout_holds_what_the_action_reads_and_nothing_more():
     whose texts would only mislead the engine."""
     checked_out = TOOL_CHECKOUT["sparse-checkout"].splitlines()
     source = (ROOT / "issue_assistant.py").read_text(encoding="utf-8")
-    read = {"/action.yml"} | {
-        f"/{path}" for path in re.findall(r"""TOOL / ["']([^"']+)["']""", source)
-    }
+    read = {"/action.yml"} | {f"/{path}" for path in read_from_the_tool(source)}
     action = (ROOT / "action.yml").read_text(encoding="utf-8")
     read |= {
         f"/{path}" for path in re.findall(r"\$GITHUB_ACTION_PATH/(\S+?)\"", action)
     }
     assert {path.rstrip("/") for path in checked_out} == read
     assert all((ROOT / path.strip("/")).exists() for path in checked_out)
+
+
+def read_from_the_tool(source: str) -> set[str]:
+    """The paths that the code reads from the checkout of the tool, `TOOL / "path"`,
+    also in an f-string; never those of a mutant."""
+    return {
+        node.right.value
+        for node in without_mutants(source)
+        if isinstance(node, ast.BinOp)
+        and isinstance(node.op, ast.Div)
+        and isinstance(node.left, ast.Name)
+        and node.left.id == "TOOL"
+        and isinstance(node.right, ast.Constant)
+        and isinstance(node.right.value, str)
+    }
+
+
+def test_the_mutants_of_the_mutation_workflow_read_nothing_from_the_tool():
+    """The Mutation workflow runs the tests on a copy of the script in which each
+    function has its mutants beside it, with strings that the script never reads."""
+    source = """
+def x_main__mutmut_orig():
+    return f"python3 {(TOOL / 'issue_assistant.py').as_posix()} check", TOOL / "a"
+def x_main__mutmut_1():
+    return f"python3 {(TOOL / 'XXissue_assistant.pyXX').as_posix()} check", TOOL / "a"
+def x_main__mutmut_2():
+    return f"python3 {(TOOL / 'ISSUE_ASSISTANT.PY').as_posix()} check", TOOL / "A"
+"""
+    assert read_from_the_tool(source) == {"issue_assistant.py", "a"}
 
 
 # Every job of the templates, as (workflow, job name, job).
