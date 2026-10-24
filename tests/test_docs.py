@@ -1113,6 +1113,7 @@ def test_every_text_of_the_assistant_is_on_the_comments_page():
                 assert fragment.strip() in shown, (language, key, fragment)
 
 
+@pytest.mark.mutation_unsafe
 def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
     # Each function that writes a comment makes one example, in both languages.
     writers = [

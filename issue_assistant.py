@@ -9882,90 +9882,100 @@ def repository_of_run(*, needed: bool) -> str:
     return name
 
 
-def main(argv: list[str] | None = None) -> int:
+# The commands of the script with their help, in the order of --help, and below the
+# options of evaluate and install. They are constants, which mutmut leaves alone: its
+# mutants change what the commands do, which the tests check, and not the texts of
+# the help, which no test needs to check.
+SCRIPT_COMMANDS = {
+    "event": "handle the GitHub event of this run",
+    "engine": "name the engine, whether it can run, and the model, turns, budget and "
+    "effort of the task",
+    "context": "write the files the engine reads",
+    "analyze": "run the command line of the engine of config.toml, for an engine "
+    "without an action of its own, with tools that only read",
+    "apply": "check the engine's answer in RESULT and apply it",
+    "usage": "report the turns, time, cost and tokens of the engine's run in "
+    "EXECUTION_FILE",
+    "sweep": "remind, close unanswered issues and duplicates, and fixed issues with "
+    "the release",
+    "sync-labels": "create and update the labels",
+    "findings": "dismiss the accepted findings of code scanning and fail while others "
+    "are open",
+    "check": "check the repository's set-up",
+    "evaluate": "measure how often a first analysis chooses the labels, duplicates and "
+    "questions of the maintainers, by replaying closed issues with the engine's "
+    "command line on this computer",
+    "install": "write the workflows and the starters into a repository",
+}
+# The commands of one task of the engine, which take --issue and --mode, by default
+# from ISSUE and MODE.
+TASK_COMMANDS = ("engine", "context", "analyze", "apply", "usage")
+# The commands that read only the checkout, so they run anywhere, also on a computer
+# without GH_REPO; the others, but install, call GitHub.
+OFFLINE_COMMANDS = ("check", "engine", "analyze", "usage")
+SCRIPT_OPTIONS: dict[str, dict[str, dict[str, Any]]] = {
+    "evaluate": {
+        "--issues": {
+            "type": int,
+            "default": EVALUATED,
+            "help": f"how many closed issues to replay, 1 to {MOST_EVALUATED}; "
+            f"{EVALUATED} by default",
+        },
+        "--engine": {
+            "choices": LOCAL_ENGINES,
+            "help": "the engine whose command line answers; by default that of "
+            "config.toml",
+        },
+        "--model": {"help": "the model; by default that of config.toml for its engine"},
+        "--report": {
+            "type": Path,
+            "help": "the Markdown file of the report, outside the checkout; by default "
+            "NAME-accuracy.md next to it",
+        },
+    },
+    "install": {
+        "--ref": {"help": "commit hash of the release; by default the checkout's"},
+        "--version": {"help": "release tag, such as v1.0.0; by default the checkout's"},
+        "--setup": {
+            "action": "store_true",
+            "help": "also create the environment issue-assistant on GitHub and set the "
+            "engine's secret",
+        },
+    },
+}
+
+
+def command_line() -> argparse.ArgumentParser:
+    """The parser of SCRIPT_COMMANDS and their options."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("event", help="handle the GitHub event of this run")
-    for name, text_ in (
-        (
-            "engine",
-            "name the engine, whether it can run, and the model, turns, budget and "
-            "effort of the task",
-        ),
-        ("context", "write the files the engine reads"),
-        (
-            "analyze",
-            "run the command line of the engine of config.toml, for an engine without "
-            "an action of its own, with tools that only read",
-        ),
-        ("apply", "check the engine's answer in RESULT and apply it"),
-        (
-            "usage",
-            "report the turns, time, cost and tokens of the engine's run in "
-            "EXECUTION_FILE",
-        ),
-    ):
-        task = commands.add_parser(name, help=text_)
-        task.add_argument("--issue", type=int, default=os.environ.get("ISSUE") or None)
-        task.add_argument(
-            "--mode", choices=MODES, default=os.environ.get("MODE") or None
-        )
-    commands.add_parser(
-        "sweep",
-        help="remind, close unanswered issues and duplicates, and fixed issues "
-        "with the release",
-    )
-    commands.add_parser("sync-labels", help="create and update the labels")
-    commands.add_parser(
-        "findings",
-        help="dismiss the accepted findings of code scanning and fail while others "
-        "are open",
-    )
-    commands.add_parser("check", help="check the repository's set-up")
-    evaluation = commands.add_parser(
-        "evaluate",
-        help="measure how often a first analysis chooses the labels, duplicates and "
-        "questions of the maintainers, by replaying closed issues with the engine's "
-        "command line on this computer",
-    )
-    evaluation.add_argument(
-        "--issues",
-        type=int,
-        default=EVALUATED,
-        help=f"how many closed issues to replay, 1 to {MOST_EVALUATED}; "
-        f"{EVALUATED} by default",
-    )
-    evaluation.add_argument(
-        "--engine",
-        choices=LOCAL_ENGINES,
-        help="the engine whose command line answers; by default that of config.toml",
-    )
-    evaluation.add_argument(
-        "--model", help="the model; by default that of config.toml for its engine"
-    )
-    evaluation.add_argument(
-        "--report",
-        type=Path,
-        help="the Markdown file of the report, outside the checkout; by default "
-        "NAME-accuracy.md next to it",
-    )
-    setup = commands.add_parser(
-        "install", help="write the workflows and the starters into a repository"
-    )
-    setup.add_argument(
-        "--ref", help="commit hash of the release; by default the checkout's"
-    )
-    setup.add_argument(
-        "--version", help="release tag, such as v1.0.0; by default the checkout's"
-    )
-    setup.add_argument(
-        "--setup",
-        action="store_true",
-        help="also create the environment issue-assistant on GitHub and set the "
-        "engine's secret",
-    )
-    arguments = parser.parse_args(argv)
+    for name, text_ in SCRIPT_COMMANDS.items():
+        given = commands.add_parser(name, help=text_)
+        if name in TASK_COMMANDS:
+            given.add_argument(
+                "--issue", type=int, default=os.environ.get("ISSUE") or None
+            )
+            given.add_argument(
+                "--mode", choices=MODES, default=os.environ.get("MODE") or None
+            )
+        for option, settings in SCRIPT_OPTIONS.get(name, {}).items():
+            given.add_argument(option, **settings)
+    return parser
 
+
+@dataclass
+class CommandRun:
+    """What the summary of a command that calls GitHub reports, also when GitHub
+    fails: the title, which the command may change as it learns more, whether the run
+    is a dry run, and its GitHub, once there is one."""
+
+    title: str
+    dry_run: bool
+    github: GitHub | None = None
+
+
+def main(argv: list[str] | None = None) -> int:
+    arguments = command_line().parse_args(argv)
     # ISSUE_ASSISTANT_ROOT points the script at another checkout, as in the action's
     # own smoke test.
     root = Path(
@@ -9977,10 +9987,7 @@ def main(argv: list[str] | None = None) -> int:
     # nothing; see Fixture.
     fixture_name = os.environ.get(FIXTURE_VARIABLE, "")
     dry_run = os.environ.get("DRY_RUN", "false").lower() == "true" or fixture_name != ""
-    github: GitHub | None = None
-    title = f"Issue assistant: {arguments.command}"
-    # The sections after the lines of the summary, such as the digest of the sweep.
-    sections = ""
+    run = CommandRun(f"Issue assistant: {arguments.command}", dry_run)
     try:
         # Every other command would work on the real repository.
         if fixture_name and arguments.command not in {"context", "apply"}:
@@ -9989,210 +9996,27 @@ def main(argv: list[str] | None = None) -> int:
                 f"unset it for {arguments.command}."
             )
         if arguments.command == "install":
-            ref, version = release_of(TOOL, arguments.ref, arguments.version)
-            for line in install(root, ref, version):
-                print(line)
-            if arguments.setup:
-                if shutil.which("gh") is None:
-                    raise AssistantError(
-                        "--setup needs the GitHub CLI, gh: https://cli.github.com"
-                    )
-                repository = repository_of_run(needed=False) or (
-                    repository_of_checkout(root)
-                )
-                print(f"set up {repository} on GitHub:")
-                # It writes, as install writes the files, also in a dry run.
-                github = GitHub(repository, dry_run=False)
-                config = load_config(root, repository, lenient=True)
-                for line in set_up_github(github, config, ask=sys.stdin.isatty()):
-                    print(line)
-            print(
-                f"next: describe the project in {SETTINGS / 'project.md'}, run "
-                f"python3 {(TOOL / 'issue_assistant.py').as_posix()} check, commit, "
-                "push, and try it under Actions > Issue assistant > Run workflow"
-            )
-            return 0
-        # check, engine, analyze and usage read only the checkout, so they run
-        # anywhere, also on a computer without GH_REPO; the other commands call
-        # GitHub.
-        repository = repository_of_run(
-            needed=arguments.command not in {"check", "engine", "analyze", "usage"}
-        )
+            return install_command(root, arguments)
+        repository = repository_of_run(needed=arguments.command not in OFFLINE_COMMANDS)
         if arguments.command == "check":
-            problems = check(load_config(root, repository, lenient=True))
-            for problem in problems:
-                command("error", problem)
-            summary("Issue assistant set-up", problems or ["Everything fits."], False)
-            return 1 if problems else 0
+            return check_command(root, repository)
         if arguments.command == "engine":
-            config = load_config(root, repository)
-            key, available = choose_engine(config, os.environ.get("READY_ENGINES", ""))
-            run = task_run(config, arguments.mode)
-            output("engine", key)
-            output("ready", str(available).lower())
-            output("model", run.model)
-            output("turns", str(run.turns))
-            output("budget", run.budget)
-            output("effort", run.effort)
-            return 0
+            return engine_command(root, repository, arguments.mode)
         if arguments.command == "analyze":
-            key = os.environ.get("ENGINE", "")
-            work = Path(
-                tempfile.mkdtemp(
-                    prefix="issue-assistant-", dir=os.environ.get("RUNNER_TEMP") or None
-                )
-            )
-            answer = analyze(
-                load_config(root, repository),
-                arguments.mode,
-                key,
-                os.environ.get("ENGINE_VERSION", ""),
-                work,
-            )
-            output("answer", answer)
-            command(
-                "notice",
-                f"{ENGINES[key].name} answered; the job apply checks the answer "
-                "before anything is written.",
-            )
-            return 0
+            return analyze_command(root, repository, arguments.mode)
         if arguments.command == "usage":
-            run = task_run(load_config(root, repository), arguments.mode)
-            lines = report_usage(
-                os.environ.get("EXECUTION_FILE", ""), run, arguments.mode
-            )
-            of = f" of #{arguments.issue}" if arguments.issue else ""
-            task_name = arguments.mode or "analysis"
-            summary(f"Issue assistant: cost of the {task_name}{of}", lines, False)
-            return 0
+            return usage_command(root, repository, arguments)
         # evaluate only reads; its engine writes into the checkout alone.
-        github = GitHub(repository, dry_run=dry_run or arguments.command == "evaluate")
+        github = run.github = GitHub(
+            repository, dry_run=dry_run or arguments.command == "evaluate"
+        )
         if arguments.command == "findings":
             # Independent of the settings of the issues.
-            lines, left = watch_findings(github, root)
-            for line in lines:
-                if line.startswith("Alert #") and " is open: " in line:
-                    command("error", line)
-            summary("Findings", lines or ["No open findings."], dry_run)
-            return 1 if left else 0
+            return findings_command(github, root, dry_run)
         config = load_config(root, repository)
         if arguments.command == "evaluate":
-            config = evaluated_config(config, arguments.engine, arguments.model)
-            written = (
-                arguments.report or root.parent / f"{github.name}-accuracy.md"
-            ).resolve()
-            if written.is_relative_to(root):
-                raise AssistantError(
-                    f"The report {written} must be outside the checkout, where the "
-                    "engine would read it in the next evaluation."
-                )
-            # Checked before the replays, whose answers cost, so that none is lost.
-            if not written.parent.is_dir() or not os.access(written.parent, os.W_OK):
-                raise AssistantError(
-                    f"The report {written} needs a folder that exists and that you "
-                    "may write to."
-                )
-            work = Path(tempfile.mkdtemp(prefix="issue-assistant-"))
-            try:
-                lines = evaluate(
-                    github,
-                    config,
-                    arguments.issues,
-                    written,
-                    local_engine(config, work),
-                    datetime.now(UTC).date(),
-                )
-            finally:
-                shutil.rmtree(work, ignore_errors=True)
-            summary(f"Accuracy on {repository}", lines, False)
-            return 0
-        if fixture_name and arguments.mode in DISCUSSION_MODES:
-            raise AssistantError(
-                f"A fixture holds an issue; {arguments.mode} reads a discussion of "
-                "GitHub, so unset it."
-            )
-        if fixture_name:
-            fixture = read_fixture(root, fixture_name)
-            if arguments.issue not in {None, fixture.number}:
-                raise AssistantError(
-                    f"The fixture {fixture_name} holds issue #{fixture.number}, "
-                    f"not #{arguments.issue}."
-                )
-            arguments.issue = fixture.number
-            github.use_fixture(fixture)
-            command(
-                "notice",
-                f"Issue #{fixture.number} comes from the fixture {fixture_name}; "
-                "nothing is written.",
-            )
-        if arguments.command == "apply":
-            title = f"Issue assistant: {arguments.mode} of #{arguments.issue}"
-        if arguments.command in {"context", "apply"} and not (
-            arguments.issue and arguments.mode
-        ):
-            raise AssistantError(f"{arguments.command} needs an issue and a mode.")
-        if arguments.command == "context":
-            written = write_context(
-                github,
-                arguments.issue,
-                arguments.mode,
-                config,
-                event_comment(arguments.issue),
-            )
-            output("prompt", written["prompt"])
-            output("task", written["task"])
-            output("schema", written["schema"])
-            output("engine-args", written["engine-args"])
-            return 0
-        if arguments.command == "event":
-            name = os.environ["GITHUB_EVENT_NAME"]
-            payload = json.loads(
-                Path(os.environ["GITHUB_EVENT_PATH"]).read_text("utf-8")
-            )
-            plan = handle_event(github, name, payload, config)
-            output("issue", str(plan.issue or ""))
-            output("mode", plan.mode)
-            title = f"Issue assistant: #{plan.issue}, next task {plan.mode}"
-            done = plan.notes + github.writes
-        elif arguments.command == "apply":
-            done = apply_answer(
-                github,
-                arguments.mode,
-                arguments.issue,
-                os.environ.get("RESULT", ""),
-                config,
-                os.environ.get("GITHUB_SHA", "HEAD"),
-                repeat=os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
-                or asked_again(arguments.issue),
-                engine=os.environ.get("ENGINE", ""),
-                comment_id=event_comment(arguments.issue),
-            )
-            done += github.writes
-        elif arguments.command == "sweep":
-            title = "Issue lifecycle"
-            now = datetime.now(UTC)
-            event = os.environ.get("GITHUB_EVENT_NAME", "")
-            github.remember()
-            try:
-                done = sweep(github, now, config.releases, config.lifecycle)
-            except SweepIncomplete as incomplete:
-                command("error", f"{incomplete}; the next sweep tries again.")
-                counted, sections = report(github, config, now, event)
-                summary(
-                    title,
-                    incomplete.done
-                    + [f"Failed: {failure}" for failure in incomplete.failed]
-                    + counted,
-                    dry_run,
-                    github.previews,
-                    sections,
-                )
-                return 1
-            counted, sections = report(github, config, now, event)
-            done += counted
-        else:
-            title = "Labels"
-            done = sync_labels(github, config)
+            return evaluate_command(github, config, root, repository, arguments)
+        return issue_command(run, github, config, root, arguments, fixture_name)
     except SettingsError as error:
         for problem in error.problems:
             command("error", problem)
@@ -10205,15 +10029,251 @@ def main(argv: list[str] | None = None) -> int:
         # run again doesn't repeat.
         command("error", f"GitHub failed, so the run stopped: {error}")
         # Only the commands that call GitHub can fail on it, and they have `github`.
-        writes = github.writes if github else []
+        failed = run.github
         summary(
-            title,
-            [*writes, "Stopped: GitHub failed; running it again completes the rest."],
+            run.title,
+            [
+                *(failed.writes if failed else []),
+                "Stopped: GitHub failed; running it again completes the rest.",
+            ],
             dry_run,
-            github.previews if github else (),
+            failed.previews if failed else (),
         )
         return 1
-    summary(title, done, dry_run, github.previews, sections)
+
+
+def install_command(root: Path, arguments: argparse.Namespace) -> int:
+    ref, version = release_of(TOOL, arguments.ref, arguments.version)
+    for line in install(root, ref, version):
+        print(line)
+    if arguments.setup:
+        if shutil.which("gh") is None:
+            raise AssistantError(
+                "--setup needs the GitHub CLI, gh: https://cli.github.com"
+            )
+        repository = repository_of_run(needed=False) or repository_of_checkout(root)
+        print(f"set up {repository} on GitHub:")
+        # It writes, as install writes the files, also in a dry run.
+        github = GitHub(repository, dry_run=False)
+        config = load_config(root, repository, lenient=True)
+        for line in set_up_github(github, config, ask=sys.stdin.isatty()):
+            print(line)
+    print(
+        f"next: describe the project in {SETTINGS / 'project.md'}, run "
+        f"python3 {(TOOL / 'issue_assistant.py').as_posix()} check, commit, "
+        "push, and try it under Actions > Issue assistant > Run workflow"
+    )
+    return 0
+
+
+def check_command(root: Path, repository: str) -> int:
+    problems = check(load_config(root, repository, lenient=True))
+    for problem in problems:
+        command("error", problem)
+    summary("Issue assistant set-up", problems or ["Everything fits."], False)
+    return 1 if problems else 0
+
+
+def engine_command(root: Path, repository: str, mode: str | None) -> int:
+    config = load_config(root, repository)
+    key, available = choose_engine(config, os.environ.get("READY_ENGINES", ""))
+    run = task_run(config, mode)
+    output("engine", key)
+    output("ready", str(available).lower())
+    output("model", run.model)
+    output("turns", str(run.turns))
+    output("budget", run.budget)
+    output("effort", run.effort)
+    return 0
+
+
+def analyze_command(root: Path, repository: str, mode: str | None) -> int:
+    key = os.environ.get("ENGINE", "")
+    work = Path(
+        tempfile.mkdtemp(
+            prefix="issue-assistant-", dir=os.environ.get("RUNNER_TEMP") or None
+        )
+    )
+    answer = analyze(
+        load_config(root, repository),
+        mode,
+        key,
+        os.environ.get("ENGINE_VERSION", ""),
+        work,
+    )
+    output("answer", answer)
+    command(
+        "notice",
+        f"{ENGINES[key].name} answered; the job apply checks the answer "
+        "before anything is written.",
+    )
+    return 0
+
+
+def usage_command(root: Path, repository: str, arguments: argparse.Namespace) -> int:
+    run = task_run(load_config(root, repository), arguments.mode)
+    lines = report_usage(os.environ.get("EXECUTION_FILE", ""), run, arguments.mode)
+    of = f" of #{arguments.issue}" if arguments.issue else ""
+    task_name = arguments.mode or "analysis"
+    summary(f"Issue assistant: cost of the {task_name}{of}", lines, False)
+    return 0
+
+
+def findings_command(github: GitHub, root: Path, dry_run: bool) -> int:
+    lines, left = watch_findings(github, root)
+    for line in lines:
+        if line.startswith("Alert #") and " is open: " in line:
+            command("error", line)
+    summary("Findings", lines or ["No open findings."], dry_run)
+    return 1 if left else 0
+
+
+def evaluate_command(
+    github: GitHub,
+    config: Config,
+    root: Path,
+    repository: str,
+    arguments: argparse.Namespace,
+) -> int:
+    config = evaluated_config(config, arguments.engine, arguments.model)
+    written = (arguments.report or root.parent / f"{github.name}-accuracy.md").resolve()
+    if written.is_relative_to(root):
+        raise AssistantError(
+            f"The report {written} must be outside the checkout, where the "
+            "engine would read it in the next evaluation."
+        )
+    # Checked before the replays, whose answers cost, so that none is lost.
+    if not written.parent.is_dir() or not os.access(written.parent, os.W_OK):
+        raise AssistantError(
+            f"The report {written} needs a folder that exists and that you "
+            "may write to."
+        )
+    work = Path(tempfile.mkdtemp(prefix="issue-assistant-"))
+    try:
+        lines = evaluate(
+            github,
+            config,
+            arguments.issues,
+            written,
+            local_engine(config, work),
+            datetime.now(UTC).date(),
+        )
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    summary(f"Accuracy on {repository}", lines, False)
+    return 0
+
+
+def issue_command(
+    run: CommandRun,
+    github: GitHub,
+    config: Config,
+    root: Path,
+    arguments: argparse.Namespace,
+    fixture_name: str,
+) -> int:
+    """The commands of an event and of the issues: event, context, apply, sweep and
+    sync-labels."""
+    if fixture_name and arguments.mode in DISCUSSION_MODES:
+        raise AssistantError(
+            f"A fixture holds an issue; {arguments.mode} reads a discussion of "
+            "GitHub, so unset it."
+        )
+    if fixture_name:
+        fixture = read_fixture(root, fixture_name)
+        if arguments.issue not in {None, fixture.number}:
+            raise AssistantError(
+                f"The fixture {fixture_name} holds issue #{fixture.number}, "
+                f"not #{arguments.issue}."
+            )
+        arguments.issue = fixture.number
+        github.use_fixture(fixture)
+        command(
+            "notice",
+            f"Issue #{fixture.number} comes from the fixture {fixture_name}; "
+            "nothing is written.",
+        )
+    if arguments.command in {"context", "apply"} and not (
+        arguments.issue and arguments.mode
+    ):
+        raise AssistantError(f"{arguments.command} needs an issue and a mode.")
+    if arguments.command == "context":
+        written = write_context(
+            github,
+            arguments.issue,
+            arguments.mode,
+            config,
+            event_comment(arguments.issue),
+        )
+        output("prompt", written["prompt"])
+        output("task", written["task"])
+        output("schema", written["schema"])
+        output("engine-args", written["engine-args"])
+        return 0
+    if arguments.command == "event":
+        return event_command(run, github, config)
+    if arguments.command == "apply":
+        return apply_command(run, github, config, arguments)
+    if arguments.command == "sweep":
+        return sweep_command(run, github, config)
+    run.title = "Labels"
+    summary(run.title, sync_labels(github, config), run.dry_run, github.previews)
+    return 0
+
+
+def event_command(run: CommandRun, github: GitHub, config: Config) -> int:
+    name = os.environ["GITHUB_EVENT_NAME"]
+    payload = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text("utf-8"))
+    plan = handle_event(github, name, payload, config)
+    output("issue", str(plan.issue or ""))
+    output("mode", plan.mode)
+    run.title = f"Issue assistant: #{plan.issue}, next task {plan.mode}"
+    summary(run.title, plan.notes + github.writes, run.dry_run, github.previews)
+    return 0
+
+
+def apply_command(
+    run: CommandRun, github: GitHub, config: Config, arguments: argparse.Namespace
+) -> int:
+    run.title = f"Issue assistant: {arguments.mode} of #{arguments.issue}"
+    done = apply_answer(
+        github,
+        arguments.mode,
+        arguments.issue,
+        os.environ.get("RESULT", ""),
+        config,
+        os.environ.get("GITHUB_SHA", "HEAD"),
+        repeat=os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+        or asked_again(arguments.issue),
+        engine=os.environ.get("ENGINE", ""),
+        comment_id=event_comment(arguments.issue),
+    )
+    summary(run.title, done + github.writes, run.dry_run, github.previews)
+    return 0
+
+
+def sweep_command(run: CommandRun, github: GitHub, config: Config) -> int:
+    run.title = "Issue lifecycle"
+    now = datetime.now(UTC)
+    event = os.environ.get("GITHUB_EVENT_NAME", "")
+    github.remember()
+    try:
+        done = sweep(github, now, config.releases, config.lifecycle)
+    except SweepIncomplete as incomplete:
+        command("error", f"{incomplete}; the next sweep tries again.")
+        counted, sections = report(github, config, now, event)
+        summary(
+            run.title,
+            incomplete.done
+            + [f"Failed: {failure}" for failure in incomplete.failed]
+            + counted,
+            run.dry_run,
+            github.previews,
+            sections,
+        )
+        return 1
+    counted, sections = report(github, config, now, event)
+    summary(run.title, done + counted, run.dry_run, github.previews, sections)
     return 0
 
 

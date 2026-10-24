@@ -440,6 +440,7 @@ def test_every_job_runs_the_issue_assistant_of_its_workflow_s_commit(name):
         assert tool and checkout < tool[0], job_name
 
 
+@pytest.mark.mutation_unsafe
 def test_the_tool_checkout_holds_what_the_action_reads_and_nothing_more():
     """The checkout lies in the context folder, which the engine reads, so it holds
     only what the action runs: never the docs and tests of the issue assistant,
@@ -1323,6 +1324,7 @@ def test_mute_creates_the_label_of_the_starter_and_of_this_repository(sample_con
 VENDORS = re.compile(r"Claude|Anthropic|OpenAI|Codex|Copilot|GPT|Gemini", re.IGNORECASE)
 
 
+@pytest.mark.mutation_unsafe
 def test_only_the_engine_table_names_a_vendor():
     source = (ROOT / "issue_assistant.py").read_text(encoding="utf-8")
     table = re.search(r"^ENGINES = \{.*?\}$", source, re.MULTILINE | re.DOTALL)
