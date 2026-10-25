@@ -145,7 +145,9 @@ def test_every_pull_request_reports_the_check():
     the job changes decides instead, and the gate reports also when it skipped
     every call."""
     triggers = TEST[True]
-    assert set(triggers) == {"push", "pull_request", "workflow_dispatch"}
+    # No workflow_dispatch: CodeQL's cache-poisoning query counts it as a trigger
+    # that an outsider may start, for the read-only jobs of the discussions.
+    assert set(triggers) == {"push", "pull_request"}
     assert triggers["pull_request"] is None
     assert triggers["push"] == {"branches": ["main"]}
     assert TEST["permissions"] == {}

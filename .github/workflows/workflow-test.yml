@@ -28,7 +28,9 @@ on:
   push:
     branches: [main]
   pull_request:
-  workflow_dispatch:
+  # No workflow_dispatch: CodeQL counts a manual trigger as one that can poison the
+  # cache of main from the read-only jobs of the discussions. "Re-run all jobs"
+  # starts it again.
 
 permissions: {}
 
