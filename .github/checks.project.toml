@@ -181,6 +181,42 @@ commands = [
 docs = "docs/architecture.md#how-the-requests-to-github-are-tested"
 autofix = """What the AI should read of an issue is the decision of a person."""
 
+# ---------------------------------------------------------------- the AI's runner in reserve
+
+[check."the hosts for the AI's runner in reserve"]
+title = "The hosts of the firewall policy for Harden-Runner"
+problem = """`endpoints`, which the job event runs when `ISSUE_ASSISTANT_AI_RUNNER` names
+another runner for the AI, failed for `ubuntu-24.04`, or a step before it did, such
+as the checkout; the log names the error."""
+why = """Without the hosts, the job analyze can't run on the runner in reserve, the one
+that a repository moves the AI to when GitHub's egress-firewall runner is gone."""
+fix = """Fix what the log names in `endpoints_command` of `issue_assistant.py`, with
+its case in `tests/test_setup.py`. On your machine:"""
+commands = [
+  "ISSUE_ASSISTANT_AI_RUNNER=ubuntu-24.04 GITHUB_OUTPUT=/dev/stdout python3 issue_assistant.py endpoints",
+]
+docs = "docs/decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md"
+autofix = """An error of the command needs a person, who knows what it should name."""
+
+[check."the AI's runner in reserve behind Harden-Runner"]
+title = "The block of Harden-Runner on the AI's runner in reserve"
+problem = """Behind Harden-Runner in block mode, with the hosts that `endpoints` names
+from `.github/egress-firewall.yaml`, either a request to `example.com`, a host
+outside the policy, got through, or one to `registry.npmjs.org` on port 443 or to
+`azure.archive.ubuntu.com` on port 80, hosts of the policy, was blocked; the log
+says which."""
+why = """The job analyze runs behind exactly this block when a repository moves the AI
+to the runner in reserve. A host that gets through lets the AI reach any host, and a
+blocked host of the policy stops every analysis there."""
+fix = """When `example.com` got through, Harden-Runner blocked nothing: look at its
+status and the log of its step. When a host of the policy was blocked, compare the
+endpoints in the log of the job before with `.github/egress-firewall.yaml`, and fix
+`firewall_endpoints` in `issue_assistant.py`, with its case in
+`tests/test_setup.py`."""
+docs = "docs/decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md"
+autofix = """Whether a host may be reached is a decision of the security design, for a
+person."""
+
 # ---------------------------------------------------------------- the job schema
 
 [check."GraphQL against GitHub's current schema"]
@@ -239,7 +275,9 @@ title = "The wait of the AI for its runner"
 problem = """The job `analyze` of the Canary waited for longer than 30 minutes for its
 runner, or still waits: the summary of the job says how long. The AI runs on
 `ubuntu-24.04-firewall`, GitHub's runner with the egress firewall, which is a
-technical preview; GitHub may have renamed or ended it, or the account lost it."""
+technical preview; GitHub may have renamed or ended it, or the account lost it. On
+`main` the job opened the issue of the bot-health bot for the Canary, which closes
+when a Canary passes again."""
 why = """A job that finds no runner waits in the queue for up to a day, and its
 timeout counts only from its start. Every later run of the same issue waits behind
 it, so no issue in any repository that uses the action gets an analysis, a

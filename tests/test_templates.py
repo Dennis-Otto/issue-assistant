@@ -610,9 +610,11 @@ def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
     jobs = load(OWN / "action-test.yml")["jobs"]
     (job,) = [
         job
-        for job in jobs.values()
+        for name, job in jobs.items()
         if job["steps"][0].get("uses", "").startswith(f"{HARDEN_RUNNER}@")
         and job["steps"][0]["with"]["egress-policy"] == "block"
+        # The jobs of the AI's runner in reserve run no command that reads GitHub.
+        and not name.startswith("fallback")
     ]
     assert job["runs-on"] == RUNNER
     assert job["steps"][0] == JOBS["event"]["steps"][0]
@@ -633,6 +635,43 @@ def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
         "issues": "read",
         "pull-requests": "read",
     }
+
+
+def test_the_block_of_the_ai_s_runner_in_reserve_runs_in_ci():
+    """The Action test runs the block of analyze on the runner in reserve.
+
+    With the hosts that endpoints names from the firewall policy, as the job event
+    does, so that a host of the policy that Harden-Runner refuses, such as one on
+    port 80, or one outside it that gets through, fails before a repository moves
+    the AI there.
+    """
+    jobs = load(OWN / "action-test.yml")["jobs"]
+    hosts, block = jobs["fallback-hosts"], jobs["fallback"]
+    assert hosts["runs-on"] == block["runs-on"] == RUNNER
+    assert hosts["steps"][0] == JOBS["event"]["steps"][0]
+    (named,) = [step for step in hosts["steps"] if step.get("uses") == "./"]
+    assert named["with"] == {"command": "endpoints"}
+    assert named["env"] == {"ISSUE_ASSISTANT_AI_RUNNER": RUNNER}
+    assert hosts["outputs"]["endpoints"] == (
+        f"${{{{ steps.{named['id']}.outputs.endpoints }}}}"
+    )
+    assert block["needs"] == "fallback-hosts"
+    first = {key: value for key, value in JOBS["analyze"]["steps"][0].items()}
+    del first["if"]
+    first["with"] = {
+        **first["with"],
+        "allowed-endpoints": "${{ needs.fallback-hosts.outputs.endpoints }}",
+    }
+    assert block["steps"][0] == first
+    holds = JOBS["analyze"]["steps"][1]["run"]
+    checks = block["steps"][1]["run"]
+    assert holds.splitlines()[0] in checks
+    assert "https://registry.npmjs.org/" in checks
+    assert "http://azure.archive.ubuntu.com/ubuntu/" in checks
+    policy = assistant.allowed_hosts(
+        (assistant.TEMPLATES / assistant.FIREWALL).read_text(encoding="utf-8")
+    )
+    assert {"registry.npmjs.org", "azure.archive.ubuntu.com"} <= set(policy)
 
 
 def test_the_graphql_documents_meet_github_s_schema_of_the_day_every_week():

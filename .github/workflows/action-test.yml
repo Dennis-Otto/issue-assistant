@@ -4,7 +4,8 @@ name: Action test
 # pass actionlint and zizmor. Then the action runs as its users run it, on the
 # runner of the templates: installed into the sample repository and into a copy of
 # this repository, whose set-ups it checks, and behind the egress block of the
-# templates. The action runs on the runner's own Python, without PyYAML: check falls
+# templates, and the block of the AI's runner in reserve holds. The action runs on
+# the runner's own Python, without PyYAML: check falls
 # back to yq, as it does in every repository that uses the action. The commands
 # that only read run against GitHub itself, and every week the GraphQL documents of
 # the script meet GitHub's schema of that day, so that a field that GitHub
@@ -205,6 +206,84 @@ jobs:
         run: |
           mapfile -t parts < <(grep . <<<"$FAILED" || true)
           python3 .github/blueprint.py coach explain "$CHECK" --parts "${parts[@]}"
+
+  # The AI's runner in reserve, decision 0019: with ISSUE_ASSISTANT_AI_RUNNER set to
+  # ubuntu-24.04, the job event names the hosts of .github/egress-firewall.yaml for
+  # Harden-Runner, and analyze blocks every other host. These two jobs run that
+  # block as analyze does, so that a host of the policy that the block refuses, or
+  # one outside it that gets through, fails here before a repository needs it.
+  fallback-hosts:
+    name: the hosts for the AI's runner in reserve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      endpoints: ${{ steps.endpoints.outputs.endpoints }}
+    steps:
+      - name: Block every host but GitHub's
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Name the hosts of the firewall policy for the AI's runner
+        id: endpoints
+        uses: ./
+        env:
+          ISSUE_ASSISTANT_AI_RUNNER: ubuntu-24.04
+        with:
+          command: endpoints
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: the hosts for the AI's runner in reserve
+        run: python3 .github/blueprint.py coach explain "$CHECK"
+
+  fallback:
+    name: the AI's runner in reserve behind Harden-Runner
+    needs: fallback-hosts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      # As the first step of analyze on the runner of ISSUE_ASSISTANT_AI_RUNNER.
+      - name: Block every host but those of the firewall policy
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: block
+          allowed-endpoints: ${{ needs.fallback-hosts.outputs.endpoints }}
+      - name: Make sure that the block holds and lets the hosts of the policy through
+        run: |
+          if curl --silent --max-time 10 --output /dev/null https://example.com; then
+            echo "::error::Harden-Runner let a request to example.com through, a host outside .github/egress-firewall.yaml."
+            exit 1
+          fi
+          echo "Harden-Runner blocks example.com, a host outside .github/egress-firewall.yaml."
+          # A host of the engines on 443, and the mirror of Ubuntu on 80, from which
+          # the Claude Code action installs bubblewrap.
+          for url in https://registry.npmjs.org/ http://azure.archive.ubuntu.com/ubuntu/; do
+            if ! curl --silent --show-error --fail --max-time 20 --output /dev/null "$url"; then
+              echo "::error::Harden-Runner blocked $url, a host of .github/egress-firewall.yaml."
+              exit 1
+            fi
+            echo "Harden-Runner lets $url through."
+          done
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: failure()
+        with:
+          persist-credentials: false
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: the AI's runner in reserve behind Harden-Runner
+        run: python3 .github/blueprint.py coach explain "$CHECK"
 
   # GitHub changes its API without a release of the action. The tests check the
   # GraphQL documents of the script against the copy of GitHub's schema in

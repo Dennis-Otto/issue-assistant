@@ -1,6 +1,6 @@
 flowchart TB
   accTitle: How the Canary runs the path of an issue through the AI
-  accDescr: The Canary starts every Monday, after a change on main of the script, the prompts, the action, the reusable workflow, the firewall policy, the settings or the canary's issue, and by hand. It calls the reusable workflow as every repository does, with the permissions of the template, the engine's secrets passed by name and the input canary. Its job event takes the canary's issue and sets no labels; outside this repository, or when the called workflow doesn't see the variable ISSUE_ASSISTANT_AI set to on, the canary fails. Its job analyze runs on the firewall runner with the engine's secret of the environment issue-assistant, context reads the issue of tests/fixtures/canary-issue.json instead of one on GitHub, and the engine answers with JSON. Without the secret or without an answer, the canary fails. Its job apply checks the answer as for a real issue, as a dry run: an answer that breaks a check fails the canary, and one that passes shows the comment it would post in the summary.
+  accDescr: The Canary starts every Monday, after a change on main of the script, the prompts, the action, the reusable workflow, the firewall policy, the settings or the canary's issue, and by hand. It calls the reusable workflow as every repository does, with the permissions of the template, the engine's secrets passed by name and the input canary. Its job event takes the canary's issue and sets no labels; outside this repository, or when the called workflow doesn't see the variable ISSUE_ASSISTANT_AI set to on, the canary fails. Its job analyze runs on the firewall runner with the engine's secret of the environment issue-assistant, context reads the issue of tests/fixtures/canary-issue.json instead of one on GitHub, and the engine answers with JSON. Without the secret or without an answer, the canary fails. Its job apply checks the answer as for a real issue, as a dry run: an answer that breaks a check fails the canary, and one that passes shows the comment it would post in the summary. Beside the call, its job the AI's wait for its runner reads the jobs of the run until analyze starts: it warns when analyze waited for more than 10 minutes, and when it waits for more than 30, the canary fails and opens the issue of the bot-health bot at once.
   start(["every Monday, a change<br>on main, or by hand"]) --> caller
   caller["`**the call of the template**:<br>its permissions, the secrets<br>by name, canary: true`"] --> event
   event["`**event**: the canary's issue,<br>no labels`"] --> seen{"this repository,<br>ISSUE_ASSISTANT_AI on?"}
@@ -12,6 +12,8 @@ flowchart TB
   answered -- "yes" --> apply["`**apply**, a dry run:<br>the checks of every answer`"]
   apply -- "a check fails" --> red
   apply -- "it passes" --> green["the comment it would post,<br>in the summary"]
+  start --> queue["`**the AI's wait for its runner**:<br>beside the call, a warning<br>above 10 minutes`"]
+  queue -- "analyze waits over 30 minutes:<br>an issue of bot-health at once" --> red
   classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
   classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
   classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
@@ -19,6 +21,6 @@ flowchart TB
   classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
   class start,fixture,seen,answered trigger
   class analyze ai
-  class caller,event,apply job
+  class caller,event,apply,queue job
   class green safe
   class red untrusted

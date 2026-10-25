@@ -7,20 +7,28 @@ waits behind it in every repository. The job "the AI's wait for its runner" of
 .github/workflows/canary.yml runs this script beside the call of the reusable
 workflow: it reads the jobs of its own run until analyze starts and shows the
 wait in the summary of the job. Above WARN it warns, above FAIL it fails, also
-while analyze still waits, so that the Canary shows a runner that never comes
-within the hour.
+while analyze still waits. Then, on the default branch, the next step of the job
+runs `canary_queue.py alarm`, which opens the issue of the bot-health bot for the
+Canary, or comments on the open one: the run itself ends only when analyze does,
+up to a day later, and only then would GitHub mail its failure and bot-health look
+at it. The issue carries the state that bot-health keeps in its issues, so
+bot-health takes it over once the run ends, and closes it when a Canary passes.
 
 The wait counts from the moment analyze could start: when GitHub created it, or
 when the job event that it needs ended, whichever is later. So neither the event
 nor an earlier canary that the call waits for counts.
 
     GH_REPO=owner/name RUN=123 ATTEMPT=1 python3 scripts/canary_queue.py
+    GH_REPO=owner/name RUN=123 ATTEMPT=1 BRANCH=main URL=https://… LINE=… \
+        python3 scripts/canary_queue.py alarm
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -40,6 +48,7 @@ FAIL = timedelta(minutes=30)
 # before the script gives up.
 POLL = 30
 MOST_FAILED_LOOKS = 5
+MEASURE = "Measure the wait of analyze for its runner"
 TITLE = "### The AI's wait for its runner"
 ADVICE = (
     "GitHub may have renamed or ended its egress-firewall runner, "
@@ -50,6 +59,21 @@ ADVICE = (
     "https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/"
     "0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md"
 )
+
+# The issues of the bot-health bot, as .github/blueprint/bot_health.py keeps them:
+# its label, the type of its issues, the state in a comment of the body, and the
+# key of a workflow in that state, its path.
+LABEL = "bot-failure"
+LABEL_COLOR = "d93f0b"
+LABEL_DESCRIPTION = (
+    "A bot or a scheduled workflow fails on the default branch; "
+    "closes when it passes again"
+)
+TYPE = "maintenance"
+MARKER = re.compile(r"<!-- bot-health (\{.*?\}) -->")
+KEY = ".github/workflows/canary.yml"
+WORKFLOW = "Canary"
+NO_LINE = "The job failed before it could tell the wait; its summary says why."
 
 Job = Mapping[str, Any]
 
@@ -178,7 +202,131 @@ def jobs_of(repository: str, run: str, attempt: str) -> list[Job] | None:
     return jobs
 
 
+def api(method: str, path: str, payload: Mapping[str, Any] | None = None) -> Any:
+    """A call of the REST API with the GitHub CLI; None when it fails."""
+    arguments = ["gh", "api", "--method", method, path]
+    if payload is not None:
+        arguments += ["--input", "-"]
+    result = subprocess.run(
+        arguments,
+        input=None if payload is None else json.dumps(payload),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if result.returncode != 0:
+        print(f"::warning::GitHub refused {method} {path}: {result.stderr.strip()}")
+        return None
+    return json.loads(result.stdout) if result.stdout.strip() else {}
+
+
+def marker(state: Mapping[str, Any]) -> str:
+    """The state of a bot-health issue in its body, as bot-health writes it."""
+    # Two hyphens would end the comment; JSON reads the escaped one as a hyphen.
+    text = json.dumps(state, sort_keys=True).replace("--", "-\\u002d")
+    return f"<!-- bot-health {text} -->"
+
+
+def place() -> str:
+    """The mark of bot-health for a failure in the step that measures the wait."""
+    return hashlib.sha256(f"{WATCHER}\n{MEASURE}".encode()).hexdigest()[:12]
+
+
+def alarm_body(state: Mapping[str, Any], branch: str, url: str, line: str) -> str:
+    return (
+        f"{marker(state)}\n"
+        f"The workflow **{WORKFLOW}** fails on `{branch}` since {state['since']}: "
+        f"its job *{WATCHER}* failed in [the run]({url}), attempt "
+        f"{state['attempt']}, while the run itself may wait up to a day for its end. "
+        "The bot-health bot keeps this issue up to date once the run ends, and closes "
+        "it when a run passes again.\n\n"
+        f"{line}\n"
+    )
+
+
+def alarm(
+    repository: str,
+    run: int,
+    attempt: int,
+    branch: str,
+    url: str,
+    line: str,
+    today: str,
+) -> str:
+    """Opens the bot-health issue of the Canary, or comments on the open one."""
+    listed = api(
+        "GET", f"repos/{repository}/issues?labels={LABEL}&state=open&per_page=100"
+    )
+    if listed is None:
+        raise SystemExit("::error::GitHub didn't list the open issues of bot-health.")
+    for item in listed:
+        match = MARKER.search(str(item.get("body") or ""))
+        if "pull_request" in item or not match:
+            continue
+        try:
+            state = json.loads(match[1])
+        except ValueError:
+            continue
+        if state.get("key") != KEY:
+            continue
+        number = int(item["number"])
+        if state.get("run") == run and state.get("attempt") == attempt:
+            return f"#{number} already reports this run"
+        api(
+            "POST",
+            f"repos/{repository}/issues/{number}/comments",
+            {
+                "body": f"The AI waits for its runner again, in [the run]({url}):\n\n{line}\n"
+            },
+        )
+        return f"commented on #{number}"
+    # The label of a repository whose .github/labels.toml lacks it.
+    if api("GET", f"repos/{repository}/labels/{LABEL}") is None:
+        api(
+            "POST",
+            f"repos/{repository}/labels",
+            {"name": LABEL, "color": LABEL_COLOR, "description": LABEL_DESCRIPTION},
+        )
+    state = {
+        "attempt": attempt,
+        "failed": 1,
+        "key": KEY,
+        "run": run,
+        "since": today,
+        "where": place(),
+    }
+    opened = api(
+        "POST",
+        f"repos/{repository}/issues",
+        {
+            "title": f"{WORKFLOW} fails on {branch}",
+            "body": alarm_body(state, branch, url, line),
+            "labels": [LABEL, TYPE],
+        },
+    )
+    if opened is None:
+        raise SystemExit("::error::GitHub didn't open the issue of bot-health.")
+    return f"opened #{opened['number']}"
+
+
+def raise_alarm() -> int:
+    message = alarm(
+        os.environ["GH_REPO"],
+        int(os.environ["RUN"]),
+        int(os.environ.get("ATTEMPT") or "1"),
+        os.environ["BRANCH"],
+        os.environ["URL"],
+        os.environ.get("LINE") or NO_LINE,
+        datetime.now(UTC).date().isoformat(),
+    )
+    print(f"::notice::The Canary fails: {message}.")
+    return 0
+
+
 def main() -> int:
+    if sys.argv[1:] == ["alarm"]:
+        return raise_alarm()
     repository = os.environ["GH_REPO"]
     run = os.environ["RUN"]
     attempt = os.environ.get("ATTEMPT") or "1"
@@ -189,6 +337,10 @@ def main() -> int:
     )
     code, message, line = verdict(wait)
     print(message)
+    output = os.environ.get("GITHUB_OUTPUT")
+    if output and code:
+        with open(output, "a", encoding="utf-8") as handle:
+            handle.write(f"line={line}\n")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a", encoding="utf-8") as handle:
