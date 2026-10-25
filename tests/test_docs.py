@@ -515,19 +515,50 @@ def test_diagrams_scroll_sideways_on_small_screens():
 
 def test_the_pictures_of_a_diagram_stay_for_the_hook_of_the_blueprint(docs: Path):
     # The folder of the fixture has no picture of a diagram: the hook reads no size.
-    # A page gives the path from its folder, and a part of the README from the root.
-    for folder in ("images/diagrams/", "../images/diagrams/", "docs/images/diagrams/"):
+    # A page gives the path from its folder, and a part of the README from the root;
+    # the page of the automation, which the hook of the blueprint writes, shows the
+    # pictures that it serves from .github/, which docs/ lacks.
+    for folder in (
+        "images/diagrams/",
+        "../images/diagrams/",
+        "docs/images/diagrams/",
+        "assets/images/automation/",
+    ):
         html = PICTURE.format(dark=f"{folder}a-b.dark.svg", light=f"{folder}a-b.svg")
         assert hooks.localized(html, "index.html", docs) == html
 
 
-def test_the_website_draws_each_diagram_live_and_lets_it_scroll(tmp_path: Path):
+@pytest.mark.parametrize(
+    ("folder", "served", "outside"),
+    [
+        # The part of the README gives the path from the root of the repository.
+        ("docs/images/diagrams/", "images/diagrams/", False),
+        # The page of the automation, whose pictures the blueprint keeps in .github/.
+        ("assets/images/automation/", "assets/images/automation/", True),
+    ],
+)
+def test_the_website_shows_each_diagram_in_the_scheme_of_the_reader(
+    tmp_path: Path, folder: str, served: str, outside: bool
+):
     # The hooks in the order of MkDocs: by its priority, the content hook of this
-    # project before that of the blueprint, which draws a diagram from its source in
-    # docs/diagrams/ in place of its pictures, and the finished page last. The part of
-    # the README gives the path from the root, which leads nowhere from the page.
-    (tmp_path / "diagrams").mkdir()
-    (tmp_path / "diagrams" / "a-b.mmd").write_text("flowchart TB\n  a --> b\n", "utf-8")
+    # project before that of the blueprint, which shows the pictures of a diagram as
+    # one picture for each scheme, sized from the root of its SVG, and the finished
+    # page last, which leaves them as they are.
+    docs = tmp_path / "docs"
+    pictures = tmp_path / ".github" / "pictures" if outside else docs / served
+    pictures.mkdir(parents=True)
+    files = []
+    for name in ("a-b.svg", "a-b.dark.svg"):
+        (pictures / name).write_text(
+            '<svg width="949.1" height="995.74" viewBox="-12 -12 949.1 995.74" '
+            'xmlns="http://www.w3.org/2000/svg"></svg>',
+            "utf-8",
+        )
+        files.append(
+            SimpleNamespace(
+                dest_uri=f"{served}{name}", abs_src_path=str(pictures / name)
+            )
+        )
     spec = importlib.util.spec_from_file_location(
         "mkdocs_blueprint", ROOT / ".github" / "mkdocs_blueprint.py"
     )
@@ -542,17 +573,22 @@ def test_the_website_draws_each_diagram_live_and_lets_it_scroll(tmp_path: Path):
         ),
         meta={},
     )
-    folder = "docs/images/diagrams/"
     html = PICTURE.format(dark=f"{folder}a-b.dark.svg", light=f"{folder}a-b.svg")
     content = hooks.on_page_content(
-        f"<p>{html}</p>", page, {"docs_dir": str(tmp_path)}, None
+        f"<p>{html}</p>", page, {"docs_dir": str(docs)}, None
     )
     content = blueprint.on_page_content(
-        content, page, SimpleNamespace(docs_dir=str(tmp_path), plugins={}), []
+        content, page, SimpleNamespace(docs_dir=str(docs), plugins={}), files
+    )
+    shown = (
+        '<img src="{served}a-b{scheme}.svg#only-{name}" alt="A demo" width="949" '
+        'height="996" loading="lazy" decoding="async">'
     )
     assert hooks.on_post_page(content, None, None) == (
-        '<div class="diagram" tabindex="0"><pre class="mermaid" data-search-exclude>'
-        "<code>flowchart TB\n  a --&gt; b\n</code></pre></div>"
+        "<p>"
+        + shown.format(served=served, scheme="", name="light")
+        + shown.format(served=served, scheme=".dark", name="dark")
+        + "</p>"
     )
 
 
@@ -981,9 +1017,13 @@ def drawn(text: str) -> list[tuple[str, str]]:
     """The pictures of diagrams in a Markdown text, as scripts/diagrams.sh writes
     them: the name of the source of each, and the whole <picture>."""
     return [
-        (re.search(r'images/diagrams/([\w.-]+)\.svg"', match["image"])[1], match[0])
+        (found[1], match[0])
         for match in hooks.PICTURE.finditer(text)
-        if hooks.DRAWN.search(match["image"])
+        if (
+            found := re.search(
+                r'\bsrc="(?:[^"]*/)?images/diagrams/([\w.-]+)\.svg"', match["image"]
+            )
+        )
     ]
 
 

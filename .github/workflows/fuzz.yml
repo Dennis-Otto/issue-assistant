@@ -15,7 +15,7 @@ on:
       - "**/requirements*.txt"
       - .github/workflows/fuzz.yml
   schedule:
-    - cron: "23 3 * * 0"
+    - cron: "39 3 * * 2"
   workflow_dispatch:
 
 permissions:
@@ -24,6 +24,10 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The GitHub CLI of the jobs sends no telemetry to GitHub.
+env:
+  GH_TELEMETRY: "false"
 
 jobs:
   fuzz:
