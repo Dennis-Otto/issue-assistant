@@ -1,0 +1,162 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in Korean.
+# A machine draft: native speakers are welcome to improve it.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "Korean"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "님"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{year}년 {month} {day}일"
+months = [
+  "1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월",
+  "12월",
+]
+# Words that are frequent in the language and in no other catalog. A reporter
+# writes in the language of whose stopwords their words have the most, in
+# English when no other language has more, or fewer than two.
+# Hangul, which only Korean writes, counts as well, as OWN_LETTERS of
+# issue_assistant.py describes.
+stopwords = [
+  "그리고", "하지만", "그런데", "그래서", "있습니다", "없습니다", "합니다", "됩니다",
+  "않습니다", "있는", "없는", "하는", "되는", "때", "후", "제가", "수", "것", "안",
+  "및", "또는", "같은", "때문에", "아무것도", "다시", "버전",
+]
+
+# A sentence that a reporter in this language might write; the tests check
+# that the assistant guesses the language from it.
+sample = "다트를 던져도 카드에 아무것도 표시되지 않습니다. 이건 맞지 않습니다."
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "@{author}님, 이슈를 열어 주셔서 감사합니다!"
+"thanks.bug" = "@{author}님, 보고해 주셔서 감사합니다!"
+"thanks.enhancement" = "@{author}님, 제안해 주셔서 감사합니다!"
+"thanks.question" = "@{author}님, 질문해 주셔서 감사합니다!"
+"thanks.documentation" = "@{author}님, 문서에 대한 의견을 주셔서 감사합니다!"
+"thanks.compatibility" = "@{author}님, 호환성 문제를 알려 주셔서 감사합니다!"
+"thanks.feedback" = "@{author}님, 테스트하고 피드백을 주셔서 감사합니다!"
+"thanks.maintenance" = "@{author}님, 보고해 주셔서 감사합니다!"
+intro = """\
+  저는 이 저장소의 이슈 어시스턴트이며, 먼저 살펴보았습니다. 메인테이너도 모든 이슈를 \
+  읽습니다."""
+summary = "요약"
+analysis = "첫 분석"
+next_steps = "시도해 볼 만한 것"
+missing = "필요한 정보"
+"missing.intro" = """\
+  계속 진행하려면 댓글을 달거나 이슈를 수정하여 다음 내용을 추가해 주세요:"""
+"missing.outro" = """\
+  답변이 없으면 {remind_days} 후에 알림이 가고, {close_days} 후에 이슈가 닫힙니다. 닫\
+  힌 뒤에도 답변하면 다시 열립니다."""
+duplicate = "중복 가능성"
+"duplicate.text" = "#{number}의 중복으로 보입니다: {reason}"
+"duplicate.close" = """\
+  맞다면 따로 하실 일은 없습니다. 대화를 한곳에 모으기 위해 이 이슈는 {grace_days} 후\
+  에 #{number}의 중복으로 닫힙니다. #{number}에 👍 반응을 남기면 더 많은 사람이 영향\
+  을 받고 있음을 알릴 수 있습니다. 다른 문제라면 댓글을 쓰거나 이 댓글에 👎 반응을 남\
+  겨 주세요. 그러면 이슈가 열린 상태로 유지됩니다."""
+"duplicate.named" = """\
+  @{author}님, 메인테이너가 이 이슈를 #{number}의 중복으로 표시했습니다."""
+related = "관련 항목"
+discussion = "토론"
+belongs_in = """\
+  이 내용은 여기보다 {repository}에 더 맞을 수 있습니다. 그렇다면 메인테이너가 이슈를 \
+  그곳으로 옮길 수 있습니다."""
+references = "참고할 곳"
+links = "참고할 곳: 링크 {count}개"
+maintainers = "메인테이너용, 한국어"
+"sensitive.secret" = """\
+  > [!WARNING]\n> 이 이슈에 토큰, 키, 비밀번호 같은 비밀 정보가 포함된 것 같습니다. 게\
+  시물을 수정하여 삭제하고, 수정 기록에서 이전 버전을 지운 다음, 다른 사람이 이미 보았\
+  을 수 있으니 비밀 정보를 교체해 주세요."""
+"sensitive.personal" = """\
+  > [!NOTE]\n> 이 이슈에 이메일 주소, 공인 IP 주소, 개인 서버의 주소 같은 개인 정보가 \
+  포함된 것 같습니다. 공개하고 싶지 않다면 게시물을 수정하고 수정 기록에서 이전 버전\
+  을 지워 주세요."""
+security = """\
+  > [!CAUTION]\n> 보안 취약점에 관한 내용일 수 있습니다. [보안 정책]({policy})에 설명\
+  된 대로 비공개로 보고하고, 여기에서 세부 내용을 삭제해 주세요."""
+footer = """\
+  <sub>🤖 {engine}의 자동 첫 분석이며, 코드, 문서, 이전 이슈를 바탕으로 합니다. 틀릴 \
+  수 있으며, 결정은 메인테이너가 합니다.{labels} {feedback}</sub>"""
+labels = " 라벨: {labels}."
+about = "[어시스턴트의 작동 방식]({notice})"
+feedback = """\
+  이 댓글에 👍 또는 👎 반응을 남기면 도움이 되었는지 메인테이너에게 알릴 수 있습니다."""
+"feedback.duplicate" = """\
+  이 댓글에 👍 또는 👎 반응을 남기면 도움이 되었는지 메인테이너에게 알릴 수 있습니다. \
+  👎 반응은 이슈를 열린 상태로 유지하기도 합니다."""
+"follow-up.thanks" = "@{author}님, 답변해 주셔서 감사합니다!"
+"follow-up.missing" = "아직 필요한 정보"
+"follow-up.missing.intro" = "다음 내용도 추가해 주세요:"
+"follow-up.footer" = """\
+  <sub>🤖 {engine}의 자동 후속 답변입니다. 틀릴 수 있으며, 결정은 메인테이너가 합니다\
+  . {feedback}</sub>"""
+"answer.intro" = "@{asker}님, [질문]({question})에 대한 답변입니다:"
+"answer.footer" = """\
+  <sub>🤖 {engine}의 자동 답변이며, 코드, 문서, 이 이슈를 바탕으로 합니다. 틀릴 수 있\
+  으니 믿기 전에 확인해 주세요. {feedback}</sub>"""
+"discussion.intro" = """\
+  @{author}님, 질문해 주셔서 감사합니다! 저는 이 저장소의 이슈 어시스턴트이며, 첫 답변\
+  을 작성했습니다. 메인테이너와 커뮤니티도 함께 읽고 내용을 보탤 수 있습니다."""
+"discussion.bug" = """\
+  버그로 보입니다. 보고하려면 메인테이너가 추적할 수 있도록 [이슈를 열어]({form}) 주세\
+  요."""
+"discussion.feature" = """\
+  새 기능 요청으로 보입니다. 제안하려면 메인테이너가 추적할 수 있도록 [이슈를 열어\
+  ]({form}) 주세요."""
+"discussion.missing.intro" = """\
+  더 정확하게 답변할 수 있도록 댓글로 다음 내용을 추가해 주세요:"""
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> 이 토론에 토큰, 키, 비밀번호 같은 비밀 정보가 포함된 것 같습니다. 게\
+  시물을 수정하여 삭제하고, 수정 기록에서 이전 버전을 지운 다음, 다른 사람이 이미 보았\
+  을 수 있으니 비밀 정보를 교체해 주세요."""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> 이 토론에 이메일 주소, 공인 IP 주소, 개인 서버의 주소 같은 개인 정보가 \
+  포함된 것 같습니다. 공개하고 싶지 않다면 게시물을 수정하고 수정 기록에서 이전 버전\
+  을 지워 주세요."""
+"discussion.footer" = """\
+  <sub>🤖 {engine}의 자동 첫 답변이며, 코드, 문서, 이전 이슈와 토론을 바탕으로 합니다\
+  . 틀릴 수 있으니 믿기 전에 확인해 주세요.{answerable} {feedback}</sub>"""
+"discussion.answerable" = " 질문에 대한 답이 되었다면 답변으로 표시할 수 있습니다."
+reminder = """\
+  @{author}님, 알림 드립니다. 이 이슈는 아직 {questions}에 대한 답변을 기다리고 있습니\
+  다. 답변이 없으면 {date}에 자동으로 닫힙니다. 시간이 더 필요하신 경우처럼, 짧은 댓글\
+  을 남기면 열린 상태로 유지됩니다."""
+"reminder.questions" = "위의 질문"
+"closed-unanswered" = """\
+  위에서 요청한 정보가 {close_days} 동안 없어서 이 이슈를 닫습니다. @{author}님, 여기\
+  에 답변하시면 자동으로 다시 열립니다. 보고해 주셔서 감사합니다!"""
+"closed-duplicate" = """\
+  {grace_days} 전에 안내한 대로 #{number}의 중복으로 닫았습니다. #{number}에서 이어서 \
+  이야기해 주세요. #{number}에 👍 반응을 남기면 더 많은 사람이 영향을 받고 있음을 알\
+  릴 수 있습니다. 실수라면 댓글을 남겨 주세요. 메인테이너가 다시 열겠습니다."""
+reopened = """\
+  @{author}님, 답변해 주셔서 감사합니다! 이슈를 다시 열었습니다. 메인테이너가 다시 살\
+  펴볼 것입니다."""
+fixed = """\
+  #{pull}에서 수정되었으며, 이제 `{branch}`에 반영되었습니다. 수정 사항은 다음 릴리스\
+  에 포함되며, 그때 이 이슈는 릴리스 링크와 함께 닫힙니다."""
+released = """\
+  🎉 [{tag}]({url})에서 릴리스되었습니다{fixes}. @{author}님, 이 버전으로 업데이트해 \
+  주세요. 문제가 계속되면 여기에 댓글을 남겨 주세요. 이슈가 다시 열립니다. 또는 새 이\
+  슈를 열어 주세요."""
+"released.fixes" = " ({pulls}의 수정 포함)"
+"reopened-release" = """\
+  @{author}님, 알려 주셔서 감사합니다. 아직 해결되지 않아 죄송합니다. 이슈를 다시 열었\
+  습니다. 메인테이너가 다시 살펴볼 것입니다."""
+locked = """\
+  이 이슈는 닫힌 지 {lock_days}이 넘어서 잠갔습니다. 같은 문제나 비슷한 문제가 아직 있\
+  다면 새 이슈를 열고 이 이슈를 링크해 주세요."""
+"days.one" = "{count}일"
+"days.other" = "{count}일"
+line = "{file}, {line}번째 줄"
+heading = "{file}의 {heading}"

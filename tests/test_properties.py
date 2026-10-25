@@ -11,6 +11,7 @@ same way against how it read them before.
 import dataclasses
 import json
 import re
+import unicodedata
 
 import hypothesis
 import pytest
@@ -446,6 +447,79 @@ def test_issue_forms_and_languages_read_any_text(body):
         isinstance(key, str) and isinstance(value, str) for key, value in fields.items()
     )
     assert assistant.detect_language(body) in assistant.LANGUAGES
+
+
+# The scripts of their own: each letter that only one language of the catalogs
+# writes counts for that language, whatever the text around it.
+
+
+def letters_named(*prefixes):
+    """The letters of the Basic Multilingual Plane whose Unicode names start so."""
+    return [
+        char
+        for char in map(chr, range(0x10000))
+        if unicodedata.name(char, "").startswith(prefixes)
+    ]
+
+
+KANA = letters_named("HIRAGANA LETTER", "KATAKANA LETTER", "HALFWIDTH KATAKANA LETTER")
+HAN = letters_named("CJK UNIFIED IDEOGRAPH", "CJK COMPATIBILITY IDEOGRAPH-")
+HANGUL = letters_named("HANGUL SYLLABLE")
+SCRIPTS = {
+    "ko": HANGUL,
+    "ru": list("ёъыэЁЪЫЭ"),
+    "uk": list("ґєіїҐЄІЇ"),
+    "zh": HAN,
+}
+
+
+def test_each_letter_of_a_script_of_its_own_counts_for_one_language():
+    patterns = {
+        **assistant.OWN_LETTERS,
+        "kana": assistant.KANA,
+        "han": assistant.HAN,
+    }
+    for char in map(chr, range(0x10000)):
+        owners = [name for name, pattern in patterns.items() if pattern.match(char)]
+        assert len(owners) <= 1, (char, owners)
+    for letters, name in ((KANA, "kana"), (HAN, "han"), (HANGUL, "ko")):
+        assert all(patterns[name].match(char) for char in letters), name
+    # Each language with letters of its own has a catalog to answer in.
+    assert {*assistant.OWN_LETTERS, "ja", "zh"} <= set(assistant.LOCALES)
+
+
+@given(
+    st.sampled_from(sorted(SCRIPTS)).flatmap(
+        lambda code: st.tuples(
+            st.just(code), st.text(st.sampled_from(SCRIPTS[code]), min_size=2)
+        )
+    )
+)
+def test_a_text_in_a_script_of_its_own_is_in_its_language(case):
+    code, text = case
+    assert assistant.detect_language(text) == code
+
+
+@given(
+    st.text(st.sampled_from(KANA), min_size=1, max_size=20).flatmap(
+        lambda kana: st.tuples(
+            st.just(kana),
+            st.text(st.sampled_from(HAN), max_size=10 * len(kana)),
+            st.randoms(use_true_random=False),
+        )
+    )
+)
+def test_kana_make_the_chinese_characters_around_them_japanese(case):
+    kana, han, random = case
+    letters = list(kana + han)
+    random.shuffle(letters)
+    text = "".join(letters)
+    assert assistant.detect_language(text) == ("ja" if len(text) >= 2 else "en")
+
+
+@given(st.text(st.sampled_from(HAN), min_size=11, max_size=40))
+def test_a_stray_kana_makes_no_japanese_of_chinese(han):
+    assert assistant.detect_language(han[:5] + "の" + han[5:]) == "zh"
 
 
 # Lines of issue forms, and of what people write around them.

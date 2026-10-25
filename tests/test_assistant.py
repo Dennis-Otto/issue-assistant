@@ -195,6 +195,29 @@ def test_every_answer_of_a_multiple_choice_area_becomes_a_label(config):
         # One stray short word of a log or of code doesn't make another language.
         ("Plot x y axis swapped", "en"),
         ("Error: ECONNREFUSED 127.0.0.1:8123 (al retry 3)", "en"),
+        # Chinese and Japanese leave no space between their words: each letter of a
+        # script of its own counts as a stopword does, and one alone decides nothing.
+        ("错", "en"),
+        ("登录后页面一片空白", "zh"),
+        ("ログイン後、画面が真っ白になります", "ja"),
+        ("로그인 후 화면이 비어 있습니다", "ko"),
+        # Kanji count for Japanese beside kana, also in a text of many of them; a
+        # stray kana in Chinese makes no Japanese.
+        ("管理者権限で実行すると起動しない", "ja"),
+        ("这个の设置页面打不开了，点击保存按钮也没有反应", "zh"),
+        # At least one kana for every ten Chinese characters.
+        ("の" + "漢" * 10, "ja"),
+        ("の" + "漢" * 11, "zh"),
+        # A Chinese report with an English log is Chinese, and an English one that
+        # quotes a label of the screen is English.
+        (
+            "点击保存后页面没有反应。\n```\nError: the request failed with status 500\n```",
+            "zh",
+        ),
+        ("The button 保存 does nothing when I click it, and the log is empty.", "en"),
+        # Russian and Ukrainian share most of their letters, but not all.
+        ("После обновления карточка пустая, и ничего не работает", "ru"),
+        ("Після оновлення картка порожня", "uk"),
     ],
 )
 def test_the_language_is_guessed_from_the_words(text, language):
@@ -267,6 +290,13 @@ def test_a_bystander_s_words_decide_no_language():
         ("it", "22 ottobre 2026"),
         ("nl", "22 oktober 2026"),
         ("pt", "22 de outubro de 2026"),
+        ("ja", "2026年10月22日"),
+        ("ko", "2026년 10월 22일"),
+        ("pl", "22 października 2026"),
+        ("ru", "22 октября 2026 г."),
+        ("tr", "22 Ekim 2026"),
+        ("uk", "22 жовтня 2026 р."),
+        ("zh", "2026年10月22日"),
         # A language without a catalog gets ISO 8601, which reads the same anywhere.
         ("other", "2026-10-22"),
     ],
@@ -280,6 +310,9 @@ def test_dates_read_naturally(language, named):
 LOCALES = assistant.TOOL / "locales"
 CATALOGS = sorted(LOCALES.glob("*.toml"))
 ENGLISH = tomllib.loads((LOCALES / "en.toml").read_text("utf-8"))
+# The languages that leave no space between their words: no word of theirs can be
+# counted, so their catalogs have no stopwords, and the guess counts their letters.
+UNSPACED = {"ja", "zh"}
 
 
 def fields(template):
@@ -300,17 +333,32 @@ def test_every_catalog_has_each_text_of_english_with_its_placeholders(path):
         "sample",
         "text",
     }
-    # The texts in the order of English, so that a review sees each beside it.
-    assert list(catalog["text"]) == list(ENGLISH["text"])
+    # The texts in the order of English, so that a review sees each beside it, with
+    # the third form of a number of days where the language has one.
+    keys = list(ENGLISH["text"])
+    if path.stem in assistant.FEW:
+        keys.insert(keys.index("days.other"), "days.few")
+    assert list(catalog["text"]) == keys
     for key, template in catalog["text"].items():
-        assert fields(template) == fields(ENGLISH["text"][key]), (path.stem, key)
-    assert re.fullmatch(r"[a-z]{2}", path.stem) and catalog["name"].isalpha()
+        english = ENGLISH["text"].get(key, ENGLISH["text"]["days.other"])
+        assert fields(template) == fields(english), (path.stem, key)
+    assert (
+        re.fullmatch(r"[a-z]{2}", path.stem)
+        and catalog["name"].replace(" ", "").isalpha()
+    )
     assert len(set(catalog["months"])) == 12
     assert fields(catalog["date"]) == {"day", "month", "year"}
     stopwords = catalog["stopwords"]
-    assert len(stopwords) >= 20 and len(set(stopwords)) == len(stopwords)
+    if path.stem in UNSPACED:
+        assert stopwords == []
+    else:
+        assert len(stopwords) >= 20 and len(set(stopwords)) == len(stopwords)
     assert all(assistant.LETTERS.fullmatch(word.lower()) for word in stopwords)
     assert all(word == word.lower() for word in stopwords)
+    # No stopword has a letter that only another language writes.
+    for code, letters in assistant.OWN_LETTERS.items():
+        if code != path.stem:
+            assert not any(letters.search(word) for word in stopwords), code
     # Its license, also for a copy that leaves this repository.
     assert path.read_text("utf-8").startswith(
         "# SPDX-FileCopyrightText: 2026 Dennis Otto\n# SPDX-License-Identifier: MIT\n"
@@ -1934,6 +1982,9 @@ def test_the_discussions_end_at_their_limit(config):
         ("Bug: the card, the CARD and 2 cards don't work", "", ["card", "cards"]),
         ("Die Karte bleibt leer und Fehler", "Error", ["karte", "bleibt", "leer"]),
         ("Bug", "", []),
+        # Stopwords of a catalog that are also words of technical English stay.
+        ("Jest tests hang on NIC reset", "", ["jest", "tests", "hang", "nic", "reset"]),
+        ("Bile ama mock", "", ["bile", "ama", "mock"]),
         # A word too long for GitHub's query goes too.
         ("Card " + "x" * 41 + " empty " + "y" * 40, "", ["card", "empty", "y" * 40]),
     ],
@@ -4554,20 +4605,22 @@ def test_a_dry_run_only_previews_the_comment(config):
 # The summary for the maintainers: an answer in a language that they don't read,
 # [maintainers] language, folds one in theirs below its text.
 
-JAPANESE = make_answer(
+VIETNAMESE = make_answer(
     language="other",
-    summary="スローの後、ライブカードが空のままです。",
-    analysis="カードはおそらく `throw` イベントを受け取っていません。",
-    missing_information=["どのバージョンを使っていますか?"],
-    maintainer_summary="The reporter writes in Japanese: the live card stays empty "
+    summary="Sau một lần ném, thẻ trực tiếp vẫn trống.",
+    analysis="Có lẽ thẻ không nhận được sự kiện `throw`.",
+    missing_information=["Bạn đang dùng phiên bản nào?"],
+    maintainer_summary="The reporter writes in Vietnamese: the live card stays empty "
     "after a throw, as @octocat saw in #3. The card probably misses the `throw` "
     "event; the analysis asks for the version.",
 )
 
 
-def test_an_issue_in_japanese_gets_a_folded_summary_in_english(config):
+def test_an_issue_in_vietnamese_gets_a_folded_summary_in_english(config):
+    """Vietnamese has no catalog: the AI answers with other, and the fold is the
+    same as below an answer in a language of the catalogs."""
     github = FakeGitHub(config, make_issue(3), make_issue())
-    assistant.apply_answer(github, "triage", 12, json.dumps(JAPANESE), config, "abc")
+    assistant.apply_answer(github, "triage", 12, json.dumps(VIETNAMESE), config, "abc")
     (body,) = github.posted(12)
     assert body.startswith(
         "<!-- issue-assistant:analysis lang=other maint=en questions=1 engine=claude"
@@ -4713,7 +4766,7 @@ def test_a_summary_for_the_maintainers_of_more_than_700_characters_is_refused(co
         ("pt-BR", 'did you mean "pt"?'),
         ("de_CH", 'did you mean "de"?'),
         ("EN", 'did you mean "en"?'),
-        ("ja", "known: " + ", ".join(f'"{c}"' for c in assistant.LANGUAGES)),
+        ("sv", "known: " + ", ".join(f'"{c}"' for c in assistant.LANGUAGES)),
     ],
 )
 def test_check_names_a_language_of_the_maintainers_without_a_catalog(
@@ -5407,6 +5460,34 @@ def test_a_german_reporter_is_reminded_in_german(config):
     ) in body
 
 
+def test_a_chinese_issue_without_an_analysis_gets_a_chinese_reminder(config):
+    """Before any analysis, such as on an issue whose questions a maintainer asked,
+    the reporter's words decide, also in Chinese, which leaves no space between its
+    words, and with an English log beside them."""
+    body = (
+        "### What happened?\n\n每次投镖之后，实时卡片都是空的，刷新页面也没有用。\n\n"
+        "### Logs\n\n```shell\nError: the card is not connected to the board\n```\n"
+    )
+    github = FakeGitHub(
+        config, make_issue(body=body, labels=("bug", "needs-info"), days_ago=17)
+    )
+    github.event_store[12] = [
+        {
+            "event": "labeled",
+            "label": {"name": "needs-info"},
+            "actor": {"login": "owner", "type": "User"},
+            "created_at": at(16),
+        }
+    ]
+    asked = make_comment(7, "owner", "Which version?", 16, association="OWNER")
+    github.comment_store[12] = [asked]
+    assert assistant.sweep(github, NOW) == ["#12: reminded the reporter after 16 days."]
+    (body,) = github.posted(12)
+    assert body.startswith("<!-- issue-assistant:reminder closes=2026-10-22 -->\n")
+    assert "@reporter，友情提醒：本议题仍在等待您对[上面的问题](" in body
+    assert "它将于2026年10月22日自动关闭。" in body
+
+
 def test_the_reminder_links_the_comment_with_the_questions(config):
     """Below a long conversation, "the questions above" are hard to find."""
     github = waiting(config, 16, comments=[make_comment(5, "reporter", "Hm.", 20)])
@@ -5908,6 +5989,26 @@ def test_the_follow_ups_are_limited_as_configured(config, most, mode):
                 "seit mehr als 90 Tagen geschlossen,",
             ),
         ),
+        (
+            "ru",
+            (
+                "через 20 дней придёт напоминание, а через 45 дней issue закроется.",
+                "через 7 дней issue закроется как дубликат #7,",
+                "информации нет уже 45 дней.",
+                "как и было объявлено 7 дней назад.",
+                "Этот issue закрыт уже 90 дней,",
+            ),
+        ),
+        (
+            "zh",
+            (
+                "如果没有回复，20 天后会发送提醒，45 天后议题将被关闭。",
+                "本议题将在 7 天后作为 #7 的重复项关闭。",
+                "已经 45 天没有提供",
+                "按照 7 天前的通知",
+                "本议题已关闭超过 90 天，",
+            ),
+        ),
     ],
 )
 def test_the_comments_name_the_configured_days(config, language, phrases):
@@ -5947,6 +6048,13 @@ def test_the_comments_name_the_configured_days(config, language, phrases):
         ("it", ["1 giorno", "2 giorni"]),
         ("nl", ["1 dag", "2 dagen"]),
         ("pt", ["1 dia", "2 dias"]),
+        ("ja", ["1 日", "2 日"]),
+        ("ko", ["1일", "2일"]),
+        ("pl", ["1 dzień", "2 dni"]),
+        ("ru", ["1 день", "2 дня"]),
+        ("tr", ["1 gün", "2 gün"]),
+        ("uk", ["1 день", "2 дні"]),
+        ("zh", ["1 天", "2 天"]),
         ("other", ["1 day", "2 days"]),
     ],
 )
@@ -5954,17 +6062,54 @@ def test_one_day_is_singular(language, named):
     assert [assistant.days(count, language) for count in (1, 2)] == named
 
 
+@pytest.mark.parametrize(
+    ("language", "named"),
+    [
+        # Russian and Ukrainian take a third form after 2, 3 and 4 and after the
+        # numbers that end in them, but not after 12, 13 and 14.
+        (
+            "ru",
+            "1 день, 2 дня, 4 дня, 5 дней, 11 дней, 12 дней, 14 дней, 21 день, 22 дня, "
+            "25 дней, 104 дня, 111 дней, 0 дней",
+        ),
+        (
+            "uk",
+            "1 день, 2 дні, 4 дні, 5 днів, 11 днів, 12 днів, 14 днів, 21 день, 22 дні, "
+            "25 днів, 104 дні, 111 днів, 0 днів",
+        ),
+        # Polish says dni after every number but 1, and English days.
+        (
+            "pl",
+            "1 dzień, 2 dni, 4 dni, 5 dni, 11 dni, 12 dni, 14 dni, 21 dni, 22 dni, "
+            "25 dni, 104 dni, 111 dni, 0 dni",
+        ),
+        (
+            "en",
+            "1 day, 2 days, 4 days, 5 days, 11 days, 12 days, 14 days, 21 days, "
+            "22 days, 25 days, 104 days, 111 days, 0 days",
+        ),
+    ],
+)
+def test_a_number_of_days_takes_the_form_that_the_number_asks_for(language, named):
+    counts = (1, 2, 4, 5, 11, 12, 14, 21, 22, 25, 104, 111, 0)
+    assert ", ".join(assistant.days(count, language) for count in counts) == named
+
+
 def test_no_text_names_a_period_of_its_own():
     """The periods are settings: a number of days in a text would contradict a
     repository that changed them."""
     units = {
-        assistant.days(count, language).removeprefix(f"{count} ")
+        re.sub(r"^\d+\s*", "", assistant.days(count, language))
         for language in assistant.LANGUAGES
-        for count in (1, 2)
+        for count in (1, 2, 5)
     }
+    alternatives = "|".join(map(re.escape, sorted(units, key=len, reverse=True)))
+    # A digit before a unit, also without a space as in 30天 or 30일, and the
+    # English and German number words with a space, as those languages write them.
     period = re.compile(
-        r"\b(\d+|one|two|three|four|five|ein|einem|zwei|drei|vier|fünf) "
-        rf"(Tage|{'|'.join(sorted(units))})\b"
+        rf"\d\s*(?:{alternatives})"
+        r"|\b(?:one|two|three|four|five|ein|einem|zwei|drei|vier|fünf) "
+        rf"(?:Tage|{alternatives})\b"
     )
     for language, texts in assistant.TEXT.items():
         for key, text in texts.items():

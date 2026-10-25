@@ -1,0 +1,161 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in Japanese.
+# A machine draft: native speakers are welcome to improve it.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "Japanese"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "さん"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{year}年{month}{day}日"
+months = [
+  "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月",
+  "12月",
+]
+# Japanese leaves no space between its words, so no word of it can be counted: the
+# guess of a reporter's language counts its letters instead, as OWN_LETTERS of
+# issue_assistant.py describes, and the catalog has no stopwords.
+stopwords = []
+
+# A sentence that a reporter in this language might write; the tests check
+# that the assistant guesses the language from it.
+sample = "ダーツを投げても、カードに何も表示されません。これは正しくありません。"
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "@{author} さん、Issue を作成していただきありがとうございます！"
+"thanks.bug" = "@{author} さん、ご報告ありがとうございます！"
+"thanks.enhancement" = "@{author} さん、ご提案ありがとうございます！"
+"thanks.question" = "@{author} さん、ご質問ありがとうございます！"
+"thanks.documentation" = """\
+  @{author} さん、ドキュメントについてのご指摘ありがとうございます！"""
+"thanks.compatibility" = "@{author} さん、互換性についてのご報告ありがとうございます！"
+"thanks.feedback" = "@{author} さん、テストとフィードバックをありがとうございます！"
+"thanks.maintenance" = "@{author} さん、ご報告ありがとうございます！"
+intro = """\
+  このリポジトリの Issue アシスタントです。最初の確認を行いました。メンテナーもすべて\
+  の Issue を読んでいます。"""
+summary = "概要"
+analysis = "最初の分析"
+next_steps = "試せること"
+missing = "必要な情報"
+"missing.intro" = """\
+  続けるために、コメントまたは Issue の編集で、次の情報を追加してください："""
+"missing.outro" = """\
+  回答がない場合、{remind_days}後にリマインダーが届き、{close_days}後に Issue はクロー\
+  ズされます。クローズされても、回答すると再オープンされます。"""
+duplicate = "重複の可能性"
+"duplicate.text" = "#{number} と重複しているようです：{reason}"
+"duplicate.close" = """\
+  その通りであれば、何もする必要はありません。議論を 1 か所にまとめるため、この Issue \
+  は {grace_days}後に #{number} の重複としてクローズされます。#{number} に 👍 を付ける\
+  と、影響を受けている人が多いことを示せます。別の問題であれば、コメントを書くか、この\
+  コメントに 👎 を付けてください。Issue はオープンのままになります。"""
+"duplicate.named" = """\
+  @{author} さん、メンテナーがこの Issue を #{number} の重複としてマークしました。"""
+related = "関連"
+discussion = "ディスカッション"
+belongs_in = """\
+  これは、ここではなく {repository} で扱う内容かもしれません。その場合は、メンテナー\
+  が Issue を移動できます。"""
+references = "参照箇所"
+links = "参照箇所：{count} 件のリンク"
+maintainers = "メンテナー向け（日本語）"
+"sensitive.secret" = """\
+  > [!WARNING]\n> この Issue には、トークン、鍵、パスワードなどの秘密情報が含まれてい\
+  るようです。投稿を編集して削除し、編集履歴から以前のバージョンを削除したうえで、秘密\
+  情報を変更してください。他の人がすでに見ている可能性があります。"""
+"sensitive.personal" = """\
+  > [!NOTE]\n> この Issue には、メールアドレス、パブリック IP アドレス、プライベートサ\
+  ーバーのアドレスなどの個人データが含まれているようです。公開したくない場合は、投稿を\
+  編集し、編集履歴から以前のバージョンを削除してください。"""
+security = """\
+  > [!CAUTION]\n> セキュリティの脆弱性に関する内容かもしれません。[セキュリティポリシ\
+  ー]({policy})の説明に従って非公開で報告し、ここから詳細を削除してください。"""
+footer = """\
+  <sub>🤖 コード、ドキュメント、過去の Issue に基づく {engine} による自動の最初の分析\
+  です。誤っている可能性があり、判断するのはメンテナーです。{labels}{feedback}</sub>"""
+labels = "ラベル：{labels}。"
+about = "[アシスタントの仕組み]({notice})"
+feedback = """\
+  このコメントに 👍 または 👎 を付けると、役に立ったかどうかがメンテナーに伝わります。"""
+"feedback.duplicate" = """\
+  このコメントに 👍 または 👎 を付けると、役に立ったかどうかがメンテナーに伝わります。\
+  👎 を付けると、Issue はオープンのままになります。"""
+"follow-up.thanks" = "@{author} さん、ご回答ありがとうございます！"
+"follow-up.missing" = "まだ必要な情報"
+"follow-up.missing.intro" = "次の情報も追加してください："
+"follow-up.footer" = """\
+  <sub>🤖 {engine} による自動のフォローアップです。誤っている可能性があり、判断するの\
+  はメンテナーです。{feedback}</sub>"""
+"answer.intro" = "@{asker} さん、[ご質問]({question})への回答です："
+"answer.footer" = """\
+  <sub>🤖 コード、ドキュメント、この Issue に基づく {engine} による自動の回答です。誤\
+  っている可能性があるため、頼る前に確認してください。{feedback}</sub>"""
+"discussion.intro" = """\
+  @{author} さん、ご質問ありがとうございます！このリポジトリの Issue アシスタントとし\
+  て、最初の回答を書きました。メンテナーとコミュニティも読んでおり、補足することがあり\
+  ます。"""
+"discussion.bug" = """\
+  これはバグのようです。報告するには、メンテナーが追跡できるように[Issue を作成\
+  ]({form})してください。"""
+"discussion.feature" = """\
+  これは新機能のリクエストのようです。提案するには、メンテナーが追跡できるように\
+  [Issue を作成]({form})してください。"""
+"discussion.missing.intro" = """\
+  より正確にお答えするために、コメントで次の情報を追加してください："""
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> このディスカッションには、トークン、鍵、パスワードなどの秘密情報が含\
+  まれているようです。投稿を編集して削除し、編集履歴から以前のバージョンを削除したうえ\
+  で、秘密情報を変更してください。他の人がすでに見ている可能性があります。"""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> このディスカッションには、メールアドレス、パブリック IP アドレス、プラ\
+  イベートサーバーのアドレスなどの個人データが含まれているようです。公開したくない場合\
+  は、投稿を編集し、編集履歴から以前のバージョンを削除してください。"""
+"discussion.footer" = """\
+  <sub>🤖 コード、ドキュメント、過去の Issue とディスカッションに基づく {engine} によ\
+  る自動の最初の回答です。誤っている可能性があるため、頼る前に確認してください。\
+  {answerable}{feedback}</sub>"""
+"discussion.answerable" = "ご質問の答えになっていれば、回答としてマークできます。"
+reminder = """\
+  @{author} さん、リマインダーです。この Issue は、{questions}へのご回答をまだお待ちし\
+  ています。回答がない場合、{date}に自動的にクローズされます。もう少し時間が必要な場合\
+  など、短いコメントを書くとオープンのままになります。"""
+"reminder.questions" = "上記の質問"
+"closed-unanswered" = """\
+  上記でお願いした情報が {close_days}間届いていないため、この Issue をクローズします。\
+  @{author} さん、ここで回答すると自動的に再オープンされます。ご報告ありがとうございま\
+  した！"""
+"closed-duplicate" = """\
+  {grace_days}前にお知らせした通り、#{number} の重複としてクローズしました。続きは \
+  #{number} でお願いします。#{number} に 👍 を付けると、影響を受けている人が多いことを\
+  示せます。誤りであれば、コメントを書いてください。メンテナーが再オープンします。"""
+reopened = """\
+  @{author} さん、ご回答ありがとうございます！Issue を再オープンしました。メンテナーが\
+  もう一度確認します。"""
+fixed = """\
+  #{pull} で修正され、現在 `{branch}` に入っています。修正は次のリリースに含まれ、その\
+  時点でこの Issue はリリースへのリンク付きでクローズされます。"""
+released = """\
+  🎉 [{tag}]({url}) でリリースされました{fixes}。@{author} さん、このバージョンに更新\
+  してください。問題が解決しない場合は、ここにコメントを書くと Issue が再オープンされ\
+  ます。または、新しい Issue を作成してください。"""
+"released.fixes" = "（{pulls} の修正を含みます）"
+"reopened-release" = """\
+  @{author} さん、お知らせいただきありがとうございます。まだ解決しておらず申し訳ありま\
+  せん。Issue を再オープンしました。メンテナーがもう一度確認します。"""
+locked = """\
+  この Issue はクローズされてから {lock_days}以上経過したため、ロックしました。同じ問\
+  題や似た問題がまだ発生する場合は、新しい Issue を作成し、この Issue へのリンクを付け\
+  てください。"""
+"days.one" = "{count} 日"
+"days.other" = "{count} 日"
+line = "{file}、{line} 行目"
+heading = "{file} の {heading}"

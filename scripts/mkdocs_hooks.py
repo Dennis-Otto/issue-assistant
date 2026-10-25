@@ -336,6 +336,10 @@ def action_tables_of(markdown: str) -> str:
 # What reporters see: every comment of the assistant, made by its own functions and
 # with its own texts, for the demo project of the pictures in docs/images.
 LANGUAGES = {"en": "English", "de": "Deutsch"}
+# Languages of more catalogs, in which the page shows the first analysis and the
+# reminder too: one that writes without spaces, one that writes with kana beside
+# its Chinese characters, and one with three forms of a number of days.
+MORE_LANGUAGES = {"zh": "中文", "ja": "日本語", "ru": "Русский"}
 DEMO = "demo-org/plant-monitor"
 # The related repository of the demo project, in [related] of its config.toml.
 FIRMWARE = "demo-org/plant-hub-firmware"
@@ -522,6 +526,73 @@ WORDS: dict[str, dict[str, Any]] = {
         "`subscribed` noch gesetzt ist, und fragt nach der Firmware-Version des "
         "Sensors.",
     },
+    # The languages of MORE_LANGUAGES, with the words of the first analysis.
+    "zh": {
+        "summary": "传感器重新连接后，湿度图表一直是空的，而当前值仍在更新。",
+        "analysis": "图表只订阅一次历史数据流。重新连接后，由于 `subscribed` 仍为 "
+        "true，`ChartFeed.start()` 会提前返回，因此图表永远收不到新的数据流。"
+        "当前值有自己的订阅，所以能够恢复。",
+        "next_steps": [
+            "重新连接后刷新仪表板，图表就会重新显示数据。",
+            "在修复发布之前，请将 `chart.refresh` 设置为 `30s`。",
+        ],
+        "missing": [
+            "传感器的固件版本。",
+            "重新连接时集线器的日志，使用 `log_level: debug`。",
+        ],
+        "related": [
+            "集线器重启后出现同样的症状，已在 1.2.0 中修复。",
+            "图表如何加载传感器的历史数据。",
+        ],
+        "references": ["在 `subscribed` 仍被设置时提前返回。", "如何收集日志。"],
+    },
+    "ja": {
+        "summary": "センサーが再接続した後、湿度グラフは空のままですが、現在値は"
+        "更新され続けます。",
+        "analysis": "グラフは履歴ストリームを一度だけ購読します。再接続後は "
+        "`subscribed` がまだ true のため `ChartFeed.start()` がすぐに戻り、グラフは"
+        "新しいストリームを受け取りません。現在値は独自の購読を持っているため回復します。",
+        "next_steps": [
+            "再接続後にダッシュボードを再読み込みすると、グラフが再び表示されます。",
+            "修正がリリースされるまでは、`chart.refresh` を `30s` に設定してください。",
+        ],
+        "missing": [
+            "センサーのファームウェアのバージョン。",
+            "再接続時のハブのログ（`log_level: debug` で取得）。",
+        ],
+        "related": [
+            "ハブの再起動後に出ていた同じ症状で、1.2.0 で修正済みです。",
+            "グラフがセンサーの履歴を読み込む仕組み。",
+        ],
+        "references": [
+            "`subscribed` が設定されたままだとすぐに戻ります。",
+            "ログの集め方。",
+        ],
+    },
+    "ru": {
+        "summary": "После переподключения датчика график влажности остаётся пустым, "
+        "хотя текущее значение продолжает обновляться.",
+        "analysis": "График подписывается на поток истории только один раз. После "
+        "переподключения `ChartFeed.start()` сразу возвращается, потому что "
+        "`subscribed` всё ещё true, и график так и не получает новый поток. У текущего "
+        "значения своя подписка, поэтому оно восстанавливается.",
+        "next_steps": [
+            "Перезагрузите панель после переподключения — график снова заполнится.",
+            "Пока исправление не вышло, установите `chart.refresh` в `30s`.",
+        ],
+        "missing": [
+            "Версия прошивки датчика.",
+            "Лог хаба во время переподключения, с `log_level: debug`.",
+        ],
+        "related": [
+            "Тот же симптом после перезапуска хаба, исправлено в 1.2.0.",
+            "Как график загружает историю датчика.",
+        ],
+        "references": [
+            "Сразу возвращается, пока `subscribed` ещё установлен.",
+            "Как собрать лог.",
+        ],
+    },
 }
 # What the AI writes for a reporter in Portuguese, a language that the maintainers of
 # the example don't read: they get their summary of WORDS in their own language.
@@ -683,7 +754,8 @@ REGION = re.compile(
     r"^<!-- comments of issue_assistant\.py -->$.*?^<!-- end of the comments -->$",
     re.MULTILINE | re.DOTALL,
 )
-PLACEHOLDER = re.compile(r"<p>(ia-comment-[a-z-]+-(?:en|de))</p>")
+# The placeholder of a comment, ending in the code of its language, such as -zh.
+PLACEHOLDER = re.compile(r"<p>(ia-comment-[a-z-]+-[a-z]{2})</p>")
 # The fold that the assistant puts around many links.
 FOLD = re.compile(
     r"^<details><summary>(?P<summary>[^<\n]*)</summary>\n\n(?P<body>.*?)\n\n"
@@ -754,7 +826,6 @@ def assistant() -> ModuleType:
 def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
     """Every comment of the assistant for the demo project, in one language."""
     words = WORDS[language]
-    tracked = set(DEMO_FILES)
 
     def answer(
         kind: str, summary: str = "", analysis: str = "", **changes: Any
@@ -770,18 +841,10 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
         } | changes
 
     def link(item: dict[str, Any]) -> str:
-        # As references() of issue_assistant.py makes them, with the files of the
-        # demo project for those that git tracks.
-        found = ia.reference_link(item, tracked, DEMO_SHA, language, config)
-        if not found:
-            raise ValueError(f"the demo project has nothing for {item}")
-        return str(found)
+        return demo_link(ia, item, config, language)
 
     def references(items: list[dict[str, Any]]) -> list[str]:
-        return [
-            f"{link(item)}: {reason}"
-            for item, reason in zip(items, words["references"], strict=False)
-        ]
+        return demo_references(ia, items, config, language)
 
     def discussion(kind: str, text: str, **changes: Any) -> dict[str, Any]:
         return {
@@ -793,34 +856,12 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
         } | changes
 
     line = {"path": CHART, "line": 52}
-    anchor = {"path": TROUBLESHOOTING, "anchor": ia.slug("The chart stays empty")}
-    # As check_findings() of issue_assistant.py lists them.
-    related = [
-        f"#17: {words['related'][0]}",
-        f"#9 ({ia.say(language, 'discussion')}): {words['related'][1]}",
-    ]
     release = {
         "tag_name": "v1.4.0",
         "html_url": f"https://github.com/{DEMO}/releases/tag/v1.4.0",
     }
     return {
-        "analysis": ia.render_analysis(
-            answer(
-                "bug",
-                words["summary"],
-                words["analysis"],
-                next_steps=words["next_steps"],
-            ),
-            REPORTER,
-            ia.Findings(
-                related=related,
-                references=references([line, anchor]),
-                numbers={9, 17},
-            ),
-            words["missing"],
-            ["connectivity"],
-            config,
-        ),
+        "analysis": first_analysis(ia, config, language),
         "maintainers": ia.render_analysis(
             answer(
                 "bug",
@@ -901,12 +942,7 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
             references([line]),
             config,
         ),
-        "reminder": ia.render_reminder(
-            REPORTER,
-            language,
-            datetime(2026, 11, 2),
-            f"https://github.com/{DEMO}/issues/42#issuecomment-1",
-        ),
+        "reminder": reminder(ia, language),
         "closed-unanswered": ia.render_closed_unanswered(REPORTER, language),
         "reopened": ia.render_reopened(REPORTER, language),
         "closed-duplicate": ia.render_closed_duplicate(23, language),
@@ -941,6 +977,72 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
     }
 
 
+def demo_link(ia: ModuleType, item: dict[str, Any], config: Any, language: str) -> str:
+    """A reference as references() of issue_assistant.py makes it, with the files of
+    the demo project for those that git tracks."""
+    found = ia.reference_link(item, set(DEMO_FILES), DEMO_SHA, language, config)
+    if not found:
+        raise ValueError(f"the demo project has nothing for {item}")
+    return str(found)
+
+
+def demo_references(
+    ia: ModuleType, items: list[dict[str, Any]], config: Any, language: str
+) -> list[str]:
+    """The references to the items, each with why it matters, in WORDS."""
+    return [
+        f"{demo_link(ia, item, config, language)}: {reason}"
+        for item, reason in zip(items, WORDS[language]["references"], strict=False)
+    ]
+
+
+def first_analysis(ia: ModuleType, config: Any, language: str) -> str:
+    """The first analysis of the demo issue, with the AI's words of WORDS."""
+    words = WORDS[language]
+    line = {"path": CHART, "line": 52}
+    anchor = {"path": TROUBLESHOOTING, "anchor": ia.slug("The chart stays empty")}
+    # As check_findings() of issue_assistant.py lists them.
+    related = [
+        f"#17: {words['related'][0]}",
+        f"#9 ({ia.say(language, 'discussion')}): {words['related'][1]}",
+    ]
+    answer = {
+        "language": language,
+        "kind": "bug",
+        "summary": words["summary"],
+        "analysis": words["analysis"],
+        "next_steps": words["next_steps"],
+        "sensitive_data": "none",
+        "security_report": False,
+    }
+    return str(
+        ia.render_analysis(
+            answer,
+            REPORTER,
+            ia.Findings(
+                related=related,
+                references=demo_references(ia, [line, anchor], config, language),
+                numbers={9, 17},
+            ),
+            words["missing"],
+            ["connectivity"],
+            config,
+        )
+    )
+
+
+def reminder(ia: ModuleType, language: str) -> str:
+    """The reminder of the demo issue, which names the day that it closes."""
+    return str(
+        ia.render_reminder(
+            REPORTER,
+            language,
+            datetime(2026, 11, 2),
+            f"https://github.com/{DEMO}/issues/42#issuecomment-1",
+        )
+    )
+
+
 def examples() -> list[Example]:
     """The comments of the page, in the order of the life of an issue."""
     ia = assistant()
@@ -954,6 +1056,9 @@ def examples() -> list[Example]:
         for language in LANGUAGES:
             for kind, text in comments(ia, config, language).items():
                 texts[kind][language] = text
+        for language in MORE_LANGUAGES:
+            texts["analysis"][language] = first_analysis(ia, config, language)
+            texts["reminder"][language] = reminder(ia, language)
     rules = timings(ia)
     return [
         Example(kind, title, when.format(**rules), texts[kind])
@@ -1001,7 +1106,8 @@ def comments_part(shown: list[Example], thanks: list[str]) -> str:
     lines = []
     for example in shown:
         lines += [f"## {example.title}", "", example.when, ""]
-        for language, name in LANGUAGES.items():
+        for language in example.texts:
+            name = (LANGUAGES | MORE_LANGUAGES)[language]
             lines += [f'=== "{name}"', "", f"    {placeholder(example.kind, language)}"]
             lines.append("")
     lines += [

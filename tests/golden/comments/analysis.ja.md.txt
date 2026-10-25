@@ -1,0 +1,42 @@
+<!-- issue-assistant:analysis lang=ja questions=1 engine=claude -->
+
+@alex-demo さん、ご報告ありがとうございます！このリポジトリの Issue アシスタントです。最初の確認を行いました。メンテナーもすべての Issue を読んでいます。
+
+### 概要
+
+センサーが再接続した後、湿度グラフは空のままですが、現在値は更新され続けます。
+
+### 最初の分析
+
+グラフは履歴ストリームを一度だけ購読します。再接続後は `subscribed` がまだ true のため `ChartFeed.start()` がすぐに戻り、グラフは新しいストリームを受け取りません。現在値は独自の購読を持っているため回復します。
+
+### 試せること
+
+- 再接続後にダッシュボードを再読み込みすると、グラフが再び表示されます。
+- 修正がリリースされるまでは、`chart.refresh` を `30s` に設定してください。
+
+### 必要な情報
+
+続けるために、コメントまたは Issue の編集で、次の情報を追加してください：
+
+- センサーのファームウェアのバージョン。
+- 再接続時のハブのログ（`log_level: debug` で取得）。
+
+回答がない場合、15 日後にリマインダーが届き、30 日後に Issue はクローズされます。クローズされても、回答すると再オープンされます。
+
+<details><summary>参照箇所：4 件のリンク</summary>
+
+### 関連
+
+- #17: ハブの再起動後に出ていた同じ症状で、1.2.0 で修正済みです。
+- #9 (ディスカッション): グラフがセンサーの履歴を読み込む仕組み。
+
+### 参照箇所
+
+- [`src/plant_monitor/chart.py`、52 行目](https://github.com/demo-org/plant-monitor/blob/4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c/src/plant_monitor/chart.py#L52): `subscribed` が設定されたままだとすぐに戻ります。
+- `docs/troubleshooting.md` の [The chart stays empty](https://github.com/demo-org/plant-monitor/blob/HEAD/docs/troubleshooting.md#the-chart-stays-empty): ログの集め方。
+
+</details>
+
+<sub>🤖 コード、ドキュメント、過去の Issue に基づく Claude による自動の最初の分析です。誤っている可能性があり、判断するのはメンテナーです。ラベル：`connectivity`。[アシスタントの仕組み](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · このコメントに 👍 または 👎 を付けると、役に立ったかどうかがメンテナーに伝わります。</sub>
+
