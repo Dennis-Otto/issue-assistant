@@ -764,6 +764,13 @@ def test_each_command_line_that_analyze_runs_has_a_lock_file_and_nothing_else():
         ) == sorted(assistant.LOCK_FILES)
 
 
+# An install path of a lock file: a package, or one nested below another when two
+# versions of a package are needed.
+LOCK_PATH = re.compile(
+    r"(?:node_modules/(?:@[^/]+/)?[^/]+/)*node_modules/(?:@[^/]+/)?[^/]+"
+)
+
+
 @pytest.mark.parametrize("key", CLI_ENGINES)
 def test_the_lock_file_pins_every_package_with_its_hash(key):
     """npm ci installs each package of the lock file at its version, from npm's
@@ -788,11 +795,13 @@ def test_the_lock_file_pins_every_package_with_its_hash(key):
     packages = lock["packages"]
     assert packages[""]["dependencies"] == manifest["dependencies"]
     assert len(packages) > 1
-    for path, entry in packages.items():
-        if not path:
-            continue
+    installed = {path: entry for path, entry in packages.items() if path}
+    for path, entry in installed.items():
+        assert LOCK_PATH.fullmatch(path) and "link" not in entry, path
+    # A package bundled in another one comes in its tarball, under its hash.
+    fetched = {p: e for p, e in installed.items() if not e.get("inBundle")}
+    for path, entry in fetched.items():
         name = path.rpartition("node_modules/")[2]
-        assert path == f"node_modules/{name}" and "link" not in entry, path
         assert entry["resolved"] == (
             f"https://registry.npmjs.org/{name}/-/"
             f"{name.rpartition('/')[2]}-{entry['version']}.tgz"
@@ -813,8 +822,9 @@ def test_the_dependency_review_allows_the_packages_under_their_vendor_s_terms():
         path = assistant.ENGINE_LOCKS / key / "package-lock.json"
         lock = json.loads(path.read_text(encoding="utf-8"))
         for entry_path, entry in lock["packages"].items():
-            if entry_path and entry["license"] == "SEE LICENSE IN LICENSE.md":
-                named.add(entry_path.removeprefix("node_modules/@github/"))
+            name = entry_path.rpartition("node_modules/")[2]
+            if entry.get("license") == "SEE LICENSE IN LICENSE.md":
+                named.add(name.removeprefix("@github/"))
     assert named and allowed == named
 
 

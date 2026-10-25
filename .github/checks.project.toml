@@ -308,8 +308,8 @@ schema of the Gemini CLI's settings of that version doesn't have a key of `setti
 in `ENGINES` of `issue_assistant.py`, or a run without a key stopped at something other
 than the key or complained about its settings, or a run with broken settings in the
 file that the Gemini CLI's variable names didn't refuse them. Or npm couldn't
-verify a signature of npm's registry or an attestation of a package of a lock file in
-`engines/`, or it installed the command line from a copy of the lock file with
+verify a signature of npm's registry or an attestation of a package that it installed
+from a lock file in `engines/` on the runner, or it installed the command line from a copy of the lock file with
 another hash of it. The log names the version, the flag, the key, the package or what
 it printed."""
 why = """The Gemini CLI ignores a key of its settings that it doesn't know, and skips
