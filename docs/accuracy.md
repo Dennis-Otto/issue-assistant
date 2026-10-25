@@ -8,7 +8,7 @@ How often the assistant's labels, duplicates and questions match what the mainta
 
 ## The numbers
 
-None yet. The first ones come from the repositories that use the assistant, [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync) and [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), each with the day, the engine and the model of its measurement, as `evaluate` writes them into its report.
+None yet. The first ones come from the repositories that use the assistant, [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync) and [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), each with the day, the engine and the model of its measurement, as `evaluate` writes them into its report.
 
 A number of your own repository is welcome in the [discussions](https://github.com/Dennis-Otto/issue-assistant/discussions): the table of measures of the report, with the day, the engine and the model that it names.
 

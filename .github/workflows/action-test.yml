@@ -178,7 +178,7 @@ jobs:
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: Dennis-Otto/ha-autodarts
+          GH_REPO: Dennis-Otto/homedarts-for-autodarts
           GH_TELEMETRY: "false"
         run: |
           python3 issue_assistant.py context --issue 105 --mode triage

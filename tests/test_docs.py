@@ -748,12 +748,17 @@ def test_the_repository_has_topics_that_github_takes(settings):
 
 # The repositories whose issues the assistant looks after, besides its own.
 USERS = {
-    "ha-autodarts",
+    "homedarts-for-autodarts",
+    "player-switch-for-autodarts",
     "paperless-unified-search",
     "paperless-sync",
     "repo-blueprint",
     "dennis-otto.github.io",
 }
+
+# The old names of repositories that GitHub renamed, with their new ones: GitHub
+# redirects the old links, but a reader who copies a name meets the old one.
+RENAMED = {"ha-autodarts": "homedarts-for-autodarts"}
 
 
 def readme_part(name: str) -> str:
@@ -859,6 +864,24 @@ def test_every_page_names_the_same_users():
     assert users(readme, "**Used by**") == USERS
     assert users(home, "**Used by**") == USERS
     assert users(roadmap, "- **The repositories that use it.**") == USERS
+
+
+def test_no_page_links_a_repository_by_its_old_name():
+    for document in DOCUMENTS:
+        text = document.read_text("utf-8")
+        for old, new in RENAMED.items():
+            # Stop at the end of the name: catches `#readme`, `.git` and autolinks too.
+            link = rf"github\.com/Dennis-Otto/{re.escape(old)}(?![\w-])"
+            assert not re.search(link, text), (document.name, new)
+
+
+def test_the_roadmap_lists_no_shipped_engine_as_an_idea():
+    roadmap = (ROOT / "docs" / "roadmap.md").read_text("utf-8")
+    # An engine that the action ships is no idea any more.
+    ideas = re.search(r"^## Ideas\n(.*?)^## ", roadmap, re.MULTILINE | re.DOTALL)
+    assert ideas, "the roadmap has no ideas"
+    for engine in assistant.ENGINES.values():
+        assert engine.name not in ideas[1], engine.name
 
 
 def test_the_requirements_say_that_the_firewall_runner_is_a_preview():
