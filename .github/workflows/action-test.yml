@@ -9,7 +9,10 @@ name: Action test
 # back to yq, as it does in every repository that uses the action. The commands
 # that only read run against GitHub itself, and every week the GraphQL documents of
 # the script meet GitHub's schema of that day, so that a field that GitHub
-# deprecates fails here months before GitHub removes it.
+# deprecates fails here months before GitHub removes it. The names that keep each
+# engine to reading, such as the inputs of its action and the flags of its command
+# line, meet the versions that the workflows pin, on a pull request that changes an
+# engine and every week, so that an update that renames one fails before a release.
 #
 # Each part of a job runs also when one before it failed, so that the check reports
 # every failure at once, and the last step of each job lets the PR coach explain each
@@ -284,6 +287,71 @@ jobs:
         env:
           CHECK: the AI's runner in reserve behind Harden-Runner
         run: python3 .github/blueprint.py coach explain "$CHECK"
+
+  # The names that keep each engine to reading belong to its vendor: the inputs and
+  # outputs of its action, the flags of its command line and the keys of its
+  # settings. GitHub only warns about an input that an action lacks, and the command
+  # lines ignore a key that they don't know, so a release that renames one keeps the
+  # step running without its boundary. No check of a pull request runs an engine, so
+  # this job checks the names against the pinned versions, without a secret, behind
+  # a block that lets through GitHub and npm's registry alone: on a pull request that
+  # changes the step of an engine or what the check reads, such as an update of
+  # Renovate, every week and by hand.
+  engines:
+    name: engine contracts
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Block every host but GitHub's and npm's
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+            registry.npmjs.org:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        id: checkout
+        with:
+          persist-credentials: false
+      # Only on a pull request: whether it changes a file that the check reads.
+      - name: Look for a change of an engine
+        id: changes
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: python3 scripts/engine_contract.py changes
+      - name: Check the inputs and outputs of the engines' actions
+        id: actions
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.changes.outputs.engines != 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/engine_contract.py actions
+      # Installs each command line as analyze does and runs it without a key; the
+      # token only reads the schema of the settings, and no command line sees it.
+      - name: Check the flags and settings of the engines' command lines
+        id: clis
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.changes.outputs.engines != 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/engine_contract.py clis
+      # The PR coach, as in the job action.
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: engine contracts
+          FAILED: |
+            ${{ steps.changes.outcome == 'failure' && 'engine-changes' || '' }}
+            ${{ steps.actions.outcome == 'failure' && 'engine-actions' || '' }}
+            ${{ steps.clis.outcome == 'failure' && 'engine-clis' || '' }}
+        run: |
+          mapfile -t parts < <(grep . <<<"$FAILED" || true)
+          python3 .github/blueprint.py coach explain "$CHECK" --parts "${parts[@]}"
 
   # GitHub changes its API without a release of the action. The tests check the
   # GraphQL documents of the script against the copy of GitHub's schema in

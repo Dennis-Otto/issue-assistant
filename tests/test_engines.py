@@ -442,12 +442,14 @@ def test_copilot_gets_the_effort_of_the_task_and_gemini_takes_none(config):
     gemini = assistant.ENGINES["gemini"].cli
     run = assistant.Run("auto", 4, "1", "high")
     assert assistant.cli_command(copilot, "copilot", run, "P")[5:7] == [
-        "--effort",
+        "--reasoning-effort",
         "high",
     ]
     calm = dataclasses.replace(run, effort="")
-    assert "--effort" not in assistant.cli_command(copilot, "copilot", calm, "P")
-    assert "--effort" not in assistant.cli_command(gemini, "gemini", run, "P")
+    assert "--reasoning-effort" not in assistant.cli_command(
+        copilot, "copilot", calm, "P"
+    )
+    assert "--reasoning-effort" not in assistant.cli_command(gemini, "gemini", run, "P")
     # Settings without the turns, for a command line that takes none.
     assert assistant.cli_settings(copilot, run) == {}
 

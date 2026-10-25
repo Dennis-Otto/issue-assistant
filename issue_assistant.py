@@ -908,7 +908,8 @@ ENGINES = {
                 "--output-format",
                 "json",
             ),
-            effort="--effort",
+            # The name of the flag in its help; --effort is a hidden alias of it.
+            effort="--reasoning-effort",
             answer_event="assistant.message",
             error_event="session.error",
             variables={"COPILOT_AUTO_UPDATE": "false"},
@@ -9016,6 +9017,8 @@ def choose_engine(config: Config, ready: str) -> tuple[str, bool]:
 CLI_VERSION = re.compile(r"\d+\.\d+\.\d+")
 # The most minutes that an engine's command line runs; the job stops at 20.
 ENGINE_MINUTES = 15
+# The file of the settings of an engine's command line, in the folder of its run.
+CLI_SETTINGS = "settings.json"
 
 
 def cli_settings(cli: Cli, run: Run) -> dict[str, Any]:
@@ -9165,13 +9168,32 @@ def analyze(
         for name in ("rules.md", "prompt.md")
     )
     command_path = install_cli(cli, version, work / "cli")
-    home, settings = work / "home", work / "settings.json"
+    result = run_cli(engine, cli, command_path, run, prompt, config.root, work)
+    return cli_answer(engine, cli, result)
+
+
+def run_cli(
+    engine: Engine,
+    cli: Cli,
+    command_path: str,
+    run: Run,
+    prompt: str,
+    root: Path,
+    work: Path,
+) -> subprocess.CompletedProcess[str]:
+    """Run the engine's command line on the prompt in the checkout `root`, with a
+    home and the settings of the run in `work`, the folder of the run.
+
+    scripts/engine_contract.py runs it so too, without the secret, so that the check
+    of the settings and the flags runs them where `analyze` does.
+    """
+    home, settings = work / "home", work / CLI_SETTINGS
     home.mkdir(parents=True, exist_ok=True)
     settings.write_text(json.dumps(cli_settings(cli, run)), encoding="utf-8")
     try:
-        result = subprocess.run(
+        return subprocess.run(
             cli_command(cli, command_path, run, prompt),
-            cwd=config.root,
+            cwd=root,
             env=cli_environment(engine, cli, home, settings),
             capture_output=True,
             text=True,
@@ -9184,7 +9206,21 @@ def analyze(
         raise AssistantError(
             f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."
         ) from None
-    return cli_answer(engine, cli, result)
+
+
+def runner_folder() -> Path:
+    """A new folder for a run of an engine's command line, in the temporary folder
+    of the runner, that only the user of the runner may enter.
+
+    A command line may skip settings that keep it to reading when another user may
+    write to their folder or to one around it; scripts/engine_contract.py makes its
+    folders here too, so that its run without a key shows when one does.
+    """
+    return Path(
+        tempfile.mkdtemp(
+            prefix="issue-assistant-", dir=os.environ.get("RUNNER_TEMP") or None
+        )
+    )
 
 
 # How a run of the engine ended, by the subtype of the result in its execution file;
@@ -10281,11 +10317,7 @@ def engine_command(root: Path, repository: str, mode: str | None) -> int:
 
 def analyze_command(root: Path, repository: str, mode: str | None) -> int:
     key = os.environ.get("ENGINE", "")
-    work = Path(
-        tempfile.mkdtemp(
-            prefix="issue-assistant-", dir=os.environ.get("RUNNER_TEMP") or None
-        )
-    )
+    work = runner_folder()
     answer = analyze(
         load_config(root, repository),
         mode,

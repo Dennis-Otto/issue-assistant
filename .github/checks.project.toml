@@ -242,6 +242,90 @@ autofix = """A document that GitHub's schema no longer takes needs a person, who
 chooses what replaces the field; a fresh copy of the schema alone would only move the
 failure into the required check."""
 
+# ---------------------------------------------------------------- the job engines
+
+[check."engine contracts"]
+title = "The names that keep each engine to reading"
+problem = """A step of the check of the engine contracts failed before its parts ran,
+such as the checkout of the pull request, or the block of Harden-Runner stopped a host
+other than `api.github.com`, `github.com` and `registry.npmjs.org`. When a part fails,
+the PR coach explains that part instead: the files of the pull request, the actions of
+the engines or their command lines."""
+why = """The check runs the pinned versions of the engines without a key, the only
+check that does before a release brings them to every repository that uses the
+action."""
+fix = """Run the check again; if it fails at the same step, the log of the check says
+why."""
+docs = "docs/architecture.md#how-the-names-of-the-engines-are-checked"
+autofix = """A step that fails before the parts needs a look at its log; each part
+says in its own explanation how it is fixed."""
+
+[check.engine-changes]
+title = "The files of the pull request"
+problem = """GitHub listed no files of the pull request, so the check couldn't tell
+whether it changes the step of an engine or what the check reads; the log names
+GitHub's answer."""
+why = """Without the list, the check runs the engines' actions and command lines as
+on a pull request that changes them, and only this part fails."""
+fix = """Run the check again; GitHub's API was most likely down for a moment."""
+commands = [
+  "PR=<number> GITHUB_REPOSITORY={repo} python3 scripts/engine_contract.py changes",
+]
+docs = "docs/architecture.md#how-the-names-of-the-engines-are-checked"
+autofix = """A failed request to GitHub needs another run, not a change of the
+repository."""
+
+[check.engine-actions]
+title = "The inputs and outputs of the engines' actions"
+problem = """A step of an engine passes an input that its action, at the commit that
+the workflow pins, doesn't have or deprecates, or leaves out one that the action
+requires, or its job reads an output that the action doesn't have; the log names the
+workflow, the step, the action and the name. Or openai/codex-action no longer says
+that it selects the permission profile through `default_permissions` of Codex's
+configuration."""
+why = """GitHub only warns about an input that an action doesn't have and runs the
+step without it: Codex would run without the sandbox of `permission-profile`, which
+keeps it to reading. An output that the action renamed turns into an empty answer in
+every repository that uses the action."""
+fix = """Read the release notes of the action and its `action.yml` at the new commit,
+and pass the input by its new name in `.github/workflows/reusable-issue-assistant.yml`
+and `reusable-discussion-assistant.yml`, with its rules in `ENGINE_RULES` of
+`tests/test_templates.py`, or keep the old pin until it is clear what replaces it. The
+check runs on your machine with the GitHub CLI signed in:"""
+commands = [
+  "python3 scripts/engine_contract.py actions",
+]
+docs = "docs/security.md#the-boundary-of-each-engine"
+autofix = """A renamed input of an engine's action can change its security boundary,
+so a person decides what replaces it; no bot moves the read-only boundary of an
+engine."""
+
+[check.engine-clis]
+title = "The flags and settings of the engines' command lines"
+problem = """A command line of an engine, at the version that the workflow pins,
+doesn't list a flag of its step in its `--help` or doesn't take its value, the JSON
+schema of the Gemini CLI's settings of that version doesn't have a key of `settings`
+in `ENGINES` of `issue_assistant.py`, or a run without a key stopped at something other
+than the key or complained about its settings; the log names the version, the flag,
+the key or what it printed."""
+why = """The Gemini CLI ignores a key of its settings that it doesn't know, and skips
+its settings in a folder that others may write to, Codex ignores a key of its
+configuration that it doesn't know, and a flag that the help doesn't list can go in
+the next release: each would run the engine without the rule that keeps it to
+reading, without a failure."""
+fix = """Read the release notes of the command line and change the flag or the key in
+`ENGINES` of `issue_assistant.py`, with its test in `tests/test_engines.py` and the
+rows in `docs/security.md`, or keep the old pin until it is clear what replaces it. A
+run that stopped elsewhere shows in the log what the command line printed. The check
+runs on Linux or macOS, with npm and the GitHub CLI signed in:"""
+commands = [
+  "python3 scripts/engine_contract.py clis",
+]
+docs = "docs/security.md#the-boundary-of-each-engine"
+autofix = """A renamed flag or key of an engine's command line can change its
+security boundary, so a person decides what replaces it; no bot moves the read-only
+boundary of an engine."""
+
 # ---------------------------------------------------------------- the fuzzing
 
 [check.fuzz]
