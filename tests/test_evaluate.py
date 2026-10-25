@@ -870,8 +870,23 @@ def test_claude_that_gives_no_answer_says_why(
     assert str(raised.value) == error
 
 
+@pytest.fixture
+def as_root(monkeypatch):
+    """The commands that evaluate runs as root, which succeed, on a computer with
+    root."""
+    commands = []
+
+    def run(command):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(assistant, "as_root", run)
+    monkeypatch.setattr(assistant.os, "geteuid", lambda: 1000, raising=False)
+    return commands
+
+
 def test_gemini_runs_logged_in_as_you_with_the_settings_that_keep_it_to_reading(
-    monkeypatch, tmp_path, root, config, context
+    monkeypatch, tmp_path, root, config, context, as_root
 ):
     monkeypatch.setattr(assistant.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setenv("HOME", "/home/you")
@@ -886,8 +901,13 @@ def test_gemini_runs_logged_in_as_you_with_the_settings_that_keep_it_to_reading(
     variables = options["env"]
     # Your own home, with its login, and the settings that leave it only reading.
     assert variables["HOME"] == "/home/you"
+    # Root's alone, as Gemini takes them only so, and gone when the run ends.
+    folder = f"/etc/issue-assistant/{tmp_path.name}"
+    assert variables["GEMINI_CLI_SYSTEM_SETTINGS_PATH"] == f"{folder}/settings.json"
     settings = tmp_path / "settings.json"
-    assert variables["GEMINI_CLI_SYSTEM_SETTINGS_PATH"] == str(settings)
+    assert [command[0] for command in as_root] == ["install", "install", "rm"]
+    assert as_root[1][-2:] == [str(settings), f"{folder}/settings.json"]
+    assert as_root[2] == ["rm", "-rf", folder]
     assert variables["GEMINI_TELEMETRY_ENABLED"] == "false"
     run_of_task = assistant.task_run(chosen, "triage")
     cli = assistant.ENGINES["gemini"].cli
@@ -908,6 +928,41 @@ def test_copilot_takes_no_settings_file(monkeypatch, tmp_path, config, context):
     ((_, options),) = run.calls
     assert "GEMINI_CLI_SYSTEM_SETTINGS_PATH" not in options["env"]
     assert not (tmp_path / "settings.json").exists()
+
+
+def test_gemini_doesn_t_run_when_root_can_t_take_its_settings(
+    monkeypatch, tmp_path, config, context, as_root
+):
+    """Gemini would run without them, with only a warning."""
+    monkeypatch.setattr(assistant.shutil, "which", lambda name: f"/usr/bin/{name}")
+
+    def refuse(command):
+        as_root.append(command)
+        return subprocess.CompletedProcess(
+            command, 1, "", "sudo: a password is required"
+        )
+
+    monkeypatch.setattr(assistant, "as_root", refuse)
+    run = FakeRun()
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    answer = assistant.local_engine(
+        dataclasses.replace(config, engine="gemini"), tmp_path
+    )
+    with pytest.raises(assistant.AssistantError, match="on your computer, run sudo -v"):
+        answer()
+    assert run.calls == []
+    assert as_root[-1] == ["rm", "-rf", f"/etc/issue-assistant/{tmp_path.name}"]
+
+
+def test_gemini_without_root_is_refused(monkeypatch, tmp_path, config):
+    monkeypatch.setattr(assistant.shutil, "which", lambda name: "C:/bin/gemini.exe")
+    monkeypatch.delattr(assistant.os, "geteuid", raising=False)
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.local_engine(dataclasses.replace(config, engine="gemini"), tmp_path)
+    assert str(refused.value) == (
+        "evaluate runs Gemini only on Linux, macOS or WSL: it takes the settings "
+        "that keep it to reading only from a file of root's."
+    )
 
 
 @pytest.mark.parametrize("found", ["C:/npm/gemini.cmd", "C:/npm/gemini.BAT"])
@@ -1024,7 +1079,7 @@ def test_the_evaluate_command_writes_the_report_next_to_the_checkout(
 
 
 def test_the_evaluate_command_takes_another_engine_model_and_report(
-    monkeypatch, tmp_path, root, github
+    monkeypatch, tmp_path, root, github, as_root
 ):
     monkeypatch.setattr(assistant, "datetime", Frozen)
     monkeypatch.setattr(assistant.shutil, "which", lambda name: f"/usr/bin/{name}")

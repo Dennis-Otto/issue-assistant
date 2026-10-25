@@ -1,0 +1,23 @@
+flowchart TB
+  accTitle: How the names of the engines are checked
+  accDescr: A pull request that changes the step of an engine, such as an update of Renovate, or one that changes what the check reads, and a run every week start the job engine contracts of the Action test. It holds no secret, and its block lets through GitHub and npm's registry alone. It reads the action.yml of each engine's action at the commit that the workflows pin, and every input that a step passes and every output that a job reads must be there. It installs each engine's command line at its pinned version, as analyze does, and every flag of its step must be in its help, with its value, and every key of the Gemini CLI's settings in the schema of that version. Then each runs without a key, in a folder like that of analyze, and must stop at the missing key alone, with its settings taken. A renamed input, flag or key fails the check, which names it, before a release brings the new version to every repository.
+  start["`**A pull request that changes an engine,**<br>such as an update of Renovate,<br>or **every week**`"]
+  job["`**The job engine contracts**<br>no secret; GitHub and npm alone`"]
+  actions["`**Each engine's action** at its pin<br>has every input that a step passes<br>and every output that a job reads`"]
+  clis["`**Each command line** at its pin<br>lists every flag of its step, with its value;<br>the schema of the settings has every key`"]
+  run["`**A run without a key**<br>stops at the missing key alone,<br>with its settings taken`"]
+  green(["The update keeps the names of the boundary"])
+  red(["Red, with the input, the flag or the key by name,<br>before a release brings the version to every repository"])
+  start --> job --> actions --> clis --> run
+  run -- "every name is there,<br>and it stops at the key" --> green
+  actions -. "a name is gone" .-> red
+  clis -. "a name is gone" .-> red
+  run -. "it stops elsewhere" .-> red
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  class start trigger
+  class job,actions,clis,run job
+  class green safe
+  class red stop

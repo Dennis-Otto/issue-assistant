@@ -31,12 +31,13 @@ import tomllib
 import unicodedata
 from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Iterator
+from contextlib import ExitStack, contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from fnmatch import fnmatchcase
 from functools import cache, partial
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 from statistics import median
 from typing import Any
 from urllib.parse import quote, unquote, urlencode, urlsplit
@@ -734,6 +735,9 @@ class Cli:
     settings: dict[str, Any] = field(default_factory=dict)
     settings_variable: str = ""
     turns: str = ""
+    # Whether it takes that file only when root owns it and every folder around it,
+    # and nobody else may write to them; `analyze` then writes it with sudo.
+    root_settings: bool = False
     # Further variables, such as those that turn off telemetry and updates.
     variables: dict[str, str] = field(default_factory=dict)
     # The field of the JSON that it prints that holds the answer, next to a field
@@ -871,6 +875,9 @@ ENGINES = {
                 "context": {"fileFiltering": {"respectGitIgnore": False}},
             },
             settings_variable="GEMINI_CLI_SYSTEM_SETTINGS_PATH",
+            # It skips system settings that another user than root could change,
+            # with no more than a warning, and would run without them.
+            root_settings=True,
             turns="model.maxSessionTurns",
             variables={"GEMINI_TELEMETRY_ENABLED": "false"},
             answer="response",
@@ -908,7 +915,8 @@ ENGINES = {
                 "--output-format",
                 "json",
             ),
-            effort="--effort",
+            # The name of the flag in its help; --effort is a hidden alias of it.
+            effort="--reasoning-effort",
             answer_event="assistant.message",
             error_event="session.error",
             variables={"COPILOT_AUTO_UPDATE": "false"},
@@ -9016,6 +9024,11 @@ def choose_engine(config: Config, ready: str) -> tuple[str, bool]:
 CLI_VERSION = re.compile(r"\d+\.\d+\.\d+")
 # The most minutes that an engine's command line runs; the job stops at 20.
 ENGINE_MINUTES = 15
+# The file of the settings of an engine's command line, in the folder of its run.
+CLI_SETTINGS = "settings.json"
+# Where a command line that takes its settings only from root finds those of a run:
+# in a folder of the run below this one, which root owns and nobody else may write to.
+ROOT_SETTINGS = PurePosixPath("/etc/issue-assistant")
 
 
 def cli_settings(cli: Cli, run: Run) -> dict[str, Any]:
@@ -9040,7 +9053,7 @@ def cli_command(cli: Cli, command_path: str, run: Run, prompt: str) -> list[str]
 
 
 def cli_environment(
-    engine: Engine, cli: Cli, home: Path, settings: Path
+    engine: Engine, cli: Cli, home: Path, settings: PurePath
 ) -> dict[str, str]:
     """The variables of an engine's command line: a home of its own, outside the
     checkout, its settings, and of the job's variables only the engine's secret."""
@@ -9165,26 +9178,126 @@ def analyze(
         for name in ("rules.md", "prompt.md")
     )
     command_path = install_cli(cli, version, work / "cli")
-    home, settings = work / "home", work / "settings.json"
+    result = run_cli(engine, cli, command_path, run, prompt, config.root, work)
+    return cli_answer(engine, cli, result)
+
+
+def run_cli(
+    engine: Engine,
+    cli: Cli,
+    command_path: str,
+    run: Run,
+    prompt: str,
+    root: Path,
+    work: Path,
+) -> subprocess.CompletedProcess[str]:
+    """Run the engine's command line on the prompt in the checkout `root`, with a
+    home and the settings of the run in `work`, the folder of the run.
+
+    scripts/engine_contract.py runs it so too, without the secret, so that the check
+    of the settings and the flags runs them where `analyze` does.
+    """
+    home = work / "home"
     home.mkdir(parents=True, exist_ok=True)
-    settings.write_text(json.dumps(cli_settings(cli, run)), encoding="utf-8")
+    with placed_settings(cli, json.dumps(cli_settings(cli, run)), work) as settings:
+        try:
+            return subprocess.run(
+                cli_command(cli, command_path, run, prompt),
+                cwd=root,
+                env=cli_environment(engine, cli, home, settings),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=ENGINE_MINUTES * 60,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            raise AssistantError(
+                f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."
+            ) from None
+
+
+@contextmanager
+def placed_settings(cli: Cli, text: str, work: Path) -> Iterator[PurePath]:
+    """Write the settings `text` of a run in the folder `work` to where the command
+    line reads them, and yield that path; for a command line that takes them only
+    from root, into a folder of root's, which goes again when the run ends, also
+    after a copy that failed half way.
+
+    `analyze` and `evaluate` place them so, and scripts/engine_contract.py too.
+    """
+    written = work / CLI_SETTINGS
+    written.write_text(text, encoding="utf-8")
+    settings = settings_path(cli, work)
     try:
-        result = subprocess.run(
-            cli_command(cli, command_path, run, prompt),
-            cwd=config.root,
-            env=cli_environment(engine, cli, home, settings),
+        if cli.root_settings:
+            install_as_root(written, settings)
+        yield settings
+    finally:
+        if cli.root_settings:
+            as_root(["rm", "-rf", str(settings.parent)])
+
+
+def settings_path(cli: Cli, work: Path) -> PurePath:
+    """Where the command line reads the settings of the run in the folder `work`."""
+    if cli.root_settings:
+        return ROOT_SETTINGS / work.name / CLI_SETTINGS
+    return work / CLI_SETTINGS
+
+
+def as_root(command: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run a command as root: with sudo, which GitHub's runners have, unless the job
+    runs as root already."""
+    root = getattr(os, "geteuid", lambda: -1)() == 0
+    command = command if root else ["sudo", "--non-interactive", *command]
+    try:
+        return subprocess.run(
+            command,
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=ENGINE_MINUTES * 60,
             check=False,
         )
-    except subprocess.TimeoutExpired:
-        raise AssistantError(
-            f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."
-        ) from None
-    return cli_answer(engine, cli, result)
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(command, 127, "", f"no {command[0]}")
+
+
+def install_as_root(source: Path, target: PurePath) -> None:
+    """Copy the settings to `target`, in a new folder of root's that nobody else may
+    write to, as the folder around it; a command line that takes its settings only
+    so would otherwise run without them."""
+    folder = target.parent
+    for command in (
+        # Root's numbers, as macOS has no group named root.
+        ["install", "-d", "-m", "755", "-o", "0", "-g", "0"]
+        + [str(folder.parent), str(folder)],
+        ["install", "-m", "644", "-o", "0", "-g", "0", str(source), str(target)],
+    ):
+        result = as_root(command)
+        if result.returncode:
+            raise AssistantError(
+                f"The settings that keep the engine's command line to reading must "
+                f"belong to root, and {' '.join(command[:2])} as root failed: "
+                f"{one_line(result.stderr)[-300:] or 'no message'}. It needs sudo "
+                "without a password prompt: GitHub's runners have it; on your "
+                "computer, run sudo -v first."
+            )
+
+
+def runner_folder() -> Path:
+    """A new folder for a run of an engine's command line, in the temporary folder
+    of the runner, that only the user of the runner may enter.
+
+    scripts/engine_contract.py runs the engines' command lines in such a folder too,
+    as `analyze` does.
+    """
+    return Path(
+        tempfile.mkdtemp(
+            prefix="issue-assistant-", dir=os.environ.get("RUNNER_TEMP") or None
+        )
+    )
 
 
 # How a run of the engine ended, by the subtype of the result in its execution file;
@@ -9918,7 +10031,12 @@ def local_engine(config: Config, work: Path) -> Callable[[], Answered]:
             f"file through cmd.exe, which cuts it. Install {engine.name} as a "
             "program of its own, or run evaluate in WSL."
         )
-    settings = work / "settings.json"
+    if cli and cli.root_settings and not hasattr(os, "geteuid"):
+        # Without root, the command line would run without its settings.
+        raise AssistantError(
+            f"evaluate runs {engine.name} only on Linux, macOS or WSL: it takes the "
+            "settings that keep it to reading only from a file of root's."
+        )
 
     def answer() -> Answered:
         try:
@@ -9931,22 +10049,23 @@ def local_engine(config: Config, work: Path) -> Callable[[], Answered]:
                 for file in ("rules.md", "prompt.md")
             )
             variables = os.environ | cli.variables
-            if cli.settings_variable:
-                settings.write_text(
-                    json.dumps(cli_settings(cli, run)), encoding="utf-8"
+            with ExitStack() as stack:
+                if cli.settings_variable:
+                    settings = stack.enter_context(
+                        placed_settings(cli, json.dumps(cli_settings(cli, run)), work)
+                    )
+                    variables[cli.settings_variable] = str(settings)
+                result = subprocess.run(
+                    cli_command(cli, found, run, prompt),
+                    cwd=config.root,
+                    env=variables,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=ENGINE_MINUTES * 60,
+                    check=False,
                 )
-                variables[cli.settings_variable] = str(settings)
-            result = subprocess.run(
-                cli_command(cli, found, run, prompt),
-                cwd=config.root,
-                env=variables,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=ENGINE_MINUTES * 60,
-                check=False,
-            )
         except subprocess.TimeoutExpired:
             raise AssistantError(
                 f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."
@@ -10281,11 +10400,7 @@ def engine_command(root: Path, repository: str, mode: str | None) -> int:
 
 def analyze_command(root: Path, repository: str, mode: str | None) -> int:
     key = os.environ.get("ENGINE", "")
-    work = Path(
-        tempfile.mkdtemp(
-            prefix="issue-assistant-", dir=os.environ.get("RUNNER_TEMP") or None
-        )
-    )
+    work = runner_folder()
     answer = analyze(
         load_config(root, repository),
         mode,

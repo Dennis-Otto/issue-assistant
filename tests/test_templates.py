@@ -726,8 +726,10 @@ def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
         for name, job in jobs.items()
         if job["steps"][0].get("uses", "").startswith(f"{HARDEN_RUNNER}@")
         and job["steps"][0]["with"]["egress-policy"] == "block"
-        # The jobs of the AI's runner in reserve run no command that reads GitHub.
+        # The jobs of the AI's runner in reserve run no command that reads GitHub,
+        # and the engine contracts none of the action's (tests/test_engine_contract.py).
         and not name.startswith("fallback")
+        and name != "engines"
     ]
     assert job["runs-on"] == RUNNER
     assert job["steps"][0] == JOBS["event"]["steps"][0]
