@@ -870,8 +870,9 @@ def test_no_page_links_a_repository_by_its_old_name():
     for document in DOCUMENTS:
         text = document.read_text("utf-8")
         for old, new in RENAMED.items():
-            assert f"github.com/Dennis-Otto/{old})" not in text, (document.name, new)
-            assert f"github.com/Dennis-Otto/{old}/" not in text, (document.name, new)
+            # Stop at the end of the name: catches `#readme`, `.git` and autolinks too.
+            link = rf"github\.com/Dennis-Otto/{re.escape(old)}(?![\w-])"
+            assert not re.search(link, text), (document.name, new)
 
 
 def test_the_roadmap_lists_no_shipped_engine_as_an_idea():
