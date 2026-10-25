@@ -6,7 +6,7 @@ name: Property tests
 
 on:
   schedule:
-    - cron: "41 2 * * *"
+    - cron: "57 2 * * *"
   workflow_dispatch:
     inputs:
       seed:

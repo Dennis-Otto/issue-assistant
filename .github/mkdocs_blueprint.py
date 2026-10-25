@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import gzip
 import html
+import importlib.util
 import json
 import logging
 import posixpath
@@ -19,9 +20,11 @@ import subprocess
 import sys
 import time
 import tomllib
+from collections import Counter
 from pathlib import Path
+from types import ModuleType
 from typing import Any, NamedTuple
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, unquote, urljoin, urlparse, urlsplit
 
 import yaml
 
@@ -33,13 +36,10 @@ log = logging.getLogger("mkdocs.hooks.blueprint")
 DOWNLOADING = ("material/privacy", "material/social")
 # How often a download is tried before the plugin gets its error.
 ATTEMPTS = 3
-# The <picture> of a diagram, as scripts/diagrams.sh --extract writes it, with the
-# paragraph that Markdown puts around it.
-DIAGRAM = re.compile(
-    r"(?P<paragraph><p>\s*)?<picture>(?:(?!</picture>).)*?<img\b[^>]*?\bsrc=\"(?:[^\"]*/)?"
-    r"images/diagrams/(?P<name>[\w.-]+?)\.svg\".*?</picture>(?(paragraph)\s*</p>)",
-    re.S,
-)
+# The seconds that an attempt waits for the connection and then for each next part
+# of the file, when the plugin names no time limit itself: the social plugin names
+# none, so a server that stopped answering held the build until the CI ended it.
+TIMEOUT = (10, 30)
 # The stylesheet and the script of every website: the path where the website serves
 # each, and the file beside this one that holds it.
 ASSETS = {
@@ -47,9 +47,11 @@ ASSETS = {
     "assets/javascripts/blueprint.js": "mkdocs-blueprint.js",
 }
 STYLESHEET, SCRIPT = ASSETS
-# The Mermaid that draws the diagrams of the website. Material asks unpkg.com for the
-# newest release of a major version, which the privacy plugin downloads in every
-# build, so that two builds of the same commit could draw the diagrams differently.
+# The Mermaid that draws a ```mermaid block of a project's page, which the website
+# still draws live; a diagram that the pages show as its pictures needs none.
+# Material asks unpkg.com for the newest release of a major version, which the
+# privacy plugin downloads in every build, so that two builds of the same commit
+# could draw the diagrams differently.
 # The website loads this release instead, which Renovate keeps current within the
 # major version that Material loads.
 MERMAID = "https://unpkg.com/mermaid@11.17.2/dist/mermaid.min.js"
@@ -71,10 +73,39 @@ ATTRIBUTE = re.compile(
 )
 # The endings of the address of a picture that Material shows in one scheme alone.
 SCHEMES = ("#only-light", "#only-dark")
+# A file of docs/ in a further language, such as images/diagrams/NAME.de.svg, which
+# the i18n plugin serves for the pages of that language without its suffix, at
+# de/images/diagrams/NAME.svg.
+LOCALIZED = re.compile(
+    r"(?P<path>.+)\.(?P<language>[a-z]{2}(?:[-_][A-Za-z]{2,4})*)(?P<ending>\.[^./]+)"
+)
+# The start of an SVG, whose root names its width and height, in the bytes that are
+# read of it.
+SVG_HEAD = 1024
+SVG_ROOT = re.compile(rb"\s*(?:<\?xml[^>]*>\s*)?<svg\s[^>]*")
+SVG_LENGTHS = tuple(
+    re.compile(rb"\s" + name + rb"\s*=\s*([\"'])(?P<length>\d+(?:\.\d+)?)(?:px)?\1")
+    for name in (b"width", b"height")
+)
 # The pictures beside a video, NAME.webp or NAME.png, that show until it plays.
 POSTERS = (".webp", ".png")
-# The live diagrams, whose sources the search leaves out: a search for "token" would
-# show "flowchart LR admin([..." as its text.
+# A picture of the repository that a page shows from main, as a README names it so
+# that it shows wherever the README does, such as on PyPI or in the store of an app:
+# github.com/OWNER/NAME/raw/main/PATH, its blob/main/PATH?raw=true, and
+# raw.githubusercontent.com/OWNER/NAME/main/PATH, also from HEAD or refs/heads/main.
+# The website serves it from the checkout, in this folder, so that a pull request
+# that adds a screenshot shows it on the website too: the privacy plugin would
+# download it from main, which doesn't have it before the merge.
+CHECKOUT = "assets/images/repository"
+BRANCHES = ("main", "HEAD")
+# Whether git tracks a file, which main then has once the change is merged: git
+# lists the path that follows, as it is, or nothing.
+TRACKED = ("git", "--literal-pathspecs", "ls-files", "-z", "--")
+# The characters of a path that its address on the website keeps as they are.
+UNQUOTED = "/@+:"
+# The diagrams that a page still draws live, from a ```mermaid block, whose sources
+# the search leaves out: a search for "token" would show "flowchart LR admin([..."
+# as its text.
 MERMAID_BLOCK = re.compile(r'<pre class="mermaid"(?=>)')
 # The badges of a README, such as those of shields.io, of a workflow or of the
 # Scorecard: the website shows none. The privacy plugin would download each once,
@@ -87,7 +118,7 @@ BADGE = re.compile(
     re.I,
 )
 LINKED_IMAGE = re.compile(rf"<a\b{TAG}>\s*(?P<image><img\b{TAG}>)\s*</a>", re.I)
-EMPTY = re.compile(r"<p>\s*</p>\n?")
+EMPTY = re.compile(rf"<p\b{TAG}>\s*</p>\n?")
 # The first paragraph of a page, from which a page without a description in its
 # front matter takes the description that search engines and preview cards show, of
 # DESCRIPTION characters at most. A paragraph of links alone, such as the line that
@@ -149,7 +180,8 @@ SNIPPET = re.compile(
 
 class Retrying:
     """The requests of a plugin, whose get tries a download again, after a second
-    and then two, when the network or the server fails."""
+    and then two, when the network or the server fails, and gives up on an attempt
+    after TIMEOUT unless the plugin names its own time limit."""
 
     def __init__(self, requests: Any) -> None:
         self.requests = requests
@@ -158,6 +190,7 @@ class Retrying:
         return getattr(self.requests, name)
 
     def get(self, url: str, **kwargs: Any) -> Any:
+        kwargs.setdefault("timeout", TIMEOUT)
         transient = (self.requests.ConnectionError, self.requests.Timeout)
         for attempt in range(1, ATTEMPTS):
             try:
@@ -179,7 +212,8 @@ def on_config(config: Any) -> None:
 
     The plugins try every file once: the privacy plugin warns when a font of Google
     Fonts doesn't come within 5 seconds, which fails a strict build, and the social
-    plugin fails on any error of the network. The stylesheet and the script come
+    plugin fails on any error of the network and waits without end for a server that
+    stopped answering. The stylesheet and the script come
     before those of the project, whose extra_css replaces the list of the blueprint
     and whose rules win over them. The menu of mkdocs.yml belongs to the project, so
     the page comes after the security design there, unless the menu names it.
@@ -224,9 +258,9 @@ class Languages(NamedTuple):
 
     def of(self, location: str) -> str:
         """The language of a page by its path on the website: a further one for
-        de/guide.html, and for ha-autodarts/de/games.html, a page of a project
-        website that the website of its owner adds to its search; the default one
-        for every other page."""
+        de/guide.html, and for homedarts-for-autodarts/de/games.html, a page of a
+        project website that the website of its owner adds to its search; the
+        default one for every other page."""
         parts = location.split("/")
         if parts[0] in self.further:
             return parts[0]
@@ -237,7 +271,8 @@ class Languages(NamedTuple):
     def versions(self, location: str, language: str) -> tuple[str, ...]:
         """The paths where the version in language of the page of the default
         language at location would be: de/guide.html for guide.html, and also
-        ha-autodarts/de/games.html for ha-autodarts/games.html."""
+        homedarts-for-autodarts/de/games.html for
+        homedarts-for-autodarts/games.html."""
         head, slash, rest = location.partition("/")
         nested = (f"{head}/{language}/{rest}",) if slash else ()
         return (f"{language}/{location}", *nested)
@@ -507,6 +542,16 @@ def on_files(files: Any, config: Any) -> Any:
         files.append(
             kind(path, config.docs_dir, config.site_dir, config.use_directory_urls)
         )
+    for picture in BUILT.pictures:
+        files.append(
+            kind(
+                picture.name,
+                str(picture.parent),
+                config.site_dir,
+                config.use_directory_urls,
+                dest_uri=f"{SERVED}/{picture.name}",
+            )
+        )
     return files
 
 
@@ -538,14 +583,26 @@ def pin(file: Any, cache: Path) -> None:
     file.abs_src_path = str(copy)
 
 
+# The changelog that a page includes, and the folder beside it with the fragments, in
+# which pull requests describe their changes until a release takes them in.
+CHANGELOG = "CHANGELOG.md"
+FRAGMENTS = "changelog.d"
+# The code of blueprint.py that reads the changelog and its fragments, by its path
+# from this file: beside it in a repository made from the blueprint, and at the root
+# of the blueprint itself.
+CHANGELOG_CODE = ("blueprint/changelog.py", "../blueprint/changelog.py")
+
+
 class Built:
     """What the builds of every language found, for the steps after the last one:
     the paths of the pages that a further language shows untranslated, such as
     de/roadmap.html, and the addresses of the pages that no search engine lists;
     the pages that the hooks write, such as the page of the automation, with
-    the text of each by its path in docs/ and the files that they are made of; the
-    links in the footer that the hooks gave the build before, None until they did;
-    and the version of the latest release, which the header shows.
+    the text of each by its path in docs/, the files that they are made of and the
+    pictures beside this file that they show; the pictures of each page that
+    on_page_content left, by its path on the website, each by the name of its file;
+    the links in the footer that the hooks gave the build before, None until they
+    did; and the version of the latest release, which the header shows.
 
     The i18n plugin builds every further language within the build of the default
     one, and MkDocs loads the hooks anew for each build of mkdocs serve.
@@ -556,6 +613,8 @@ class Built:
         self.unlisted: set[str] = set()
         self.pages: dict[str, str] = {}
         self.sources: list[Path] = []
+        self.pictures: list[Path] = []
+        self.images: dict[str, list[str]] = {}
         self.social: list[dict[str, str]] | None = None
         self.version = ""
 
@@ -609,7 +668,7 @@ def on_page_markdown(markdown: str, page: Any, config: Any, files: Any) -> str:
     changed = page.meta.get("git_revision_date_localized_raw_iso_date")
     if changed:
         page.update_date = changed
-    return markdown
+    return with_fragments(markdown, config)
 
 
 # After the plugin git-revision-date-localized.
@@ -631,12 +690,14 @@ def redate(markdown: str, page: Any, config: Any) -> None:
     plugin = config.plugins.get("git-revision-date-localized")
     if plugin is None or "git_revision_date_localized" not in page.meta:
         return
-    root = Path(config.config_file_path).parent
-    bases = config.mdx_configs.get("pymdownx.snippets", {}).get("base_path", ".")
-    paths = included(
-        markdown,
-        [root / base for base in ([bases] if isinstance(bases, str) else bases)],
-    )
+    paths = included(markdown, snippet_bases(config))
+    # The changelog shows the fragments beside it too.
+    paths += [
+        fragment
+        for path in paths
+        if path.name == CHANGELOG
+        for fragment in sorted((path.parent / FRAGMENTS).glob("[!.]*.md"))
+    ]
     own = [Path(page.file.abs_src_path)] if page.file.abs_src_path else []
     if not own and page.file.src_uri in BUILT.pages:
         paths += BUILT.sources
@@ -653,6 +714,80 @@ def redate(markdown: str, page: Any, config: Any) -> None:
     )
     locale = found.current if found and copy else plugin._get_locale(page)
     plugin._render_date(markdown, page, locale, "git_revision_date_localized", *newest)
+
+
+def snippet_bases(config: Any) -> list[Path]:
+    """The folders in which a line --8<-- finds its file, as the extension
+    pymdownx.snippets reads them from its base_path: the root of the repository, unless
+    the configuration names others."""
+    root = Path(config.config_file_path).parent
+    bases = config.mdx_configs.get("pymdownx.snippets", {}).get("base_path", ".")
+    return [root / base for base in ([bases] if isinstance(bases, str) else bases)]
+
+
+def with_fragments(markdown: str, config: Any) -> str:
+    """The markdown with the fragments of the changelog under Unreleased.
+
+    A line --8<-- that includes CHANGELOG.md, whose folder has fragments in
+    changelog.d/, takes in its place the changelog as the next release will have it:
+    the entries of the fragments joined to the text of Unreleased, each kind of change
+    under one heading, as the release bot groups them with blueprint.py. Before, the
+    website showed only the text of Unreleased until a release, which pull requests
+    no longer write. A changelog without fragments stays a line --8<--, and so does a
+    part of one, such as CHANGELOG.md:10:20, and every changelog when no blueprint.py
+    is beside this file.
+    """
+    if CHANGELOG not in markdown:
+        return markdown
+    code = changelog_code()
+    if code is None:
+        return markdown
+    bases = snippet_bases(config)
+    lines = []
+    for line in markdown.splitlines(keepends=True):
+        match = SNIPPET.fullmatch(line.rstrip("\r\n"))
+        name = match["name"] if match else None
+        path = next(
+            (base / name for base in bases if name and (base / name).is_file()), None
+        )
+        text = (
+            path.read_text(encoding="utf-8") if path and path.name == CHANGELOG else ""
+        )
+        folded = (
+            code.with_fragments(text, code.read_fragments(path.parent / FRAGMENTS))
+            if path and text
+            else text
+        )
+        if folded == text:
+            lines.append(line)
+            continue
+        # A line indented in a list includes the file indented as well.
+        indent = line[: len(line) - len(line.lstrip(" \t"))]
+        lines += [
+            indent + part if part.strip() else part
+            for part in folded.splitlines(keepends=True)
+        ]
+    return "".join(lines)
+
+
+def changelog_code() -> ModuleType | None:
+    """blueprint/changelog.py, the code of blueprint.py that reads the changelog and its
+    fragments as the release bot does, loaded from its file, which needs nothing but
+    Python; None without the file."""
+    here = Path(__file__).resolve().parent
+    path = next(
+        (here / name for name in CHANGELOG_CODE if (here / name).is_file()), None
+    )
+    if path is None:
+        return None
+    spec = importlib.util.spec_from_file_location("blueprint_changelog", path)
+    # A file of Python always has a spec, with its loader.
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def included(
@@ -685,8 +820,10 @@ def included(
 
 
 def on_page_content(html_text: str, page: Any, config: Any, files: Any) -> str:
-    """Fit a page to the website: diagrams drawn live, which the search leaves out,
-    pictures that follow the scheme the reader picks, videos in place of GIFs,
+    """Fit a page to the website: the diagrams of its ```mermaid blocks, which the
+    search leaves out, the pictures that it shows from main of its own repository
+    from the checkout, pictures that follow the scheme the reader picks, such as
+    those of its diagrams, videos in place of GIFs,
     pictures that load as the reader comes to them, no badges, a description of its
     own, and the language of an untranslated page.
 
@@ -700,9 +837,9 @@ def on_page_content(html_text: str, page: Any, config: Any, files: Any) -> str:
         docs.name,
         {file.dest_uri: file for file in files},
     )
-    html_text = live_diagrams(html_text, docs / "diagrams")
     html_text = MERMAID_BLOCK.sub(r"\g<0> data-search-exclude", html_text)
     html_text = without_badges(html_text)
+    html_text = from_checkout(html_text, page, config, files, where)
     html_text = PICTURE.sub(lambda m: themed(m, where), html_text)
     html_text = IMAGE.sub(lambda m: video(m[0], where), html_text)
     html_text = lazy(html_text, where)
@@ -712,31 +849,12 @@ def on_page_content(html_text: str, page: Any, config: Any, files: Any) -> str:
         # The text is in the default language, the menu and the header in that of
         # the page; a screen reader reads each in its own (WCAG 3.1.2).
         html_text = f'<div lang="{found.default}">\n{html_text}\n</div>'
+    BUILT.images[page.file.dest_uri] = picture_files(html_text)
     return html_text
 
 
 # Before the plugin glightbox.
 on_page_content.mkdocs_priority = 10  # type: ignore[attr-defined]
-
-
-def live_diagrams(html_text: str, sources: Path) -> str:
-    """Draw each diagram live from its source, in place of its pictures.
-
-    The Markdown shows a diagram as the pictures that scripts/diagrams.sh draws from
-    docs/diagrams/NAME.mmd, which every renderer shows. The website draws the source
-    with Mermaid instead, as a block of Material: in the colors of the theme that the
-    reader switches to, sharp at every size and with text to search and select. A
-    picture without its source stays as it is.
-    """
-
-    def live(match: re.Match[str]) -> str:
-        source = sources / f"{match['name'].removesuffix('.dark')}.mmd"
-        if not source.is_file():
-            return match[0]
-        text = html.escape(source.read_text(encoding="utf-8"), quote=False)
-        return f'<pre class="mermaid"><code>{text}</code></pre>'
-
-    return DIAGRAM.sub(live, html_text)
 
 
 def attributes(tag: str) -> dict[str, str | None]:
@@ -760,19 +878,181 @@ def element(name: str, attrs: dict[str, str | None]) -> str:
     return f"<{' '.join(parts)}>"
 
 
-def local(src: str, folder: str, found: dict[str, Any]) -> str | None:
+def local(
+    src: str, folder: str, found: dict[str, Any], *, moved: bool = False
+) -> str | None:
     """The path on the website of the file that src names from a page in folder,
-    when the website has that file."""
+    when the website has that file; with moved, of the file in a further language
+    that the i18n plugin serves without its suffix, such as images/NAME.de.svg at
+    de/images/NAME.svg."""
     path = src.split("#")[0].split("?")[0]
     if not path or re.match(r"[a-z][a-z0-9+.-]*:|/", path, re.I):
         return None
     target = posixpath.normpath(posixpath.join(folder, path))
+    localized = LOCALIZED.fullmatch(target) if moved else None
+    if localized is not None:
+        target = f"{localized['language']}/{localized['path']}{localized['ending']}"
     return target if target in found else None
 
 
 def relative(target: str, folder: str) -> str:
     """The address of a file of the website from a page in folder."""
     return posixpath.relpath(target, folder or ".")
+
+
+def repository_of(config: Any) -> str:
+    """The repository of the website on GitHub, OWNER/NAME, from repo_url; "" for a
+    repository elsewhere or none."""
+    address = urlsplit(config.repo_url or "")
+    name = address.path.strip("/").removesuffix(".git")
+    if address.scheme in ("http", "https") and address.hostname == "github.com":
+        return name if name.count("/") == 1 else ""
+    return ""
+
+
+def path_on_main(url: str, config: Any) -> str | None:
+    """The path in the repository of the file that url shows from main of the
+    website's own repository on GitHub, such as screenshots/settings.png; None for
+    any other address, and for a path out of the repository. url is as the tag of
+    HTML has it, such as with &amp; for &."""
+    address = urlsplit(html.unescape(url))
+    segments = address.path.split("/")[1:]
+    if address.scheme != "https":
+        return None
+    if address.hostname == "github.com" and segments[2:3] == ["raw"]:
+        rest = segments[3:]
+    elif address.hostname == "github.com" and segments[2:3] == ["blob"]:
+        rest = segments[3:] if "raw=true" in address.query.split("&") else []
+    elif address.hostname == "raw.githubusercontent.com":
+        rest = segments[2:]
+    else:
+        return None
+    repository = repository_of(config)
+    if not repository or "/".join(segments[:2]).lower() != repository.lower():
+        return None
+    if rest[:2] == ["refs", "heads"]:
+        rest = rest[2:]
+    if len(rest) < 2 or rest[0] not in BRANCHES:
+        return None
+    path = posixpath.normpath(unquote("/".join(rest[1:])))
+    return None if path in (".", "..") or path.startswith(("../", "/")) else path
+
+
+def tracked(root: Path, path: str) -> bool | None:
+    """Whether git tracks the file at path in the repository at root, so that main
+    has it once the change is merged; None without git or outside a repository,
+    where nothing can tell."""
+    try:
+        listed = subprocess.run(
+            (*TRACKED, path),
+            cwd=root,
+            capture_output=True,
+            check=False,
+            text=True,
+            encoding="utf-8",
+        )
+    except OSError:
+        return None
+    return bool(listed.stdout) if listed.returncode == 0 else None
+
+
+def servable(root: Path, path: str) -> tuple[bool | None, bool]:
+    """Whether git tracks path in the repository at root, as tracked() tells, and
+    whether the website may serve it: a file that git tracks, inside the
+    repository, so that no symbolic link publishes a file from outside it."""
+    known = tracked(root, path)
+    source = (root / path).resolve()
+    inside = source.is_file() and source.is_relative_to(root.resolve())
+    return known, bool(known) and inside
+
+
+def serve(path: str, root: Path, config: Any, files: Any, where: Where) -> None:
+    """Serve the file at path in the repository at root on the website, in CHECKOUT,
+    with the video and the posters beside a GIF that git tracks, which the website
+    shows in its place.
+
+    Each file of the website is named by its path there, so that it takes the
+    place of no file of docs/, whose path in docs/ may be the same.
+    """
+    kind = type(next(iter(files)))
+    names = [path]
+    if path.lower().endswith(".gif"):
+        stem = path[: -len(".gif")]
+        beside = (f"{stem}{ending}" for ending in (".mp4", *POSTERS))
+        names += [name for name in beside if servable(root, name)[1]]
+    for name in names:
+        file = kind(
+            f"{CHECKOUT}/{name}", str(root), config.site_dir, config.use_directory_urls
+        )
+        file.abs_src_path = str(root / name)
+        files.append(file)
+        where.found[file.dest_uri] = file
+
+
+def checked_out(url: str, page: Any, config: Any, files: Any, where: Where) -> str:
+    """The address from the page of the picture that url shows from main of the
+    website's own repository, as the website serves it from the checkout: a file
+    of docs/ as the website has it, any other one in CHECKOUT, once git tracks it.
+
+    url stays as it is for any other picture, and without git, which the privacy
+    plugin then downloads; one that git doesn't track warns, which fails a strict
+    build, as main would lack it once the change is merged.
+    """
+    path = path_on_main(url, config)
+    if path is None:
+        return url
+    target = where.find(path) if path.startswith(f"{where.docs}/") else None
+    if target is None:
+        target = f"{CHECKOUT}/{path}"
+    if target not in where.found:
+        root = Path(config.config_file_path).parent
+        known, allowed = servable(root, path)
+        if known is None:
+            return url
+        if not allowed:
+            log.warning(
+                f"{page.file.src_uri} shows {url}, a file that git doesn't track in "
+                "the repository, so that the picture would be missing on main: add "
+                "it with git add, or correct its address."
+            )
+            return url
+        serve(path, root, config, files, where)
+    fragment = urlsplit(url).fragment
+    address = quote(relative(target, where.folder), safe=UNQUOTED)
+    return address + (f"#{fragment}" if fragment else "")
+
+
+def from_checkout(
+    html_text: str, page: Any, config: Any, files: Any, where: Where
+) -> str:
+    """Show the pictures that the page shows from main of its own repository, in
+    <img> and in each candidate of the srcset of a <source>, from the checkout."""
+
+    def candidates(srcset: str) -> str:
+        shown = []
+        for candidate in srcset.split(","):
+            words = candidate.split()
+            if words:
+                words[0] = checked_out(words[0], page, config, files, where)
+            shown.append(" ".join(words))
+        return ", ".join(shown)
+
+    def tag(match: re.Match[str], name: str, key: str) -> str:
+        attrs = attributes(match[0])
+        value = attrs.get(key)
+        if not value:
+            return match[0]
+        changed = (
+            candidates(value)
+            if key == "srcset"
+            else checked_out(value, page, config, files, where)
+        )
+        if changed == value:
+            return match[0]
+        return element(name, {**attrs, key: changed})
+
+    html_text = IMAGE.sub(lambda m: tag(m, "img", "src"), html_text)
+    return SOURCE.sub(lambda m: tag(m, "source", "srcset"), html_text)
 
 
 class Where(NamedTuple):
@@ -791,14 +1071,18 @@ class Where(NamedTuple):
         MkDocs leads the path of a picture of Markdown from the page on the website,
         but leaves that of HTML as the source names it: from the folder of its
         source, which for guide.de.md in de/ is not the folder of the page, or from
-        the root of the repository, as a README names docs/images/NAME.png.
+        the root of the repository, as a README names docs/images/NAME.png. A
+        picture in a further language, docs/images/NAME.de.png, is the one that the
+        i18n plugin serves for the pages of that language, at de/images/NAME.png.
         """
-        for folder in (self.folder, self.source):
-            target = local(src, folder, self.found)
-            if target is not None:
-                return target
+        bases = [(src, self.folder), (src, self.source)]
         if src.startswith(f"{self.docs}/"):
-            return local(src.removeprefix(f"{self.docs}/"), "", self.found)
+            bases.append((src.removeprefix(f"{self.docs}/"), ""))
+        for moved in (False, True):
+            for path, folder in bases:
+                target = local(path, folder, self.found, moved=moved)
+                if target is not None:
+                    return target
         return None
 
     def address(self, src: str) -> str:
@@ -844,9 +1128,15 @@ def themed(match: re.Match[str], where: Where) -> str:
 
 
 def size(path: str) -> tuple[int, int] | None:
-    """The width and the height of a PNG, a GIF or a WebP, from its first bytes."""
+    """The width and the height of a PNG, a GIF or a WebP, from its first bytes, or
+    of an SVG that names them in pixels at the start of its root, as the pictures
+    of the diagrams do."""
     with open(path, "rb") as file:
-        head = file.read(30)
+        head = file.read(SVG_HEAD)
+    root = SVG_ROOT.match(head)
+    if root is not None:
+        return svg_size(root[0])
+    head = head[:30]
     if head.startswith(b"\x89PNG\r\n\x1a\n") and head[12:16] == b"IHDR":
         width, height = struct.unpack(">II", head[16:24])
         return width, height
@@ -867,6 +1157,14 @@ def size(path: str) -> tuple[int, int] | None:
         width = int.from_bytes(head[24:27], "little") + 1
         return width, int.from_bytes(head[27:30], "little") + 1
     return None
+
+
+def svg_size(root: bytes) -> tuple[int, int] | None:
+    """The width and the height that the root of an SVG names in pixels."""
+    lengths = [length.search(root) for length in SVG_LENGTHS]
+    if lengths[0] is None or lengths[1] is None:
+        return None
+    return round(float(lengths[0]["length"])), round(float(lengths[1]["length"]))
 
 
 def video(tag: str, where: Where) -> str:
@@ -1009,10 +1307,52 @@ def on_post_page(output: str, page: Any, config: Any) -> str:
             output = search_in_language(output, page, found)
     if unlisted(page, config):
         output = output.replace("</head>", f"{NOINDEX}</head>", 1)
+    kept(output, page)
     return source_facts(output)
 
 
+def kept(output: str, page: Any) -> None:
+    """Warn, which fails a strict build, when a plugin took pictures out of the page
+    that on_page_content left in it, as glightbox did with selectolax 1.0.0 and
+    1.0.1: it moved each picture into the link that opens it enlarged and then
+    replaced the picture with that link, which took both out of every page. The
+    warning names the files of the pictures that are gone; when a plugin renamed
+    one that stayed, as the privacy plugin does with a picture of another server,
+    the files among which they are."""
+    shown = BUILT.images.pop(page.file.dest_uri, [])
+    left = picture_files(article(output))
+    if len(left) < len(shown):
+        gone = sorted((Counter(shown) - Counter(left)).elements())
+        among = "among " if len(gone) > len(shown) - len(left) else ""
+        log.warning(
+            f"{page.file.src_uri}: a plugin took {len(shown) - len(left)} of its "
+            f"{len(shown)} picture(s) out of the page ({among}{', '.join(gone)}), "
+            "such as mkdocs-glightbox with a release of selectolax that it doesn't "
+            "work with; the lock of the tools of the website needs another release "
+            "of it."
+        )
+
+
+def picture_files(html_text: str) -> list[str]:
+    """The pictures of html_text, each by the name of its file, such as
+    analysis-light.webp for images/analysis-light.webp#only-light."""
+    names = []
+    for match in IMAGE.finditer(html_text):
+        src = attributes(match[0]).get("src") or ""
+        names.append(posixpath.basename(re.split(r"[?#]", src, maxsplit=1)[0]))
+    return names
+
+
 on_post_page.mkdocs_priority = -60  # type: ignore[attr-defined]
+
+
+def article(output: str) -> str:
+    """The content of a page in its theme, without the pictures of the theme around
+    it, such as the logo in the header and in the drawer; the whole page when the
+    theme puts its content in no article of Material."""
+    start = output.find('<article class="md-content__inner')
+    end = output.rfind("</article>")
+    return output[start:end] if -1 < start < end else output
 
 
 def versions(output: str, page: Any, config: Any, found: Languages) -> str:
@@ -1447,151 +1787,19 @@ WEEKDAYS = {
         "Samstag",
     ),
 }
-# The diagrams of the page in each language, the same as those of the blueprint's
-# README in docs/diagrams/, which a test keeps equal: how a repository looks after
-# itself, and from a change to a release.
-DIAGRAMS = {
-    "en": (
-        """\
----
-config:
-  flowchart:
-    wrappingWidth: 400
----
-flowchart TB
-    accTitle: How a repository looks after itself
-    accDescr: copier copy makes a repository from the blueprint. Every change, yours or a bot's, is a pull request that merges once every check passes, and the release bot makes a signed release of what reaches main. Renovate, the blueprint bot and the settings bot keep the repository current on their own.
-
-    blueprint[("Repo Blueprint")]
-    you(["You"])
-    renovate(["Renovate<br>every 2 hours"])
-    updater(["Blueprint bot<br>after every release<br>and every week"])
-    settings(["Settings bot<br>every week"])
-
-    subgraph repo ["Your repository"]
-        pr["Pull request"] --> checks{"Every check<br>passes?"}
-        checks -- "yes" --> main["main"]
-        main -- "release bot" --> release["Signed release"]
-    end
-
-    blueprint -- "copier copy" --> repo
-    blueprint -. "a new release" .-> updater
-    you -- "a change" --> pr
-    renovate -- "updates" --> pr
-    updater -- "copier update" --> pr
-    settings -- "the settings as code" --> repo
-
-    classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
-    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
-    classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
-    class renovate,updater,settings bot
-    class you person
-    class release done
-""",
-        """\
----
-config:
-  flowchart:
-    wrappingWidth: 400
----
-flowchart TB
-    accTitle: From a change to a release
-    accDescr: A pull request whose title is fix, feat or feat! merges into main once every check passes. The release bot keeps a release pull request with the next version and the text of the fragments and of Unreleased. Merging it signs its tag first, in the next run of the release bot, then builds the release in isolation once the tag checks out, signs and publishes it, delivers it and verifies it, then and every week. With BETA_CHANNEL, every change for users also becomes a beta.
-
-    pr["Pull request<br>fix: · feat: · feat!:"]
-    main["main"]
-    rpr["`Release pull request<br>chore: release x.y.z<br>notes from changelog.d/<br>and *Unreleased*`"]
-    beta["Beta x.y.z-beta.N<br>for testers"]
-    tag["Signed tag<br>at the merge, by the next run<br>checked before the build"]
-    build["Isolated build<br>SLSA Build Level 3"]
-    release["Release<br>package · SBOMs<br>provenance"]
-    deliver["Delivery<br>PyPI · npm · GHCR<br>App Store · HACS"]
-    verify["Verified as users can<br>at once and every week"]
-
-    pr -- "every check passes" --> main
-    main -- "release bot" --> rpr
-    main -. "BETA_CHANNEL" .-> beta
-    rpr -- "merged" --> tag --> build --> release
-    release --> deliver
-    release --> verify
-
-    classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
-    classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
-    class rpr bot
-    class release done
-""",
-    ),
-    "de": (
-        """\
----
-config:
-  flowchart:
-    wrappingWidth: 400
----
-flowchart TB
-    accTitle: Wie sich ein Repository selbst pflegt
-    accDescr: copier copy legt aus dem Blueprint ein Repository an. Jede Änderung, deine oder die eines Bots, ist ein Pull Request, der merged, sobald alle Prüfungen grün sind, und der Release-Bot macht aus dem, was auf main ankommt, ein signiertes Release. Renovate, der Blueprint-Bot und der Settings-Bot halten das Repository von selbst aktuell.
-
-    blueprint[("Repo Blueprint")]
-    you(["Du"])
-    renovate(["Renovate<br>alle 2 Stunden"])
-    updater(["Blueprint-Bot<br>nach jedem Release<br>und jede Woche"])
-    settings(["Settings-Bot<br>jede Woche"])
-
-    subgraph repo ["Dein Repository"]
-        pr["Pull Request"] --> checks{"Alle Prüfungen<br>grün?"}
-        checks -- "ja" --> main["main"]
-        main -- "Release-Bot" --> release["Signiertes Release"]
-    end
-
-    blueprint -- "copier copy" --> repo
-    blueprint -. "ein neues Release" .-> updater
-    you -- "eine Änderung" --> pr
-    renovate -- "Updates" --> pr
-    updater -- "copier update" --> pr
-    settings -- "die Einstellungen als Code" --> repo
-
-    classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
-    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
-    classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
-    class renovate,updater,settings bot
-    class you person
-    class release done
-""",
-        """\
----
-config:
-  flowchart:
-    wrappingWidth: 400
----
-flowchart TB
-    accTitle: Von einer Änderung zum Release
-    accDescr: Ein Pull Request mit dem Titel fix, feat oder feat! merged in main, sobald alle Prüfungen grün sind. Der Release-Bot hält einen Release-Pull-Request mit der nächsten Version und dem Text der Fragmente und von Unreleased. Sein Merge signiert zuerst seinen Tag, im nächsten Lauf des Release-Bots, baut dann das Release isoliert, sobald der Tag geprüft ist, signiert und veröffentlicht es, liefert es aus und prüft es, sofort und jede Woche. Mit BETA_CHANNEL wird außerdem jede Änderung für Nutzer zu einer Beta.
-
-    pr["Pull Request<br>fix: · feat: · feat!:"]
-    main["main"]
-    rpr["`Release-Pull-Request<br>chore: release x.y.z<br>Notes aus changelog.d/<br>und *Unreleased*`"]
-    beta["Beta x.y.z-beta.N<br>für Tester"]
-    tag["Signierter Tag<br>am Merge, vom nächsten Lauf<br>vor dem Build geprüft"]
-    build["Isolierter Build<br>SLSA Build Level 3"]
-    release["Release<br>Paket · SBOMs<br>Provenance"]
-    deliver["Auslieferung<br>PyPI · npm · GHCR<br>App Store · HACS"]
-    verify["Geprüft wie von Nutzern<br>sofort und jede Woche"]
-
-    pr -- "alle Prüfungen grün" --> main
-    main -- "Release-Bot" --> rpr
-    main -. "BETA_CHANNEL" .-> beta
-    rpr -- "gemergt" --> tag --> build --> release
-    release --> deliver
-    release --> verify
-
-    classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
-    classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
-    class rpr bot
-    class release done
-""",
-    ),
-}
+# The diagrams of the page, which the blueprint shows in its README and on its page of
+# the releases: how a repository looks after itself, and from a change to a release. The page shows the pictures that
+# scripts/diagrams.sh draws of them, NAME.svg and NAME.dark.svg, NAME.de.svg and
+# NAME.de.dark.svg in German, which every repository gets in PICTURES beside this
+# file and the website serves in SERVED; the blueprint itself has them in
+# docs/images/diagrams/.
+DIAGRAMS = ("how-a-repository-looks-after-itself", "from-a-change-to-a-release")
+PICTURES = "mkdocs-blueprint-diagrams"
+SERVED = "assets/images/automation"
+# The title and the description of a diagram in its picture, from its accTitle and
+# accDescr, which the text of the picture repeats.
+TITLE = re.compile(r"<title\b[^>]*>(?P<text>[^<]*)</title>")
+DESC = re.compile(r"<desc\b[^>]*>(?P<text>[^<]*)</desc>")
 
 
 class Workflow(NamedTuple):
@@ -1729,21 +1937,80 @@ def automation_pages(folder: Path, config: Any) -> dict[str, str]:
         required += data.get("branch", {}).get("required_checks", [])
     required = list(dict.fromkeys(required))
     BUILT.sources = [folder, *settings]
+    BUILT.pictures = []
     address = repository_address(config)
     flows = workflows(folder, urlparse(address).path.strip("/"))
     names = [path.name for path in settings]
     found = languages(config)
     default = found.default if found else str(config.theme.get("language"))
+    shown = default if default in WORDS else "en"
     pages = {
         AUTOMATION: automation_page(
-            flows, required, names, config, default if default in WORDS else "en"
+            flows, required, names, config, shown, diagrams(config, shown)
         )
     }
     for language in found.further if found else ():
         name = AUTOMATION.replace(".md", f".{language}.md")
         if language in WORDS and not (Path(config.docs_dir) / name).exists():
-            pages[name] = automation_page(flows, required, names, config, language)
+            pages[name] = automation_page(
+                flows, required, names, config, language, diagrams(config, language)
+            )
     return pages
+
+
+def diagrams(config: Any, language: str) -> list[str]:
+    """The diagrams of the page of the automation in language, each as the
+    <picture> of its pictures for the light and the dark scheme, as a page of docs/
+    shows one, with its title and its description as the text of the picture, or
+    "" for one whose pictures are missing.
+
+    Those in PICTURES beside this file go into BUILT.pictures, which the website
+    serves in SERVED; in the blueprint, which has no such folder, those of
+    docs/images/diagrams/ are files of the website already.
+    """
+    docs = Path(config.docs_dir)
+    folders = (Path(__file__).resolve().parent / PICTURES, docs / "images/diagrams")
+    suffix = "" if language == "en" else f".{language}"
+    shown = []
+    for diagram in DIAGRAMS:
+        names = [f"{diagram}{suffix}{scheme}.svg" for scheme in ("", ".dark")]
+        folder = next(
+            (
+                folder
+                for folder in folders
+                if all((folder / n).is_file() for n in names)
+            ),
+            None,
+        )
+        if folder is None:
+            log.warning(
+                f"The page of the automation lacks the pictures {', '.join(names)}, "
+                f"which copier update brings into .github/{PICTURES}/."
+            )
+            shown.append("")
+            continue
+        light, dark = (folder / name for name in names)
+        if folder.is_relative_to(docs):
+            sources = [path.relative_to(docs).as_posix() for path in (light, dark)]
+        else:
+            BUILT.pictures += [light, dark]
+            sources = [f"{SERVED}/{path.name}" for path in (light, dark)]
+        shown.append(picture_of(light, *sources))
+    return shown
+
+
+def picture_of(light: Path, src: str, dark: str) -> str:
+    """The <picture> of a diagram, as scripts/diagrams.sh --extract writes it, whose
+    text is the title and the description in the picture light."""
+    svg = light.read_text(encoding="utf-8")
+    parts = [found["text"] for found in (TITLE.search(svg), DESC.search(svg)) if found]
+    alt = html.escape(": ".join(html.unescape(part).strip() for part in parts))
+    return (
+        "<picture>\n"
+        f'  <source media="(prefers-color-scheme: dark)" srcset="{dark}">\n'
+        f'  <img src="{src}" alt="{alt}">\n'
+        "</picture>"
+    )
 
 
 def workflows(folder: Path, repository: str) -> list[Workflow]:
@@ -1933,12 +2200,6 @@ def prose(text: str, language: str) -> str:
     return f"<p{english}>{''.join(parts)}</p>"
 
 
-def mermaid(source: str) -> str:
-    """A diagram that the website draws live, as the extension superfences of
-    .github/mkdocs-blueprint.yml takes it."""
-    return f"```mermaid\n{source}```"
-
-
 def repository_address(config: Any) -> str:
     """The address of the website's repository, such as
     https://github.com/owner/name, or "" when the website does not tell it.
@@ -1960,12 +2221,14 @@ def automation_page(
     settings: list[str],
     config: Any,
     language: str,
+    shown: list[str],
 ) -> str:
     """The page of the automation in language, as Markdown: what the workflows do,
-    what a pull request needs by the files of settings in .github/ that require it,
-    a table of what starts each, and each workflow in its group."""
+    with the diagrams shown, what a pull request needs by the files of settings in
+    .github/ that require it, a table of what starts each, and each workflow in its
+    group."""
     words = WORDS[language]
-    overview, release = DIAGRAMS[language]
+    overview, release = shown
     count = len(flows)
     anchors = {flow.name: flow.anchor for flow in flows}
     providers: dict[str, Workflow] = {}
@@ -1982,9 +2245,9 @@ def automation_page(
         "",
         words["intro"].format(count=count),
         "",
-        mermaid(overview),
-        "",
     ]
+    if overview:
+        lines += [overview, ""]
     if required:
         lines += [f"## {words['required-checks']} {{#required-checks}}", ""]
         files = listing([f"`.github/{name}`" for name in settings], words["and"])
@@ -2018,8 +2281,8 @@ def automation_page(
         if not groups[group]:
             continue
         lines += [f"## {words[group]} {{#{group}}}", "", words[f"{group} intro"], ""]
-        if group == "releases":
-            lines += [mermaid(release), ""]
+        if group == "releases" and release:
+            lines += [release, ""]
         for flow in groups[group]:
             lines += [f"### {plain(flow.name)} {{#{flow.anchor}}}", ""]
             for paragraph in flow.about:

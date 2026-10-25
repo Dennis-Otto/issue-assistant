@@ -35,6 +35,19 @@ files() {
   git ls-files -z --cached --others --exclude-standard --deduplicate "$@"
 }
 
+# What a tool finds, in the CI also as annotations at its lines, which the files of a
+# pull request show and the PR coach lists: blueprint.py annotate passes on what the
+# tool writes and adds one for each finding, or reads the report of JUnit of the tests.
+# The Python and blueprint.py of the step Pages in one column, which the CI never skips;
+# without them, what the tool writes passes on as it is.
+annotate() {
+  if [[ -n "${python:-}" && -f "${tool:-}" ]]; then
+    "$python" "$tool" annotate "$@"
+  elif (($# == 1)); then
+    cat
+  fi
+}
+
 step "Text files"
 # --deduplicate is new in Git 2.31; an older git would list no files, and every step
 # would pass without checking anything. The coach has nothing to add to that.
@@ -194,6 +207,53 @@ else
   echo "Python 3.12 or newer is not installed here; the CI checks the fragments."
 fi
 
+step "Accepted advisories"
+# The versions that an osv-scanner.toml accepts with every advisory, such as one that
+# another package pins exactly, need a rule of Renovate in
+# .github/renovate-accepted.json5, or Renovate tries a fix in every run that the lock
+# file can't take. The step checks that the rules are those of the files, and that
+# OSV-Scanner can read each file, which it ignores whole for an unknown key; advisories
+# --fix writes the rules. The Python and blueprint.py of the step before.
+if [[ -n "$python" ]]; then
+  "$python" "$tool" advisories
+elif [[ -n "${CI:-}" ]]; then
+  echo "Checking the accepted advisories needs Python 3.12 or newer, which this runner lacks."
+  exit 1
+else
+  echo "Python 3.12 or newer is not installed here; the CI checks the accepted advisories."
+fi
+
+step "Lock files"
+# Renovate compiles each lock file of pip-compile, such as requirements-dev.txt, again
+# with the command in its header, and skips one whose command it can't read, in every
+# run and with no more than a warning in its log: the file gets no update, not even
+# one that fixes a vulnerability. The step reads each header as Renovate does; locks
+# --fix puts the = between an option and its value. The Python and blueprint.py of the
+# step before.
+if [[ -n "$python" ]]; then
+  "$python" "$tool" locks
+elif [[ -n "${CI:-}" ]]; then
+  echo "Checking the lock files needs Python 3.12 or newer, which this runner lacks."
+  exit 1
+else
+  echo "Python 3.12 or newer is not installed here; the CI checks the lock files."
+fi
+
+step "Explanations of the checks"
+# Every required check of .github/repository.toml and .github/repository.project.toml
+# and every step of this file has its explanation in .github/checks.toml or
+# .github/checks.project.toml, which the PR coach shows when it fails, with the
+# commands that fix what it finds or the reason why none can. The Python and
+# blueprint.py of the step Pages in one column.
+if [[ -n "$python" ]]; then
+  "$python" "$tool" coach verify
+elif [[ -n "${CI:-}" ]]; then
+  echo "Checking the explanations needs Python 3.12 or newer, which this runner lacks."
+  exit 1
+else
+  echo "Python 3.12 or newer is not installed here; the CI checks the explanations."
+fi
+
 step "Version"
 # The release bot writes the version of each release into these files.
 release="$(grep -oE '"\.": *"[^"]+"' .release-please-manifest.json | grep -oE '[0-9][^"]*')"
@@ -232,7 +292,12 @@ if ! command -v shellcheck >/dev/null 2>&1; then
   fi
   echo "shellcheck is not installed here; the CI runs it."
 elif ((${#scripts[@]} > 0)); then
-  shellcheck "${scripts[@]}"
+  # In the CI one line for each finding, in the format of gcc, as its annotation.
+  if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+    shellcheck --format=gcc "${scripts[@]}" 2>&1 | annotate shellcheck
+  else
+    shellcheck "${scripts[@]}"
+  fi
   echo "shellcheck found nothing in ${#scripts[@]} script(s)."
 fi
 
@@ -246,18 +311,42 @@ else
 fi
 
 step "Mypy"
-mypy
+# In the CI each finding on one line, with where it starts and ends, as its annotation.
+if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+  mypy --no-pretty --show-error-end 2>&1 | annotate mypy
+else
+  mypy
+fi
 
 step "Tests, with every line and branch covered"
 # On every core with pytest-xdist, whose processes pytest-cov measures and brings
 # together, or one after the other without them. coverage report then applies the
 # settings of [tool.coverage] either way, such as fail_under, and lists what no test
-# runs. PYTEST_XDIST_AUTO_NUM_WORKERS sets the number of processes, -n auto one for
-# each core.
+# runs. -n logical starts a process for each logical core, where -n auto counts only
+# the physical ones once psutil is installed, as the tools of Home Assistant install
+# it: two of the four cores of a runner of GitHub. At most eight, because each process
+# collects every test once more and takes its memory, which parallel runs on a large
+# machine ran out of. PYTEST_XDIST_AUTO_NUM_WORKERS sets the number, also above eight.
+# In the CI, pytest writes a report of JUnit too, of which each test that fails becomes
+# an annotation at the line where it failed.
+junit=()
+report=""
+if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+  report="$(mktemp)"
+  junit=("--junitxml=$report" -o junit_family=xunit1)
+fi
+status=0
 if python -c 'import pytest, pytest_cov, xdist' 2>/dev/null; then
-  python -m pytest -n auto --cov --cov-report= --cov-fail-under=0
+  python -m pytest -n logical --maxprocesses="${PYTEST_XDIST_AUTO_NUM_WORKERS:-8}" \
+    ${junit[@]+"${junit[@]}"} --cov --cov-report= --cov-fail-under=0 || status=$?
 else
-  coverage run -m pytest
+  coverage run -m pytest ${junit[@]+"${junit[@]}"} || status=$?
+fi
+if ((status != 0)); then
+  if [[ -n "$report" ]]; then
+    annotate pytest "$report"
+  fi
+  exit "$status"
 fi
 coverage report
 
