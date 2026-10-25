@@ -1,0 +1,19 @@
+{
+  "language": "en",
+  "kind": "bug",
+  "areas": ["area: setup"],
+  "topics": [],
+  "label_rationale": "check fails on the workflows that install wrote, after a move of the pin.",
+  "summary": "Since Dependabot moved the pin of the issue assistant to v1.2.2, `check` says that issue-assistant.yml and issue-lifecycle.yml differ from the template.",
+  "maintainer_summary": "",
+  "analysis": "A release that changes a template needs `install` again: a move of the pin alone keeps the workflows of the earlier release, which `check` compares with the templates of the new one. labels.yml and findings.yml still pass, so v1.2.2 probably changed only the other two.",
+  "next_steps": [
+    "Run `install` of v1.2.2 again and commit the workflows that it writes."
+  ],
+  "missing_information": ["The link to the failed run of `check`."],
+  "duplicates": [],
+  "related": [],
+  "references": [],
+  "sensitive_data": "none",
+  "security_report": false
+}

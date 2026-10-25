@@ -182,7 +182,16 @@ def test_each_explanation_of_the_project_is_for_a_check_that_exists():
         (ROOT / ".github" / "workflows" / "canary.yml").read_text(encoding="utf-8")
     )["jobs"]["queue"]
     assert queue["steps"][-1]["env"] == {"CHECK": queue["name"]}
-    assert sorted(CATALOG) == sorted(jobs | parts | {fuzz["name"], queue["name"]})
+    # The Workflow test explains its gate, the check that main requires.
+    gate = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "workflow-test.yml").read_text(
+            encoding="utf-8"
+        )
+    )["jobs"]["gate"]
+    assert gate["steps"][-1]["env"] == {"CHECK": gate["name"]}
+    assert sorted(CATALOG) == sorted(
+        jobs | parts | {fuzz["name"], queue["name"], gate["name"]}
+    )
 
 
 def test_the_explanation_of_the_template_lint_runs_the_actionlint_of_the_check():
