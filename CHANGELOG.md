@@ -4,6 +4,17 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.8.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.7.0...v1.8.0) (2026-10-25)
+
+### Added
+
+- Seven more languages for the assistant's own words: Chinese, Japanese, Korean, Russian, Ukrainian, Polish and Turkish. A reporter who writes in one of them now gets the thanks, the headings, the questions, the reminders, the closings and the notes of a release in their language, with days as they write them, such as 2026年11月2日, 2026년 11월 2일 or 2 ноября 2026 г., instead of English with 2026-11-02 around the AI's words. Russian and Ukrainian name a number of days in the form that the number asks for, as in 1 день, 2 дня and 5 дней. The new catalogs are machine drafts, and native speakers are welcome to improve them.
+- The comments without AI, such as a reminder before the first analysis or the notice of a duplicate that a maintainer named, now recognise Chinese, Japanese and Korean, which the guess of the language couldn't see, since Chinese and Japanese leave no space between their words: a Chinese issue got an English reminder. Now the letters that only one language writes count for it, Hangul for Korean, kana for Japanese with the Chinese characters beside them, and Chinese characters alone for Chinese, and Russian and Ukrainian are told apart by the letters that only one of them has. The page *What reporters see* shows the first analysis and the reminder in Chinese, Japanese and Russian too.
+
+### Changed
+
+- A patch version of an engine, such as a new release of the Claude Code action from 1.0.248 to 1.0.249, reaches the next release of the issue assistant sooner: it no longer waits for the maintainer once the check of the engine's names, which runs every update of an engine without a key, has passed. A minor or major version of an engine still waits for the maintainer, as before.
+
 ## [1.7.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.6.1...v1.7.0) (2026-10-25)
 
 ### Added
