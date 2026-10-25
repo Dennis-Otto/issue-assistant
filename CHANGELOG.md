@@ -4,6 +4,13 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.8.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.7.0...v1.8.0) (2026-10-25)
+
+
+### Features
+
+* answer in Chinese, Japanese, Korean, Russian, Polish, Turkish and Ukrainian with their own words and dates ([#199](https://github.com/Dennis-Otto/issue-assistant/issues/199)) ([5769547](https://github.com/Dennis-Otto/issue-assistant/commit/5769547902572111be780749546c7e8cc5576a1a))
+
 ## [1.7.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.6.1...v1.7.0) (2026-10-25)
 
 ### Added
