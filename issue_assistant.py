@@ -76,6 +76,25 @@ NOTICE = PurePosixPath("SUPPORT-notice.md")
 NOTICE_DE = PurePosixPath("SUPPORT-notice.de.md")
 # The runner of the job analyze, in the reusable workflow of issue-assistant.yml.
 FIREWALL_RUNNER = "ubuntu-24.04-firewall"
+# That runner is a technical preview of GitHub. The repository's variable of this
+# name may choose another runner for the AI, should GitHub rename or end it: one of
+# GitHub's runners of Ubuntu with a fixed version, such as ubuntu-24.04, where
+# Harden-Runner blocks every host but those of the firewall policy for the job
+# analyze alone; decision 0019 says why.
+RUNNER_VARIABLE = "ISSUE_ASSISTANT_AI_RUNNER"
+HARDENED_RUNNER = re.compile(r"ubuntu-[0-9]{2}\.[0-9]{2}")
+# The firewall allows the hosts of its policy and GitHub's own, whatever the port;
+# Harden-Runner allows a host with its port: HTTPS, and HTTP, over which the
+# archives of Ubuntu give the packages that the action of an engine installs. It
+# allows the hosts of the runner itself, such as those of the logs, on its own.
+FIREWALL_DEFAULT_HOSTS = ("github.com", "codeload.github.com")
+ENDPOINT_PORTS = (443, 80)
+# A host of the firewall policy, named in full: Harden-Runner reads its endpoints
+# as words, so nothing but a host name may reach them, in small letters.
+HOST_NAME = re.compile(
+    r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+",
+    re.IGNORECASE,
+)
 # actionlint 1.7.12, the newest release, doesn't know the queue of a concurrency
 # group yet, which issue-assistant.yml has; install lets it ignore that message.
 QUEUE_MESSAGE = 'unexpected key "queue" for "concurrency" section'
@@ -8086,6 +8105,59 @@ def allowed_hosts(policy: str) -> set[str]:
     return set(re.findall(r"(?m)^ +- (\S+)$", policy))
 
 
+def runner_problems(runner: str) -> list[str]:
+    """What keeps the runner that ISSUE_ASSISTANT_AI_RUNNER names from running the
+    AI; nothing for none, for GitHub's egress-firewall runner and for one of
+    GitHub's runners of Ubuntu with a fixed version."""
+    if not runner or runner == FIREWALL_RUNNER or HARDENED_RUNNER.fullmatch(runner):
+        return []
+    return [
+        f"{RUNNER_VARIABLE} names the runner {runner} for the AI, which runs only on "
+        f"{FIREWALL_RUNNER} or on one of GitHub's runners of Ubuntu with a fixed "
+        "version, such as ubuntu-24.04, where Harden-Runner blocks every host but "
+        f"those of {FIREWALL}; on any other, such as a self-hosted runner, nothing "
+        "would keep the AI to them. Unset the variable, or name such a runner."
+    ]
+
+
+def runner_trade_off(runner: str) -> str:
+    """What the AI loses on `runner`, one of GitHub's runners of Ubuntu, against
+    GitHub's egress-firewall runner."""
+    return (
+        f"The AI runs on {runner} in place of {FIREWALL_RUNNER}: Harden-Runner blocks "
+        f"every host but those of {FIREWALL} for the job analyze, where GitHub's "
+        "firewall blocks them for the whole machine, out of reach of every step. In "
+        "a private repository it blocks only with a subscription of StepSecurity, "
+        "and analyze stops where nothing blocks; decision 0019 says more."
+    )
+
+
+def firewall_endpoints(root: Path) -> str:
+    """The hosts of the repository's firewall policy and GitHub's own, which the
+    firewall allows without the policy, as the endpoints of Harden-Runner: each
+    host with each port of ENDPOINT_PORTS."""
+    path = root / FIREWALL
+    if not path.is_file():
+        raise AssistantError(f"{FIREWALL} is missing; {reinstall()}")
+    policy = load_yaml(path, str(FIREWALL))
+    hosts = policy.get("allow") if isinstance(policy, dict) else None
+    if not isinstance(hosts, list) or not hosts:
+        raise AssistantError(f"{FIREWALL} allows no host; {reinstall()}")
+    wrong = [host for host in hosts if not full_host(host)]
+    if wrong:
+        raise SettingsError(
+            [f"{FIREWALL}: name the host {host} in full" for host in wrong]
+        )
+    every = dict.fromkeys(host.lower() for host in [*FIREWALL_DEFAULT_HOSTS, *hosts])
+    return " ".join(f"{host}:{port}" for host in every for port in ENDPOINT_PORTS)
+
+
+def full_host(host: object) -> bool:
+    """Whether `host` of a firewall policy is a host name in full, without a
+    wildcard, a path or a port."""
+    return isinstance(host, str) and HOST_NAME.fullmatch(host) is not None
+
+
 def configured_engine(root: Path) -> str:
     """The engine that config.toml of a repository names; the default one without
     the file, or for one that names no engine that the assistant knows, which
@@ -8129,8 +8201,9 @@ def check_workflows(config: Config) -> list[str]:
             problems.append(f"{FIREWALL}: the assistant needs GitHub's default hosts")
         for host in sorted(needed - hosts):
             problems.append(f"{FIREWALL}: the engine needs the host {host}")
+        # Harden-Runner takes the same hosts on a runner without the firewall.
         for host in sorted(hosts):
-            if "*" in host or "/" in host:
+            if not full_host(host):
                 problems.append(f"{FIREWALL}: name the host {host} in full")
     ignore = config.root / ".gitignore"
     if not ignore.is_file() or f"/{CONTEXT}/" not in ignore.read_text("utf-8"):
@@ -9977,6 +10050,8 @@ def repository_of_run(*, needed: bool) -> str:
 # the help, which no test needs to check.
 SCRIPT_COMMANDS = {
     "event": "handle the GitHub event of this run",
+    "endpoints": "check the runner that ISSUE_ASSISTANT_AI_RUNNER names for the AI, "
+    "and name the hosts of the firewall policy for Harden-Runner there",
     "engine": "name the engine, whether it can run, and the model, turns, budget and "
     "effort of the task",
     "context": "write the files the engine reads",
@@ -10001,7 +10076,7 @@ SCRIPT_COMMANDS = {
 TASK_COMMANDS = ("engine", "context", "analyze", "apply", "usage")
 # The commands that read only the checkout, so they run anywhere, also on a computer
 # without GH_REPO; the others, but install, call GitHub.
-OFFLINE_COMMANDS = ("check", "engine", "analyze", "usage")
+OFFLINE_COMMANDS = ("check", "endpoints", "engine", "analyze", "usage")
 SCRIPT_OPTIONS: dict[str, dict[str, dict[str, Any]]] = {
     "evaluate": {
         "--issues": {
@@ -10089,6 +10164,8 @@ def main(argv: list[str] | None = None) -> int:
         repository = repository_of_run(needed=arguments.command not in OFFLINE_COMMANDS)
         if arguments.command == "check":
             return check_command(root, repository)
+        if arguments.command == "endpoints":
+            return endpoints_command(root)
         if arguments.command == "engine":
             return engine_command(root, repository, arguments.mode)
         if arguments.command == "analyze":
@@ -10156,11 +10233,37 @@ def install_command(root: Path, arguments: argparse.Namespace) -> int:
 
 
 def check_command(root: Path, repository: str) -> int:
-    problems = check(load_config(root, repository, lenient=True))
+    # The variable lives on GitHub, not in the checkout: a step of the CI passes it.
+    runner = os.environ.get(RUNNER_VARIABLE, "")
+    problems = check(load_config(root, repository, lenient=True)) + runner_problems(
+        runner
+    )
     for problem in problems:
         command("error", problem)
+    if not problems and runner not in ("", FIREWALL_RUNNER):
+        command("notice", runner_trade_off(runner))
     summary("Issue assistant set-up", problems or ["Everything fits."], False)
     return 1 if problems else 0
+
+
+def endpoints_command(root: Path) -> int:
+    """For the job event: the endpoints of Harden-Runner for the job analyze on the
+    runner of ISSUE_ASSISTANT_AI_RUNNER, empty on GitHub's egress-firewall runner,
+    whose firewall reads the policy itself."""
+    runner = os.environ.get(RUNNER_VARIABLE, "")
+    problems = runner_problems(runner)
+    if problems:
+        raise SettingsError(problems)
+    if runner in ("", FIREWALL_RUNNER):
+        output("endpoints", "")
+        print(
+            f"The AI runs on {FIREWALL_RUNNER}, whose firewall blocks every host but "
+            f"those of {FIREWALL}."
+        )
+        return 0
+    output("endpoints", firewall_endpoints(root))
+    command("notice", runner_trade_off(runner))
+    return 0
 
 
 def engine_command(root: Path, repository: str, mode: str | None) -> int:

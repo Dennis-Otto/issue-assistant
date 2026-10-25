@@ -10,7 +10,7 @@ branding:
 
 inputs:
   command:
-    description: event, engine, context, analyze, apply, usage, sweep, sync-labels, findings or check
+    description: event, endpoints, engine, context, analyze, apply, usage, sweep, sync-labels, findings or check
     required: true
   issue:
     description: Number of the issue or the discussion, for context, apply and usage
@@ -56,6 +56,9 @@ outputs:
   mode:
     description: The engine's next task, or none
     value: ${{ steps.run.outputs.mode }}
+  endpoints:
+    description: The hosts of .github/egress-firewall.yaml with their ports, for Harden-Runner in the job analyze on the runner of ISSUE_ASSISTANT_AI_RUNNER; empty on the egress-firewall runner
+    value: ${{ steps.run.outputs.endpoints }}
   engine:
     description: The engine of the repository's config.toml
     value: ${{ steps.run.outputs.engine }}

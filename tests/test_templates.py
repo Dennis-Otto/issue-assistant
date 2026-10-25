@@ -7,6 +7,7 @@ engine has no rules here, or when untrusted text reaches a shell script.
 
 import dataclasses
 import json
+import os
 import re
 import shlex
 import shutil
@@ -82,6 +83,15 @@ HARDEN_RUNNER = "step-security/harden-runner"
 # The hosts that a job without the AI reaches: the checkout and the GitHub CLI.
 # Harden-Runner allows the hosts of the runner itself, such as those of the logs.
 GITHUB_HOSTS = ["api.github.com:443", "github.com:443"]
+# The runner of the AI: GitHub's egress-firewall runner, a technical preview, or the
+# runner that the repository's variable names in its place, behind Harden-Runner.
+AI_RUNNER = (
+    f"${{{{ vars.{assistant.RUNNER_VARIABLE} || '{assistant.FIREWALL_RUNNER}' }}}}"
+)
+ON_ANOTHER_RUNNER = (
+    f"vars.{assistant.RUNNER_VARIABLE} != '' && "
+    f"vars.{assistant.RUNNER_VARIABLE} != '{assistant.FIREWALL_RUNNER}'"
+)
 
 # The Canary of this repository, .github/workflows/canary.yml, calls the reusable
 # workflow of the issues with the input canary, for the issue of a file.
@@ -474,8 +484,9 @@ def template_job_id(item):
 @pytest.mark.parametrize("item", TEMPLATE_JOBS, ids=template_job_id)
 def test_every_job_runs_on_a_fixed_version_of_ubuntu(item):
     name, job_name, job = item
-    # The AI runs behind GitHub's egress firewall, whose runner has a label of its own.
-    expected = assistant.FIREWALL_RUNNER if job_name == "analyze" else RUNNER
+    # The AI runs behind GitHub's egress firewall, whose runner has a label of its
+    # own, unless the repository names another runner for it.
+    expected = AI_RUNNER if job_name == "analyze" else RUNNER
     assert job["runs-on"] == expected, (name, job_name)
 
 
@@ -497,6 +508,97 @@ def test_jobs_without_the_ai_reach_only_github(item):
         "allowed-endpoints": " ".join(GITHUB_HOSTS),
     }
     assert not any(step.get("uses", "").startswith(HARDEN_RUNNER) for step in rest)
+
+
+# The reusable workflows whose job analyze runs an engine, with their jobs.
+JOBS_WITH_ENGINE = {
+    "issue-assistant.yml": JOBS,
+    assistant.DISCUSSION_WORKFLOW: DISCUSSION_JOBS,
+}
+
+
+@pytest.mark.parametrize("name", list(JOBS_WITH_ENGINE))
+def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
+    """GitHub's egress-firewall runner is a technical preview. Should GitHub rename
+    or end it, a repository names another runner in ISSUE_ASSISTANT_AI_RUNNER; while
+    the variable is unset, every job runs as before.
+
+    On that runner Harden-Runner blocks every host but those of the firewall policy,
+    before any other step of analyze, and the next step makes sure that it blocks.
+    The job event names the hosts, and fails on a runner where nothing would block.
+    """
+    jobs = JOBS_WITH_ENGINE[name]
+    analyze = jobs["analyze"]
+    assert analyze["runs-on"] == AI_RUNNER
+    assert analyze["needs"] == "event"
+    block, holds, *rest = analyze["steps"]
+    action, _, ref = block["uses"].partition("@")
+    assert action == HARDEN_RUNNER and assistant.SHA.fullmatch(ref)
+    assert block["if"] == holds["if"] == ON_ANOTHER_RUNNER
+    # The engines need sudo, to install what isolates them.
+    assert block["with"] == {
+        "egress-policy": "block",
+        "allowed-endpoints": "${{ needs.event.outputs.endpoints }}",
+    }
+    assert holds["name"] == "Make sure that the block holds"
+    for step in rest:
+        assert assistant.RUNNER_VARIABLE not in str(step.get("if", "")), step
+        assert not step.get("uses", "").startswith(HARDEN_RUNNER), step
+    event = jobs["event"]
+    assert event["steps"][-1] == {
+        "name": "Name the hosts of the firewall policy for the AI's runner",
+        "id": "endpoints",
+        "if": ON_ANOTHER_RUNNER,
+        "uses": TOOL,
+        "env": {
+            assistant.RUNNER_VARIABLE: f"${{{{ vars.{assistant.RUNNER_VARIABLE} }}}}"
+        },
+        "with": {"command": "endpoints"},
+    }
+    assert event["outputs"]["endpoints"] == "${{ steps.endpoints.outputs.endpoints }}"
+
+
+@pytest.mark.parametrize(("status", "code"), [(0, 1), (6, 0), (7, 0), (28, 0)])
+def test_the_ai_runs_only_where_the_block_holds(tmp_path, status, code):
+    """Harden-Runner fails open: in a private repository without a subscription of
+    StepSecurity, or when its service is down, it blocks nothing. The step asks for
+    a host of no firewall policy, and stops the job analyze when the request gets
+    through; a request that fails to resolve, connect or answer in time lets it
+    run."""
+    holds = JOBS["analyze"]["steps"][1]
+    policy = (assistant.TEMPLATES / assistant.FIREWALL).read_text(encoding="utf-8")
+    assert "example.com" not in assistant.allowed_hosts(policy)
+    assert "example.com" not in assistant.FIREWALL_DEFAULT_HOSTS
+    folder = tmp_path / "bin"
+    folder.mkdir()
+    arguments = tmp_path / "arguments"
+    (folder / "curl").write_text(
+        f'#!/bin/sh\necho "$@" > "{arguments.as_posix()}"\nexit {status}\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    (folder / "curl").chmod(0o755)
+    result, _ = run_step(
+        holds, tmp_path, PATH=f"{folder}{os.pathsep}{os.environ['PATH']}"
+    )
+    assert result.returncode == code, result.stderr
+    assert arguments.read_text(encoding="utf-8").split() == [
+        "--silent",
+        "--max-time",
+        "10",
+        "--output",
+        "/dev/null",
+        "https://example.com",
+    ]
+    if code:
+        assert result.stdout.startswith(
+            "::error::Harden-Runner let a request to example.com through"
+        )
+    else:
+        assert result.stdout == (
+            "Harden-Runner blocks example.com, a host outside "
+            ".github/egress-firewall.yaml.\n"
+        )
 
 
 def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
@@ -570,8 +672,9 @@ def test_the_canary_calls_the_reusable_workflow_as_every_repository_does():
     """
     (template,) = ASSISTANT["jobs"].values()
     jobs = CANARY["jobs"]
-    # No job of the canary runs an engine or names a secret itself.
-    assert list(jobs) == ["start", "assistant"]
+    # No job of the canary runs an engine or names a secret itself; queue measures
+    # the wait of analyze for its runner.
+    assert list(jobs) == ["start", "assistant", "queue"]
     call = jobs["assistant"]
     path = reusable("issue-assistant.yml").relative_to(ROOT).as_posix()
     assert call["uses"] == f"./{path}"
@@ -669,6 +772,7 @@ def test_the_job_event_takes_the_canary_s_issue():
     assert event["outputs"] == {
         "issue": "${{ steps.event.outputs.issue }}",
         "mode": "${{ steps.event.outputs.mode || steps.canary.outputs.mode }}",
+        "endpoints": "${{ steps.endpoints.outputs.endpoints }}",
     }
 
 
@@ -1012,7 +1116,7 @@ def test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions():
         "issues": "read",
         "discussions": "read",
     }
-    assert ANALYZE["runs-on"] == assistant.FIREWALL_RUNNER
+    assert ANALYZE["runs-on"] == AI_RUNNER
     assert ANALYZE["environment"] == {"name": "issue-assistant", "deployment": False}
     for name in ("event", "apply"):
         assert "environment" not in JOBS[name]
@@ -1137,11 +1241,15 @@ def test_the_discussions_analyze_as_the_issues_do():
     assert DISCUSSION_JOBS["apply"]["if"] == JOBS["apply"]["if"]
     # Their event and apply jobs run the same commands of the action.
     for name in ("event", "apply"):
-        (ours,) = [
-            step for step in DISCUSSION_JOBS[name]["steps"] if step.get("uses") == TOOL
+        ours = [
+            step["with"]
+            for step in DISCUSSION_JOBS[name]["steps"]
+            if step.get("uses") == TOOL
         ]
-        (theirs,) = [step for step in JOBS[name]["steps"] if step.get("uses") == TOOL]
-        assert ours["with"] == theirs["with"], name
+        theirs = [
+            step["with"] for step in JOBS[name]["steps"] if step.get("uses") == TOOL
+        ]
+        assert ours == theirs, name
 
 
 def test_only_the_apply_job_of_the_discussions_writes_to_discussions():

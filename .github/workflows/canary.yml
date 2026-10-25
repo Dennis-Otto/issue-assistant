@@ -9,7 +9,9 @@ name: Canary
 # answer. The tests and the Action test reach neither the engine, the outputs of its
 # action, the hosts of the firewall, the secret nor the variables of a caller, and
 # this repository gets few issues, so a broken path would show first as issues
-# without an answer in every repository that uses the action.
+# without an answer in every repository that uses the action. The job queue
+# measures how long analyze waits for the runner with the firewall, a technical
+# preview, and fails when it waits for longer than 30 minutes.
 #
 # The issue is tests/fixtures/canary-issue.json, which exists nowhere on GitHub: the
 # input canary of the reusable workflow, which only this repository may pass, gives
@@ -40,6 +42,7 @@ on:
       - .github/issue-assistant/**
       - .github/labels.toml
       - .github/workflows/canary.yml
+      - scripts/canary_queue.py
       - tests/fixtures/canary-issue.json
   workflow_dispatch:
 
@@ -126,3 +129,49 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+  # The AI runs on GitHub's egress-firewall runner, a technical preview. Should
+  # GitHub rename or end it, analyze waits in the queue, up to a day, and every
+  # later run of an issue waits behind it, in every repository. This job reads the
+  # jobs of its run beside the call, until analyze starts, and shows the wait in its
+  # summary: a warning above 10 minutes, a failure above 30, also while analyze
+  # still waits. scripts/canary_queue.py says when the wait starts.
+  queue:
+    name: the AI's wait for its runner
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    # Long enough for a call that waits for an earlier canary, then 30 minutes.
+    timeout-minutes: 80
+    permissions:
+      actions: read
+    steps:
+      - name: Block every host but GitHub's
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /scripts/canary_queue.py
+            /.github/
+          sparse-checkout-cone-mode: false
+      - name: Measure the wait of analyze for its runner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_TELEMETRY: "false"
+          RUN: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: python3 scripts/canary_queue.py
+      # The PR coach: what failed, why it matters and how to fix it, in the summary
+      # of the job and as its annotation, from .github/checks.project.toml.
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: the AI's wait for its runner
+        run: python3 .github/blueprint.py coach explain "$CHECK"

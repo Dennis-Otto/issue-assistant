@@ -231,3 +231,30 @@ commands = [
 docs = "https://github.com/google/atheris"
 autofix = """A failure that fuzzing finds needs a fix of the code, and a test with its
 input, by a person."""
+
+# ---------------------------------------------------------------- the Canary
+
+[check."the AI's wait for its runner"]
+title = "The wait of the AI for its runner"
+problem = """The job `analyze` of the Canary waited for longer than 30 minutes for its
+runner, or still waits: the summary of the job says how long. The AI runs on
+`ubuntu-24.04-firewall`, GitHub's runner with the egress firewall, which is a
+technical preview; GitHub may have renamed or ended it, or the account lost it."""
+why = """A job that finds no runner waits in the queue for up to a day, and its
+timeout counts only from its start. Every later run of the same issue waits behind
+it, so no issue in any repository that uses the action gets an analysis, a
+follow-up or a reply after a release while the runner is gone."""
+fix = """Look at the README of the preview for a new label or its end. Until a release
+of the action moves to the new runner, a repository names another one for the AI in
+its variable `ISSUE_ASSISTANT_AI_RUNNER`, such as `ubuntu-24.04`, where Harden-Runner
+blocks every host but those of `.github/egress-firewall.yaml`; decision 0019 says
+what that changes. Set it in `[variables]` of `.github/repository.project.toml`,
+which the settings bot applies, or on GitHub, and run the Canary again:"""
+commands = [
+  "gh variable set ISSUE_ASSISTANT_AI_RUNNER --body ubuntu-24.04 --repo {repo}",
+  "gh workflow run canary.yml --repo {repo}",
+]
+docs = "docs/decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md"
+autofix = """Which runner the AI may use instead is a decision of the security of
+every repository that uses the action, for a person; a wait for a runner has no fix
+in the code."""

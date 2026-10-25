@@ -1363,6 +1363,7 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
         "EXECUTION_FILE",
         "ISSUE_ASSISTANT_ROOT",
         "ISSUE_ASSISTANT_FIXTURE",
+        "ISSUE_ASSISTANT_AI_RUNNER",
         "GITHUB_EVENT_NAME",
         # The event of the CI run that runs the tests, which names no issue here.
         "GITHUB_EVENT_PATH",

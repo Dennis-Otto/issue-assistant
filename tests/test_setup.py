@@ -1338,6 +1338,224 @@ def test_firewall_problems_are_found(config, root):
     )
 
 
+# The runner that a repository may name for the AI in place of GitHub's
+# egress-firewall runner, behind Harden-Runner.
+HARDENED = "ubuntu-24.04"
+FIREWALL_PATH = ".github/egress-firewall.yaml"
+
+
+def endpoints_of(outputs):
+    """The endpoints that the command endpoints wrote, as (host, port)."""
+    (line,) = outputs.splitlines()
+    name, _, value = line.partition("=")
+    assert name == "endpoints"
+    pairs = [endpoint.rpartition(":") for endpoint in value.split(" ")]
+    return [(host, int(port)) for host, _, port in pairs]
+
+
+@pytest.mark.parametrize("engine", list(assistant.ENGINES))
+def test_harden_runner_gets_the_hosts_of_the_firewall_policy(
+    monkeypatch, tmp_path, root, engine, capsys
+):
+    """On the runner of ISSUE_ASSISTANT_AI_RUNNER, Harden-Runner lets the job
+    analyze reach what the firewall lets its runner reach: the hosts of the policy
+    and GitHub's own, which the firewall allows without the policy, as its header
+    says. The endpoints come from the policy itself, so the two can't drift apart."""
+    policy = assistant.firewall_policy(engine)
+    (root / FIREWALL_PATH).write_text(policy, encoding="utf-8")
+    code, outputs, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        root,
+        None,
+        "endpoints",
+        ISSUE_ASSISTANT_AI_RUNNER=HARDENED,
+    )
+    assert code == 0
+    endpoints = endpoints_of(outputs)
+    hosts = assistant.allowed_hosts(policy) | set(assistant.FIREWALL_DEFAULT_HOSTS)
+    # Each host on HTTPS and on HTTP, as the firewall allows it on each port.
+    assert sorted(endpoints) == sorted(
+        (host, port) for host in hosts for port in (443, 80)
+    )
+    header = policy.partition("\nallow:\n")[0]
+    assert all(host in header for host in assistant.FIREWALL_DEFAULT_HOSTS)
+    assert (
+        capsys.readouterr().out == f"::notice::{assistant.runner_trade_off(HARDENED)}\n"
+    )
+
+
+def test_harden_runner_gets_each_host_once_in_small_letters(
+    monkeypatch, tmp_path, root
+):
+    (root / FIREWALL_PATH).write_text(
+        "mode: enforce\nallow:\n  - API.Example.com\n  - api.example.com\n"
+        "  - GitHub.com\n",
+        encoding="utf-8",
+    )
+    code, outputs, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        root,
+        None,
+        "endpoints",
+        ISSUE_ASSISTANT_AI_RUNNER=HARDENED,
+    )
+    assert code == 0
+    assert endpoints_of(outputs) == [
+        (host, port)
+        for host in ("github.com", "codeload.github.com", "api.example.com")
+        for port in (443, 80)
+    ]
+
+
+@pytest.mark.parametrize("runner", ["", "ubuntu-24.04-firewall"])
+def test_the_firewall_runner_needs_no_endpoints(
+    monkeypatch, tmp_path, root, runner, capsys
+):
+    """Its firewall reads the policy itself, so Harden-Runner doesn't run there."""
+    (root / FIREWALL_PATH).unlink()
+    code, outputs, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        root,
+        None,
+        "endpoints",
+        ISSUE_ASSISTANT_AI_RUNNER=runner,
+    )
+    assert (code, outputs) == (0, "endpoints=\n")
+    assert capsys.readouterr().out == (
+        "The AI runs on ubuntu-24.04-firewall, whose firewall blocks every host but "
+        "those of .github/egress-firewall.yaml.\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "runner",
+    [
+        "self-hosted",
+        "ubuntu-latest",
+        "ubuntu-24.04-arm",
+        "ubuntu-24.04-firewall-2",
+        "windows-2025",
+        "ubuntu-24.04 ",
+        "ubuntu-24.4",
+    ],
+)
+def test_a_runner_where_nothing_would_block_the_hosts_is_refused(
+    monkeypatch, tmp_path, root, runner, capsys
+):
+    """Harden-Runner blocks on GitHub's runners of Ubuntu; the AI runs on no other
+    runner, and on none whose image may change without a test, such as
+    ubuntu-latest. check names the runner too, when the CI passes the variable."""
+    (problem,) = assistant.runner_problems(runner)
+    assert problem.startswith(
+        f"ISSUE_ASSISTANT_AI_RUNNER names the runner {runner} for the AI, which runs "
+        "only on ubuntu-24.04-firewall or on one of GitHub's runners of Ubuntu with a "
+        "fixed version, such as ubuntu-24.04, "
+    )
+    assert problem.endswith("Unset the variable, or name such a runner.")
+    code, outputs, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        root,
+        None,
+        "endpoints",
+        ISSUE_ASSISTANT_AI_RUNNER=runner,
+    )
+    assert (code, outputs) == (1, "")
+    assert capsys.readouterr().out == f"::error::{problem}\n"
+    code, _, _ = run_main(
+        monkeypatch, tmp_path, root, None, "check", ISSUE_ASSISTANT_AI_RUNNER=runner
+    )
+    assert code == 1
+    assert f"::error::{problem}\n" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("runner", [HARDENED, "ubuntu-26.04"])
+def test_check_says_what_the_ai_gives_up_on_another_runner(
+    monkeypatch, tmp_path, root, runner, capsys
+):
+    code, _, summary = run_main(
+        monkeypatch, tmp_path, root, None, "check", ISSUE_ASSISTANT_AI_RUNNER=runner
+    )
+    assert code == 0 and "Everything fits." in summary
+    trade_off = assistant.runner_trade_off(runner)
+    assert trade_off.startswith(
+        f"The AI runs on {runner} in place of ubuntu-24.04-firewall: Harden-Runner "
+        "blocks every host but those of .github/egress-firewall.yaml for the job "
+        "analyze, where GitHub's firewall blocks them for the whole machine"
+    )
+    assert "a subscription of StepSecurity" in trade_off
+    assert capsys.readouterr().out.startswith(f"::notice::{trade_off}\n")
+
+
+@pytest.mark.parametrize("runner", ["", "ubuntu-24.04-firewall"])
+def test_check_says_nothing_of_the_firewall_runner(
+    monkeypatch, tmp_path, root, runner, capsys
+):
+    code, _, _ = run_main(
+        monkeypatch, tmp_path, root, None, "check", ISSUE_ASSISTANT_AI_RUNNER=runner
+    )
+    assert code == 0 and "::notice::" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("policy", "problems"),
+    [
+        (None, [f".github/egress-firewall.yaml is missing; {REINSTALL}"]),
+        (
+            "mode: enforce\n",
+            [f".github/egress-firewall.yaml allows no host; {REINSTALL}"],
+        ),
+        (
+            "- api.github.com\n",
+            [f".github/egress-firewall.yaml allows no host; {REINSTALL}"],
+        ),
+        (
+            "allow: api.github.com\n",
+            [f".github/egress-firewall.yaml allows no host; {REINSTALL}"],
+        ),
+        (
+            "allow:\n  - api.github.com\n  - '*.example.com'\n  - example.com:8443\n"
+            "  - example.com/path\n  - localhost\n  - [nested]\n",
+            [
+                f".github/egress-firewall.yaml: name the host {host} in full"
+                for host in (
+                    "*.example.com",
+                    "example.com:8443",
+                    "example.com/path",
+                    "localhost",
+                    "['nested']",
+                )
+            ],
+        ),
+    ],
+)
+def test_harden_runner_gets_only_hosts_named_in_full(
+    monkeypatch, tmp_path, root, policy, problems, capsys
+):
+    """Harden-Runner reads its endpoints as words: a policy that it can't take as
+    it is stops the job event, before the AI runs on a runner without its block."""
+    path = root / FIREWALL_PATH
+    if policy is None:
+        path.unlink()
+    else:
+        path.write_text(policy, encoding="utf-8")
+    code, outputs, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        root,
+        None,
+        "endpoints",
+        ISSUE_ASSISTANT_AI_RUNNER=HARDENED,
+    )
+    assert (code, outputs) == (1, "")
+    assert capsys.readouterr().out == "".join(
+        f"::error::{problem}\n" for problem in problems
+    )
+
+
 def test_gitignore_is_checked_and_actionlint_needs_no_runner(config, root):
     # The runner of the AI is in the reusable workflow, which actionlint doesn't
     # read in a repository that calls it.
