@@ -9,7 +9,7 @@ import re
 import sys
 import textwrap
 import tomllib
-from datetime import date
+from datetime import date, datetime
 from html import escape as html_escape
 from operator import attrgetter
 from pathlib import Path
@@ -1207,6 +1207,58 @@ def test_the_comments_page_examples_carry_their_marker_and_language():
     assert f"({issues}?template=bug_report.yml)" in english["discussion-bug"]
     assert f"({issues}/choose)" in english["discussion-feature"]
     assert "mark it as the answer" in english["discussion-answer"]
+
+
+def test_the_comments_page_shows_the_first_comments_in_more_languages():
+    """The first analysis and the reminder also come in the languages of
+    MORE_LANGUAGES, each with its catalog's words and days; the other comments in
+    English and German only."""
+    shown = {example.kind: example.texts for example in hooks.examples()}
+    for kind, texts in shown.items():
+        more = set(hooks.MORE_LANGUAGES) if kind in {"analysis", "reminder"} else set()
+        assert set(texts) == set(hooks.LANGUAGES) | more, kind
+    for language in hooks.MORE_LANGUAGES:
+        texts = assistant.TEXT[language]
+        assert shown["analysis"][language].startswith(
+            f"<!-- issue-assistant:analysis lang={language} "
+        )
+        assert f"### {texts['summary']}\n" in shown["analysis"][language]
+        assert hooks.WORDS[language]["summary"] in shown["analysis"][language]
+        closes = assistant.format_date(datetime(2026, 11, 2), language)
+        assert closes in shown["reminder"][language]
+    assert "2026年11月2日" in shown["reminder"]["zh"]
+    assert "2026年11月2日" in shown["reminder"]["ja"]
+    assert "2 ноября 2026 г." in shown["reminder"]["ru"]
+    # The page shows a tab for each, named in its own language.
+    markdown = hooks.comments_part(hooks.examples(), [])
+    assert '=== "中文"\n\n    ia-comment-analysis-zh\n' in markdown
+    assert '=== "Русский"\n\n    ia-comment-reminder-ru\n' in markdown
+    assert "ia-comment-fixed-zh" not in markdown
+    # And the HTML of the page gets each of them for its placeholder.
+    page = (ROOT / "docs" / "comments.md").read_text("utf-8")
+    hooks.with_gallery(page, fake_html)
+    for language in hooks.MORE_LANGUAGES:
+        for kind in ("analysis", "reminder"):
+            key = hooks.placeholder(kind, language)
+            assert hooks.with_comments(f"<p>{key}</p>") == hooks.GALLERY[key]
+
+
+# The number of catalogs, as the README writes it.
+NUMBERS = {7: "seven", 14: "fourteen", 15: "fifteen", 16: "sixteen"}
+
+
+def test_the_readme_lists_every_catalog_with_its_address_and_its_day():
+    readme = (ROOT / "README.md").read_text("utf-8")
+    rows = re.findall(
+        r"^\| `([a-z]{2})` \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$", readme, re.M
+    )
+    assert [code for code, *_ in rows] == list(assistant.LANGUAGES)
+    for code, name, address, day in rows:
+        locale = assistant.LOCALES[code]
+        assert name.startswith(locale.name), code
+        assert address == (locale.address or "you"), code
+        assert day == assistant.format_date(datetime(2026, 11, 2), code), code
+    assert f"which has {NUMBERS[len(rows)]}:" in readme
 
 
 def test_the_hook_loads_the_assistant_of_the_commit_it_builds(monkeypatch):

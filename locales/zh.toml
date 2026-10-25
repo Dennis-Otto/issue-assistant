@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in Chinese, in the simplified script.
+# A machine draft: native speakers are welcome to improve it.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "Chinese"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "您"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{year}年{month}{day}日"
+months = [
+  "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月",
+  "12月",
+]
+# Chinese leaves no space between its words, so no word of it can be counted: the
+# guess of a reporter's language counts its letters instead, as OWN_LETTERS of
+# issue_assistant.py describes, and the catalog has no stopwords.
+stopwords = []
+
+# A sentence that a reporter in this language might write; the tests check
+# that the assistant guesses the language from it.
+sample = "我投飞镖的时候，卡片什么都不显示，这不对。"
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "感谢您创建这个议题，@{author}！"
+"thanks.bug" = "感谢您的报告，@{author}！"
+"thanks.enhancement" = "感谢您的建议，@{author}！"
+"thanks.question" = "感谢您的提问，@{author}！"
+"thanks.documentation" = "感谢您对文档的反馈，@{author}！"
+"thanks.compatibility" = "感谢您的兼容性报告，@{author}！"
+"thanks.feedback" = "感谢您的测试和反馈，@{author}！"
+"thanks.maintenance" = "感谢您的报告，@{author}！"
+intro = "我是本仓库的议题助手，先为您做了初步分析。维护者也会阅读每一个议题。"
+summary = "摘要"
+analysis = "初步分析"
+next_steps = "可以尝试"
+missing = "需要的信息"
+"missing.intro" = "为了继续处理，请通过评论或编辑议题补充以下内容："
+"missing.outro" = """\
+  如果没有回复，{remind_days}后会发送提醒，{close_days}后议题将被关闭。议题关闭后，您\
+  的回复会让它重新打开。"""
+duplicate = "可能重复"
+"duplicate.text" = "这看起来与 #{number} 重复：{reason}"
+"duplicate.close" = """\
+  如果确实如此，您无需做任何事：为了让讨论集中在一处，本议题将在 {grace_days}后作为 \
+  #{number} 的重复项关闭。在 #{number} 上点 👍 可以表明有更多人受到影响。如果情况不\
+  同，请发表评论，或对这条评论点 👎，议题就会保持打开。"""
+"duplicate.named" = "@{author}，维护者已将本议题标记为 #{number} 的重复项。"
+related = "相关"
+discussion = "讨论"
+belongs_in = """\
+  这个问题可能更适合放在 {repository}，而不是这里；如果是这样，维护者可以把议题转移过\
+  去。"""
+references = "参考位置"
+links = "参考位置：{count} 个链接"
+maintainers = "致维护者（中文）"
+"sensitive.secret" = """\
+  > [!WARNING]\n> 本议题似乎包含机密信息，例如令牌、密钥或密码。请编辑帖子将其删除，从\
+  编辑历史中删除早期版本，并更换它，因为其他人可能已经看到。"""
+"sensitive.personal" = """\
+  > [!NOTE]\n> 本议题似乎包含个人数据，例如电子邮件地址、公网 IP 地址或私有服务器的地\
+  址。如果您不想公开，请编辑帖子，并从编辑历史中删除早期版本。"""
+security = """\
+  > [!CAUTION]\n> 这可能描述了一个安全漏洞。请按照[安全策略]({policy})中的说明私下报\
+  告，并删除这里的细节。"""
+footer = """\
+  <sub>🤖 由 {engine} 根据代码、文档和以往的议题自动生成的初步分析。它可能有误，由维护\
+  者做决定。{labels} {feedback}</sub>"""
+labels = "标签：{labels}。"
+about = "[助手的工作方式]({notice})"
+feedback = "对这条评论点 👍 或 👎，可以让维护者知道它是否有帮助。"
+"feedback.duplicate" = """\
+  对这条评论点 👍 或 👎，可以让维护者知道它是否有帮助；点 👎 还会让议题保持打开。"""
+"follow-up.thanks" = "感谢您的回复，@{author}！"
+"follow-up.missing" = "仍然需要"
+"follow-up.missing.intro" = "还请补充："
+"follow-up.footer" = """\
+  <sub>🤖 由 {engine} 自动生成的跟进。它可能有误，由维护者做决定。{feedback}</sub>"""
+"answer.intro" = "@{asker}，这是我对[您的问题]({question})的回答："
+"answer.footer" = """\
+  <sub>🤖 由 {engine} 根据代码、文档和本议题自动生成的回答。它可能有误，依赖它之前请先\
+  核实。{feedback}</sub>"""
+"discussion.intro" = """\
+  感谢您的提问，@{author}！我是本仓库的议题助手，先写了一个初步回答。维护者和社区也会\
+  阅读，并可能补充。"""
+"discussion.bug" = """\
+  这听起来像是一个缺陷。要报告它，请[创建一个议题]({form})，以便维护者跟踪。"""
+"discussion.feature" = """\
+  这听起来像是对新功能的请求。要提出它，请[创建一个议题]({form})，以便维护者跟踪。"""
+"discussion.missing.intro" = "为了回答得更准确，请在评论中补充以下内容："
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> 本讨论似乎包含机密信息，例如令牌、密钥或密码。请编辑帖子将其删除，从\
+  编辑历史中删除早期版本，并更换它，因为其他人可能已经看到。"""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> 本讨论似乎包含个人数据，例如电子邮件地址、公网 IP 地址或私有服务器的地\
+  址。如果您不想公开，请编辑帖子，并从编辑历史中删除早期版本。"""
+"discussion.footer" = """\
+  <sub>🤖 由 {engine} 根据代码、文档以及以往的议题和讨论自动生成的初步回答。它可能有\
+  误，依赖它之前请先核实。{answerable} {feedback}</sub>"""
+"discussion.answerable" = "如果它回答了您的问题，您可以将其标记为答案。"
+reminder = """\
+  @{author}，友情提醒：本议题仍在等待您对{questions}的回复。如果没有回复，它将于{date}\
+  自动关闭。简短的评论就能让它保持打开，例如当您需要更多时间时。"""
+"reminder.questions" = "上面的问题"
+"closed-unanswered" = """\
+  由于上面所需的信息已经 {close_days}没有提供，我将关闭本议题。@{author}，只要您在这里\
+  回复，它就会自动重新打开。感谢您的报告！"""
+"closed-duplicate" = """\
+  按照 {grace_days}前的通知，本议题已作为 #{number} 的重复项关闭。请在那里继续；在 \
+  #{number} 上点 👍 可以表明有更多人受到影响。如果这是个错误，请发表评论，维护者会重新\
+  打开它。"""
+reopened = "感谢您的回复，@{author}！我已重新打开本议题，维护者会再看一看。"
+fixed = """\
+  已由 #{pull} 修复，该修复现已进入 `{branch}`。修复将随下一个版本发布；届时本议题会关\
+  闭，并附上该版本的链接。"""
+released = """\
+  🎉 已在 [{tag}]({url}) 中发布{fixes}。@{author}，请更新到此版本。如果问题仍然存在，\
+  请在这里发表评论，议题会重新打开；或者创建一个新议题。"""
+"released.fixes" = "，包含 {pulls} 的修复"
+"reopened-release" = """\
+  感谢您告诉我们，@{author}，很抱歉问题还没有解决。我已重新打开本议题，维护者会再看一\
+  看。"""
+locked = """\
+  本议题已关闭超过 {lock_days}，因此我将其锁定。如果您仍然遇到这个问题或类似的问题，请\
+  创建一个新议题并链接到这里。"""
+"days.one" = "{count} 天"
+"days.other" = "{count} 天"
+line = "{file}，第 {line} 行"
+heading = "{file} 中的 {heading}"

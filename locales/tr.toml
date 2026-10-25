@@ -1,0 +1,168 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in Turkish.
+# A machine draft: native speakers are welcome to improve it.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "Turkish"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "siz"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{day} {month} {year}"
+months = [
+  "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül",
+  "Ekim", "Kasım", "Aralık",
+]
+# Words that are frequent in the language and in no other catalog. A reporter
+# writes in the language of whose stopwords their words have the most, in
+# English when no other language has more, or fewer than two.
+stopwords = [
+  "ve", "bir", "bu", "için", "ile", "çok", "ama", "değil", "gibi", "daha", "sonra",
+  "olarak", "kadar", "yok", "şu", "benim", "hiçbir", "neden", "nasıl", "eğer",
+  "sürüm", "teşekkürler", "ancak", "bile", "hâlâ", "olan", "oluyor", "çalışmıyor",
+]
+
+# A sentence that a reporter in this language might write; the tests check
+# that the assistant guesses the language from it.
+sample = "Bir dart attığımda kart hiçbir şey göstermiyor ve bu doğru değil."
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "Bu konuyu açtığınız için teşekkürler, @{author}!"
+"thanks.bug" = "Bildiriminiz için teşekkürler, @{author}!"
+"thanks.enhancement" = "Öneriniz için teşekkürler, @{author}!"
+"thanks.question" = "Sorunuz için teşekkürler, @{author}!"
+"thanks.documentation" = "Belgelerle ilgili notunuz için teşekkürler, @{author}!"
+"thanks.compatibility" = "Uyumluluk bildiriminiz için teşekkürler, @{author}!"
+"thanks.feedback" = "Test ettiğiniz ve geri bildiriminiz için teşekkürler, @{author}!"
+"thanks.maintenance" = "Bildiriminiz için teşekkürler, @{author}!"
+intro = """\
+  Bu deponun konu asistanıyım ve ilk incelemeyi yaptım. Bakımcılar da her konuyu okur."""
+summary = "Özet"
+analysis = "İlk analiz"
+next_steps = "Denemeye değer"
+missing = "Gereken bilgiler"
+"missing.intro" = """\
+  Devam edebilmek için lütfen aşağıdakileri bir yorumla veya konuyu düzenleyerek \
+  ekleyin:"""
+"missing.outro" = """\
+  Yanıt gelmezse {remind_days} sonra bir hatırlatma gönderilir ve konu {close_days} \
+  sonra kapanır. Kapanırsa, bir yanıt onu yeniden açar."""
+duplicate = "Olası kopya"
+"duplicate.text" = "Bu, #{number} numaralı konunun kopyası gibi görünüyor: {reason}"
+"duplicate.close" = """\
+  Doğruysa yapmanız gereken bir şey yok: konuşma tek bir yerde kalsın diye bu konu \
+  {grace_days} içinde #{number} numaralı konunun kopyası olarak kapanacak. #{number} \
+  numaralı konuya verilen bir 👍, daha fazla kişinin etkilendiğini gösterir. Farklı \
+  bir şeyse bir yorum yazın veya bu yoruma 👎 ile tepki verin; konu açık kalır."""
+"duplicate.named" = """\
+  @{author}, bir bakımcı bu konuyu #{number} numaralı konunun kopyası olarak \
+  işaretledi."""
+related = "İlgili"
+discussion = "tartışma"
+belongs_in = """\
+  Bu konu buradan çok {repository} deposuna ait olabilir; öyleyse bir bakımcı konuyu \
+  oraya taşıyabilir."""
+references = "Nereye bakılmalı"
+links = "Nereye bakılmalı: {count} bağlantı"
+maintainers = "Bakımcılar için, Türkçe"
+"sensitive.secret" = """\
+  > [!WARNING]\n> Bu konu bir gizli bilgi, örneğin bir token, anahtar veya parola \
+  içeriyor gibi görünüyor. Lütfen gönderiyi düzenleyerek kaldırın, önceki sürümü \
+  düzenleme geçmişinden silin ve gizli bilgiyi değiştirin, çünkü başkaları görmüş \
+  olabilir."""
+"sensitive.personal" = """\
+  > [!NOTE]\n> Bu konu kişisel veriler, örneğin bir e-posta adresi, herkese açık bir \
+  IP adresi veya özel bir sunucunun adresi içeriyor gibi görünüyor. Göstermek \
+  istemiyorsanız gönderiyi düzenleyin ve önceki sürümü düzenleme geçmişinden silin."""
+security = """\
+  > [!CAUTION]\n> Bu bir güvenlik açığını anlatıyor olabilir. Lütfen bunu [güvenlik \
+  politikasında]({policy}) açıklandığı gibi gizli olarak bildirin ve ayrıntıları \
+  buradan kaldırın."""
+footer = """\
+  <sub>🤖 {engine} tarafından kod, belgeler ve önceki konulara dayanarak yapılan \
+  otomatik ilk analiz. Yanlış olabilir; kararı bakımcılar verir.{labels} \
+  {feedback}</sub>"""
+labels = " Etiketler: {labels}."
+about = "[Asistan nasıl çalışır]({notice})"
+feedback = """\
+  Bu yoruma vereceğiniz 👍 veya 👎, bakımcılara işe yarayıp yaramadığını söyler."""
+"feedback.duplicate" = """\
+  Bu yoruma vereceğiniz 👍 veya 👎, bakımcılara işe yarayıp yaramadığını söyler; 👎 \
+  ayrıca konuyu açık tutar."""
+"follow-up.thanks" = "Yanıtınız için teşekkürler, @{author}!"
+"follow-up.missing" = "Hâlâ gerekenler"
+"follow-up.missing.intro" = "Lütfen şunları da ekleyin:"
+"follow-up.footer" = """\
+  <sub>🤖 {engine} tarafından otomatik takip. Yanlış olabilir; kararı bakımcılar \
+  verir. {feedback}</sub>"""
+"answer.intro" = "@{asker}, [sorunuza]({question}) yanıtım şöyle:"
+"answer.footer" = """\
+  <sub>🤖 {engine} tarafından kod, belgeler ve bu konuya dayanarak verilen otomatik \
+  yanıt. Yanlış olabilir; güvenmeden önce kontrol edin. {feedback}</sub>"""
+"discussion.intro" = """\
+  Sorunuz için teşekkürler, @{author}! Bu deponun konu asistanıyım ve ilk yanıtı \
+  yazdım. Bakımcılar ve topluluk da okuyor ve ekleme yapabilir."""
+"discussion.bug" = """\
+  Bu bir hataya benziyor. Bakımcıların takip edebilmesi için lütfen bildirmek üzere \
+  [bir konu açın]({form})."""
+"discussion.feature" = """\
+  Bu yeni bir özellik isteğine benziyor. Bakımcıların takip edebilmesi için lütfen \
+  önermek üzere [bir konu açın]({form})."""
+"discussion.missing.intro" = """\
+  Daha kesin yanıt verebilmek için lütfen bir yorumda şunları ekleyin:"""
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> Bu tartışma bir gizli bilgi, örneğin bir token, anahtar veya parola \
+  içeriyor gibi görünüyor. Lütfen gönderiyi düzenleyerek kaldırın, önceki sürümü \
+  düzenleme geçmişinden silin ve gizli bilgiyi değiştirin, çünkü başkaları görmüş \
+  olabilir."""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> Bu tartışma kişisel veriler, örneğin bir e-posta adresi, herkese açık \
+  bir IP adresi veya özel bir sunucunun adresi içeriyor gibi görünüyor. Göstermek \
+  istemiyorsanız gönderiyi düzenleyin ve önceki sürümü düzenleme geçmişinden silin."""
+"discussion.footer" = """\
+  <sub>🤖 {engine} tarafından kod, belgeler, önceki konular ve tartışmalara dayanarak \
+  verilen otomatik ilk yanıt. Yanlış olabilir; güvenmeden önce kontrol \
+  edin.{answerable} {feedback}</sub>"""
+"discussion.answerable" = " Sorunuzu yanıtlıyorsa onu yanıt olarak işaretleyebilirsiniz."
+reminder = """\
+  @{author}, dostça bir hatırlatma: bu konu hâlâ {questions} yanıtınızı bekliyor. \
+  Yanıt gelmezse {date} tarihinde otomatik olarak kapanacak. Kısa bir yorum, örneğin \
+  daha fazla zamana ihtiyacınız varsa, konuyu açık tutar."""
+"reminder.questions" = "yukarıdaki sorulara"
+"closed-unanswered" = """\
+  Yukarıda istenen bilgiler {close_days} boyunca gelmediği için bu konuyu \
+  kapatıyorum. @{author}, burada yanıt verdiğiniz anda konu otomatik olarak yeniden \
+  açılır. Bildiriminiz için teşekkürler!"""
+"closed-duplicate" = """\
+  {grace_days} önce duyurulduğu gibi #{number} numaralı konunun kopyası olarak \
+  kapatıldı. Lütfen orada devam edin; #{number} numaralı konuya verilen bir 👍, daha \
+  fazla kişinin etkilendiğini gösterir. Bu bir hataysa bir yorum yazın, bakımcılar \
+  konuyu yeniden açar."""
+reopened = """\
+  Yanıtınız için teşekkürler, @{author}! Konuyu yeniden açtım; bakımcılar bir kez \
+  daha bakacak."""
+fixed = """\
+  #{pull} ile düzeltildi ve şu anda `{branch}` dalında. Düzeltme bir sonraki sürümle \
+  yayımlanacak; bu konu o zaman sürümün bağlantısıyla kapanacak."""
+released = """\
+  🎉 [{tag}]({url}) sürümünde yayımlandı{fixes}. @{author}, lütfen bu sürüme \
+  güncelleyin. Sorun devam ederse buraya bir yorum yazın, konu yeniden açılır; ya da \
+  yeni bir konu açın."""
+"released.fixes" = " ({pulls} düzeltmesiyle)"
+"reopened-release" = """\
+  Bize bildirdiğiniz için teşekkürler, @{author}; sorun henüz çözülmediği için \
+  üzgünüz. Konuyu yeniden açtım; bakımcılar bir kez daha bakacak."""
+locked = """\
+  Bu konu kapanalı {lock_days} geçtiği için kilitlendi. Sorunu veya benzerini hâlâ \
+  görüyorsanız lütfen yeni bir konu açın ve bu konuya bağlantı verin."""
+"days.one" = "{count} gün"
+"days.other" = "{count} gün"
+line = "{file}, satır {line}"
+heading = "{file} içinde {heading}"

@@ -84,8 +84,15 @@ What matters in a bug report: the version of the project and of {braces stay}.
   - `"es"`: Spanish, addressing the reporter with "tú"
   - `"fr"`: French, addressing the reporter with "vous"
   - `"it"`: Italian, addressing the reporter with "tu"
+  - `"ja"`: Japanese, addressing the reporter with "さん"
+  - `"ko"`: Korean, addressing the reporter with "님"
   - `"nl"`: Dutch, addressing the reporter with "je"
+  - `"pl"`: Polish, addressing the reporter with "ty"
   - `"pt"`: Portuguese, addressing the reporter with "você"
+  - `"ru"`: Russian, addressing the reporter with "вы"
+  - `"tr"`: Turkish, addressing the reporter with "siz"
+  - `"uk"`: Ukrainian, addressing the reporter with "ви"
+  - `"zh"`: Chinese, addressing the reporter with "您"
 - For a language that the list doesn't have, set `language` to `"other"` and still write all your texts in the reporter's language; the script then writes its own words, such as the headings, in English.
 - Address the reporter as the project description asks, otherwise as the list says, and use the terms of the project's own texts in that language if it has any.
 - The maintainers read English, which may not be the reporter's language. When your answer has the field `maintainer_summary` and `language` is not `"en"`, write it in English, for the maintainers alone: a faithful translation of the key facts of the text you answer, such as what happens, the versions, the error messages and what was tried, and then the gist of your answer, in at most about 80 words, so that they can judge both without a translator. Apart from its language, the rules of your other texts apply to it. When `language` is `"en"`, leave it empty: the maintainers read your answer itself.

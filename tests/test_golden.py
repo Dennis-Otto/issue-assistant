@@ -66,7 +66,7 @@ def test_every_comment_reads_as_its_golden_file(name):
 
 
 # The comments page shows the summary for the maintainers below an analysis in
-# Portuguese, a language of the catalogs; here it is below one in Japanese, which
+# Portuguese, a language of the catalogs; here it is below one in Vietnamese, which
 # has none, so the assistant's own words around the AI's are English.
 OTHER = "comments/maintainers.other.md.txt"
 
@@ -74,10 +74,10 @@ OTHER = "comments/maintainers.other.md.txt"
 def test_a_summary_below_an_answer_in_a_language_without_a_catalog(config):
     answer = make_answer(
         language="other",
-        summary="スローの後、ライブカードが空のままです。",
-        analysis="カードは `throw` イベントを受け取っていません。",
+        summary="Sau một lần ném, thẻ trực tiếp vẫn trống.",
+        analysis="Thẻ không nhận được sự kiện `throw`.",
         next_steps=[],
-        maintainer_summary="The reporter writes in Japanese: the live card stays "
+        maintainer_summary="The reporter writes in Vietnamese: the live card stays "
         "empty after a throw. The card probably misses the `throw` event; the "
         "analysis asks for the version of the card.",
     )
@@ -85,7 +85,7 @@ def test_a_summary_below_an_answer_in_a_language_without_a_catalog(config):
         answer,
         "reporter",
         assistant.Findings(),
-        ["カードのバージョン。"],
+        ["Phiên bản của thẻ."],
         ["bug"],
         config,
     )

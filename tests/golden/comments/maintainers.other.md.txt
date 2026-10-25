@@ -4,23 +4,23 @@ Thanks for the report, @reporter! I'm the issue assistant of this repository and
 
 ### Summary
 
-スローの後、ライブカードが空のままです。
+Sau một lần ném, thẻ trực tiếp vẫn trống.
 
 ### First analysis
 
-カードは `throw` イベントを受け取っていません。
+Thẻ không nhận được sự kiện `throw`.
 
 ### Information needed
 
 To continue, please add the following, in a comment or by editing the issue:
 
-- カードのバージョン。
+- Phiên bản của thẻ.
 
 Without an answer, a reminder follows after 15 days and the issue closes after 30 days. If it closes, an answer reopens it.
 
 <details><summary>For the maintainers, in English</summary>
 
-The reporter writes in Japanese: the live card stays empty after a throw. The card probably misses the `throw` event; the analysis asks for the version of the card.
+The reporter writes in Vietnamese: the live card stays empty after a throw. The card probably misses the `throw` event; the analysis asks for the version of the card.
 
 </details>
 

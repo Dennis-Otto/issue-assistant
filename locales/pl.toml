@@ -1,0 +1,167 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in Polish.
+# A machine draft: native speakers are welcome to improve it.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "Polish"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "ty"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{day} {month} {year}"
+months = [
+  "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia",
+  "września", "października", "listopada", "grudnia",
+]
+# Words that are frequent in the language and in no other catalog. A reporter
+# writes in the language of whose stopwords their words have the most, in
+# English when no other language has more, or fewer than two.
+stopwords = [
+  "nie", "się", "jest", "że", "jak", "ale", "mam", "przy", "dla", "bo", "już",
+  "tylko", "bardzo", "co", "czy", "gdy", "kiedy", "jeśli", "mój", "moja", "działa",
+  "nic", "jestem", "może", "jeszcze", "też", "wersja", "dzięki",
+]
+
+# A sentence that a reporter in this language might write; the tests check
+# that the assistant guesses the language from it.
+sample = "Karta nic nie pokazuje, kiedy rzucam lotką, i to nie jest w porządku."
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "Dzięki za otwarcie tego zgłoszenia, @{author}!"
+"thanks.bug" = "Dzięki za zgłoszenie błędu, @{author}!"
+"thanks.enhancement" = "Dzięki za propozycję, @{author}!"
+"thanks.question" = "Dzięki za pytanie, @{author}!"
+"thanks.documentation" = "Dzięki za uwagę dotyczącą dokumentacji, @{author}!"
+"thanks.compatibility" = "Dzięki za zgłoszenie dotyczące zgodności, @{author}!"
+"thanks.feedback" = "Dzięki za testy i opinię, @{author}!"
+"thanks.maintenance" = "Dzięki za zgłoszenie, @{author}!"
+intro = """\
+  Jestem asystentem zgłoszeń tego repozytorium i to moja pierwsza analiza. \
+  Opiekunowie projektu też czytają każde zgłoszenie."""
+summary = "Podsumowanie"
+analysis = "Pierwsza analiza"
+next_steps = "Warto spróbować"
+missing = "Potrzebne informacje"
+"missing.intro" = """\
+  Aby kontynuować, dodaj proszę poniższe informacje w komentarzu lub edytując \
+  zgłoszenie:"""
+"missing.outro" = """\
+  Bez odpowiedzi za {remind_days} pojawi się przypomnienie, a za {close_days} \
+  zgłoszenie zostanie zamknięte. Jeśli zostanie zamknięte, odpowiedź otworzy je \
+  ponownie."""
+duplicate = "Możliwy duplikat"
+"duplicate.text" = "To wygląda na duplikat #{number}: {reason}"
+"duplicate.close" = """\
+  Jeśli tak jest, nie musisz nic robić: za {grace_days} zgłoszenie zostanie zamknięte \
+  jako duplikat #{number}, żeby rozmowa toczyła się w jednym miejscu. 👍 przy \
+  #{number} pokazuje, że problem dotyczy większej liczby osób. Jeśli chodzi o coś \
+  innego, napisz komentarz albo zareaguj na ten komentarz 👎, a zgłoszenie pozostanie \
+  otwarte."""
+"duplicate.named" = """\
+  @{author}, to zgłoszenie zostało oznaczone przez opiekuna jako duplikat #{number}."""
+related = "Powiązane"
+discussion = "dyskusja"
+belongs_in = """\
+  To może bardziej pasować do {repository} niż tutaj; jeśli tak, opiekun może \
+  przenieść tam zgłoszenie."""
+references = "Gdzie szukać"
+links = "Gdzie szukać (linki: {count})"
+maintainers = "Dla opiekunów, po polsku"
+"sensitive.secret" = """\
+  > [!WARNING]\n> To zgłoszenie wydaje się zawierać sekret, na przykład token, klucz \
+  lub hasło. Usuń go, edytując wpis, usuń wcześniejszą wersję z historii edycji i \
+  wymień sekret, bo inni mogli go już zobaczyć."""
+"sensitive.personal" = """\
+  > [!NOTE]\n> To zgłoszenie wydaje się zawierać dane osobowe, na przykład adres \
+  e-mail, publiczny adres IP lub adres prywatnego serwera. Jeśli wolisz ich nie \
+  pokazywać, edytuj wpis i usuń wcześniejszą wersję z historii edycji."""
+security = """\
+  > [!CAUTION]\n> To może opisywać lukę w zabezpieczeniach. Zgłoś ją prywatnie, jak \
+  opisano w [zasadach bezpieczeństwa]({policy}), i usuń stąd szczegóły."""
+footer = """\
+  <sub>🤖 Automatyczna pierwsza analiza od {engine} na podstawie kodu, dokumentacji i \
+  wcześniejszych zgłoszeń. Może być błędna; decydują opiekunowie.{labels} \
+  {feedback}</sub>"""
+labels = " Etykiety: {labels}."
+about = "[Jak działa asystent]({notice})"
+feedback = "👍 lub 👎 pod tym komentarzem powie opiekunom, czy pomógł."
+"feedback.duplicate" = """\
+  👍 lub 👎 pod tym komentarzem powie opiekunom, czy pomógł; 👎 dodatkowo pozostawi \
+  zgłoszenie otwarte."""
+"follow-up.thanks" = "Dzięki za odpowiedź, @{author}!"
+"follow-up.missing" = "Nadal potrzebne"
+"follow-up.missing.intro" = "Dodaj proszę jeszcze:"
+"follow-up.footer" = """\
+  <sub>🤖 Automatyczna odpowiedź uzupełniająca od {engine}. Może być błędna; decydują \
+  opiekunowie. {feedback}</sub>"""
+"answer.intro" = "@{asker}, oto moja odpowiedź na [twoje pytanie]({question}):"
+"answer.footer" = """\
+  <sub>🤖 Automatyczna odpowiedź od {engine} na podstawie kodu, dokumentacji i tego \
+  zgłoszenia. Może być błędna; sprawdź ją, zanim na niej polegasz. {feedback}</sub>"""
+"discussion.intro" = """\
+  Dzięki za pytanie, @{author}! Jestem asystentem zgłoszeń tego repozytorium i to \
+  moja pierwsza odpowiedź. Opiekunowie projektu i społeczność też czytają dyskusję i \
+  mogą ją uzupełnić."""
+"discussion.bug" = """\
+  To wygląda na błąd. Aby go zgłosić, [otwórz zgłoszenie]({form}), żeby opiekunowie \
+  mogli go śledzić."""
+"discussion.feature" = """\
+  To wygląda na prośbę o nową funkcję. Aby ją zaproponować, [otwórz \
+  zgłoszenie]({form}), żeby opiekunowie mogli ją śledzić."""
+"discussion.missing.intro" = "Aby odpowiedzieć dokładniej, dodaj proszę w komentarzu:"
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> Ta dyskusja wydaje się zawierać sekret, na przykład token, klucz \
+  lub hasło. Usuń go, edytując wpis, usuń wcześniejszą wersję z historii edycji i \
+  wymień sekret, bo inni mogli go już zobaczyć."""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> Ta dyskusja wydaje się zawierać dane osobowe, na przykład adres \
+  e-mail, publiczny adres IP lub adres prywatnego serwera. Jeśli wolisz ich nie \
+  pokazywać, edytuj wpis i usuń wcześniejszą wersję z historii edycji."""
+"discussion.footer" = """\
+  <sub>🤖 Automatyczna pierwsza odpowiedź od {engine} na podstawie kodu, dokumentacji \
+  oraz wcześniejszych zgłoszeń i dyskusji. Może być błędna; sprawdź ją, zanim na niej \
+  polegasz.{answerable} {feedback}</sub>"""
+"discussion.answerable" = " Jeśli odpowiada na twoje pytanie, możesz oznaczyć ją jako odpowiedź."
+reminder = """\
+  @{author}, przyjazne przypomnienie: to zgłoszenie wciąż czeka na twoją odpowiedź na \
+  {questions}. Bez odpowiedzi zostanie automatycznie zamknięte {date}. Krótki \
+  komentarz pozostawi je otwarte, na przykład jeśli potrzebujesz więcej czasu."""
+"reminder.questions" = "pytania powyżej"
+"closed-unanswered" = """\
+  Zamykam to zgłoszenie, ponieważ przez {close_days} nie pojawiły się informacje, o \
+  które poproszono powyżej. @{author}, gdy tylko odpowiesz tutaj, zgłoszenie zostanie \
+  automatycznie ponownie otwarte. Dzięki za zgłoszenie!"""
+"closed-duplicate" = """\
+  Zamknięte jako duplikat #{number}, jak zapowiedziano {grace_days} temu. Kontynuuj \
+  proszę tam; 👍 przy #{number} pokazuje, że problem dotyczy większej liczby osób. \
+  Jeśli to pomyłka, napisz komentarz, a opiekunowie otworzą je ponownie."""
+reopened = """\
+  Dzięki za odpowiedź, @{author}! Zgłoszenie zostało ponownie otwarte; opiekunowie \
+  przyjrzą się mu jeszcze raz."""
+fixed = """\
+  Naprawione w #{pull}; zmiana jest już w `{branch}`. Poprawka trafi do następnego \
+  wydania; wtedy to zgłoszenie zostanie zamknięte z linkiem do niego."""
+released = """\
+  🎉 Wydane w [{tag}]({url}){fixes}. @{author}, zaktualizuj proszę do tej wersji. \
+  Jeśli problem nadal występuje, napisz tutaj komentarz, a zgłoszenie zostanie \
+  ponownie otwarte, albo otwórz nowe zgłoszenie."""
+"released.fixes" = " z poprawką z {pulls}"
+"reopened-release" = """\
+  Dzięki za informację, @{author}, i przepraszamy, że problem nie jest jeszcze \
+  rozwiązany. Zgłoszenie zostało ponownie otwarte; opiekunowie przyjrzą się mu \
+  jeszcze raz."""
+locked = """\
+  To zgłoszenie było zamknięte przez ponad {lock_days}, więc zostało zablokowane. \
+  Jeśli nadal widzisz ten problem lub podobny, otwórz proszę nowe zgłoszenie i dodaj \
+  link do tego."""
+"days.one" = "{count} dzień"
+"days.other" = "{count} dni"
+line = "{file}, wiersz {line}"
+heading = "{heading} w {file}"

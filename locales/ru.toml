@@ -1,0 +1,167 @@
+# SPDX-FileCopyrightText: 2026 Dennis Otto
+# SPDX-License-Identifier: MIT
+#
+# The comments of the issue assistant in Russian.
+# A machine draft: native speakers are welcome to improve it.
+# Every catalog in locales/ has the texts of locales/en.toml with the same
+# placeholders in braces, twelve months and stopwords of its own, which
+# tests/test_assistant.py checks. A new language is one more file, named after its
+# code of ISO 639-1, such as fr.toml.
+
+# The language in English, as the prompt names it to the AI.
+name = "Russian"
+# How the comments address a reporter, which the AI does too; empty when the
+# language has one way only.
+address = "вы"
+# How a comment names a day: {day}, {month} from the months below, and {year}.
+date = "{day} {month} {year} г."
+months = [
+  "января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа",
+  "сентября", "октября", "ноября", "декабря",
+]
+# Words that are frequent in the language and in no other catalog. A reporter
+# writes in the language of whose stopwords their words have the most, in
+# English when no other language has more, or fewer than two.
+# Each of the letters ё, ъ, ы and э, which Ukrainian lacks, counts as one as
+# well, as OWN_LETTERS of issue_assistant.py describes.
+stopwords = [
+  "и", "что", "это", "как", "когда", "но", "или", "меня", "мой", "после", "если",
+  "нет", "уже", "очень", "только", "можно", "будет", "есть", "его", "она", "мы",
+  "ничего", "работает", "был", "было", "этот", "почему", "который",
+]
+
+# A sentence that a reporter in this language might write; the tests check
+# that the assistant guesses the language from it.
+sample = "Карточка ничего не показывает, когда я бросаю дротик, и это неправильно."
+
+# The texts of the comments, by the keys that issue_assistant.py uses.
+[text]
+"thanks.default" = "Спасибо, что открыли этот issue, @{author}!"
+"thanks.bug" = "Спасибо за сообщение об ошибке, @{author}!"
+"thanks.enhancement" = "Спасибо за предложение, @{author}!"
+"thanks.question" = "Спасибо за вопрос, @{author}!"
+"thanks.documentation" = "Спасибо за замечание о документации, @{author}!"
+"thanks.compatibility" = "Спасибо за сообщение о совместимости, @{author}!"
+"thanks.feedback" = "Спасибо за тестирование и отзыв, @{author}!"
+"thanks.maintenance" = "Спасибо за сообщение, @{author}!"
+intro = """\
+  Я — ассистент по issues этого репозитория, и вот мой первый разбор. Мейнтейнеры \
+  тоже читают каждый issue."""
+summary = "Кратко"
+analysis = "Первый анализ"
+next_steps = "Что можно попробовать"
+missing = "Нужна информация"
+"missing.intro" = """\
+  Чтобы продолжить, добавьте, пожалуйста, следующее — в комментарии или \
+  отредактировав issue:"""
+"missing.outro" = """\
+  Если ответа не будет, через {remind_days} придёт напоминание, а через {close_days} \
+  issue закроется. Если он закроется, ответ откроет его снова."""
+duplicate = "Возможный дубликат"
+"duplicate.text" = "Похоже, это дубликат #{number}: {reason}"
+"duplicate.close" = """\
+  Если это так, ничего делать не нужно: через {grace_days} issue закроется как \
+  дубликат #{number}, чтобы обсуждение шло в одном месте. 👍 на #{number} покажет, \
+  что проблема касается многих. Если речь о чём-то другом, напишите комментарий или \
+  поставьте этому комментарию 👎, и issue останется открытым."""
+"duplicate.named" = "@{author}, мейнтейнер отметил этот issue как дубликат #{number}."
+related = "Связанное"
+discussion = "обсуждение"
+belongs_in = """\
+  Возможно, это относится скорее к {repository}, чем сюда; в таком случае мейнтейнер \
+  может перенести issue туда."""
+references = "Где смотреть"
+links = "Где смотреть (ссылок: {count})"
+maintainers = "Для мейнтейнеров, на русском"
+"sensitive.secret" = """\
+  > [!WARNING]\n> Похоже, в этом issue виден секрет, например токен, ключ или пароль. \
+  Удалите его, отредактировав сообщение, удалите прежнюю версию из истории правок и \
+  замените секрет, потому что его могли увидеть другие."""
+"sensitive.personal" = """\
+  > [!NOTE]\n> Похоже, в этом issue видны персональные данные, например адрес \
+  электронной почты, публичный IP-адрес или адрес частного сервера. Если вы не хотите \
+  их показывать, отредактируйте сообщение и удалите прежнюю версию из истории правок."""
+security = """\
+  > [!CAUTION]\n> Возможно, здесь описана уязвимость. Сообщите о ней, пожалуйста, \
+  конфиденциально, как описано в [политике безопасности]({policy}), и удалите \
+  подробности отсюда."""
+footer = """\
+  <sub>🤖 Автоматический первый анализ от {engine} на основе кода, документации и \
+  прежних issues. Он может ошибаться; решают мейнтейнеры.{labels} {feedback}</sub>"""
+labels = " Метки: {labels}."
+about = "[Как работает ассистент]({notice})"
+feedback = "👍 или 👎 под этим комментарием покажет мейнтейнерам, помог ли он."
+"feedback.duplicate" = """\
+  👍 или 👎 под этим комментарием покажет мейнтейнерам, помог ли он; 👎 к тому же \
+  оставит issue открытым."""
+"follow-up.thanks" = "Спасибо за ответ, @{author}!"
+"follow-up.missing" = "Ещё нужно"
+"follow-up.missing.intro" = "Добавьте, пожалуйста, также:"
+"follow-up.footer" = """\
+  <sub>🤖 Автоматическое продолжение от {engine}. Оно может ошибаться; решают \
+  мейнтейнеры. {feedback}</sub>"""
+"answer.intro" = "@{asker}, вот мой ответ на [ваш вопрос]({question}):"
+"answer.footer" = """\
+  <sub>🤖 Автоматический ответ от {engine} на основе кода, документации и этого \
+  issue. Он может ошибаться; проверьте его, прежде чем на него полагаться. \
+  {feedback}</sub>"""
+"discussion.intro" = """\
+  Спасибо за вопрос, @{author}! Я — ассистент по issues этого репозитория, и вот мой \
+  первый ответ. Мейнтейнеры и сообщество тоже читают обсуждение и могут его дополнить."""
+"discussion.bug" = """\
+  Похоже на ошибку. Сообщите о ней, пожалуйста, [в новом issue]({form}), чтобы \
+  мейнтейнеры могли её отслеживать."""
+"discussion.feature" = """\
+  Похоже на запрос новой функции. Предложите её, пожалуйста, [в новом issue]({form}), \
+  чтобы мейнтейнеры могли её отслеживать."""
+"discussion.missing.intro" = """\
+  Чтобы ответить точнее, добавьте, пожалуйста, в комментарии следующее:"""
+"discussion.sensitive.secret" = """\
+  > [!WARNING]\n> Похоже, в этом обсуждении виден секрет, например токен, ключ или \
+  пароль. Удалите его, отредактировав сообщение, удалите прежнюю версию из истории \
+  правок и замените секрет, потому что его могли увидеть другие."""
+"discussion.sensitive.personal" = """\
+  > [!NOTE]\n> Похоже, в этом обсуждении видны персональные данные, например адрес \
+  электронной почты, публичный IP-адрес или адрес частного сервера. Если вы не хотите \
+  их показывать, отредактируйте сообщение и удалите прежнюю версию из истории правок."""
+"discussion.footer" = """\
+  <sub>🤖 Автоматический первый ответ от {engine} на основе кода, документации, \
+  прежних issues и обсуждений. Он может ошибаться; проверьте его, прежде чем на него \
+  полагаться.{answerable} {feedback}</sub>"""
+"discussion.answerable" = " Если он отвечает на ваш вопрос, отметьте его как ответ."
+reminder = """\
+  @{author}, дружеское напоминание: этот issue всё ещё ждёт вашего ответа на \
+  {questions}. Без ответа {date} он автоматически закроется. Короткий комментарий \
+  оставит его открытым, например если вам нужно больше времени."""
+"reminder.questions" = "вопросы выше"
+"closed-unanswered" = """\
+  Закрываю этот issue, потому что запрошенной выше информации нет уже {close_days}. \
+  @{author}, как только вы ответите здесь, он автоматически откроется снова. Спасибо \
+  за сообщение!"""
+"closed-duplicate" = """\
+  Закрыт как дубликат #{number}, как и было объявлено {grace_days} назад. Продолжите, \
+  пожалуйста, там; 👍 на #{number} покажет, что проблема касается многих. Если это \
+  ошибка, напишите комментарий, и мейнтейнеры откроют его снова."""
+reopened = """\
+  Спасибо за ответ, @{author}! Issue снова открыт; мейнтейнеры посмотрят ещё раз."""
+fixed = """\
+  Исправлено в #{pull}, изменения уже в `{branch}`. Исправление выйдет в следующем \
+  релизе; тогда этот issue закроется со ссылкой на него."""
+released = """\
+  🎉 Вышло в [{tag}]({url}){fixes}. @{author}, обновитесь, пожалуйста, до этой \
+  версии. Если проблема останется, напишите здесь комментарий, и issue откроется \
+  снова, или откройте новый issue."""
+"released.fixes" = " с исправлением из {pulls}"
+"reopened-release" = """\
+  Спасибо, что сообщили, @{author}, и жаль, что проблема ещё не решена. Issue снова \
+  открыт; мейнтейнеры посмотрят ещё раз."""
+locked = """\
+  Этот issue закрыт уже {lock_days}, поэтому он заблокирован. Если вы всё ещё видите \
+  эту проблему или похожую, откройте, пожалуйста, новый issue и сошлитесь на этот."""
+"days.one" = "{count} день"
+# After 2, 3 and 4 and after the numbers that end in them, but not after 12, 13 and
+# 14, as FEW of issue_assistant.py describes.
+"days.few" = "{count} дня"
+"days.other" = "{count} дней"
+line = "{file}, строка {line}"
+heading = "{heading} в {file}"
