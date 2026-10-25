@@ -326,6 +326,23 @@ class FakeRun:
 
 
 INSTALLED = (0, "", "")
+AS_ROOT = assistant.as_root
+
+
+@pytest.fixture(autouse=True)
+def as_root(monkeypatch):
+    """The commands that analyze runs as root, which succeed: the tests run neither
+    as root nor with sudo."""
+    commands = []
+
+    def run(command):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(assistant, "as_root", run)
+    return commands
+
+
 SECRETS = {
     "GEMINI_API_KEY": "gemini-secret",
     "COPILOT_GITHUB_TOKEN": "copilot-secret",
@@ -370,7 +387,7 @@ def copilot_output(*events):
 
 @pytest.mark.parametrize("engine", CLI_ENGINES)
 def test_analyze_runs_the_engine_with_its_secret_alone(
-    monkeypatch, tmp_path, config, context, engine
+    monkeypatch, tmp_path, config, context, engine, as_root
 ):
     answer = json.dumps(make_answer())
     printed = (
@@ -424,9 +441,27 @@ def test_analyze_runs_the_engine_with_its_secret_alone(
         cli, assistant.task_run(chosen, "follow-up")
     )
     if engine == "gemini":
-        assert variables["GEMINI_CLI_SYSTEM_SETTINGS_PATH"] == str(
-            work / "settings.json"
-        )
+        # Root's alone, in a folder of the run that root owns and nobody else may
+        # write to; it goes when the run ends.
+        folder = f"/etc/issue-assistant/{work.name}"
+        assert variables["GEMINI_CLI_SYSTEM_SETTINGS_PATH"] == f"{folder}/settings.json"
+        assert as_root == [
+            [
+                "install",
+                "-d",
+                "-m",
+                "755",
+                "-o",
+                "0",
+                "-g",
+                "0",
+                "/etc/issue-assistant",
+            ]
+            + [folder],
+            ["install", "-m", "644", "-o", "0", "-g", "0"]
+            + [str(work / "settings.json"), f"{folder}/settings.json"],
+            ["rm", "-rf", folder],
+        ]
         # A follow-up takes half of max_turns.
         assert settings["model"]["maxSessionTurns"] == 15
         assert settings["tools"]["core"] == [
@@ -437,17 +472,94 @@ def test_analyze_runs_the_engine_with_its_secret_alone(
         ]
 
 
+def test_copilot_takes_its_settings_from_the_folder_of_the_run(
+    monkeypatch, tmp_path, config, context, as_root
+):
+    printed = copilot_output(copilot_event("assistant.message", content="{}"))
+    run = FakeRun(INSTALLED, (0, printed, ""))
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    chosen = engine_config(config, "copilot")
+    assistant.analyze(chosen, "triage", "copilot", "1.2.3", tmp_path)
+    assert as_root == []
+    cli = assistant.ENGINES["copilot"].cli
+    assert assistant.settings_path(cli, tmp_path) == tmp_path / "settings.json"
+
+
+def test_gemini_doesn_t_run_when_root_can_t_take_its_settings(
+    monkeypatch, tmp_path, config, context
+):
+    """The Gemini CLI would run without them, with only a warning."""
+    commands = []
+
+    def refuse(command):
+        commands.append(command)
+        refusal = "sudo: a password is required\n"
+        return subprocess.CompletedProcess(command, 1, "", refusal)
+
+    monkeypatch.setattr(assistant, "as_root", refuse)
+    run = FakeRun(INSTALLED)
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.analyze(
+            engine_config(config, "gemini"), "triage", "gemini", "1.2.3", tmp_path
+        )
+    assert str(refused.value) == (
+        "The settings that keep the engine's command line to reading must belong to "
+        "root, and install -d as root failed: sudo: a password is required. It "
+        "needs sudo without a password prompt: GitHub's runners have it; on your "
+        "computer, run sudo -v first."
+    )
+    # npm installed it, nothing ran it, and what the copy may have made goes.
+    assert len(run.calls) == 1
+    assert commands[1:] == [["rm", "-rf", f"/etc/issue-assistant/{tmp_path.name}"]]
+
+
+@pytest.mark.parametrize(
+    ("user", "command"),
+    [
+        (1001, ["sudo", "--non-interactive", "install", "-d", "/etc/x"]),
+        (0, ["install", "-d", "/etc/x"]),
+    ],
+)
+def test_root_runs_a_command_with_sudo_unless_the_job_is_root(
+    monkeypatch, user, command
+):
+    calls = []
+
+    def run(arguments, **options):
+        calls.append(arguments)
+        assert options["capture_output"] and not options["check"]
+        return subprocess.CompletedProcess(arguments, 0, "", "")
+
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    monkeypatch.setattr(assistant.os, "geteuid", lambda: user, raising=False)
+    assert AS_ROOT(["install", "-d", "/etc/x"]).returncode == 0
+    assert calls == [command]
+
+
+def test_root_without_sudo_is_a_failure(monkeypatch):
+    def run(arguments, **options):
+        raise FileNotFoundError(arguments[0])
+
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    monkeypatch.setattr(assistant.os, "geteuid", lambda: 1001, raising=False)
+    result = AS_ROOT(["install", "-d", "/etc/x"])
+    assert (result.returncode, result.stderr) == (127, "no sudo")
+
+
 def test_copilot_gets_the_effort_of_the_task_and_gemini_takes_none(config):
     copilot = assistant.ENGINES["copilot"].cli
     gemini = assistant.ENGINES["gemini"].cli
     run = assistant.Run("auto", 4, "1", "high")
     assert assistant.cli_command(copilot, "copilot", run, "P")[5:7] == [
-        "--effort",
+        "--reasoning-effort",
         "high",
     ]
     calm = dataclasses.replace(run, effort="")
-    assert "--effort" not in assistant.cli_command(copilot, "copilot", calm, "P")
-    assert "--effort" not in assistant.cli_command(gemini, "gemini", run, "P")
+    assert "--reasoning-effort" not in assistant.cli_command(
+        copilot, "copilot", calm, "P"
+    )
+    assert "--reasoning-effort" not in assistant.cli_command(gemini, "gemini", run, "P")
     # Settings without the turns, for a command line that takes none.
     assert assistant.cli_settings(copilot, run) == {}
 
