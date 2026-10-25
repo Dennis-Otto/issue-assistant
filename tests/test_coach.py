@@ -177,7 +177,12 @@ def test_each_explanation_of_the_project_is_for_a_check_that_exists():
     fuzz = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "fuzz.yml").read_text(encoding="utf-8")
     )["jobs"]["fuzz"]
-    assert sorted(CATALOG) == sorted(jobs | parts | {fuzz["name"]})
+    # The Canary explains the wait of the AI for its runner by the name of its job.
+    queue = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "canary.yml").read_text(encoding="utf-8")
+    )["jobs"]["queue"]
+    assert queue["steps"][-1]["env"] == {"CHECK": queue["name"]}
+    assert sorted(CATALOG) == sorted(jobs | parts | {fuzz["name"], queue["name"]})
 
 
 def test_the_explanation_of_the_template_lint_runs_the_actionlint_of_the_check():

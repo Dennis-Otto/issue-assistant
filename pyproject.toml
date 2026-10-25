@@ -35,7 +35,8 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["issue_assistant.py"]
+# The action, and the script of the Canary that measures the wait for a runner.
+files = ["issue_assistant.py", "scripts/canary_queue.py"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["issue_assistant", "oracle", "seeds", "support"]

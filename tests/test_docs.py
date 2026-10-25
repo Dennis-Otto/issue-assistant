@@ -890,9 +890,15 @@ def test_the_requirements_say_that_the_firewall_runner_is_a_preview():
             "utf-8"
         )
     )
-    runner = workflow["jobs"]["analyze"]["runs-on"]
+    # The firewall runner, unless the repository names another in its variable.
+    runner = re.fullmatch(
+        r"\$\{\{ vars\.(\w+) \|\| '([\w.-]+)' \}\}",
+        workflow["jobs"]["analyze"]["runs-on"],
+    )
+    assert runner, "the job analyze names no runner and no variable"
     requirements = readme_part("requirements")
-    assert f"`{runner}`" in requirements
+    assert f"`{runner[2]}`" in requirements
+    assert f"`{runner[1]}`" in requirements
     assert "technical preview" in requirements and "Linux only" in requirements
     assert (
         "(https://github.com/github-early-access/actions-native-egress-firewall)"

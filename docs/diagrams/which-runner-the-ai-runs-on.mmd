@@ -1,0 +1,29 @@
+flowchart TB
+  accTitle: Which runner the AI runs on
+  accDescr: The job event reads the repository variable ISSUE_ASSISTANT_AI_RUNNER. Unset, or ubuntu-24.04-firewall, the job analyze runs on GitHub's egress-firewall runner, whose firewall blocks every host but those of .github/egress-firewall.yaml for the whole machine. For one of GitHub's runners of Ubuntu with a fixed version, such as ubuntu-24.04, the job event names the hosts of the same file with their ports; there Harden-Runner blocks every other host as the first step of analyze, and the next step stops the job when a request to example.com gets through, before the engine runs. For any other runner, such as a self-hosted one or ubuntu-latest, the job event fails and the AI doesn't run.
+  variable["`the variable<br>**ISSUE_ASSISTANT_AI_RUNNER**`"]
+  variable -->|"unset, or ubuntu-24.04-firewall"| firewall
+  variable -->|"ubuntu-24.04 and the like"| endpoints
+  variable -->|"self-hosted, ubuntu-latest, …"| refused
+  subgraph preview ["ubuntu-24.04-firewall, a technical preview"]
+    firewall["`**analyze**<br>GitHub's firewall blocks every other host<br>for the whole machine`"]
+  end
+  endpoints["`**event** names the hosts of<br>egress-firewall.yaml, on 443 and 80`"]
+  subgraph plain ["ubuntu-24.04"]
+    hardened["`**analyze**<br>Harden-Runner blocks every other host<br>for the job`"]
+    holds["`does a request to<br>example.com get through?`"]
+    hardened --> holds
+  end
+  endpoints --> hardened
+  firewall --> engine(["the engine runs"])
+  holds -->|no| engine
+  holds -->|yes| stop(["the job stops,<br>the AI doesn't run"])
+  refused(["event fails,<br>the AI doesn't run"])
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  class firewall,hardened ai
+  class variable,endpoints,holds job
+  class engine safe
+  class stop,refused untrusted
