@@ -20,16 +20,28 @@
     {
       // The engine's action runs only in the job analyze, on the firewall runner and
       // with the engine's secret, which only main may use: no check of a pull
-      // request runs it. So its updates come in a pull request of their own and wait
-      // for the maintainer. The push of the merge to main starts the Canary
-      // (.github/workflows/canary.yml), which runs the AI's whole path with the new
-      // version; a release follows only once it passed (docs/architecture.md). The
-      // check engine contracts of the pull request has checked its inputs and outputs.
+      // request runs it. The required check engine contracts of the pull request
+      // checks its inputs and outputs. The push of the merge to main starts the
+      // Canary (.github/workflows/canary.yml), which runs the AI's whole path with
+      // the new version; a release follows only once it passed (docs/architecture.md).
+      // A minor or major version, and a new commit of a tag, wait for the maintainer.
       matchDepNames: ["anthropics/claude-code-action"],
+      matchUpdateTypes: ["!patch"],
       groupName: "the engine's action",
       automerge: false,
       prBodyNotes: [
         "**This update waits for you.** The engine's action runs only on `main`, where the engine's secret is, so no check of this pull request runs it; the check *engine contracts* below only shows that the action still has each input that the workflows pass and each output that they read. Merge it when you can watch the [Canary](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/canary.yml): the push to `main` starts it, and it runs the analysis of a fixture issue with this version, from the engine on the firewall runner to the checked answer. Release only once it passed; if it fails, revert this update.",
+      ],
+    },
+    {
+      // A patch version merges on its own, in a pull request of its own, once every
+      // required check passed, engine contracts too (decision 0020).
+      matchDepNames: ["anthropics/claude-code-action"],
+      matchUpdateTypes: ["patch"],
+      groupName: "the engine's action to a new patch version",
+      automerge: true,
+      prBodyNotes: [
+        "**This patch version merges on its own** once every required check passed, as [decision 0020](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/0020-patch-versions-of-the-engines-merge-on-their-own.md) says; a minor or major version waits for the maintainer. The engine's action runs only on `main`, where the engine's secret is, so no check of this pull request runs it; the required check *engine contracts* below shows that the action still has each input that the workflows pass and each output that they read. The push of the merge to `main` starts the [Canary](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/canary.yml), which runs the analysis of a fixture issue with this version, from the engine on the firewall runner to the checked answer. Release only once it passed; if it fails, revert this update.",
       ],
     },
     {
@@ -40,20 +52,39 @@
       // the Gemini CLI and the Copilot CLI are in the lock files of engines/, which
       // Renovate's manager of npm updates, each package with its hash, and so does
       // the weekly refresh of the lock files, which waits for the maintainer too.
-      // The check engine contracts of the pull request runs them without a key:
-      // the inputs and outputs of the action, the flags and the settings of the
+      // The required check engine contracts of the pull request runs them without a
+      // key: the inputs and outputs of the action, the flags and the settings of the
       // command lines, the signatures of npm's registry of every package that npm
-      // installs from the lock files on GitHub's Ubuntu x64 runner, and that npm refuses a package whose hash is not the locked one.
+      // installs from the lock files on GitHub's Ubuntu x64 runner, and that npm
+      // refuses a package whose hash is not the locked one. A minor or major
+      // version, and a new commit of a tag, wait for the maintainer.
       matchDepNames: [
         "openai/codex-action",
         "@openai/codex",
         "@google/gemini-cli",
         "@github/copilot",
       ],
+      matchUpdateTypes: ["!patch"],
       groupName: "the other engines",
       automerge: false,
       prBodyNotes: [
         "**This update waits for you.** Codex, Gemini and Copilot run only in the job `analyze`, with their secrets, and the Canary runs Claude alone, so neither a check of this pull request nor the Canary runs these versions with a key. The check *engine contracts* below runs them without one: green, the action still has each input that the workflows pass and each output that they read, each command line lists each flag of its step in its help and takes its values, the Gemini CLI's schema has each key of its settings, and each one starts and stops only for the missing key. For the Gemini CLI and the Copilot CLI, it also installs the lock files of `engines/` as `analyze` does, verifies the signature of npm's registry and the attestations of every package that npm installs from them on GitHub's Ubuntu x64 runner, where `analyze` runs, and checks that npm refuses a package whose hash is not the one of the lock file. A new indirect dependency in a lock file runs with the secret of the engine in every repository after the release: look at what the diff of `package-lock.json` adds. It can't see their answers or their hosts: read their release notes for those, and, if you can, run an analysis by hand in a repository that uses the engine, after the merge and before the release.",
+      ],
+    },
+    {
+      // A patch version of them merges on its own, in a pull request of its own,
+      // once every required check passed, engine contracts too (decision 0020).
+      matchDepNames: [
+        "openai/codex-action",
+        "@openai/codex",
+        "@google/gemini-cli",
+        "@github/copilot",
+      ],
+      matchUpdateTypes: ["patch"],
+      groupName: "the other engines to a new patch version",
+      automerge: true,
+      prBodyNotes: [
+        "**This patch version merges on its own** once every required check passed, as [decision 0020](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/0020-patch-versions-of-the-engines-merge-on-their-own.md) says; a minor or major version waits for the maintainer. Codex, Gemini and Copilot run only in the job `analyze`, with their secrets, and the Canary runs Claude alone, so neither a check of this pull request nor the Canary runs these versions with a key. The required check *engine contracts* below runs them without one: green, the action still has each input that the workflows pass and each output that they read, each command line lists each flag of its step in its help and takes its values, the Gemini CLI's schema has each key of its settings, and each one starts and stops only for the missing key. For the Gemini CLI and the Copilot CLI, it also installs the lock files of `engines/` as `analyze` does, verifies the signature of npm's registry and the attestations of every package that npm installs from them on GitHub's Ubuntu x64 runner, where `analyze` runs, and checks that npm refuses a package whose hash is not the one of the lock file. It can't see their answers or their hosts: before the next release, read their release notes and look at what the diff of `package-lock.json` adds, since a new indirect dependency runs with the secret of the engine in every repository after the release; if anything looks wrong, revert this update.",
       ],
     },
   ],

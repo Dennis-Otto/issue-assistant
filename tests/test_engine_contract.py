@@ -11,11 +11,14 @@ tests/fixtures/engines/, and with actions and schemas that they make up.
 """
 
 import importlib.util
+import itertools
 import json
 import os
+import re
 import runpy
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -143,9 +146,111 @@ def test_the_job_checks_the_engines_on_a_change_of_one_and_every_week():
         assert "steps.changes.outputs.engines != 'false'" in steps[command]["if"]
 
 
-def test_the_renovate_groups_of_the_engines_point_at_the_check():
-    text = (ROOT / ".github" / "renovate.json5").read_text(encoding="utf-8")
-    assert text.count("*engine contracts*") == 2
+def json5(text):
+    """The JSON5 of the Renovate configs as JSON: without comments, with the bare keys
+    in quotes and without the comma after the last item. A string stays as it is, also
+    one with // in it, such as a link."""
+    token = re.compile(
+        r'(?P<string>"(?:[^"\\]|\\.)*")|(?P<comment>//[^\n]*|/\*.*?\*/)'
+        r"|(?P<key>[A-Za-z_$][\w$-]*(?=\s*:))|(?P<space>\s+)|(?P<other>.)",
+        re.S,
+    )
+    tokens = [
+        (match.lastgroup, match.group())
+        for match in token.finditer(text)
+        if match.lastgroup not in ("comment", "space")
+    ] + [("end", "")]
+    parts = []
+    for (kind, part), (_, after) in itertools.pairwise(tokens):
+        if kind == "key":
+            part = f'"{part}"'
+        elif part == "," and after in ("]", "}"):
+            continue
+        parts.append(part)
+    return json.loads("".join(parts))
+
+
+def test_the_json5_of_the_configs_reads_as_renovate_reads_it():
+    assert json5(
+        '{\n  // a comment\n  key: "https://example.com", "b-c": [1, 2,],\n'
+        "  /* another */ d: {e: true,},\n}"
+    ) == {"key": "https://example.com", "b-c": [1, 2], "d": {"e": True}}
+
+
+# The engines that Renovate updates: the actions of the steps, and the command lines
+# of the lock files and of an engine's action.
+ENGINE_DEPENDENCIES = {
+    step.uses.partition("@")[0] for step in STEPS if step.uses != contract.TOOL
+} | {pin.package for pin in contract.cli_pins(STEPS)}
+RENOVATE = json5((ROOT / ".github" / "renovate.json5").read_text(encoding="utf-8"))
+DECISION = "0020-patch-versions-of-the-engines-merge-on-their-own.md"
+
+
+def test_a_patch_of_an_engine_merges_on_its_own_and_the_rest_waits():
+    """Decision 0020: Renovate merges a patch version of an engine once every
+    required check, engine contracts too, passed, in a pull request of its own; a
+    minor or major version and a new commit of a tag wait for the maintainer."""
+    assert {
+        "anthropics/claude-code-action",
+        "openai/codex-action",
+        "@openai/codex",
+        "@google/gemini-cli",
+        "@github/copilot",
+    } == ENGINE_DEPENDENCIES
+    rules = [
+        rule
+        for rule in RENOVATE["packageRules"]
+        if set(rule.get("matchDepNames", ())) & ENGINE_DEPENDENCIES
+    ]
+    patches = [rule for rule in rules if rule.get("matchUpdateTypes") == ["patch"]]
+    others = [rule for rule in rules if rule.get("matchUpdateTypes") == ["!patch"]]
+    # Every rule of an engine is one of the two, and every engine has both.
+    assert len(patches) + len(others) == len(rules) == 4
+    for kind in (patches, others):
+        names = [name for rule in kind for name in rule["matchDepNames"]]
+        assert sorted(names) == sorted(ENGINE_DEPENDENCIES)
+    for rule in patches:
+        assert rule["automerge"] is True
+        assert rule["groupName"].endswith(" to a new patch version")
+        (note,) = rule["prBodyNotes"]
+        assert note.startswith("**This patch version merges on its own**")
+        assert "required check *engine contracts*" in note
+        assert f"docs/decisions/{DECISION})" in note
+        assert "revert this update" in note
+    for rule in others:
+        assert rule["automerge"] is False
+        (note,) = rule["prBodyNotes"]
+        assert note.startswith("**This update waits for you.**")
+        assert "*engine contracts*" in note
+    # A patch comes in a pull request of its own, so a minor version of another
+    # engine never holds it back, nor does it take one along.
+    assert {rule["groupName"] for rule in patches}.isdisjoint(
+        rule["groupName"] for rule in others
+    )
+    assert (ROOT / "docs" / "decisions" / DECISION).is_file()
+
+
+def test_the_check_of_the_engines_is_required_and_reports_on_every_pull_request():
+    """GitHub merges a pull request of Renovate once its required checks passed, so
+    the check engine contracts must be one of them: otherwise a patch of an engine
+    would merge before it ran. It must report on every pull request, since a
+    required check that doesn't report keeps a pull request from merging."""
+    project = tomllib.loads(
+        (ROOT / ".github" / "repository.project.toml").read_text(encoding="utf-8")
+    )
+    assert "engine contracts" in project["branch"]["required_checks"]
+    job = ACTION_TEST["jobs"]["engines"]
+    assert job["name"] == "engine contracts"
+    assert job["if"] == "github.event_name != 'push'"
+    # PyYAML reads the key on as True.
+    events = ACTION_TEST[True]
+    assert events["pull_request"] is None
+    names = [
+        other.get("name", key)
+        for workflow in (ROOT / ".github" / "workflows").glob("*.yml")
+        for key, other in yaml.safe_load(workflow.read_text("utf-8"))["jobs"].items()
+    ]
+    assert names.count("engine contracts") == 1
 
 
 def test_the_check_watches_files_that_exist():
