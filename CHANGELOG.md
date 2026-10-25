@@ -4,6 +4,20 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.7.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.6.1...v1.7.0) (2026-10-25)
+
+
+### Features
+
+* a summary for the maintainers in their language when the reporter writes in another one ([#184](https://github.com/Dennis-Otto/issue-assistant/issues/184)) ([be5d675](https://github.com/Dennis-Otto/issue-assistant/commit/be5d67555f640a3e251fa3a338f6bcb4da033cb4))
+* let a repository choose the AI's runner and notice a firewall runner that never starts ([#189](https://github.com/Dennis-Otto/issue-assistant/issues/189)) ([a8b32c8](https://github.com/Dennis-Otto/issue-assistant/commit/a8b32c83794657b6b21b25ce700e0065193eb170))
+
+
+### Bug fixes
+
+* keep Gemini to its read-only settings on GitHub's runners and check each engine's names against its pinned version ([#192](https://github.com/Dennis-Otto/issue-assistant/issues/192)) ([ee7aded](https://github.com/Dennis-Otto/issue-assistant/commit/ee7aded1cb8a854904f4aae2b4064915eced899e))
+* **security:** install the Gemini and Copilot CLIs from lock files with integrity hashes and verified signatures ([#197](https://github.com/Dennis-Otto/issue-assistant/issues/197)) ([d706e49](https://github.com/Dennis-Otto/issue-assistant/commit/d706e493f2db5a01c31fce52f327190caf72149d))
+
 ## [1.6.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.6.0...v1.6.1) (2026-10-19)
 
 ### Fixed
