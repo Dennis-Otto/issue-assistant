@@ -307,17 +307,24 @@ doesn't list a flag of its step in its `--help` or doesn't take its value, the J
 schema of the Gemini CLI's settings of that version doesn't have a key of `settings`
 in `ENGINES` of `issue_assistant.py`, or a run without a key stopped at something other
 than the key or complained about its settings, or a run with broken settings in the
-file that the Gemini CLI's variable names didn't refuse them; the log names the
-version, the flag, the key or what it printed."""
+file that the Gemini CLI's variable names didn't refuse them. Or npm couldn't
+verify a signature of npm's registry or an attestation of a package that it installed
+from a lock file in `engines/` on the runner, or it installed the command line from a copy of the lock file with
+another hash of it. The log names the version, the flag, the key, the package or what
+it printed."""
 why = """The Gemini CLI ignores a key of its settings that it doesn't know, and skips
 its settings in a folder that others may write to, Codex ignores a key of its
 configuration that it doesn't know, and a flag that the help doesn't list can go in
 the next release: each would run the engine without the rule that keeps it to
-reading, without a failure."""
+reading, without a failure. A package of a lock file whose signature doesn't verify
+may not be what its author published, and `analyze` installs it with the engine's
+secret in every repository."""
 fix = """Read the release notes of the command line and change the flag or the key in
 `ENGINES` of `issue_assistant.py`, with its test in `tests/test_engines.py` and the
 rows in `docs/security.md`, or keep the old pin until it is clear what replaces it. A
-run that stopped elsewhere shows in the log what the command line printed. The check
+run that stopped elsewhere shows in the log what the command line printed. A
+signature that doesn't verify is no flake: don't merge the update, keep the lock file
+of `main`, and report the package to npm. The check
 runs on Linux or macOS, with npm, the GitHub CLI signed in and sudo, which writes the
 Gemini CLI's settings as root:"""
 commands = [

@@ -89,6 +89,7 @@ jobs:
             /prompts/
             /locales/
             /templates/
+            /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Remind, close and mark fixed issues

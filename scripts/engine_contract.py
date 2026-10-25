@@ -20,8 +20,12 @@ reads the action.yml of each engine's action at the commit that a workflow pins 
 fails for an input that a step passes and the action lacks or deprecates, for one that
 the action requires and the step leaves out, and for an output that a job reads and the
 action lacks. `clis` installs each engine's command line at its pinned version as
-`analyze` does, without the scripts of its packages, and fails for a flag that its
---help doesn't list or a value that the flag doesn't take; for a key of its settings
+`analyze` does, without the scripts of its packages: the Gemini CLI and the Copilot
+CLI from their lock files in engines/, and fails when npm can't verify the signature
+of npm's registry or an attestation of a package of the lock file, or when npm doesn't
+refuse the command line from a copy of the lock file with another hash of it. It fails
+for a flag that its --help doesn't list or a value that the flag doesn't take; for a
+key of its settings
 that the JSON schema of the settings of that version lacks, or for a missing schema;
 and for a run without a key, in a home of its own as `analyze` runs it, that fails at
 anything but the key, or that complains about its settings. A command line that takes
@@ -36,6 +40,8 @@ GH_TOKEN reads the files on GitHub; no command line of an engine sees it.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import re
@@ -65,6 +71,13 @@ WATCHED = (
     ".github/workflows/action-test.yml",
     ".github/renovate.json5",
 )
+# The lock files of the command lines that `analyze` installs, which Renovate updates.
+LOCKS = tuple(
+    f"{assistant.ENGINE_LOCKS.name}/{key}/{name}"
+    for key, engine in assistant.ENGINES.items()
+    if engine.cli
+    for name in assistant.LOCK_FILES
+)
 # An output of a step in an expression: steps.<id>.outputs.<name>, or with the name
 # in brackets, as one with a dash may be written.
 OUTPUT = r"steps\.{}\.outputs(?:\.([A-Za-z0-9_-]+)|\['([^']+)'\])"
@@ -87,6 +100,9 @@ TURNS = 3
 SECONDS = 120
 # Settings that a command line must refuse: JSON, but no object of settings.
 BROKEN_SETTINGS = "[]"
+# The integrity of a command line in a copy of its lock file that npm must refuse:
+# the hash of another content.
+TAMPERED = "sha512-" + base64.b64encode(hashlib.sha512(b"another").digest()).decode()
 
 
 @dataclass(frozen=True)
@@ -326,15 +342,15 @@ def actions_command() -> int:
 
 
 def cli_pins(steps: Iterable[EngineStep]) -> list[Pin]:
-    """The versions of the engines' command lines that the steps pin: the version of
-    an engine that `analyze` runs, and the one that an engine's action installs."""
+    """The versions of the engines' command lines that the steps run: the version of
+    the lock file of an engine that `analyze` runs, and the one that an engine's
+    action installs."""
     pins = set()
     for step in steps:
         cli = assistant.ENGINES[step.key].cli
         action = ACTION_CLIS.get(step.uses.partition("@")[0])
         if cli and step.uses == TOOL:
-            version = step.inputs.get("engine-version")
-            pins.add(Pin(step.key, cli.package, str(version)))
+            pins.add(Pin(step.key, cli.package, assistant.locked_version(step.key)))
         elif action:
             version = step.inputs.get(action.version_input)
             pins.add(
@@ -615,7 +631,8 @@ def check_cli(pin: Pin, work: Path) -> tuple[str, list[str]]:
     engine = assistant.ENGINES[pin.key]
     cli = engine.cli
     assert cli is not None
-    command_path = assistant.install_cli(cli, pin.version, work / "cli")
+    command_path = assistant.install_cli(pin.key, work / "cli")
+    lock = lock_problems(pin, work)
     runs = [
         assistant.Run(engine.model, TURNS, "1", effort)
         for effort in engine.efforts or ("",)
@@ -627,8 +644,11 @@ def check_cli(pin: Pin, work: Path) -> tuple[str, list[str]]:
         ).items():
             flags.setdefault(flag, set()).update(values)
     options = help_options(help_of([command_path], work / "help"))
-    problems = flag_problems(pin.name, flags, options)
-    checked = [f"{len(flags)} flag(s)"]
+    problems = lock + flag_problems(pin.name, flags, options)
+    checked = [
+        "the signatures of its lock file, a changed hash refused",
+        f"{len(flags)} flag(s)",
+    ]
     if cli.settings:
         settings = assistant.cli_settings(cli, runs[0])
         schema = settings_schema(pin, command_path)
@@ -655,6 +675,92 @@ def check_cli(pin: Pin, work: Path) -> tuple[str, list[str]]:
         problems += settings_read(pin, command_path, runs[0], checkout, work)
         checked.append(f"a run with broken settings in {cli.settings_variable}")
     return ", ".join(checked), problems
+
+
+def lock_problems(pin: Pin, work: Path) -> list[str]:
+    """What npm finds wrong with the lock file of a command line that `analyze`
+    installs, once install_cli installed it into the folder cli of `work`: a
+    signature of npm's registry or an attestation of the provenance of a package that
+    it can't verify, and a copy of the lock file with another hash of the command
+    line that it doesn't refuse.
+
+    `analyze` doesn't verify the signatures: the hashes of the lock file bind each
+    package to the one that this check verified, and npm reads Sigstore's root of
+    trust for the attestations, which would be another host for the job with the
+    secret (decision 0017).
+    """
+    folder = work / "cli"
+    lock = f"{assistant.ENGINE_LOCKS.name}/{pin.key}/{assistant.LOCK_FILES[1]}"
+    problems = []
+    result = subprocess.run(
+        [shutil.which("npm") or "npm", "audit", "signatures", "--prefix", str(folder)],
+        cwd=folder,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=SECONDS,
+        check=False,
+    )
+    if result.returncode:
+        printed = assistant.one_line(f"{result.stdout} {result.stderr}")
+        problems.append(
+            f"{pin.name}: npm can't verify every signature and attestation of the "
+            f"packages of {lock}: {printed[-300:]}"
+        )
+    locks = work / "tampered"
+    shutil.copytree(assistant.ENGINE_LOCKS / pin.key, locks / pin.key)
+    path = locks / pin.key / assistant.LOCK_FILES[1]
+    tampered = json.loads(path.read_text(encoding="utf-8"))
+    tampered["packages"][f"node_modules/{pin.package}"]["integrity"] = TAMPERED
+    path.write_text(json.dumps(tampered, indent=2), encoding="utf-8")
+    try:
+        assistant.install_cli(pin.key, work / "tampered-cli", locks)
+    except assistant.AssistantError as error:
+        if "(EINTEGRITY)" not in str(error):
+            problems.append(
+                f"{pin.name}: npm refused a copy of {lock} with another hash of it, "
+                f"but not for the hash: {error}"
+            )
+    else:
+        problems.append(
+            f"{pin.name}: npm installed it from a copy of {lock} with another hash "
+            "of it, so analyze would run a package that nobody checked"
+        )
+    return problems
+
+
+def install_package(cli: assistant.Cli, version: str, folder: Path) -> str:
+    """Install a command line that an engine's action installs, such as Codex, at
+    the version of the action's input into `folder`, as the action does: with npm
+    and no lock file, without the scripts of its packages. Return the path of its
+    command."""
+    if not assistant.CLI_VERSION.fullmatch(version):
+        raise assistant.AssistantError(
+            f"The step pins {cli.package} at {version!r}, no version such as 1.2.3."
+        )
+    npm = shutil.which("npm")
+    if npm is None:
+        raise assistant.AssistantError(
+            "The check needs npm, which GitHub's runners have."
+        )
+    result = subprocess.run(
+        [npm, "install", "--prefix", str(folder), "--no-save", "--no-package-lock"]
+        + ["--ignore-scripts", "--no-audit", "--no-fund", "--loglevel", "error"]
+        + [f"{cli.package}@{version}"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode:
+        raise assistant.AssistantError(
+            f"npm installed no {cli.package}@{version}: "
+            f"{assistant.one_line(result.stderr)[-300:] or 'no message'}"
+        )
+    return str(folder / "node_modules" / ".bin" / cli.command)
 
 
 def turn_started(
@@ -699,7 +805,7 @@ def check_action_cli(
     engine = assistant.ENGINES[pin.key]
     action = ACTION_CLIS[pin.action]
     cli = assistant.Cli(package=action.package, command=action.command, arguments=())
-    command_path = assistant.install_cli(cli, pin.version, work / "cli")
+    command_path = install_package(cli, pin.version, work / "cli")
     arguments = json.loads(assistant.engine_arguments(engine, "The rules."))
     passed: dict[str, str] = {}
     for step in steps:
@@ -769,7 +875,7 @@ def clis_command() -> int:
 
 
 def watched(steps: Iterable[EngineStep]) -> set[str]:
-    return {step.workflow for step in steps} | set(WATCHED)
+    return {step.workflow for step in steps} | set(WATCHED) | set(LOCKS)
 
 
 def changes_command() -> int:

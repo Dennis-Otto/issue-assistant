@@ -49,6 +49,11 @@ PROMPTS = TOOL / "prompts"
 # the policy are the blueprint's, of the release that it pins; install and check
 # never read them.
 TEMPLATES = TOOL / "templates"
+# The command lines of the engines that `analyze` runs, each in a folder named by
+# its key in ENGINES: a package.json that pins it, and the package-lock.json of
+# every package that it installs, each with its hash. Renovate keeps them current,
+# and npm ci installs them as they are (decision 0017).
+ENGINE_LOCKS = TOOL / "engines"
 # Files of the repository the assistant looks after, relative to its root. Messages
 # name them, so they are written with slashes on every system, Windows too;
 # `root / LABELS_FILE` is still a Path of the system.
@@ -9020,8 +9025,10 @@ def choose_engine(config: Config, ready: str) -> tuple[str, bool]:
 
 # The engines that `analyze` runs, those with a Cli in ENGINES.
 
-# A version of an engine's command line as the workflow pins it, such as 1.2.3.
+# A version of an engine's command line as its lock file pins it, such as 1.2.3.
 CLI_VERSION = re.compile(r"\d+\.\d+\.\d+")
+# The files of the folder of an engine in ENGINE_LOCKS, which npm ci installs.
+LOCK_FILES = ("package.json", "package-lock.json")
 # The most minutes that an engine's command line runs; the job stops at 20.
 ENGINE_MINUTES = 15
 # The file of the settings of an engine's command line, in the folder of its run.
@@ -9072,20 +9079,64 @@ def cli_environment(
     return variables
 
 
-def install_cli(cli: Cli, version: str, folder: Path) -> str:
-    """Install the engine's command line at `version` into `folder` and return the
-    path of its command."""
-    if not CLI_VERSION.fullmatch(version):
+def locked_version(key: str, locks: Path = ENGINE_LOCKS) -> str:
+    """The version of the command line of the engine `key` in its lock file."""
+    cli = ENGINES[key].cli
+    assert cli is not None
+    path = locks / key / LOCK_FILES[1]
+    try:
+        lock = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        lock = None
+    packages = lock.get("packages") if isinstance(lock, dict) else None
+    entry = (
+        packages.get(f"node_modules/{cli.package}")
+        if isinstance(packages, dict)
+        else None
+    )
+    version = entry.get("version") if isinstance(entry, dict) else None
+    if not isinstance(version, str) or not CLI_VERSION.fullmatch(version):
         raise AssistantError(
-            f"engine-version must be a version such as 1.2.3, not {version!r}."
+            f"The issue assistant has no lock file of {cli.package} with its version "
+            f"at {path}: its step needs the folder {ENGINE_LOCKS.name}/ of its checkout."
         )
+    return version
+
+
+# What npm never sees: the secrets of the engines and the tokens of GitHub. It
+# installs with the scripts of no package, so no code of a package runs then.
+NPM_HIDDEN = frozenset(
+    {name for engine in ENGINES.values() for name in engine.credentials}
+    | {"GH_TOKEN", "GITHUB_TOKEN"}
+)
+
+
+def install_cli(key: str, folder: Path, locks: Path = ENGINE_LOCKS) -> str:
+    """Install the command line of the engine `key` into `folder` from its lock file
+    in `locks` and return the path of its command.
+
+    npm ci installs each package at the version of the lock file and refuses one
+    whose hash isn't its integrity there, so `analyze` runs exactly what the check
+    engine contracts verified, with the signatures of npm's registry, when the lock
+    file changed; it never resolves a version of its own.
+    """
+    cli = ENGINES[key].cli
+    assert cli is not None
+    version = locked_version(key, locks)
     npm = shutil.which("npm")
     if npm is None:
         raise AssistantError("analyze needs npm, which GitHub's runners have.")
+    folder.mkdir(parents=True, exist_ok=True)
+    for name in LOCK_FILES:
+        shutil.copyfile(locks / key / name, folder / name)
+    # In the folder, so that npm reads no .npmrc of the checkout.
     result = subprocess.run(
-        [npm, "install", "--prefix", str(folder), "--no-save", "--no-package-lock"]
-        + ["--ignore-scripts", "--no-audit", "--no-fund", "--loglevel", "error"]
-        + [f"{cli.package}@{version}"],
+        [npm, "ci", "--prefix", str(folder), "--ignore-scripts"]
+        + ["--no-audit", "--no-fund", "--loglevel", "error"],
+        cwd=folder,
+        env={
+            name: value for name, value in os.environ.items() if name not in NPM_HIDDEN
+        },
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -9093,9 +9144,18 @@ def install_cli(cli: Cli, version: str, folder: Path) -> str:
         check=False,
     )
     if result.returncode:
+        code = re.search(r"(?m)^npm (?:error|ERR!) code (\S+)", result.stderr)
+        reason = (
+            "the registry sent a package whose hash isn't the integrity of the lock "
+            "file, so nothing of it runs"
+            if code and code[1] == "EINTEGRITY"
+            else one_line(result.stderr)[-300:] or "no message"
+        )
         raise AssistantError(
-            f"npm installed no {cli.package}@{version}: "
-            f"{one_line(result.stderr)[-300:] or 'no message'}"
+            f"npm installed no {cli.package}@{version} from "
+            f"{ENGINE_LOCKS.name}/{key}/{LOCK_FILES[1]}"
+            + (f" ({code[1]})" if code else "")
+            + f": {reason}"
         )
     return str(folder / "node_modules" / ".bin" / cli.command)
 
@@ -9155,9 +9215,7 @@ def event_answer(cli: Cli, printed: str) -> tuple[str | None, object]:
     return "\n".join(data["content"] for data in parts or messages[-1:]), reason
 
 
-def analyze(
-    config: Config, mode: str | None, key: str, version: str, work: Path
-) -> str:
+def analyze(config: Config, mode: str | None, key: str, work: Path) -> str:
     """Run the engine of config.toml that has no action of its own on the task of
     the context folder, with tools that only read the checkout, and return its
     answer, which `apply` checks like any other."""
@@ -9177,7 +9235,7 @@ def analyze(
         (folder / name).read_text(encoding="utf-8")
         for name in ("rules.md", "prompt.md")
     )
-    command_path = install_cli(cli, version, work / "cli")
+    command_path = install_cli(key, work / "cli")
     result = run_cli(engine, cli, command_path, run, prompt, config.root, work)
     return cli_answer(engine, cli, result)
 
@@ -10401,13 +10459,7 @@ def engine_command(root: Path, repository: str, mode: str | None) -> int:
 def analyze_command(root: Path, repository: str, mode: str | None) -> int:
     key = os.environ.get("ENGINE", "")
     work = runner_folder()
-    answer = analyze(
-        load_config(root, repository),
-        mode,
-        key,
-        os.environ.get("ENGINE_VERSION", ""),
-        work,
-    )
+    answer = analyze(load_config(root, repository), mode, key, work)
     output("answer", answer)
     command(
         "notice",

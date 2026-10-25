@@ -84,6 +84,7 @@ jobs:
             /prompts/
             /locales/
             /templates/
+            /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Dismiss accepted findings and report the others

@@ -1,0 +1,10 @@
+{
+  "name": "issue-assistant-engine-copilot",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Copilot CLI at the version that the job analyze installs, from package-lock.json, with npm ci.",
+  "license": "MIT",
+  "dependencies": {
+    "@github/copilot": "1.0.97"
+  }
+}

@@ -141,6 +141,7 @@ jobs:
             /prompts/
             /locales/
             /templates/
+            /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
       # The smoke test checks the answer of a file for the canary's issue, which
@@ -287,6 +288,7 @@ jobs:
             /prompts/
             /locales/
             /templates/
+            /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
       # The engine and what a run of the task may use: its model, turns, dollars and
@@ -397,8 +399,6 @@ jobs:
           command: analyze
           mode: ${{ needs.event.outputs.mode }}
           engine: gemini
-          # renovate: datasource=npm depName=@google/gemini-cli
-          engine-version: "0.64.0"
       - name: Analyze with Copilot
         id: copilot
         if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'copilot'
@@ -409,8 +409,6 @@ jobs:
           command: analyze
           mode: ${{ needs.event.outputs.mode }}
           engine: copilot
-          # renovate: datasource=npm depName=@github/copilot
-          engine-version: "1.0.97"
       # Numbers alone, also after a failure: the turns, time, cost and tokens of
       # the run, in the summary of the job.
       - name: Report what the analysis cost
@@ -500,6 +498,7 @@ jobs:
             /prompts/
             /locales/
             /templates/
+            /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
       # The answer of the smoke test, in place of the engine's, from the caller's

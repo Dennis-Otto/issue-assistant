@@ -71,6 +71,7 @@ TOOL_CHECKOUT = {
             "prompts/",
             "locales/",
             "templates/",
+            "engines/",
         )
     ),
     "sparse-checkout-cone-mode": False,
@@ -274,13 +275,12 @@ def cli_reads_only(engine, step):
         secret: f"${{{{ secrets.{secret} }}}}"
         for secret in assistant.ENGINES[engine].credentials
     }
+    # No version: analyze installs the one of the lock file in engines/.
     assert step["with"] == {
         "command": "analyze",
         "mode": "${{ needs.event.outputs.mode }}",
         "engine": engine,
-        "engine-version": step["with"]["engine-version"],
     }
-    assert re.fullmatch(r"\d+\.\d+\.\d+", step["with"]["engine-version"])
     run = assistant.Run("a-model", 7, "1", "high")
     command = assistant.cli_command(cli, "cli", run, "The prompt.")
     for forbidden in (
@@ -1297,24 +1297,62 @@ def test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions():
 
 
 def test_the_command_line_of_every_engine_is_pinned_for_renovate():
-    """Each engine's command line runs at a version that the workflow pins, below a
-    line that lets Renovate update it; the Canary runs the issues' workflow."""
-    packages = [("@openai/codex", "codex-version")] + [
-        (engine.cli.package, "engine-version")
-        for engine in assistant.ENGINES.values()
-        if engine.cli
-    ]
+    """Codex runs at the version that the workflow pins, below a line that lets
+    Renovate update it; the Gemini CLI and the Copilot CLI at the version of their
+    lock files in engines/, which Renovate's manager of npm updates, and no workflow
+    names a version of them. The Canary runs the issues' workflow."""
     for path in (
         reusable("issue-assistant.yml"),
         reusable(assistant.DISCUSSION_WORKFLOW),
     ):
         text = path.read_text(encoding="utf-8")
-        for package, key in packages:
-            pin = (
-                rf"# renovate: datasource=npm depName={re.escape(package)}\n"
-                rf' +{key}: "\d+\.\d+\.\d+"\n'
-            )
-            assert len(re.findall(pin, text)) == 1, (path.name, package)
+        pin = (
+            r"# renovate: datasource=npm depName=@openai/codex\n"
+            r' +codex-version: "\d+\.\d+\.\d+"\n'
+        )
+        assert len(re.findall(pin, text)) == 1, path.name
+    renovate = (ROOT / ".github" / "renovate.json5").read_text(encoding="utf-8")
+    blueprint = (ROOT / ".github" / "renovate-blueprint.json5").read_text("utf-8")
+    # Renovate leaves out only the installed packages, not the folder engines/.
+    assert re.search(
+        r'ignorePaths: \["\*\*/node_modules/\*\*", "\*\*/vendor/\*\*"\]', blueprint
+    )
+    for engine in assistant.ENGINES.values():
+        if not engine.cli:
+            continue
+        assert f'"{engine.cli.package}",' in renovate
+        for path in OWN.glob("*.yml"):
+            text = path.read_text(encoding="utf-8")
+            assert engine.cli.package not in text, path.name
+    for path in OWN.glob("*.yml"):
+        assert "engine-version" not in path.read_text(encoding="utf-8"), path.name
+
+
+@pytest.mark.mutation_unsafe
+def test_the_docs_install_the_command_lines_from_their_lock_files():
+    """The pages that say how analyze installs the Gemini CLI and the Copilot CLI
+    name the lock files and npm ci, and no page or file of the action names
+    engine-version, which analyze no longer takes."""
+    pages = {
+        "README.md": ROOT / "README.md",
+        "security": ROOT / "docs" / "security.md",
+        "architecture": ROOT / "docs" / "architecture.md",
+        "decision": ROOT
+        / "docs"
+        / "decisions"
+        / "0017-engines-without-an-action-of-their-own.md",
+    }
+    for name, path in pages.items():
+        text = path.read_text(encoding="utf-8")
+        assert "engines/" in text and "npm ci" in text, name
+    # The decision record tells the history of the input, the others its present.
+    for path in [
+        *list(pages.values())[:3],
+        ROOT / "action.yml",
+        ROOT / "issue_assistant.py",
+    ]:
+        assert "engine-version" not in path.read_text(encoding="utf-8"), path.name
+    assert "ENGINE_VERSION" not in (ROOT / "action.yml").read_text(encoding="utf-8")
 
 
 def test_the_engine_is_chosen_before_the_context_and_the_engines():

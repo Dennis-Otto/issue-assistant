@@ -52,3 +52,17 @@ allow-dependencies-licenses:
   # (CC-BY-SA-4.0).
   - pkg:npm/%40cspell/dict-django
   - pkg:npm/%40cspell/dict-en-common-misspellings
+  # The Copilot CLI and its build for each system, under GitHub's own terms ("SEE
+  # LICENSE IN LICENSE.md"), which no release ships either: engines/copilot/ pins
+  # their versions and hashes, and `analyze` installs them from npm only in a
+  # repository that chose Copilot as its engine, under its owner's subscription.
+  # tests/test_engines.py keeps this list equal to the lock file.
+  - pkg:npm/%40github/copilot
+  - pkg:npm/%40github/copilot-darwin-arm64
+  - pkg:npm/%40github/copilot-darwin-x64
+  - pkg:npm/%40github/copilot-linux-arm64
+  - pkg:npm/%40github/copilot-linux-x64
+  - pkg:npm/%40github/copilot-linuxmusl-arm64
+  - pkg:npm/%40github/copilot-linuxmusl-x64
+  - pkg:npm/%40github/copilot-win32-arm64
+  - pkg:npm/%40github/copilot-win32-x64

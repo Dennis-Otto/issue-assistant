@@ -1358,7 +1358,6 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
         "MODE",
         "RESULT",
         "ENGINE",
-        "ENGINE_VERSION",
         "READY_ENGINES",
         "EXECUTION_FILE",
         "ISSUE_ASSISTANT_ROOT",

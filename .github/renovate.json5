@@ -35,10 +35,15 @@
     {
       // The other engines run only in the job analyze too, and the Canary runs only
       // this repository's engine, Claude: no run of the AI tries their updates
-      // before a release brings them to every repository that uses them. Their
-      // versions are below a line "# renovate:" in the reusable workflow. The check
-      // engine contracts of the pull request runs them without a key: the inputs and
-      // outputs of the action, the flags and the settings of the command lines.
+      // before a release brings them to every repository that uses them. The
+      // version of Codex is below a line "# renovate:" in the reusable workflows;
+      // the Gemini CLI and the Copilot CLI are in the lock files of engines/, which
+      // Renovate's manager of npm updates, each package with its hash, and so does
+      // the weekly refresh of the lock files, which waits for the maintainer too.
+      // The check engine contracts of the pull request runs them without a key:
+      // the inputs and outputs of the action, the flags and the settings of the
+      // command lines, the signatures of npm's registry of every package that npm
+      // installs from the lock files on GitHub's Ubuntu x64 runner, and that npm refuses a package whose hash is not the locked one.
       matchDepNames: [
         "openai/codex-action",
         "@openai/codex",
@@ -48,7 +53,7 @@
       groupName: "the other engines",
       automerge: false,
       prBodyNotes: [
-        "**This update waits for you.** Codex, Gemini and Copilot run only in the job `analyze`, with their secrets, and the Canary runs Claude alone, so neither a check of this pull request nor the Canary runs these versions with a key. The check *engine contracts* below runs them without one: green, the action still has each input that the workflows pass and each output that they read, each command line lists each flag of its step in its help and takes its values, the Gemini CLI's schema has each key of its settings, and each one starts and stops only for the missing key. It can't see their answers or their hosts: read their release notes for those, and, if you can, run an analysis by hand in a repository that uses the engine, after the merge and before the release.",
+        "**This update waits for you.** Codex, Gemini and Copilot run only in the job `analyze`, with their secrets, and the Canary runs Claude alone, so neither a check of this pull request nor the Canary runs these versions with a key. The check *engine contracts* below runs them without one: green, the action still has each input that the workflows pass and each output that they read, each command line lists each flag of its step in its help and takes its values, the Gemini CLI's schema has each key of its settings, and each one starts and stops only for the missing key. For the Gemini CLI and the Copilot CLI, it also installs the lock files of `engines/` as `analyze` does, verifies the signature of npm's registry and the attestations of every package that npm installs from them on GitHub's Ubuntu x64 runner, where `analyze` runs, and checks that npm refuses a package whose hash is not the one of the lock file. A new indirect dependency in a lock file runs with the secret of the engine in every repository after the release: look at what the diff of `package-lock.json` adds. It can't see their answers or their hosts: read their release notes for those, and, if you can, run an analysis by hand in a repository that uses the engine, after the merge and before the release.",
       ],
     },
   ],

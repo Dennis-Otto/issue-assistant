@@ -6,8 +6,12 @@ subprocess.run, which record what the assistant would start and with which
 variables.
 """
 
+import base64
 import dataclasses
 import json
+import os
+import re
+import shutil
 import subprocess
 import tomllib
 
@@ -399,25 +403,31 @@ def test_analyze_runs_the_engine_with_its_secret_alone(
     monkeypatch.setattr(assistant.subprocess, "run", run)
     chosen = engine_config(config, engine, max_turns=30)
     work = tmp_path / "work"
-    result = assistant.analyze(chosen, "follow-up", engine, "1.2.3", work)
+    result = assistant.analyze(chosen, "follow-up", engine, work)
     assert result.strip() == answer
-    (install, _), (command, options) = run.calls
+    (install, installing), (command, options) = run.calls
     cli = assistant.ENGINES[engine].cli
-    # npm installs the pinned version without the scripts of any package.
+    # npm ci installs the lock file of the engine as it is, without the scripts of
+    # any package, in a folder of its own that holds no .npmrc of the checkout, and
+    # sees no secret.
     assert install == [
         "/usr/bin/npm",
-        "install",
+        "ci",
         "--prefix",
         str(work / "cli"),
-        "--no-save",
-        "--no-package-lock",
         "--ignore-scripts",
         "--no-audit",
         "--no-fund",
         "--loglevel",
         "error",
-        f"{cli.package}@1.2.3",
     ]
+    assert installing["cwd"] == work / "cli"
+    for name in assistant.LOCK_FILES:
+        assert (work / "cli" / name).read_bytes() == (
+            assistant.ENGINE_LOCKS / engine / name
+        ).read_bytes()
+    assert installing["env"]["PATH"] == os.environ["PATH"]
+    assert not set(installing["env"]) & (set(SECRETS) | assistant.NPM_HIDDEN)
     binary = str(work / "cli" / "node_modules" / ".bin" / cli.command)
     model = assistant.ENGINES[engine].model
     assert (
@@ -479,7 +489,7 @@ def test_copilot_takes_its_settings_from_the_folder_of_the_run(
     run = FakeRun(INSTALLED, (0, printed, ""))
     monkeypatch.setattr(assistant.subprocess, "run", run)
     chosen = engine_config(config, "copilot")
-    assistant.analyze(chosen, "triage", "copilot", "1.2.3", tmp_path)
+    assistant.analyze(chosen, "triage", "copilot", tmp_path)
     assert as_root == []
     cli = assistant.ENGINES["copilot"].cli
     assert assistant.settings_path(cli, tmp_path) == tmp_path / "settings.json"
@@ -500,9 +510,7 @@ def test_gemini_doesn_t_run_when_root_can_t_take_its_settings(
     run = FakeRun(INSTALLED)
     monkeypatch.setattr(assistant.subprocess, "run", run)
     with pytest.raises(assistant.AssistantError) as refused:
-        assistant.analyze(
-            engine_config(config, "gemini"), "triage", "gemini", "1.2.3", tmp_path
-        )
+        assistant.analyze(engine_config(config, "gemini"), "triage", "gemini", tmp_path)
     assert str(refused.value) == (
         "The settings that keep the engine's command line to reading must belong to "
         "root, and install -d as root failed: sudo: a password is required. It "
@@ -580,30 +588,84 @@ def test_analyze_runs_only_the_engine_of_config_toml_that_has_a_command_line(
 ):
     gemini = engine_config(config, "gemini")
     with pytest.raises(assistant.AssistantError) as refused:
-        assistant.analyze(gemini, "triage", key, "1.2.3", tmp_path)
+        assistant.analyze(gemini, "triage", key, tmp_path)
     assert str(refused.value) == problem
 
 
-@pytest.mark.parametrize("version", ["", "latest", "1.2", "1.2.3; rm -rf /", "^1.2.3"])
-def test_analyze_installs_only_a_pinned_version(tmp_path, config, context, version):
-    gemini = engine_config(config, "gemini")
-    with pytest.raises(assistant.AssistantError, match="engine-version must be"):
-        assistant.analyze(gemini, "triage", "gemini", version, tmp_path)
+@pytest.mark.parametrize(
+    "lock",
+    [
+        None,
+        "{",
+        "[]",
+        {"packages": []},
+        {"packages": {}},
+        {"packages": {"node_modules/@google/gemini-cli": "0.64.0"}},
+        {"packages": {"node_modules/@google/gemini-cli": {}}},
+        {"packages": {"node_modules/@google/gemini-cli": {"version": "latest"}}},
+        {"packages": {"node_modules/@google/gemini-cli": {"version": "^0.64.0"}}},
+    ],
+)
+def test_analyze_installs_only_the_version_of_the_lock_file(
+    monkeypatch, tmp_path, lock
+):
+    """Without the version of the command line in its lock file, such as in a
+    checkout of the issue assistant without engines/, npm never runs."""
+    run = FakeRun()
+    monkeypatch.setattr(assistant.subprocess, "run", run)
+    locks = tmp_path / "engines"
+    (locks / "gemini").mkdir(parents=True)
+    if lock is not None:
+        (locks / "gemini" / "package-lock.json").write_text(
+            lock if isinstance(lock, str) else json.dumps(lock), encoding="utf-8"
+        )
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.install_cli("gemini", tmp_path / "cli", locks)
+    assert str(refused.value) == (
+        "The issue assistant has no lock file of @google/gemini-cli with its "
+        f"version at {locks / 'gemini' / 'package-lock.json'}: its step needs the "
+        "folder engines/ of its checkout."
+    )
+    assert run.calls == []
+
+
+def test_the_version_of_each_command_line_is_that_of_its_lock_file(tmp_path):
+    locks = tmp_path / "engines"
+    shutil.copytree(assistant.ENGINE_LOCKS / "copilot", locks / "copilot")
+    path = locks / "copilot" / "package-lock.json"
+    lock = json.loads(path.read_text(encoding="utf-8"))
+    lock["packages"]["node_modules/@github/copilot"]["version"] = "2.0.0"
+    path.write_text(json.dumps(lock), encoding="utf-8")
+    assert assistant.locked_version("copilot", locks) == "2.0.0"
 
 
 def test_analyze_needs_npm(monkeypatch, tmp_path, config, context):
     monkeypatch.setattr(assistant.shutil, "which", lambda name: None)
     with pytest.raises(assistant.AssistantError, match="analyze needs npm"):
-        assistant.analyze(
-            engine_config(config, "gemini"), "triage", "gemini", "1.2.3", tmp_path
-        )
+        assistant.analyze(engine_config(config, "gemini"), "triage", "gemini", tmp_path)
 
 
 @pytest.mark.parametrize(
     ("stderr", "reason"),
     [
-        ("npm error 404 Not Found - @google/gemini-cli\n", "npm error 404 Not Found"),
-        ("", "no message"),
+        (
+            "npm error code E404\nnpm error 404 Not Found - @google/gemini-cli\n",
+            " (E404): npm error code E404 npm error 404 Not Found - @google/gemini-cli",
+        ),
+        (
+            "npm ERR! code ECONNREFUSED\nnpm ERR! request failed\n",
+            " (ECONNREFUSED): npm ERR! code ECONNREFUSED npm ERR! request failed",
+        ),
+        ("npm error something\n", ": npm error something"),
+        ("", ": no message"),
+        # A package that isn't the one of the lock file, by its hash.
+        (
+            "npm error code EINTEGRITY\nnpm error sha512-a integrity checksum failed "
+            "when using sha512: wanted sha512-a but got sha512-b. (5454 bytes)\n"
+            "npm error A complete log of this run can be found in: /home/x.log\n",
+            " (EINTEGRITY): the registry sent a package whose hash isn't the "
+            "integrity of the lock file, so nothing of it runs",
+        ),
     ],
 )
 def test_a_failed_install_says_what_npm_said(
@@ -611,12 +673,12 @@ def test_a_failed_install_says_what_npm_said(
 ):
     monkeypatch.setattr(assistant.subprocess, "run", FakeRun((1, "", stderr)))
     with pytest.raises(assistant.AssistantError) as refused:
-        assistant.analyze(
-            engine_config(config, "gemini"), "triage", "gemini", "9.9.9", tmp_path
-        )
-    assert str(refused.value).startswith(
-        "npm installed no @google/gemini-cli@9.9.9: "
-    ) and reason in str(refused.value)
+        assistant.analyze(engine_config(config, "gemini"), "triage", "gemini", tmp_path)
+    version = assistant.locked_version("gemini")
+    assert str(refused.value) == (
+        f"npm installed no @google/gemini-cli@{version} from "
+        f"engines/gemini/package-lock.json{reason}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -674,9 +736,7 @@ def test_an_engine_that_fails_says_why_in_one_line(
 ):
     monkeypatch.setattr(assistant.subprocess, "run", FakeRun(INSTALLED, result))
     with pytest.raises(assistant.AssistantError) as refused:
-        assistant.analyze(
-            engine_config(config, engine), "triage", engine, "1.2.3", tmp_path
-        )
+        assistant.analyze(engine_config(config, engine), "triage", engine, tmp_path)
     assert str(refused.value) == problem
 
 
@@ -687,8 +747,85 @@ def test_an_engine_that_runs_too_long_stops(monkeypatch, tmp_path, config, conte
         assistant.AssistantError, match="Copilot gave no answer within 15 minutes."
     ):
         assistant.analyze(
-            engine_config(config, "copilot"), "triage", "copilot", "1.2.3", tmp_path
+            engine_config(config, "copilot"), "triage", "copilot", tmp_path
         )
+
+
+# The lock files of the command lines
+
+
+def test_each_command_line_that_analyze_runs_has_a_lock_file_and_nothing_else():
+    assert sorted(path.name for path in assistant.ENGINE_LOCKS.iterdir()) == sorted(
+        CLI_ENGINES
+    )
+    for key in CLI_ENGINES:
+        assert sorted(
+            path.name for path in (assistant.ENGINE_LOCKS / key).iterdir()
+        ) == sorted(assistant.LOCK_FILES)
+
+
+# An install path of a lock file: a package, or one nested below another when two
+# versions of a package are needed.
+LOCK_PATH = re.compile(
+    r"(?:node_modules/(?:@[^/]+/)?[^/]+/)*node_modules/(?:@[^/]+/)?[^/]+"
+)
+
+
+@pytest.mark.parametrize("key", CLI_ENGINES)
+def test_the_lock_file_pins_every_package_with_its_hash(key):
+    """npm ci installs each package of the lock file at its version, from npm's
+    registry, which the firewall lets through, and refuses one whose SHA-512 hash
+    isn't its integrity: so analyze runs what the check engine contracts verified."""
+    cli = assistant.ENGINES[key].cli
+    folder = assistant.ENGINE_LOCKS / key
+    manifest = json.loads((folder / "package.json").read_text(encoding="utf-8"))
+    lock = json.loads((folder / "package-lock.json").read_text(encoding="utf-8"))
+    version = assistant.locked_version(key)
+    # The command line alone, at its version, in a package that nobody can publish
+    # and that has no scripts of its own.
+    assert manifest == {
+        "name": f"issue-assistant-engine-{key}",
+        "version": "0.0.0",
+        "private": True,
+        "description": manifest["description"],
+        "license": "MIT",
+        "dependencies": {cli.package: version},
+    }
+    assert lock["lockfileVersion"] == 3
+    packages = lock["packages"]
+    assert packages[""]["dependencies"] == manifest["dependencies"]
+    assert len(packages) > 1
+    installed = {path: entry for path, entry in packages.items() if path}
+    for path, entry in installed.items():
+        assert LOCK_PATH.fullmatch(path) and "link" not in entry, path
+    # A package bundled in another one comes in its tarball, under its hash.
+    fetched = {p: e for p, e in installed.items() if not e.get("inBundle")}
+    for path, entry in fetched.items():
+        name = path.rpartition("node_modules/")[2]
+        assert entry["resolved"] == (
+            f"https://registry.npmjs.org/{name}/-/"
+            f"{name.rpartition('/')[2]}-{entry['version']}.tgz"
+        ), path
+        algorithm, _, digest = entry["integrity"].partition("-")
+        assert algorithm == "sha512", path
+        assert len(base64.b64decode(digest, validate=True)) == 64, path
+
+
+def test_the_dependency_review_allows_the_packages_under_their_vendor_s_terms():
+    """The dependency review allows a package of a lock file without a free license,
+    such as the Copilot CLI under GitHub's terms, by its name alone, and only one
+    of a lock file: no release ships them."""
+    review = (assistant.TOOL / ".github" / "dependency-review.yml").read_text("utf-8")
+    allowed = set(re.findall(r"(?m)^  - pkg:npm/%40github/(\S+)$", review))
+    named = set()
+    for key in CLI_ENGINES:
+        path = assistant.ENGINE_LOCKS / key / "package-lock.json"
+        lock = json.loads(path.read_text(encoding="utf-8"))
+        for entry_path, entry in lock["packages"].items():
+            name = entry_path.rpartition("node_modules/")[2]
+            if entry.get("license") == "SEE LICENSE IN LICENSE.md":
+                named.add(name.removeprefix("@github/"))
+    assert named and allowed == named
 
 
 def test_the_analyze_command_outputs_the_answer(
@@ -712,7 +849,6 @@ def test_the_analyze_command_outputs_the_answer(
         "analyze",
         MODE="triage",
         ENGINE="copilot",
-        ENGINE_VERSION="1.0.95",
         RUNNER_TEMP=str(runner),
     )
     assert code == 0
