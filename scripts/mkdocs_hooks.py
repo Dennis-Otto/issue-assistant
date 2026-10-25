@@ -92,9 +92,13 @@ THEMES = ("light", "dark")
 # Keeps a picture with variants out of the lightbox of the plugin glightbox, whose
 # link around the <img> would cut it off from its <source>s.
 NO_LIGHTBOX = "off-glb"
-# The <img> of the pictures of a diagram, as scripts/diagrams.sh --extract writes it:
-# docs/images/diagrams/NAME.svg, from the folder of the page.
-DRAWN = re.compile(r'\bsrc="(?:[^"]*/)?images/diagrams/[\w.-]+\.svg"')
+# The <img> of a picture that is an SVG, as those of the diagrams are: the ones that
+# scripts/diagrams.sh --extract writes, docs/images/diagrams/NAME.svg from the folder
+# of the page, and the ones of the page of the automation, which the hook of the
+# blueprint writes and serves in assets/images/automation/ from its folder in
+# .github/. That hook shows them in the scheme of the reader: it knows where their
+# files are, and it reads their size from the root of the SVG, which size() can't.
+VECTOR = re.compile(r'\bsrc="[^"]*\.svg"')
 # Its attributes, such as the data-search-exclude of the blueprint's hook, stay.
 DIAGRAM = re.compile(r'<pre class="mermaid"[^>]*>.*?</pre>', re.S)
 # What the script of the Material theme does on the first visit, when no theme is
@@ -167,8 +171,8 @@ def localized(html: str, url: str, docs: Path) -> str:
         return {"width": str(width), "height": str(height)}
 
     def themed(match: re.Match[str]) -> str:
-        if DRAWN.search(match["image"]):
-            # A diagram, which the hook of the blueprint draws live.
+        if VECTOR.search(match["image"]):
+            # A diagram, which the hook of the blueprint shows.
             return match[0]
         image = dict(ATTRIBUTE.findall(match["image"]))
         fallbacks = {"light": image["src"]}
