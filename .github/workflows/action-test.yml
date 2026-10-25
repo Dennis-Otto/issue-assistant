@@ -294,9 +294,11 @@ jobs:
   # lines ignore a key that they don't know, so a release that renames one keeps the
   # step running without its boundary. No check of a pull request runs an engine, so
   # this job checks the names against the pinned versions, without a secret, behind
-  # a block that lets through GitHub and npm's registry alone: on a pull request that
-  # changes the step of an engine or what the check reads, such as an update of
-  # Renovate, every week and by hand.
+  # a block that lets through GitHub, npm's registry and Sigstore's root of trust
+  # alone: on a pull request that changes the step of an engine, a lock file of
+  # engines/ or what the check reads, such as an update of Renovate, every week and
+  # by hand. npm verifies the attestations of the packages of the lock files with
+  # Sigstore's root, which the job analyze never reads (decision 0017).
   engines:
     name: engine contracts
     if: github.event_name != 'push'
@@ -306,7 +308,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - name: Block every host but GitHub's and npm's
+      - name: Block every host but GitHub's, npm's and Sigstore's root of trust
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
@@ -314,6 +316,7 @@ jobs:
             api.github.com:443
             github.com:443
             registry.npmjs.org:443
+            tuf-repo-cdn.sigstore.dev:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         id: checkout
         with:
@@ -332,8 +335,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/engine_contract.py actions
-      # Installs each command line as analyze does and runs it without a key; the
-      # token only reads the schema of the settings, and no command line sees it.
+      # Installs each command line as analyze does, verifies the signatures of the
+      # lock files and runs it without a key; the token only reads the schema of the
+      # settings, and no command line sees it.
       - name: Check the flags and settings of the engines' command lines
         id: clis
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.changes.outputs.engines != 'false' }}

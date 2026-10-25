@@ -1,16 +1,18 @@
 flowchart TB
   accTitle: How the names of the engines are checked
-  accDescr: A pull request that changes the step of an engine, such as an update of Renovate, or one that changes what the check reads, and a run every week start the job engine contracts of the Action test. It holds no secret, and its block lets through GitHub and npm's registry alone. It reads the action.yml of each engine's action at the commit that the workflows pin, and every input that a step passes and every output that a job reads must be there. It installs each engine's command line at its pinned version, as analyze does, and every flag of its step must be in its help, with its value, and every key of the Gemini CLI's settings in the schema of that version. Then each runs without a key, in a folder like that of analyze, and must stop at the missing key alone, with its settings taken. A renamed input, flag or key fails the check, which names it, before a release brings the new version to every repository.
-  start["`**A pull request that changes an engine,**<br>such as an update of Renovate,<br>or **every week**`"]
-  job["`**The job engine contracts**<br>no secret; GitHub and npm alone`"]
+  accDescr: A pull request that changes the step of an engine or a lock file of engines/, such as an update of Renovate, or one that changes what the check reads, and a run every week start the job engine contracts of the Action test. It holds no secret, and its block lets through GitHub, npm's registry and Sigstore's root of trust alone. It reads the action.yml of each engine's action at the commit that the workflows pin, and every input that a step passes and every output that a job reads must be there. It installs each engine's command line at its pinned version, as analyze does: the Gemini CLI and the Copilot CLI from their lock files, whose every package must have a valid signature of npm's registry, and a copy of the lock file with another hash of the command line must fail. Every flag of its step must be in its help, with its value, and every key of the Gemini CLI's settings in the schema of that version. Then each runs without a key, in a folder like that of analyze, and must stop at the missing key alone, with its settings taken. A renamed input, flag or key, a signature that doesn't verify or a hash that npm takes fails the check, which names it, before a release brings the new version to every repository.
+  start["`**A pull request that changes an engine**<br>or a lock file, such as an update of Renovate,<br>or **every week**`"]
+  job["`**The job engine contracts**<br>no secret; GitHub, npm and Sigstore's root alone`"]
   actions["`**Each engine's action** at its pin<br>has every input that a step passes<br>and every output that a job reads`"]
+  locks["`**Each lock file** installs with npm ci;<br>every package has a valid signature,<br>and another hash is refused`"]
   clis["`**Each command line** at its pin<br>lists every flag of its step, with its value;<br>the schema of the settings has every key`"]
   run["`**A run without a key**<br>stops at the missing key alone,<br>with its settings taken`"]
   green(["The update keeps the names of the boundary"])
-  red(["Red, with the input, the flag or the key by name,<br>before a release brings the version to every repository"])
-  start --> job --> actions --> clis --> run
+  red(["Red, with the input, the flag, the key or the package by name,<br>before a release brings the version to every repository"])
+  start --> job --> actions --> locks --> clis --> run
   run -- "every name is there,<br>and it stops at the key" --> green
   actions -. "a name is gone" .-> red
+  locks -. "a signature fails,<br>or npm takes another hash" .-> red
   clis -. "a name is gone" .-> red
   run -. "it stops elsewhere" .-> red
   classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
@@ -18,6 +20,6 @@ flowchart TB
   classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
   class start trigger
-  class job,actions,clis,run job
+  class job,actions,locks,clis,run job
   class green safe
   class red stop

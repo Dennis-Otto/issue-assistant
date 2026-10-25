@@ -70,6 +70,7 @@ jobs:
             /prompts/
             /locales/
             /templates/
+            /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Create and update the labels

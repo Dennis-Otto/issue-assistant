@@ -1,0 +1,23 @@
+flowchart TB
+  accTitle: How the packages of Gemini and Copilot reach the job analyze
+  accDescr: Renovate updates the lock file of the Gemini CLI or the Copilot CLI in engines/, the command line a week after its release and the other packages every Monday, each package at one version with its SHA-512 hash. The check engine contracts of the pull request installs the lock file as analyze does, verifies the signature of npm's registry of every package and the attestations of those that have them, and makes sure that npm refuses another hash; a failure keeps the update from merging. The maintainer merges it, and a release brings it to every repository. In the job analyze, the checkout of the issue assistant at the commit of the workflow holds the lock file, and npm ci installs it in a folder of the run, without the scripts of the packages and without the engine's secret, from npm's registry alone. A package whose hash isn't the one of the lock file stops the analysis before anything of it runs; otherwise the command line runs with the engine's secret.
+  renovate["`**Renovate** updates engines/gemini/ or engines/copilot/:<br>the command line a week after its release,<br>the other packages every Monday`"]
+  check["`**The check engine contracts**<br>installs the lock file as analyze does,<br>verifies every signature and attestation,<br>and npm must refuse another hash`"]
+  merge["`**The maintainer merges** the update,<br>and a release brings it to every repository`"]
+  analyze["`**The job analyze**: npm ci of the lock file<br>at the commit of the workflow, no scripts,<br>no secret for npm, npm's registry alone`"]
+  runs(["The command line runs with the engine's secret"])
+  waits(["The update doesn't merge"])
+  stops(["The analysis stops before anything of the package runs"])
+  renovate --> check
+  check -- "green" --> merge --> analyze
+  analyze -- "every hash is the one of the lock file" --> runs
+  check -. "a signature fails,<br>or npm takes another hash" .-> waits
+  analyze -. "another hash" .-> stops
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef stop fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  class renovate trigger
+  class check,merge,analyze job
+  class runs safe
+  class waits,stops stop

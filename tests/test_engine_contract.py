@@ -124,10 +124,13 @@ def test_the_job_checks_the_engines_on_a_change_of_one_and_every_week():
     assert "secrets." not in json.dumps(job)
     block, checkout = job["steps"][:2]
     assert block["uses"].startswith("step-security/harden-runner@")
-    # GitHub for the files of the actions and the schemas, npm for the command lines.
+    # GitHub for the files of the actions and the schemas, npm for the command
+    # lines, and Sigstore's root of trust, with which npm verifies the attestations
+    # of the packages of the lock files.
     assert block["with"] == {
         "egress-policy": "block",
-        "allowed-endpoints": "api.github.com:443 github.com:443 registry.npmjs.org:443",
+        "allowed-endpoints": "api.github.com:443 github.com:443 "
+        "registry.npmjs.org:443 tuf-repo-cdn.sigstore.dev:443",
     }
     assert checkout["with"] == {"persist-credentials": False}
     steps = {step.get("id"): step for step in job["steps"]}
@@ -148,6 +151,13 @@ def test_the_renovate_groups_of_the_engines_point_at_the_check():
 def test_the_check_watches_files_that_exist():
     for path in contract.watched(STEPS):
         assert (ROOT / path).is_file(), path
+    # The lock files of the command lines that analyze installs, too.
+    assert sorted(contract.LOCKS) == [
+        f"engines/{key}/{name}"
+        for key in ("copilot", "gemini")
+        for name in ("package-lock.json", "package.json")
+    ]
+    assert set(contract.LOCKS) <= contract.watched(STEPS)
 
 
 # ---------------------------------------------------------------- the steps
@@ -365,9 +375,10 @@ def test_the_pinned_command_lines_are_those_of_the_workflows():
     for pin in pins:
         assert assistant.CLI_VERSION.fullmatch(pin.version), pin
     assert pins[0].version == step_of("codex").inputs["codex-version"]
-    assert (
-        pins[1].name == f"@github/copilot@{step_of('copilot').inputs['engine-version']}"
-    )
+    # The Gemini CLI and the Copilot CLI at the versions of their lock files.
+    assert pins[1].version == assistant.locked_version("copilot")
+    assert pins[2].version == assistant.locked_version("gemini")
+    assert "engine-version" not in step_of("gemini").inputs
 
 
 def test_flags_are_read_with_their_values():
@@ -635,17 +646,20 @@ def test_a_run_without_a_key_must_stop_at_the_key_and_take_its_settings():
     assert problem.endswith("first: no output")
 
 
-def fake_install(installed):
-    def install(cli, version, folder):
-        installed.append((cli.package, version, folder.name))
-        return f"/bin/{cli.command}"
+def fake_install(monkeypatch, installed, lock=()):
+    """install_cli without npm, and the problems `lock` of its lock file."""
 
-    return install
+    def install(key, folder, locks=assistant.ENGINE_LOCKS):
+        installed.append((key, folder.name))
+        return f"/bin/{assistant.ENGINES[key].cli.command}"
+
+    monkeypatch.setattr(assistant, "install_cli", install)
+    monkeypatch.setattr(contract, "lock_problems", lambda pin, work: list(lock))
 
 
 def test_check_cli_runs_the_command_line_as_analyze_runs_it(monkeypatch, tmp_path):
     installed, ran, helped = [], [], []
-    monkeypatch.setattr(assistant, "install_cli", fake_install(installed))
+    fake_install(monkeypatch, installed)
     monkeypatch.setattr(
         contract,
         "help_of",
@@ -662,11 +676,11 @@ def test_check_cli_runs_the_command_line_as_analyze_runs_it(monkeypatch, tmp_pat
     checked, problems = contract.check_cli(GEMINI_PIN, tmp_path)
     assert problems == []
     assert checked == (
-        f"4 flag(s), {contract.keys_of(SETTINGS)} key(s) of its settings, a run "
-        "without GEMINI_API_KEY, a run with broken settings in "
-        "GEMINI_CLI_SYSTEM_SETTINGS_PATH"
+        "the signatures of its lock file, a changed hash refused, 4 flag(s), "
+        f"{contract.keys_of(SETTINGS)} key(s) of its settings, a run without "
+        "GEMINI_API_KEY, a run with broken settings in GEMINI_CLI_SYSTEM_SETTINGS_PATH"
     )
-    assert installed == [("@google/gemini-cli", "0.64.0", "cli")]
+    assert installed == [("gemini", "cli")]
     assert helped == [["/bin/gemini"]]
     assert ran == [
         (
@@ -680,7 +694,7 @@ def test_check_cli_runs_the_command_line_as_analyze_runs_it(monkeypatch, tmp_pat
 
 
 def test_check_cli_fails_without_the_schema_of_the_settings(monkeypatch, tmp_path):
-    monkeypatch.setattr(assistant, "install_cli", fake_install([]))
+    fake_install(monkeypatch, [])
     monkeypatch.setattr(contract, "help_of", lambda command, home: GEMINI_HELP)
     monkeypatch.setattr(contract, "settings_schema", lambda pin, path: None)
     monkeypatch.setattr(
@@ -702,7 +716,7 @@ def test_check_cli_fails_without_the_schema_of_the_settings(monkeypatch, tmp_pat
 def test_check_cli_checks_every_effort_and_no_settings_of_copilot(
     monkeypatch, tmp_path
 ):
-    monkeypatch.setattr(assistant, "install_cli", fake_install([]))
+    fake_install(monkeypatch, [])
     monkeypatch.setattr(contract, "help_of", lambda command, home: COPILOT_HELP)
     printed = "Error: No authentication information found. Set COPILOT_GITHUB_TOKEN."
     monkeypatch.setattr(
@@ -711,7 +725,10 @@ def test_check_cli_checks_every_effort_and_no_settings_of_copilot(
     pin = contract.Pin("copilot", "@github/copilot", "1.0.97")
     checked, problems = contract.check_cli(pin, tmp_path)
     assert problems == []
-    assert checked == "13 flag(s), a run without COPILOT_GITHUB_TOKEN"
+    assert checked == (
+        "the signatures of its lock file, a changed hash refused, 13 flag(s), a run "
+        "without COPILOT_GITHUB_TOKEN"
+    )
     # A level of effort that the flag doesn't take.
     monkeypatch.setattr(
         contract,
@@ -723,6 +740,10 @@ def test_check_cli_checks_every_effort_and_no_settings_of_copilot(
         "@github/copilot@1.0.97 takes no max, xhigh for --reasoning-effort, only "
         "high, low, medium, minimal, none"
     )
+    # A problem of the lock file comes first.
+    fake_install(monkeypatch, [], ["a signature"])
+    problems = contract.check_cli(pin, tmp_path / "lock")[1]
+    assert problems[0] == "a signature" and len(problems) == 2
 
 
 def write_script(tmp_path, code):
@@ -773,7 +794,12 @@ def test_codex_runs_with_the_arguments_of_its_step_and_the_profile_of_its_action
     monkeypatch, tmp_path
 ):
     installed, runs = [], []
-    monkeypatch.setattr(assistant, "install_cli", fake_install(installed))
+
+    def install_package(cli, version, folder):
+        installed.append((cli.package, version, folder.name))
+        return f"/bin/{cli.command}"
+
+    monkeypatch.setattr(contract, "install_package", install_package)
     monkeypatch.setattr(contract, "help_of", lambda command, home: CODEX_HELP)
 
     def turn_started(command, env, cwd, started):
@@ -810,6 +836,193 @@ def test_codex_runs_with_the_arguments_of_its_step_and_the_profile_of_its_action
         "@openai/codex@0.162.1 didn't start its turn with the arguments of its step "
         "and the configuration of its action: Error: unknown field"
     )
+
+
+# ---------------------------------------------------------------- the lock files
+
+
+class FakeAudit:
+    """subprocess.run for npm audit signatures, which records its call and ends with
+    `code`."""
+
+    def __init__(self, code=0, stdout="7 packages have verified registry signatures"):
+        self.code, self.stdout, self.calls = code, stdout, []
+
+    def __call__(self, command, **options):
+        self.calls.append((command, options))
+        return completed(self.stdout, "npm error audit", self.code)
+
+
+def tampered_install(error):
+    """install_cli for the copy of the lock file with another hash of the command
+    line, which raises `error` unless it is None."""
+    installed = []
+
+    def install(key, folder, locks=assistant.ENGINE_LOCKS):
+        lock = json.loads((locks / key / "package-lock.json").read_text("utf-8"))
+        package = assistant.ENGINES[key].cli.package
+        installed.append(
+            (key, folder.name, lock["packages"][f"node_modules/{package}"]["integrity"])
+        )
+        if error is not None:
+            raise assistant.AssistantError(error)
+        return "/bin/gemini"
+
+    return install, installed
+
+
+EINTEGRITY = (
+    "npm installed no @google/gemini-cli@0.64.0 from "
+    "engines/gemini/package-lock.json (EINTEGRITY): the registry sent a package "
+    "whose hash isn't the integrity of the lock file, so nothing of it runs"
+)
+
+
+def test_the_lock_file_passes_when_its_signatures_verify_and_npm_refuses_a_hash(
+    monkeypatch, tmp_path
+):
+    audit = FakeAudit()
+    monkeypatch.setattr(contract.subprocess, "run", audit)
+    monkeypatch.setattr(contract.shutil, "which", lambda name: f"/usr/bin/{name}")
+    install, installed = tampered_install(EINTEGRITY)
+    monkeypatch.setattr(assistant, "install_cli", install)
+    assert contract.lock_problems(GEMINI_PIN, tmp_path) == []
+    ((command, options),) = audit.calls
+    folder = tmp_path / "cli"
+    assert command == ["/usr/bin/npm", "audit", "signatures", "--prefix", str(folder)]
+    assert options["cwd"] == folder and options["timeout"] == contract.SECONDS
+    # A copy of the lock file, with another hash of the command line alone.
+    assert installed == [("gemini", "tampered-cli", contract.TAMPERED)]
+    copy = json.loads(
+        (tmp_path / "tampered" / "gemini" / "package-lock.json").read_text("utf-8")
+    )
+    lock = json.loads(
+        (assistant.ENGINE_LOCKS / "gemini" / "package-lock.json").read_text("utf-8")
+    )
+    lock["packages"]["node_modules/@google/gemini-cli"]["integrity"] = contract.TAMPERED
+    assert copy == lock
+    assert contract.TAMPERED.startswith("sha512-") and contract.TAMPERED not in str(
+        (assistant.ENGINE_LOCKS / "gemini" / "package-lock.json").read_text("utf-8")
+    )
+
+
+@pytest.mark.parametrize(
+    ("code", "error", "problems"),
+    [
+        (
+            1,
+            EINTEGRITY,
+            [
+                "@google/gemini-cli@0.64.0: npm can't verify every signature and "
+                "attestation of the packages of engines/gemini/package-lock.json: 1 "
+                "package has an invalid registry signature npm error audit"
+            ],
+        ),
+        (
+            0,
+            None,
+            [
+                "@google/gemini-cli@0.64.0: npm installed it from a copy of "
+                "engines/gemini/package-lock.json with another hash of it, so analyze "
+                "would run a package that nobody checked"
+            ],
+        ),
+        (
+            0,
+            "npm installed no @google/gemini-cli@0.64.0 from "
+            "engines/gemini/package-lock.json (E404): gone",
+            [
+                "@google/gemini-cli@0.64.0: npm refused a copy of "
+                "engines/gemini/package-lock.json with another hash of it, but not "
+                "for the hash: npm installed no @google/gemini-cli@0.64.0 from "
+                "engines/gemini/package-lock.json (E404): gone"
+            ],
+        ),
+    ],
+)
+def test_a_signature_that_fails_or_a_hash_that_npm_takes_fails_the_check(
+    monkeypatch, tmp_path, code, error, problems
+):
+    audit = FakeAudit(code, "1 package has an invalid registry signature")
+    monkeypatch.setattr(contract.subprocess, "run", audit)
+    # Without npm on the PATH, the name alone, which fails as it would.
+    monkeypatch.setattr(contract.shutil, "which", lambda name: None)
+    install, _ = tampered_install(error)
+    monkeypatch.setattr(assistant, "install_cli", install)
+    assert contract.lock_problems(GEMINI_PIN, tmp_path) == problems
+    assert audit.calls[0][0][0] == "npm"
+
+
+def test_codex_installs_as_its_action_installs_it(monkeypatch, tmp_path):
+    cli = assistant.Cli(package="@openai/codex", command="codex", arguments=())
+    monkeypatch.setattr(contract.shutil, "which", lambda name: f"/usr/bin/{name}")
+    calls = []
+
+    def run(command, **options):
+        calls.append(command)
+        return completed()
+
+    monkeypatch.setattr(contract.subprocess, "run", run)
+    folder = tmp_path / "cli"
+    path = contract.install_package(cli, "0.162.1", folder)
+    assert path == str(folder / "node_modules" / ".bin" / "codex")
+    # The version of the action's input, without the scripts of any package.
+    assert calls == [
+        [
+            "/usr/bin/npm",
+            "install",
+            "--prefix",
+            str(folder),
+            "--no-save",
+            "--no-package-lock",
+            "--ignore-scripts",
+            "--no-audit",
+            "--no-fund",
+            "--loglevel",
+            "error",
+            "@openai/codex@0.162.1",
+        ]
+    ]
+
+
+@pytest.mark.parametrize(
+    ("version", "which", "result", "problem"),
+    [
+        (
+            "latest",
+            "/usr/bin/npm",
+            completed(),
+            "The step pins @openai/codex at 'latest', no version such as 1.2.3.",
+        ),
+        (
+            "0.162.1",
+            None,
+            completed(),
+            "The check needs npm, which GitHub's runners have.",
+        ),
+        (
+            "0.162.1",
+            "/usr/bin/npm",
+            completed(stderr="npm error 404\n", code=1),
+            "npm installed no @openai/codex@0.162.1: npm error 404",
+        ),
+        (
+            "0.162.1",
+            "/usr/bin/npm",
+            completed(code=1),
+            "npm installed no @openai/codex@0.162.1: no message",
+        ),
+    ],
+)
+def test_codex_that_can_t_install_says_why(
+    monkeypatch, tmp_path, version, which, result, problem
+):
+    cli = assistant.Cli(package="@openai/codex", command="codex", arguments=())
+    monkeypatch.setattr(contract.shutil, "which", lambda name: which)
+    monkeypatch.setattr(contract.subprocess, "run", lambda command, **options: result)
+    with pytest.raises(assistant.AssistantError) as refused:
+        contract.install_package(cli, version, tmp_path / "cli")
+    assert str(refused.value) == problem
 
 
 def test_clis_checks_each_pin_in_a_folder_of_its_own(monkeypatch, capsys, tmp_path):
@@ -856,6 +1069,7 @@ def test_clis_runs_no_engine_with_a_key(monkeypatch):
     [
         (".github/workflows/reusable-discussion-assistant.yml\nREADME.md\n", "true"),
         ("issue_assistant.py\n", "true"),
+        ("engines/copilot/package-lock.json\n", "true"),
         ("README.md\ndocs/security.md\n", "false"),
     ],
 )
@@ -919,7 +1133,7 @@ def test_the_script_exits_with_the_status_of_its_command(monkeypatch):
 def test_check_cli_looks_for_the_settings_where_gemini_reads_them(
     monkeypatch, tmp_path
 ):
-    monkeypatch.setattr(assistant, "install_cli", fake_install([]))
+    fake_install(monkeypatch, [])
     monkeypatch.setattr(contract, "help_of", lambda command, home: GEMINI_HELP)
     schema = strict_schema(SETTINGS)
     monkeypatch.setattr(contract, "settings_schema", lambda pin, path: schema)

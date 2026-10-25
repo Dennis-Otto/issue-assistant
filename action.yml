@@ -28,10 +28,6 @@ inputs:
     description: The engine that wrote the answer, for apply, or that analyze runs
     required: false
     default: ""
-  engine-version:
-    description: The version of the engine's command line that analyze installs, such as 1.2.3
-    required: false
-    default: ""
   ready-engines:
     description: Engines whose secret exists, separated by commas, for engine
     required: false
@@ -104,7 +100,6 @@ runs:
         MODE: ${{ inputs.mode }}
         RESULT: ${{ inputs.answer }}
         ENGINE: ${{ inputs.engine }}
-        ENGINE_VERSION: ${{ inputs.engine-version }}
         READY_ENGINES: ${{ inputs.ready-engines }}
         EXECUTION_FILE: ${{ inputs.execution-file }}
         DRY_RUN: ${{ inputs.dry-run }}
