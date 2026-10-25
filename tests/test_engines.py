@@ -10,6 +10,7 @@ import base64
 import dataclasses
 import json
 import os
+import re
 import shutil
 import subprocess
 import tomllib
@@ -799,6 +800,22 @@ def test_the_lock_file_pins_every_package_with_its_hash(key):
         algorithm, _, digest = entry["integrity"].partition("-")
         assert algorithm == "sha512", path
         assert len(base64.b64decode(digest, validate=True)) == 64, path
+
+
+def test_the_dependency_review_allows_the_packages_under_their_vendor_s_terms():
+    """The dependency review allows a package of a lock file without a free license,
+    such as the Copilot CLI under GitHub's terms, by its name alone, and only one
+    of a lock file: no release ships them."""
+    review = (assistant.TOOL / ".github" / "dependency-review.yml").read_text("utf-8")
+    allowed = set(re.findall(r"(?m)^  - pkg:npm/%40github/(\S+)$", review))
+    named = set()
+    for key in CLI_ENGINES:
+        path = assistant.ENGINE_LOCKS / key / "package-lock.json"
+        lock = json.loads(path.read_text(encoding="utf-8"))
+        for entry_path, entry in lock["packages"].items():
+            if entry_path and entry["license"] == "SEE LICENSE IN LICENSE.md":
+                named.add(entry_path.removeprefix("node_modules/@github/"))
+    assert named and allowed == named
 
 
 def test_the_analyze_command_outputs_the_answer(
