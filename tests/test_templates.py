@@ -13,6 +13,7 @@ import shlex
 import shutil
 import subprocess
 import tomllib
+import urllib.parse
 from glob import iglob as files_matching
 from pathlib import Path
 
@@ -666,12 +667,17 @@ def test_the_block_of_the_ai_s_runner_in_reserve_runs_in_ci():
     holds = JOBS["analyze"]["steps"][1]["run"]
     checks = block["steps"][1]["run"]
     assert holds.splitlines()[0] in checks
-    assert "https://registry.npmjs.org/" in checks
-    assert "http://azure.archive.ubuntu.com/ubuntu/" in checks
+    # A host of the policy on 443, and one on 80, which must pass the block.
+    (listed,) = re.findall(r"^ *for url in (.+); do$", checks, re.MULTILINE)
+    urls = [urllib.parse.urlsplit(url) for url in listed.split()]
+    assert [(url.scheme, url.hostname) for url in urls] == [
+        ("https", "registry.npmjs.org"),
+        ("http", "azure.archive.ubuntu.com"),
+    ]
     policy = assistant.allowed_hosts(
         (assistant.TEMPLATES / assistant.FIREWALL).read_text(encoding="utf-8")
     )
-    assert {"registry.npmjs.org", "azure.archive.ubuntu.com"} <= set(policy)
+    assert {url.hostname for url in urls} <= set(policy)
 
 
 def test_the_graphql_documents_meet_github_s_schema_of_the_day_every_week():
