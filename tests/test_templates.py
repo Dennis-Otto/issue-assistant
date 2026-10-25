@@ -98,6 +98,11 @@ ON_ANOTHER_RUNNER = (
 # workflow of the issues with the input canary, for the issue of a file.
 CANARY_INPUT = "canary"
 CANARY_ISSUE = "tests/fixtures/canary-issue.json"
+# The Workflow test, .github/workflows/workflow-test.yml, calls it with the input
+# smoke: the same issue, and the answer of a file in place of the engine's.
+SMOKE_INPUT = "smoke"
+SMOKE_ANSWER = "tests/fixtures/smoke-answer.json"
+OWN_INPUTS = (CANARY_INPUT, SMOKE_INPUT)
 
 
 def only_in_the_canary(value):
@@ -380,11 +385,13 @@ def test_each_template_calls_its_reusable_workflow_with_what_its_jobs_need(name)
     assert job["with"] == {"dry_run": "${{ inputs.dry_run || false }}"}
     dry_run = workflow[True]["workflow_dispatch"]["inputs"]["dry_run"]
     inputs = dict(load(reusable(name))[True]["workflow_call"]["inputs"])
-    # Only the Canary of this repository passes the input canary, to the issues'.
+    # Only the Canary of this repository passes the input canary, to the issues',
+    # and only its Workflow test the input smoke.
     if name == "issue-assistant.yml":
-        canary = inputs.pop(CANARY_INPUT)
-        assert canary["type"] == "boolean" and canary["default"] is False
-        assert canary["description"].startswith("Only for the Canary")
+        for own, caller in zip(OWN_INPUTS, ("Canary", "Workflow test"), strict=True):
+            given = inputs.pop(own)
+            assert given["type"] == "boolean" and given["default"] is False
+            assert given["description"].startswith(f"Only for the {caller}")
     assert inputs == {
         "dry_run": {
             "description": dry_run["description"],
@@ -449,6 +456,111 @@ def test_every_job_runs_the_issue_assistant_of_its_workflow_s_commit(name):
         # first step that runs it.
         assert uses[checkout - 1].startswith("actions/checkout@"), job_name
         assert tool and checkout < tool[0], job_name
+
+
+# The step before the checkouts of every job of a reusable workflow: it stops the
+# job when GitHub names no commit of the workflow, where actions/checkout would take
+# the caller's repository at its default branch.
+GUARD = {
+    "name": "Make sure that GitHub names the commit of this workflow",
+    "env": {
+        "WORKFLOW_REPOSITORY": TOOL_CHECKOUT["repository"],
+        "WORKFLOW_SHA": TOOL_CHECKOUT["ref"],
+    },
+}
+
+
+def guard_step():
+    """The guard of the labels' job; every other job has the same."""
+    return load(reusable("labels.yml"))["jobs"]["sync"]["steps"][1]
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_job_stops_where_github_names_no_commit_of_its_workflow(name):
+    """The guard comes right before the first checkout of each job, the same in
+    each."""
+    for job_name, job in load(reusable(name))["jobs"].items():
+        steps = job["steps"]
+        guards = [
+            index
+            for index, step in enumerate(steps)
+            if step.get("name") == GUARD["name"]
+        ]
+        checkouts = [
+            index
+            for index, step in enumerate(steps)
+            if step.get("uses", "").startswith("actions/checkout@")
+        ]
+        assert len(guards) == 1, job_name
+        assert guards[0] == checkouts[0] - 1, job_name
+        guard = steps[guards[0]]
+        assert guard == dict(GUARD, run=guard_step()["run"]), job_name
+
+
+SHA_OF_A_COMMIT = "3d3c42e5aac5ba805825da76410c181273ba90b1"
+
+
+@pytest.mark.parametrize(
+    ("repository", "sha", "code"),
+    [
+        ("Dennis-Otto/issue-assistant", SHA_OF_A_COMMIT, 0),
+        ("octo/app.js", SHA_OF_A_COMMIT, 0),
+        # GitHub named nothing, as when a property of the context goes away.
+        ("", "", 1),
+        ("Dennis-Otto/issue-assistant", "", 1),
+        ("", SHA_OF_A_COMMIT, 1),
+        # A branch or a tag is no commit: it moves.
+        ("Dennis-Otto/issue-assistant", "main", 1),
+        ("Dennis-Otto/issue-assistant", "v1.2.2", 1),
+        ("Dennis-Otto/issue-assistant", SHA_OF_A_COMMIT[:-1], 1),
+        ("Dennis-Otto/issue-assistant", SHA_OF_A_COMMIT.upper(), 1),
+        ("issue-assistant", SHA_OF_A_COMMIT, 1),
+    ],
+)
+def test_the_guard_takes_only_a_repository_and_a_full_commit(
+    tmp_path, repository, sha, code
+):
+    result, _ = run_step(
+        guard_step(),
+        tmp_path,
+        WORKFLOW_REPOSITORY=repository,
+        WORKFLOW_SHA=sha,
+        GITHUB_REPOSITORY="octo/app",
+    )
+    assert result.returncode == code, result.stdout + result.stderr
+    if code:
+        assert result.stdout.startswith(
+            "::error::GitHub gave this job no repository and commit of its reusable "
+            f"workflow: job.workflow_repository is '{repository}' and "
+            f"job.workflow_sha '{sha}', no full commit SHA. The checkout would take "
+            "octo/app at its default branch in place of the issue assistant that "
+            "the caller pins, so the job stops before it."
+        )
+    else:
+        assert result.stdout == f"The issue assistant of {repository} at {sha}.\n"
+
+
+# The commands of the action that may write, which a call's dry run must reach.
+WRITERS = {"event", "apply", "sweep", "sync-labels", "findings"}
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_command_that_writes_gets_the_dry_run_of_its_call(name):
+    """The Workflow test calls every reusable workflow as a dry run, with a token
+    that may write on a pull request of this repository: a command that missed
+    dry_run would write there, and in every repository's dry run."""
+    commands = set()
+    for job in load(reusable(name))["jobs"].values():
+        for step in job["steps"]:
+            if step.get("uses") != TOOL:
+                continue
+            command = step["with"]["command"]
+            commands.add(command)
+            if command in WRITERS:
+                assert step["with"]["dry-run"] == "${{ inputs.dry_run }}", command
+            else:
+                assert "dry-run" not in step["with"], command
+    assert commands & WRITERS
 
 
 @pytest.mark.mutation_unsafe
@@ -701,6 +813,8 @@ def test_the_graphql_documents_meet_github_s_schema_of_the_day_every_week():
 # file: it calls the reusable workflow of the issues as the template does.
 CANARY = load(OWN / "canary.yml")
 FIXTURE_OF_THE_CANARY = only_in_the_canary(f"'{CANARY_ISSUE}'")
+# apply takes the same issue in the smoke test of the Workflow test.
+FIXTURE_OF_THE_TESTS = f"${{{{ (inputs.{CANARY_INPUT} || inputs.{SMOKE_INPUT}) && '{CANARY_ISSUE}' || '' }}}}"
 SETTINGS = tomllib.loads((ROOT / ".github/repository.toml").read_text(encoding="utf-8"))
 
 
@@ -751,9 +865,9 @@ def test_the_canary_writes_nothing():
     for name, job in CANARY["jobs"].items():
         assert "id-token" not in job["permissions"], name
     event = {step.get("id"): step for step in JOBS["event"]["steps"]}["event"]
-    assert event["if"] == f"${{{{ !inputs.{CANARY_INPUT} }}}}"
+    assert event["if"] == f"${{{{ !inputs.{CANARY_INPUT} && !inputs.{SMOKE_INPUT} }}}}"
     (apply,) = [step for step in JOBS["apply"]["steps"] if step.get("uses") == TOOL]
-    assert apply["env"] == {assistant.FIXTURE_VARIABLE: FIXTURE_OF_THE_CANARY}
+    assert apply["env"] == {assistant.FIXTURE_VARIABLE: FIXTURE_OF_THE_TESTS}
     assert apply["with"]["dry-run"] == "${{ inputs.dry_run }}"
 
 
@@ -767,7 +881,12 @@ def test_only_context_and_apply_read_the_canary_s_issue():
             env = step.get("env") or {}
             if assistant.FIXTURE_VARIABLE in env:
                 assert step["uses"] == TOOL, job_name
-                assert env[assistant.FIXTURE_VARIABLE] == FIXTURE_OF_THE_CANARY
+                expected = (
+                    FIXTURE_OF_THE_TESTS
+                    if job_name == "apply"
+                    else FIXTURE_OF_THE_CANARY
+                )
+                assert env[assistant.FIXTURE_VARIABLE] == expected
                 readers.append((job_name, step["with"]["command"]))
     assert readers == [("analyze", "context"), ("apply", "apply")]
 
@@ -812,11 +931,13 @@ def test_the_job_event_takes_the_canary_s_issue():
         "AI": "${{ vars.ISSUE_ASSISTANT_AI }}",
     }
     order = [step.get("id") for step in event["steps"]]
+    assert order.index("smoke") == order.index("canary") - 1
     assert order.index("canary") == order.index("event") - 1
     # context takes the number of the fixture's issue when the job names none.
     assert event["outputs"] == {
         "issue": "${{ steps.event.outputs.issue }}",
-        "mode": "${{ steps.event.outputs.mode || steps.canary.outputs.mode }}",
+        "mode": "${{ steps.event.outputs.mode || steps.canary.outputs.mode || "
+        "steps.smoke.outputs.mode }}",
         "endpoints": "${{ steps.endpoints.outputs.endpoints }}",
     }
 
@@ -904,10 +1025,11 @@ def test_the_canary_checks_that_the_engine_answered(
 
 def without_the_canary(job):
     """A job of the issues' reusable workflow as every repository's run has it:
-    without the steps that only the Canary runs and the values that only it sets."""
+    without the steps that only the Canary and the smoke test run, the values that
+    only the Canary sets, and the condition that only the smoke test adds."""
     steps = []
     for step in job["steps"]:
-        if step.get("if") == f"inputs.{CANARY_INPUT}":
+        if step.get("if") in {f"inputs.{own}" for own in OWN_INPUTS}:
             continue
         step = dict(step)
         for key in ("with", "env"):
@@ -921,7 +1043,9 @@ def without_the_canary(job):
             else:
                 step.pop(key, None)
         steps.append(step)
-    return dict(job, steps=steps)
+    job = dict(job, steps=steps)
+    job["if"] = job["if"].removeprefix(f"!inputs.{SMOKE_INPUT} && ")
+    return job
 
 
 def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
@@ -1235,9 +1359,14 @@ def test_the_answer_reaches_github_only_through_the_checks():
         "engine": "${{ steps.engine.outputs.engine }}",
         "answer": f"${{{{ {answers} }}}}",
     }
-    (apply_step,) = [step for step in JOBS["apply"]["steps"] if step["uses"] == TOOL]
+    (apply_step,) = [
+        step for step in JOBS["apply"]["steps"] if step.get("uses") == TOOL
+    ]
     assert apply_step["with"]["command"] == "apply"
-    assert apply_step["with"]["answer"] == "${{ needs.analyze.outputs.answer }}"
+    # Or, in the smoke test alone, the answer of its file.
+    assert apply_step["with"]["answer"] == (
+        "${{ needs.analyze.outputs.answer || steps.smoke.outputs.answer }}"
+    )
     assert apply_step["with"]["engine"] == "${{ needs.analyze.outputs.engine }}"
     assert JOBS["apply"]["needs"] == ["event", "analyze"]
     assert JOBS["apply"]["permissions"] == {
@@ -1276,15 +1405,26 @@ def test_the_discussions_analyze_as_the_issues_do():
     assert DISCUSSION_JOBS["analyze"] == without_the_canary(ANALYZE)
     issues = load(reusable("issue-assistant.yml"))[True]["workflow_call"]
     inputs = {
-        name: value for name, value in issues["inputs"].items() if name != CANARY_INPUT
+        name: value
+        for name, value in issues["inputs"].items()
+        if name not in OWN_INPUTS
     }
     assert load(reusable(assistant.DISCUSSION_WORKFLOW))[True] == {
         "workflow_call": dict(issues, inputs=inputs)
     }
     assert list(DISCUSSION_JOBS) == ["event", "analyze", "apply"]
     assert DISCUSSION_JOBS["apply"]["needs"] == ["event", "analyze"]
-    assert DISCUSSION_JOBS["apply"]["if"] == JOBS["apply"]["if"]
-    # Their event and apply jobs run the same commands of the action.
+    # apply runs after an answer of the engine; that of the issues writes out what
+    # GitHub otherwise adds, that both jobs passed, since the smoke test skips
+    # analyze.
+    assert DISCUSSION_JOBS["apply"]["if"] == "needs.analyze.outputs.answer != ''"
+    assert " ".join(JOBS["apply"]["if"].split()) == (
+        "!cancelled() && needs.event.result == 'success' && "
+        f"(inputs.{SMOKE_INPUT} || (needs.analyze.result == 'success' && "
+        "needs.analyze.outputs.answer != ''))"
+    )
+    # Their event and apply jobs run the same commands of the action; only the
+    # smoke test gives apply the answer of its file.
     for name in ("event", "apply"):
         ours = [
             step["with"]
@@ -1292,7 +1432,12 @@ def test_the_discussions_analyze_as_the_issues_do():
             if step.get("uses") == TOOL
         ]
         theirs = [
-            step["with"] for step in JOBS[name]["steps"] if step.get("uses") == TOOL
+            {
+                key: value.replace(" || steps.smoke.outputs.answer }}", " }}")
+                for key, value in step["with"].items()
+            }
+            for step in JOBS[name]["steps"]
+            if step.get("uses") == TOOL
         ]
         assert ours == theirs, name
 
@@ -1324,7 +1469,14 @@ def test_a_new_discussion_triggers_the_workflow_of_the_discussions():
     assert DISCUSSIONS[True]["discussion"] == {"types": ["created"]}
     assert set(DISCUSSIONS[True]) == {"discussion", "workflow_dispatch"}
     condition = " ".join(DISCUSSION_JOBS["event"]["if"].split())
-    assert "github.event.sender.type != 'Bot'" in condition
+    # A call for another event, such as a pull request of the Workflow test, skips
+    # every job: the event of the action reads a discussion or a manual run alone.
+    assert condition == (
+        "!github.event.repository.fork && "
+        "(github.event_name == 'workflow_dispatch' || "
+        "(github.event_name == 'discussion' && "
+        "github.event.sender.type != 'Bot'))"
+    )
     # The runs of one discussion one after the other; issues and discussions share
     # their numbers, so the group names the workflow.
     assert DISCUSSIONS["concurrency"] == {
@@ -1370,7 +1522,12 @@ def test_a_run_that_skips_its_job_never_takes_the_place_of_a_waiting_one(name, g
     workflow = load(reusable(name))
     assert "concurrency" not in workflow
     (job,) = workflow["jobs"].values()
-    assert job["concurrency"] == {"group": group, "cancel-in-progress": False}
+    # A dry run writes nothing, so it waits for no other run and replaces none.
+    assert job["concurrency"] == {
+        "group": f"${{{{ inputs.dry_run && format('{group}-dry-run-{{0}}', "
+        f"github.run_id) || '{group}' }}}}",
+        "cancel-in-progress": False,
+    }
 
 
 def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_code():
@@ -1399,7 +1556,8 @@ def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_co
         "issues": "write",
         "pull-requests": "read",
     }
-    _, checkout, tool, step = job["steps"]
+    _, guard, checkout, tool, step = job["steps"]
+    assert guard["name"] == GUARD["name"]
     # The default branch: no ref of the pull request, no credentials left behind.
     assert checkout["with"] == {"persist-credentials": False}
     assert tool["with"] == TOOL_CHECKOUT and step["uses"] == TOOL
@@ -1431,7 +1589,8 @@ def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
     # Only code scanning of the default branch of this repository, never of a fork.
     assert "head_repository.full_name == github.repository" in condition
     assert "head_branch == github.event.repository.default_branch" in condition
-    _, checkout, tool, step = job["steps"]
+    _, guard, checkout, tool, step = job["steps"]
+    assert guard["name"] == GUARD["name"]
     assert checkout["with"] == {"persist-credentials": False}
     assert tool["with"] == TOOL_CHECKOUT and step["uses"] == TOOL
     assert step["with"]["command"] == "findings"

@@ -1,0 +1,179 @@
+name: Workflow test
+
+# The reusable workflows in .github/workflows/reusable-*.yml, which every repository
+# that uses the issue assistant calls at the commit of a release, run as such a
+# repository calls them, as dry runs. The tests and actionlint only read them, the
+# Action test runs the action by itself, and the Canary calls only the workflow of
+# the issues, only on main and with the engine's secret: a wrong needs, if, output
+# or permission of a job, or a checkout of the wrong issue assistant, would show
+# first in those repositories, after a release.
+#
+# Each job below calls one reusable workflow of the commit, with the permissions of
+# its template and dry_run: the labels, the findings and the lifecycle in full. The
+# issues with the input smoke, which only this repository may pass: the job event
+# takes the issue of tests/fixtures/canary-issue.json, analyze is skipped, and apply
+# checks the answer of tests/fixtures/smoke-answer.json in place of the engine's;
+# the engine itself is the Canary's. The discussions get no event of theirs and skip
+# every job. On a pull request from a fork GitHub gives every job a token that can
+# only read, which a dry run needs.
+#
+# A called job that its condition skips passes as well as one that runs, so the last
+# job, "reusable workflows", the check that main requires, reads the jobs of its run
+# with scripts/workflow_test.py: each job passed, with the step that writes the plan
+# of its dry run, or was skipped where its call has to skip it. A pull request that
+# changes nothing that the dry runs run or read skips the calls, and the check passes
+# in seconds. docs/architecture.md describes it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: what the reusable workflows run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # the list of the files that a pull request changes
+    outputs:
+      run: ${{ steps.files.outputs.run }}
+    steps:
+      - name: Block every host but GitHub's
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /scripts/workflow_test.py
+          sparse-checkout-cone-mode: false
+      - name: Decide whether the reusable workflows run
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_TELEMETRY: "false"
+          EVENT: ${{ github.event_name }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          CHANGED: ${{ github.event.pull_request.changed_files }}
+        run: python3 scripts/workflow_test.py changes
+
+  # The permissions of each template: a called job gets at most those of its call.
+  # The reusable workflows of this commit, as the Canary calls that of the issues;
+  # actionlint doesn't know GitHub's syntax $/ for them yet.
+  labels:
+    name: reusable-labels.yml
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/reusable-labels.yml # zizmor: ignore[self-repository]
+    with:
+      dry_run: true
+
+  findings:
+    name: reusable-findings.yml
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/reusable-findings.yml # zizmor: ignore[self-repository]
+    with:
+      dry_run: true
+
+  lifecycle:
+    name: reusable-issue-lifecycle.yml
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    uses: ./.github/workflows/reusable-issue-lifecycle.yml # zizmor: ignore[self-repository]
+    with:
+      dry_run: true
+
+  issues:
+    name: reusable-issue-assistant.yml
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    permissions:
+      contents: read
+      issues: write
+      discussions: read
+    uses: ./.github/workflows/reusable-issue-assistant.yml # zizmor: ignore[self-repository]
+    with:
+      smoke: true
+      dry_run: true
+
+  discussions:
+    name: reusable-discussion-assistant.yml
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    permissions:
+      contents: read
+      issues: read
+      discussions: write
+    uses: ./.github/workflows/reusable-discussion-assistant.yml # zizmor: ignore[self-repository]
+    with:
+      dry_run: true
+
+  gate:
+    name: reusable workflows
+    needs: [changes, labels, findings, lifecycle, issues, discussions]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read # the jobs of this run
+      checks: read # the annotations of a failed job
+      contents: read
+    steps:
+      - name: Block every host but GitHub's
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+      # The script, and blueprint.py with the explanations for the PR coach.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /scripts/workflow_test.py
+            /.github/
+          sparse-checkout-cone-mode: false
+      - name: Check that each reusable workflow ran as a dry run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_TELEMETRY: "false"
+          RUN: ${{ github.run_id }}
+          CHANGES: ${{ needs.changes.result }}
+          WANTED: ${{ needs.changes.outputs.run }}
+        run: python3 scripts/workflow_test.py
+      # The PR coach: what failed, why it matters and how to fix it, in the summary
+      # of the job and as its annotation, from .github/checks.project.toml.
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: reusable workflows
+        run: python3 .github/blueprint.py coach explain "$CHECK"

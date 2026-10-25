@@ -268,6 +268,32 @@ docs = "https://github.com/google/atheris"
 autofix = """A failure that fuzzing finds needs a fix of the code, and a test with its
 input, by a person."""
 
+# ---------------------------------------------------------------- the Workflow test
+
+[check."reusable workflows"]
+title = "The reusable workflows as dry runs"
+problem = """A reusable workflow of `.github/workflows/reusable-*.yml`, which every
+repository that uses the action calls, didn't run as the Workflow test called it: a
+job failed, a job that has to run was skipped or is missing, a job that has to be
+skipped ran, or the step that writes the plan of its dry run didn't pass. The table in
+the summary of this check names each job, and the job's own check shows why it
+failed, such as a wrong `needs`, `if` or output, a missing permission, or the guard
+that stops a job when GitHub names no commit of its workflow."""
+why = """The tests and actionlint only read the reusable workflows, and the Action test
+runs the action by itself. A job that fails or skips its work here fails or does
+nothing in every repository after the next release, often without a red run: a job
+that its condition skips passes."""
+fix = """Open the check of the job that the table names, fix the reusable workflow or
+the action, and keep the names of `CALLS` in `scripts/workflow_test.py` in step with
+the jobs and steps when you rename one; `tests/test_workflow_test.py` checks them.
+The tests of the workflows run on your machine:"""
+commands = [
+  "python3 -m pytest tests/test_workflow_test.py tests/test_templates.py",
+]
+docs = "docs/architecture.md#the-workflow-test"
+autofix = """A job that doesn't run as it should needs a person, who knows what the
+reusable workflow should do; no bot changes a workflow that every repository runs."""
+
 # ---------------------------------------------------------------- the Canary
 
 [check."the AI's wait for its runner"]

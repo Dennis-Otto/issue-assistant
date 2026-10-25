@@ -25,6 +25,12 @@ name: Issue assistant
 # a repository's run would skip the AI. Every step and value of the canary names
 # inputs.canary, which every other caller leaves false; docs/architecture.md
 # describes it.
+#
+# The Workflow test, .github/workflows/workflow-test.yml, calls it on every pull
+# request that changes what it runs, with the input smoke: the same issue, no AI, and
+# apply as a dry run of the answer of tests/fixtures/smoke-answer.json in place of the
+# engine's. Every step and value of the smoke test names inputs.smoke, which every
+# other caller leaves false too.
 
 on:
   workflow_call:
@@ -35,6 +41,10 @@ on:
         default: false
       canary:
         description: Only for the Canary of the issue assistant, in its own repository; analyze the issue of tests/fixtures/canary-issue.json as a dry run, and fail where a run would skip the AI
+        type: boolean
+        default: false
+      smoke:
+        description: Only for the Workflow test of the issue assistant, in its own repository; check the answer of tests/fixtures/smoke-answer.json for the issue of tests/fixtures/canary-issue.json as a dry run, without the AI
         type: boolean
         default: false
     # The caller passes the engine's secrets by name. Only the job analyze sees their
@@ -61,10 +71,11 @@ permissions: {}
 jobs:
   event:
     name: Handle the event
-    # The canary runs for a schedule too, whose sender GitHub may name a bot.
+    # The canary runs for a schedule too, whose sender GitHub may name a bot, and the
+    # smoke test for a pull request, also one of Renovate.
     if: >-
       !github.event.repository.fork &&
-      (inputs.canary || github.event_name == 'workflow_dispatch' ||
+      (inputs.canary || inputs.smoke || github.event_name == 'workflow_dispatch' ||
         (!github.event.issue.pull_request &&
          github.event.sender.type != 'Bot' &&
          (github.event.action != 'edited' ||
@@ -78,9 +89,10 @@ jobs:
       issues: write
       discussions: read
     outputs:
-      # The canary names no issue: context and apply take that of its file.
+      # The canary and the smoke test name no issue: context and apply take that of
+      # their file.
       issue: ${{ steps.event.outputs.issue }}
-      mode: ${{ steps.event.outputs.mode || steps.canary.outputs.mode }}
+      mode: ${{ steps.event.outputs.mode || steps.canary.outputs.mode || steps.smoke.outputs.mode }}
       # The endpoints of Harden-Runner for analyze, on the runner of
       # ISSUE_ASSISTANT_AI_RUNNER alone.
       endpoints: ${{ steps.endpoints.outputs.endpoints }}
@@ -93,6 +105,20 @@ jobs:
           allowed-endpoints: >-
             api.github.com:443
             github.com:443
+      # The checkouts below take the issue assistant of the commit of this workflow,
+      # which GitHub names in the context of the job. Without one, actions/checkout
+      # would take the caller's own repository at its default branch, and the job
+      # would run the caller's action.yml in place of the release that it pins.
+      - name: Make sure that GitHub names the commit of this workflow
+        env:
+          WORKFLOW_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+        run: |
+          if [[ ! "$WORKFLOW_REPOSITORY" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$ || ! "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::GitHub gave this job no repository and commit of its reusable workflow: job.workflow_repository is '$WORKFLOW_REPOSITORY' and job.workflow_sha '$WORKFLOW_SHA', no full commit SHA. The checkout would take $GITHUB_REPOSITORY at its default branch in place of the issue assistant that the caller pins, so the job stops before it. Run it again; should it fail again, GitHub has changed the context of a job: please tell https://github.com/Dennis-Otto/issue-assistant/issues"
+            exit 1
+          fi
+          echo "The issue assistant of $WORKFLOW_REPOSITORY at $WORKFLOW_SHA."
       # Issue events always run the workflow and the settings of the default branch.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -117,6 +143,21 @@ jobs:
             /templates/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      # The smoke test checks the answer of a file for the canary's issue, which
+      # only the issue assistant's own repository has, and sets no labels.
+      - name: Take the issue of the smoke test
+        id: smoke
+        if: inputs.smoke
+        env:
+          CALLER: ${{ github.repository }}
+          WORKFLOW: ${{ fromJSON(toJSON(job)).workflow_repository }}
+        run: |
+          if [[ "${CALLER,,}" != "${WORKFLOW,,}" ]]; then
+            echo "::error::Only the Workflow test of $WORKFLOW may pass the input smoke, not $CALLER."
+            exit 1
+          fi
+          echo "The smoke test checks the answer of tests/fixtures/smoke-answer.json for the issue of tests/fixtures/canary-issue.json, without the AI."
+          echo "mode=triage" >> "$GITHUB_OUTPUT"
       # The canary's task is an analysis of the issue of its file, which only the
       # issue assistant's own repository has. The settings bot sets the variable to
       # on there, so a called workflow that sees no value doesn't see the variables
@@ -145,7 +186,7 @@ jobs:
           echo "mode=triage" >> "$GITHUB_OUTPUT"
       - name: Set labels and choose the next task
         id: event
-        if: ${{ !inputs.canary }}
+        if: ${{ !inputs.canary && !inputs.smoke }}
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         with:
           command: event
@@ -168,7 +209,9 @@ jobs:
   analyze:
     name: Analyze with the AI engine
     needs: event
+    # The smoke test runs no engine: apply takes the answer of its file.
     if: >-
+      !inputs.smoke &&
       needs.event.outputs.mode != '' &&
       needs.event.outputs.mode != 'none' &&
       vars.ISSUE_ASSISTANT_AI != 'off'
@@ -211,6 +254,20 @@ jobs:
             exit 1
           fi
           echo "Harden-Runner blocks example.com, a host outside .github/egress-firewall.yaml."
+      # The checkouts below take the issue assistant of the commit of this workflow,
+      # which GitHub names in the context of the job. Without one, actions/checkout
+      # would take the caller's own repository at its default branch, and the job
+      # would run the caller's action.yml in place of the release that it pins.
+      - name: Make sure that GitHub names the commit of this workflow
+        env:
+          WORKFLOW_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+        run: |
+          if [[ ! "$WORKFLOW_REPOSITORY" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$ || ! "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::GitHub gave this job no repository and commit of its reusable workflow: job.workflow_repository is '$WORKFLOW_REPOSITORY' and job.workflow_sha '$WORKFLOW_SHA', no full commit SHA. The checkout would take $GITHUB_REPOSITORY at its default branch in place of the issue assistant that the caller pins, so the job stops before it. Run it again; should it fail again, GitHub has changed the context of a job: please tell https://github.com/Dennis-Otto/issue-assistant/issues"
+            exit 1
+          fi
+          echo "The issue assistant of $WORKFLOW_REPOSITORY at $WORKFLOW_SHA."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -389,7 +446,13 @@ jobs:
   apply:
     name: Check and post the analysis
     needs: [event, analyze]
-    if: needs.analyze.outputs.answer != ''
+    # After an answer of the engine, or in the smoke test, which skips analyze, with
+    # the answer of its file; written out, what GitHub otherwise adds: both jobs
+    # passed.
+    if: >-
+      !cancelled() && needs.event.result == 'success' &&
+      (inputs.smoke ||
+        (needs.analyze.result == 'success' && needs.analyze.outputs.answer != ''))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -405,6 +468,20 @@ jobs:
           allowed-endpoints: >-
             api.github.com:443
             github.com:443
+      # The checkouts below take the issue assistant of the commit of this workflow,
+      # which GitHub names in the context of the job. Without one, actions/checkout
+      # would take the caller's own repository at its default branch, and the job
+      # would run the caller's action.yml in place of the release that it pins.
+      - name: Make sure that GitHub names the commit of this workflow
+        env:
+          WORKFLOW_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+        run: |
+          if [[ ! "$WORKFLOW_REPOSITORY" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$ || ! "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::GitHub gave this job no repository and commit of its reusable workflow: job.workflow_repository is '$WORKFLOW_REPOSITORY' and job.workflow_sha '$WORKFLOW_SHA', no full commit SHA. The checkout would take $GITHUB_REPOSITORY at its default branch in place of the issue assistant that the caller pins, so the job stops before it. Run it again; should it fail again, GitHub has changed the context of a job: please tell https://github.com/Dennis-Otto/issue-assistant/issues"
+            exit 1
+          fi
+          echo "The issue assistant of $WORKFLOW_REPOSITORY at $WORKFLOW_SHA."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -425,15 +502,23 @@ jobs:
             /templates/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      # The answer of the smoke test, in place of the engine's, from the caller's
+      # checkout: only the issue assistant's own repository has the file.
+      - name: Take the answer of the smoke test
+        id: smoke
+        if: inputs.smoke
+        run: |
+          answer="$(jq --compact-output . tests/fixtures/smoke-answer.json)"
+          echo "answer=$answer" >> "$GITHUB_OUTPUT"
       - name: Check the engine's answer and post it
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         # With the canary's issue, apply is a dry run whose summary shows the comment.
         env:
-          ISSUE_ASSISTANT_FIXTURE: ${{ inputs.canary && 'tests/fixtures/canary-issue.json' || '' }}
+          ISSUE_ASSISTANT_FIXTURE: ${{ (inputs.canary || inputs.smoke) && 'tests/fixtures/canary-issue.json' || '' }}
         with:
           command: apply
           issue: ${{ needs.event.outputs.issue }}
           mode: ${{ needs.event.outputs.mode }}
           engine: ${{ needs.analyze.outputs.engine }}
-          answer: ${{ needs.analyze.outputs.answer }}
+          answer: ${{ needs.analyze.outputs.answer || steps.smoke.outputs.answer }}
           dry-run: ${{ inputs.dry_run }}

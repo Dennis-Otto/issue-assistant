@@ -29,8 +29,11 @@ jobs:
          github.event.workflow_run.head_branch == github.event.repository.default_branch))
     # The job waits for the group, not the run: a run whose job is skipped, after
     # the scan of a pull request, never takes the place of one that waits.
+    # A dry run writes nothing, so it waits for no other run, and none waits for
+    # it or is replaced by it, such as by the dry runs of the Workflow test of
+    # the issue assistant's pull requests.
     concurrency:
-      group: findings
+      group: ${{ inputs.dry_run && format('findings-dry-run-{0}', github.run_id) || 'findings' }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -46,6 +49,20 @@ jobs:
           allowed-endpoints: >-
             api.github.com:443
             github.com:443
+      # The checkouts below take the issue assistant of the commit of this workflow,
+      # which GitHub names in the context of the job. Without one, actions/checkout
+      # would take the caller's own repository at its default branch, and the job
+      # would run the caller's action.yml in place of the release that it pins.
+      - name: Make sure that GitHub names the commit of this workflow
+        env:
+          WORKFLOW_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+        run: |
+          if [[ ! "$WORKFLOW_REPOSITORY" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$ || ! "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::GitHub gave this job no repository and commit of its reusable workflow: job.workflow_repository is '$WORKFLOW_REPOSITORY' and job.workflow_sha '$WORKFLOW_SHA', no full commit SHA. The checkout would take $GITHUB_REPOSITORY at its default branch in place of the issue assistant that the caller pins, so the job stops before it. Run it again; should it fail again, GitHub has changed the context of a job: please tell https://github.com/Dennis-Otto/issue-assistant/issues"
+            exit 1
+          fi
+          echo "The issue assistant of $WORKFLOW_REPOSITORY at $WORKFLOW_SHA."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

@@ -23,9 +23,11 @@ topics = [
   "llm-security",
 ]
 
-# Checks that only this project runs, such as its end-to-end tests:
-# [branch]
-# required_checks = ["e2e"]
+# Checks that only this project runs: the dry runs of the reusable workflows that
+# every repository calls (.github/workflows/workflow-test.yml), whose last job
+# reports also when a pull request changes nothing that they run.
+[branch]
+required_checks = ["reusable workflows"]
 
 # Actions that only the workflows of this project run; `blueprint.py settings check`
 # names each one that the list lacks. The Codex engine runs openai/codex-action in
