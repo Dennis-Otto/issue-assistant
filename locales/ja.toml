@@ -81,7 +81,7 @@ security = """\
   ー]({policy})の説明に従って非公開で報告し、ここから詳細を削除してください。"""
 footer = """\
   <sub>🤖 コード、ドキュメント、過去の Issue に基づく {engine} による自動の最初の分析\
-  です。誤っている可能性があり、判断するのはメンテナーです。{labels} {feedback}</sub>"""
+  です。誤っている可能性があり、判断するのはメンテナーです。{labels}{feedback}</sub>"""
 labels = "ラベル：{labels}。"
 about = "[アシスタントの仕組み]({notice})"
 feedback = """\
@@ -122,7 +122,7 @@ feedback = """\
 "discussion.footer" = """\
   <sub>🤖 コード、ドキュメント、過去の Issue とディスカッションに基づく {engine} によ\
   る自動の最初の回答です。誤っている可能性があるため、頼る前に確認してください。\
-  {answerable} {feedback}</sub>"""
+  {answerable}{feedback}</sub>"""
 "discussion.answerable" = "ご質問の答えになっていれば、回答としてマークできます。"
 reminder = """\
   @{author} さん、リマインダーです。この Issue は、{questions}へのご回答をまだお待ちし\

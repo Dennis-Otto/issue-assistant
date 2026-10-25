@@ -289,7 +289,7 @@ The assistant answers every reporter in their language. Its own words, from the 
 | `ru` | Russian | вы | 2 ноября 2026 г. |
 | `tr` | Turkish | siz | 2 Kasım 2026 |
 | `uk` | Ukrainian | ви | 2 листопада 2026 р. |
-| `zh` | Chinese, in the simplified script | 您 | 2026年11月2日 |
+| `zh` | Simplified Chinese | 您 | 2026年11月2日 |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/how-the-assistant-chooses-the-language-of-a-comment.dark.svg">

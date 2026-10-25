@@ -342,7 +342,10 @@ def test_every_catalog_has_each_text_of_english_with_its_placeholders(path):
     for key, template in catalog["text"].items():
         english = ENGLISH["text"].get(key, ENGLISH["text"]["days.other"])
         assert fields(template) == fields(english), (path.stem, key)
-    assert re.fullmatch(r"[a-z]{2}", path.stem) and catalog["name"].isalpha()
+    assert (
+        re.fullmatch(r"[a-z]{2}", path.stem)
+        and catalog["name"].replace(" ", "").isalpha()
+    )
     assert len(set(catalog["months"])) == 12
     assert fields(catalog["date"]) == {"day", "month", "year"}
     stopwords = catalog["stopwords"]
@@ -1979,6 +1982,9 @@ def test_the_discussions_end_at_their_limit(config):
         ("Bug: the card, the CARD and 2 cards don't work", "", ["card", "cards"]),
         ("Die Karte bleibt leer und Fehler", "Error", ["karte", "bleibt", "leer"]),
         ("Bug", "", []),
+        # Stopwords of a catalog that are also words of technical English stay.
+        ("Jest tests hang on NIC reset", "", ["jest", "tests", "hang", "nic", "reset"]),
+        ("Bile ama mock", "", ["bile", "ama", "mock"]),
         # A word too long for GitHub's query goes too.
         ("Card " + "x" * 41 + " empty " + "y" * 40, "", ["card", "empty", "y" * 40]),
     ],
@@ -6093,13 +6099,17 @@ def test_no_text_names_a_period_of_its_own():
     """The periods are settings: a number of days in a text would contradict a
     repository that changed them."""
     units = {
-        assistant.days(count, language).removeprefix(f"{count} ")
+        re.sub(r"^\d+\s*", "", assistant.days(count, language))
         for language in assistant.LANGUAGES
-        for count in (1, 2)
+        for count in (1, 2, 5)
     }
+    alternatives = "|".join(map(re.escape, sorted(units, key=len, reverse=True)))
+    # A digit before a unit, also without a space as in 30天 or 30일, and the
+    # English and German number words with a space, as those languages write them.
     period = re.compile(
-        r"\b(\d+|one|two|three|four|five|ein|einem|zwei|drei|vier|fünf) "
-        rf"(Tage|{'|'.join(sorted(units))})\b"
+        rf"\d\s*(?:{alternatives})"
+        r"|\b(?:one|two|three|four|five|ein|einem|zwei|drei|vier|fünf) "
+        rf"(?:Tage|{alternatives})\b"
     )
     for language, texts in assistant.TEXT.items():
         for key, text in texts.items():

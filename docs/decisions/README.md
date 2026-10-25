@@ -25,3 +25,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0017](0017-engines-without-an-action-of-their-own.md) | Four engines, and the command lines without a fitting action run in the action | accepted |
 | [0018](0018-answer-questions-in-discussions.md) | A first answer in Discussions, from a workflow of its own that alone may write there | accepted |
 | [0019](0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md) | A repository may name another runner for the AI, behind Harden-Runner with the hosts of its firewall policy, should the firewall runner be gone | accepted |
+| [0020](0020-letters-of-a-script-count-as-stopwords.md) | Letters of a script of their own count as stopwords in the guess of the language, and Russian and Ukrainian get a third form of a number of days | accepted |

@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=zh questions=1 engine=claude -->
 
-感谢您的报告，@alex-demo！ 我是本仓库的议题助手，先为您做了初步分析。维护者也会阅读每一个议题。
+感谢您的报告，@alex-demo！我是本仓库的议题助手，先为您做了初步分析。维护者也会阅读每一个议题。
 
 ### 摘要
 
@@ -38,5 +38,5 @@
 
 </details>
 
-<sub>🤖 由 Claude 根据代码、文档和以往的议题自动生成的初步分析。它可能有误，由维护者做决定。标签：`connectivity`。 [助手的工作方式](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · 对这条评论点 👍 或 👎，可以让维护者知道它是否有帮助。</sub>
+<sub>🤖 由 Claude 根据代码、文档和以往的议题自动生成的初步分析。它可能有误，由维护者做决定。标签：`connectivity`。[助手的工作方式](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · 对这条评论点 👍 或 👎，可以让维护者知道它是否有帮助。</sub>
 

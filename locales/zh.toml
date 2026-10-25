@@ -9,7 +9,7 @@
 # code of ISO 639-1, such as fr.toml.
 
 # The language in English, as the prompt names it to the AI.
-name = "Chinese"
+name = "Simplified Chinese"
 # How the comments address a reporter, which the AI does too; empty when the
 # language has one way only.
 address = "您"
@@ -73,7 +73,7 @@ security = """\
   告，并删除这里的细节。"""
 footer = """\
   <sub>🤖 由 {engine} 根据代码、文档和以往的议题自动生成的初步分析。它可能有误，由维护\
-  者做决定。{labels} {feedback}</sub>"""
+  者做决定。{labels}{feedback}</sub>"""
 labels = "标签：{labels}。"
 about = "[助手的工作方式]({notice})"
 feedback = "对这条评论点 👍 或 👎，可以让维护者知道它是否有帮助。"
@@ -104,7 +104,7 @@ feedback = "对这条评论点 👍 或 👎，可以让维护者知道它是否
   址。如果您不想公开，请编辑帖子，并从编辑历史中删除早期版本。"""
 "discussion.footer" = """\
   <sub>🤖 由 {engine} 根据代码、文档以及以往的议题和讨论自动生成的初步回答。它可能有\
-  误，依赖它之前请先核实。{answerable} {feedback}</sub>"""
+  误，依赖它之前请先核实。{answerable}{feedback}</sub>"""
 "discussion.answerable" = "如果它回答了您的问题，您可以将其标记为答案。"
 reminder = """\
   @{author}，友情提醒：本议题仍在等待您对{questions}的回复。如果没有回复，它将于{date}\

@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=ja questions=1 engine=claude -->
 
-@alex-demo さん、ご報告ありがとうございます！ このリポジトリの Issue アシスタントです。最初の確認を行いました。メンテナーもすべての Issue を読んでいます。
+@alex-demo さん、ご報告ありがとうございます！このリポジトリの Issue アシスタントです。最初の確認を行いました。メンテナーもすべての Issue を読んでいます。
 
 ### 概要
 
@@ -38,5 +38,5 @@
 
 </details>
 
-<sub>🤖 コード、ドキュメント、過去の Issue に基づく Claude による自動の最初の分析です。誤っている可能性があり、判断するのはメンテナーです。ラベル：`connectivity`。 [アシスタントの仕組み](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · このコメントに 👍 または 👎 を付けると、役に立ったかどうかがメンテナーに伝わります。</sub>
+<sub>🤖 コード、ドキュメント、過去の Issue に基づく Claude による自動の最初の分析です。誤っている可能性があり、判断するのはメンテナーです。ラベル：`connectivity`。[アシスタントの仕組み](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · このコメントに 👍 または 👎 を付けると、役に立ったかどうかがメンテナーに伝わります。</sub>
 

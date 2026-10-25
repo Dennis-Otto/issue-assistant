@@ -566,8 +566,14 @@ HAN = re.compile("[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 FEW = frozenset({"ru", "uk"})
 # Words that tell little of what an issue is about, which the search for older
 # issues like it leaves out.
+# The stopwords of every catalog are among them, except those that are also common
+# words of technical English titles, such as the Jest test framework, a network
+# card (NIC), "ama" and "bile": they still tell Polish and Turkish, but the search
+# keeps them.
+TECHNICAL_WORDS = frozenset({"jest", "nic", "ama", "bile"})
 COMMON_WORDS = frozenset(
     frozenset[str]().union(*(locale.stopwords for locale in LOCALES.values()))
+    - TECHNICAL_WORDS
     | {
         "in", "no",
         "are", "was", "were", "from", "into", "doesn", "don", "isn", "won",
@@ -5251,6 +5257,14 @@ def thanks(language: str, kind: str, author: str) -> str:
     )
 
 
+def sentences(first: str, then: str) -> str:
+    """Two sentences as one paragraph, with a space between them as most languages
+    write it, but none after a full-width mark such as 。 or ！, after which Chinese
+    and Japanese go straight on."""
+    full_width = unicodedata.east_asian_width(first[-1:] or " ") in "FW"
+    return f"{first}{'' if full_width else ' '}{then}"
+
+
 def bullets(items: Iterable[str]) -> str:
     """A Markdown list of the items, each with all its lines.
 
@@ -5368,7 +5382,7 @@ def render_analysis(
                 else {}
             ),
         ),
-        f"{thanks(language, answer['kind'], author)} {say(language, 'intro')}",
+        sentences(thanks(language, answer["kind"], author), say(language, "intro")),
     ]
     if answer["sensitive_data"] != "none":
         parts.append(say(language, f"sensitive.{answer['sensitive_data']}"))
