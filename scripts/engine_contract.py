@@ -42,7 +42,7 @@ import sys
 import threading
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -537,7 +537,7 @@ def help_of(command: Sequence[str], home: Path) -> str:
 
 
 def run_problems(
-    pin: Pin, result: subprocess.CompletedProcess[str], settings: Path
+    pin: Pin, result: subprocess.CompletedProcess[str], settings: PurePath
 ) -> list[str]:
     """A run without a key must fail asking for the key, and say nothing of its
     settings: a command line names the file of its settings only to refuse it or to
@@ -598,7 +598,7 @@ def check_cli(pin: Pin, work: Path) -> tuple[str, list[str]]:
     result = assistant.run_cli(
         engine, cli, command_path, runs[0], PROMPT, checkout, work
     )
-    problems += run_problems(pin, result, work / assistant.CLI_SETTINGS)
+    problems += run_problems(pin, result, assistant.settings_path(cli, work))
     checked.append(f"a run without {engine.credentials[0]}")
     return ", ".join(checked), problems
 

@@ -36,7 +36,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from fnmatch import fnmatchcase
 from functools import cache, partial
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 from statistics import median
 from typing import Any
 from urllib.parse import quote, unquote, urlencode, urlsplit
@@ -734,6 +734,9 @@ class Cli:
     settings: dict[str, Any] = field(default_factory=dict)
     settings_variable: str = ""
     turns: str = ""
+    # Whether it takes that file only when root owns it and every folder around it,
+    # and nobody else may write to them; `analyze` then writes it with sudo.
+    root_settings: bool = False
     # Further variables, such as those that turn off telemetry and updates.
     variables: dict[str, str] = field(default_factory=dict)
     # The field of the JSON that it prints that holds the answer, next to a field
@@ -871,6 +874,9 @@ ENGINES = {
                 "context": {"fileFiltering": {"respectGitIgnore": False}},
             },
             settings_variable="GEMINI_CLI_SYSTEM_SETTINGS_PATH",
+            # It skips system settings that another user than root could change,
+            # with no more than a warning, and would run without them.
+            root_settings=True,
             turns="model.maxSessionTurns",
             variables={"GEMINI_TELEMETRY_ENABLED": "false"},
             answer="response",
@@ -9019,6 +9025,9 @@ CLI_VERSION = re.compile(r"\d+\.\d+\.\d+")
 ENGINE_MINUTES = 15
 # The file of the settings of an engine's command line, in the folder of its run.
 CLI_SETTINGS = "settings.json"
+# Where a command line that takes its settings only from root finds those of a run:
+# in a folder of the run below this one, which root owns and nobody else may write to.
+ROOT_SETTINGS = PurePosixPath("/etc/issue-assistant")
 
 
 def cli_settings(cli: Cli, run: Run) -> dict[str, Any]:
@@ -9043,7 +9052,7 @@ def cli_command(cli: Cli, command_path: str, run: Run, prompt: str) -> list[str]
 
 
 def cli_environment(
-    engine: Engine, cli: Cli, home: Path, settings: Path
+    engine: Engine, cli: Cli, home: Path, settings: PurePath
 ) -> dict[str, str]:
     """The variables of an engine's command line: a home of its own, outside the
     checkout, its settings, and of the job's variables only the engine's secret."""
@@ -9187,9 +9196,12 @@ def run_cli(
     scripts/engine_contract.py runs it so too, without the secret, so that the check
     of the settings and the flags runs them where `analyze` does.
     """
-    home, settings = work / "home", work / CLI_SETTINGS
+    home, written = work / "home", work / CLI_SETTINGS
     home.mkdir(parents=True, exist_ok=True)
-    settings.write_text(json.dumps(cli_settings(cli, run)), encoding="utf-8")
+    written.write_text(json.dumps(cli_settings(cli, run)), encoding="utf-8")
+    settings = settings_path(cli, work)
+    if cli.root_settings:
+        install_as_root(written, settings)
     try:
         return subprocess.run(
             cli_command(cli, command_path, run, prompt),
@@ -9206,15 +9218,62 @@ def run_cli(
         raise AssistantError(
             f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."
         ) from None
+    finally:
+        if cli.root_settings:
+            as_root(["rm", "-rf", str(settings.parent)])
+
+
+def settings_path(cli: Cli, work: Path) -> PurePath:
+    """Where the command line reads the settings of the run in the folder `work`."""
+    if cli.root_settings:
+        return ROOT_SETTINGS / work.name / CLI_SETTINGS
+    return work / CLI_SETTINGS
+
+
+def as_root(command: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run a command as root: with sudo, which GitHub's runners have, unless the job
+    runs as root already."""
+    root = getattr(os, "geteuid", lambda: -1)() == 0
+    command = command if root else ["sudo", "--non-interactive", *command]
+    try:
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(command, 127, "", f"no {command[0]}")
+
+
+def install_as_root(source: Path, target: PurePath) -> None:
+    """Copy the settings to `target`, in a new folder of root's that nobody else may
+    write to, as the folder around it; a command line that takes its settings only
+    so would otherwise run without them."""
+    folder = target.parent
+    for command in (
+        ["install", "-d", "-m", "755", "-o", "root", "-g", "root"]
+        + [str(folder.parent), str(folder)],
+        ["install", "-m", "644", "-o", "root", "-g", "root", str(source), str(target)],
+    ):
+        result = as_root(command)
+        if result.returncode:
+            raise AssistantError(
+                f"The settings that keep the engine's command line to reading must "
+                f"belong to root, and {' '.join(command[:2])} as root failed: "
+                f"{one_line(result.stderr)[-300:] or 'no message'}. analyze needs "
+                "sudo, which GitHub's runners have."
+            )
 
 
 def runner_folder() -> Path:
     """A new folder for a run of an engine's command line, in the temporary folder
     of the runner, that only the user of the runner may enter.
 
-    A command line may skip settings that keep it to reading when another user may
-    write to their folder or to one around it; scripts/engine_contract.py makes its
-    folders here too, so that its run without a key shows when one does.
+    scripts/engine_contract.py runs the engines' command lines in such a folder too,
+    as `analyze` does.
     """
     return Path(
         tempfile.mkdtemp(

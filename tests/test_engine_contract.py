@@ -903,3 +903,26 @@ def test_the_script_exits_with_the_status_of_its_command(monkeypatch):
             str(ROOT / "scripts" / "engine_contract.py"), run_name="__main__"
         )
     assert stop.value.code == 2
+
+
+def test_check_cli_looks_for_the_settings_where_gemini_reads_them(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(assistant, "install_cli", fake_install([]))
+    monkeypatch.setattr(contract, "help_of", lambda command, home: GEMINI_HELP)
+    schema = strict_schema(SETTINGS)
+    monkeypatch.setattr(contract, "settings_schema", lambda pin, path: schema)
+    skipped = (
+        "Security Warning: Skipping system settings file "
+        f"'/etc/issue-assistant/{tmp_path.name}/settings.json': Directory "
+        "'/etc/issue-assistant' is not owned by root (uid 0)."
+    )
+    monkeypatch.setattr(
+        assistant,
+        "run_cli",
+        lambda *arguments: completed(GEMINI_WITHOUT_KEY, skipped, 41),
+    )
+    _, (problem,) = contract.check_cli(GEMINI_PIN, tmp_path)
+    assert problem.startswith(
+        "@google/gemini-cli@0.64.0 refused or skipped its settings: Security Warning:"
+    )
