@@ -54,7 +54,7 @@ A GitHub Action that looks after the issues of a repository:
 
 The maintainer reads every issue and has the last word.
 
-**Used by** [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), the website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and the issue assistant itself.
+**Used by** [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), the website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and the issue assistant itself.
 
 The [documentation website](https://dennis-otto.github.io/issue-assistant/) has this documentation on a page for each topic, together with a reference of every setting and of every input and output of the action, every comment that the assistant posts in English and German, the architecture, the security design, a comparison with other tools and the roadmap.
 
@@ -894,13 +894,15 @@ The summary of each run says what the assistant did and why; the runs are under 
 
 <!-- --8<-- [start:compare] -->
 
-Other tools cover parts of this; only GitHub Agentic Workflows, and the workflows built on it, share its design. Checked on 2026-10-13:
+Other tools cover parts of this. GitHub Agentic Workflows and the workflows built on it share its design, and the triage examples of the Gemini CLI action share its split between an AI that reads and a job that writes. Checked on 2026-10-25:
 
 - **The issue examples of the [Claude Code action](https://github.com/anthropics/claude-code-action/tree/main/examples)** let the AI set labels and post comments itself, with a token that writes to issues and no check of its answer before it is posted.
+- **The [triage examples of the Gemini CLI action](https://github.com/google-github-actions/run-gemini-cli/tree/main/examples/workflows/issue-triage)** give Gemini a token that only reads, and a separate job sets the labels that it chose, if they exist. They only label: no analysis, no question for the reporter, no duplicates and no reminders.
+- **[GitHub's AI assessment labeler](https://docs.github.com/en/issues/tracking-your-work-with-issues/administering-issues/triaging-an-issue-with-ai)** assesses an issue when a maintainer adds a label, and posts the model's answer unchecked as a comment, from a job that writes to issues. It ran on GitHub Models, which GitHub retired on 2026-07-30.
 - **[GitHub Agentic Workflows](https://github.github.com/gh-aw/)** (gh-aw) has the closest design: an agent with a read-only token behind a firewall, and writes through limited *safe outputs* after a second AI pass looks for threats. It is a general framework in version 0.x, in which you write and compile the triage workflow yourself; reminders, duplicates that close and the closing with the release are not part of its triage.
 - **[actions/stale](https://github.com/actions/stale)** closes inactive issues without AI, by default 60 and then 7 days after the last activity. It writes no analysis, and limiting it to issues that wait for their reporter takes a label such as `needs-info`, which something else has to set.
 - **[Dosu](https://dosu.dev/pricing)** is a hosted service for documentation now. Its labels and its stale bot became open-source workflows on gh-aw, which run with your own engine.
-- **[GitHub's duplicate detection](https://github.blog/changelog/2026-06-18-duplicate-detection-and-issue-fields-mcp-support-for-github-issues)**, in public preview, suggests up to three similar issues while a reporter writes. It goes well with the assistant, which also finds duplicates of an issue that exists.
+- **[GitHub's duplicate detection](https://github.blog/changelog/2026-06-18-duplicate-detection-and-issue-fields-mcp-support-for-github-issues/)**, in public preview, suggests up to three similar issues while a reporter writes. It goes well with the assistant, which also finds duplicates of an issue that exists.
 
 <!-- --8<-- [end:compare] -->
 

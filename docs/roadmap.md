@@ -6,15 +6,17 @@ What the issue assistant intends to do in the next twelve months, until October 
 
 ## The next twelve months
 
-- **The repositories that use it.** The assistant looks after the issues of [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), the website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and its own. What their maintainers miss in practice comes first.
-- **The GitHub Marketplace.** A listing as *Read-only issue assistant*, since another action has the name Issue Assistant, so that maintainers find the action where they look for actions.
+- **The repositories that use it.** The assistant looks after the issues of [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), the website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and its own. What their maintainers miss in practice comes first.
+- **The GitHub Marketplace, next.** The action isn't listed yet. Its `action.yml` already has the name, the description and the icon of a listing as *Read-only issue assistant*, since another action has the name Issue Assistant. GitHub lists an action only from the form of a release on its website, with *Publish this Action to the GitHub Marketplace* ticked, the agreement of the Marketplace accepted and a second factor of sign-in, so Dennis Otto publishes the listing by hand. Then maintainers find the action where they look for actions.
 - **Changes of GitHub and of the engine.** New versions of GitHub's API, of the egress firewall and of the Claude Code action are taken up once the tests and the action's own run pass with them.
 - **More guards against steered answers.** Every kind of text that gets past the cleaning becomes a test with its fix, as the property tests and the fuzzing found so far.
 - **Fixes and security** come before anything new; [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md) has the times.
 
 ## Ideas
 
-- **Further engines,** such as OpenAI Codex or the GitHub Copilot CLI, when a repository needs one. The [README](https://github.com/Dennis-Otto/issue-assistant#engines) describes what an engine needs: a step that only reads, and the same checks of its answer.
+- **A tier without a secret.** GitHub Models let a workflow call a model with its own token, until GitHub retired it on 2026-07-30. If GitHub again offers models to the token of a workflow, a lighter analysis of labels, missing information and duplicates could run with no secret at all.
+- **More catalogs of languages,** each checked by a speaker of the language, as the reporters of the repositories that use it need them. A reporter in a language without a catalog already gets the analysis in their language, with the words of the assistant in English; the [README](https://github.com/Dennis-Otto/issue-assistant#languages) has how to add one.
+- **Another engine,** when a repository needs one. The [README](https://github.com/Dennis-Otto/issue-assistant#add-an-engine) describes what an engine needs: a step that only reads, and the same checks of its answer.
 
 ## Not planned
 

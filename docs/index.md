@@ -84,7 +84,7 @@ hide:
 
 The maintainer reads every issue and has the last word.
 
-**Used by** [ha-autodarts](https://github.com/Dennis-Otto/ha-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), the website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and the issue assistant itself. **See it live:** [the first analysis of a feature request in Paperless Sync](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710), posted 2 minutes 39 seconds after the issue was opened.
+**Used by** [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), the website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and the issue assistant itself. **See it live:** [the first analysis of a feature request in Paperless Sync](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710), posted 2 minutes 39 seconds after the issue was opened.
 
 ## Careful by design
 
@@ -184,7 +184,7 @@ What the assistant does on its own, so that an answer never makes matters worse:
 
     ---
 
-    The Claude Code action's examples, GitHub Agentic Workflows, actions/stale, Dosu and GitHub's duplicate detection, cell by cell with sources.
+    The examples of the Claude Code and Gemini CLI actions, GitHub's AI assessment labeler, GitHub Agentic Workflows, actions/stale, Dosu and GitHub's duplicate detection, cell by cell with sources.
 
     [:octicons-arrow-right-24: Comparison](comparison.md)
 

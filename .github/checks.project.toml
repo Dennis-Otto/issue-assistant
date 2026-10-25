@@ -176,7 +176,7 @@ fix = """Read the error in the log, and fix `context` in `issue_assistant.py`, w
 test in `tests/test_assistant.py`. It runs on your machine with the GitHub CLI signed
 in, and writes its files into `.issue-assistant/`:"""
 commands = [
-  "GH_REPO=Dennis-Otto/ha-autodarts python3 issue_assistant.py context --issue 105 --mode triage",
+  "GH_REPO=Dennis-Otto/homedarts-for-autodarts python3 issue_assistant.py context --issue 105 --mode triage",
 ]
 docs = "docs/architecture.md#how-the-requests-to-github-are-tested"
 autofix = """What the AI should read of an issue is the decision of a person."""

@@ -4,7 +4,9 @@ anthropics
 claude
 dennis
 Dosu
+gemini
 PromptPwnd
 Pwnd
+triaging
 WCAG
 xhigh
