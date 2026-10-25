@@ -71,6 +71,16 @@ def action_of(step, **changes):
     return action
 
 
+SETTINGS_READ = contract.settings_read
+
+
+@pytest.fixture(autouse=True)
+def settings_read(monkeypatch):
+    """The run with broken settings, which Gemini refuses: its own tests patch the
+    run of the command line instead."""
+    monkeypatch.setattr(contract, "settings_read", lambda *arguments: [])
+
+
 def completed(stdout="", stderr="", code=0):
     return subprocess.CompletedProcess(["cli"], code, stdout, stderr)
 
@@ -653,7 +663,8 @@ def test_check_cli_runs_the_command_line_as_analyze_runs_it(monkeypatch, tmp_pat
     assert problems == []
     assert checked == (
         f"4 flag(s), {contract.keys_of(SETTINGS)} key(s) of its settings, a run "
-        "without GEMINI_API_KEY"
+        "without GEMINI_API_KEY, a run with broken settings in "
+        "GEMINI_CLI_SYSTEM_SETTINGS_PATH"
     )
     assert installed == [("@google/gemini-cli", "0.64.0", "cli")]
     assert helped == [["/bin/gemini"]]
@@ -926,3 +937,100 @@ def test_check_cli_looks_for_the_settings_where_gemini_reads_them(
     assert problem.startswith(
         "@google/gemini-cli@0.64.0 refused or skipped its settings: Security Warning:"
     )
+
+
+@pytest.fixture
+def placed(monkeypatch):
+    """The commands that place the settings as root, which succeed."""
+    commands = []
+
+    def run(command):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(assistant, "as_root", run)
+    return commands
+
+
+def probe_run(monkeypatch, outcome):
+    """Runs of the command line with broken settings, which end with `outcome`."""
+    calls = []
+
+    def run(command, **options):
+        settings = options["env"]["GEMINI_CLI_SYSTEM_SETTINGS_PATH"]
+        calls.append((command, options))
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome(settings)
+
+    monkeypatch.setattr(contract.subprocess, "run", run)
+    return calls
+
+
+def probe(tmp_path):
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    run = assistant.Run("auto", contract.TURNS, "1", "")
+    return SETTINGS_READ(GEMINI_PIN, "/bin/gemini", run, checkout, tmp_path)
+
+
+def test_gemini_refuses_broken_settings_in_the_file_of_its_variable(
+    monkeypatch, tmp_path, placed
+):
+    def refused(settings):
+        error = f"Error in {settings}: Settings file is not a valid JSON object."
+        return completed(stderr=error, code=1)
+
+    calls = probe_run(monkeypatch, refused)
+    assert probe(tmp_path) == []
+    folder = f"/etc/issue-assistant/{tmp_path.name}-probe"
+    ((command, options),) = calls
+    assert command[0] == "/bin/gemini"
+    assert (
+        options["env"]["GEMINI_CLI_SYSTEM_SETTINGS_PATH"] == f"{folder}/settings.json"
+    )
+    assert options["env"]["HOME"] == str(tmp_path / f"{tmp_path.name}-probe" / "home")
+    assert options["timeout"] == contract.SECONDS
+    written = tmp_path / f"{tmp_path.name}-probe" / "settings.json"
+    assert written.read_text("utf-8") == contract.BROKEN_SETTINGS
+    # Placed as root, as analyze places them, and gone after the run.
+    assert placed[-1] == ["rm", "-rf", folder]
+    assert placed[1][-1] == f"{folder}/settings.json"
+
+
+@pytest.mark.parametrize(
+    ("outcome", "printed"),
+    [
+        # It no longer reads the variable, and stops at the key.
+        (lambda settings: completed(GEMINI_WITHOUT_KEY, code=41), "Please set"),
+        # It skips the file, with a warning.
+        (
+            lambda settings: completed(
+                stderr=f"Security Warning: Skipping system settings file "
+                f"'{settings}': not owned by root",
+                code=41,
+            ),
+            "Security Warning: Skipping",
+        ),
+        # It names the file, but runs on.
+        (lambda settings: completed(stderr=f"Error in {settings}"), "Error in"),
+        (lambda settings: completed(code=1), "no output"),
+        (
+            subprocess.TimeoutExpired("gemini", contract.SECONDS),
+            f"no end within {contract.SECONDS} seconds",
+        ),
+    ],
+)
+def test_gemini_that_takes_broken_settings_fails_the_check(
+    monkeypatch, tmp_path, placed, outcome, printed
+):
+    probe_run(monkeypatch, outcome)
+    (problem,) = probe(tmp_path)
+    assert problem.startswith(
+        "@google/gemini-cli@0.64.0 took broken settings in the file that "
+        "GEMINI_CLI_SYSTEM_SETTINGS_PATH names without refusing them: it no longer "
+        "reads that file, or skips it, and would run without its settings, "
+        "silently: "
+    )
+    assert printed in problem
+    assert placed[-1][:2] == ["rm", "-rf"]

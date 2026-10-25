@@ -452,13 +452,13 @@ def test_analyze_runs_the_engine_with_its_secret_alone(
                 "-m",
                 "755",
                 "-o",
-                "root",
+                "0",
                 "-g",
-                "root",
+                "0",
                 "/etc/issue-assistant",
             ]
             + [folder],
-            ["install", "-m", "644", "-o", "root", "-g", "root"]
+            ["install", "-m", "644", "-o", "0", "-g", "0"]
             + [str(work / "settings.json"), f"{folder}/settings.json"],
             ["rm", "-rf", folder],
         ]
@@ -505,11 +505,13 @@ def test_gemini_doesn_t_run_when_root_can_t_take_its_settings(
         )
     assert str(refused.value) == (
         "The settings that keep the engine's command line to reading must belong to "
-        "root, and install -d as root failed: sudo: a password is required. analyze "
-        "needs sudo, which GitHub's runners have."
+        "root, and install -d as root failed: sudo: a password is required. It "
+        "needs sudo without a password prompt: GitHub's runners have it; on your "
+        "computer, run sudo -v first."
     )
-    # npm installed it, and nothing ran it.
-    assert len(run.calls) == 1 and len(commands) == 1
+    # npm installed it, nothing ran it, and what the copy may have made goes.
+    assert len(run.calls) == 1
+    assert commands[1:] == [["rm", "-rf", f"/etc/issue-assistant/{tmp_path.name}"]]
 
 
 @pytest.mark.parametrize(

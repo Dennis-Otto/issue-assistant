@@ -306,8 +306,9 @@ problem = """A command line of an engine, at the version that the workflow pins,
 doesn't list a flag of its step in its `--help` or doesn't take its value, the JSON
 schema of the Gemini CLI's settings of that version doesn't have a key of `settings`
 in `ENGINES` of `issue_assistant.py`, or a run without a key stopped at something other
-than the key or complained about its settings; the log names the version, the flag,
-the key or what it printed."""
+than the key or complained about its settings, or a run with broken settings in the
+file that the Gemini CLI's variable names didn't refuse them; the log names the
+version, the flag, the key or what it printed."""
 why = """The Gemini CLI ignores a key of its settings that it doesn't know, and skips
 its settings in a folder that others may write to, Codex ignores a key of its
 configuration that it doesn't know, and a flag that the help doesn't list can go in
@@ -317,8 +318,10 @@ fix = """Read the release notes of the command line and change the flag or the k
 `ENGINES` of `issue_assistant.py`, with its test in `tests/test_engines.py` and the
 rows in `docs/security.md`, or keep the old pin until it is clear what replaces it. A
 run that stopped elsewhere shows in the log what the command line printed. The check
-runs on Linux or macOS, with npm and the GitHub CLI signed in:"""
+runs on Linux or macOS, with npm, the GitHub CLI signed in and sudo, which writes the
+Gemini CLI's settings as root:"""
 commands = [
+  "sudo -v",
   "python3 scripts/engine_contract.py clis",
 ]
 docs = "docs/security.md#the-boundary-of-each-engine"

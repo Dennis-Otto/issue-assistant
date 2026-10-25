@@ -31,6 +31,7 @@ import tomllib
 import unicodedata
 from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Iterator
+from contextlib import ExitStack, contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
@@ -9196,28 +9197,43 @@ def run_cli(
     scripts/engine_contract.py runs it so too, without the secret, so that the check
     of the settings and the flags runs them where `analyze` does.
     """
-    home, written = work / "home", work / CLI_SETTINGS
+    home = work / "home"
     home.mkdir(parents=True, exist_ok=True)
-    written.write_text(json.dumps(cli_settings(cli, run)), encoding="utf-8")
+    with placed_settings(cli, json.dumps(cli_settings(cli, run)), work) as settings:
+        try:
+            return subprocess.run(
+                cli_command(cli, command_path, run, prompt),
+                cwd=root,
+                env=cli_environment(engine, cli, home, settings),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=ENGINE_MINUTES * 60,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            raise AssistantError(
+                f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."
+            ) from None
+
+
+@contextmanager
+def placed_settings(cli: Cli, text: str, work: Path) -> Iterator[PurePath]:
+    """Write the settings `text` of a run in the folder `work` to where the command
+    line reads them, and yield that path; for a command line that takes them only
+    from root, into a folder of root's, which goes again when the run ends, also
+    after a copy that failed half way.
+
+    `analyze` and `evaluate` place them so, and scripts/engine_contract.py too.
+    """
+    written = work / CLI_SETTINGS
+    written.write_text(text, encoding="utf-8")
     settings = settings_path(cli, work)
-    if cli.root_settings:
-        install_as_root(written, settings)
     try:
-        return subprocess.run(
-            cli_command(cli, command_path, run, prompt),
-            cwd=root,
-            env=cli_environment(engine, cli, home, settings),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=ENGINE_MINUTES * 60,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        raise AssistantError(
-            f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."
-        ) from None
+        if cli.root_settings:
+            install_as_root(written, settings)
+        yield settings
     finally:
         if cli.root_settings:
             as_root(["rm", "-rf", str(settings.parent)])
@@ -9254,17 +9270,19 @@ def install_as_root(source: Path, target: PurePath) -> None:
     so would otherwise run without them."""
     folder = target.parent
     for command in (
-        ["install", "-d", "-m", "755", "-o", "root", "-g", "root"]
+        # Root's numbers, as macOS has no group named root.
+        ["install", "-d", "-m", "755", "-o", "0", "-g", "0"]
         + [str(folder.parent), str(folder)],
-        ["install", "-m", "644", "-o", "root", "-g", "root", str(source), str(target)],
+        ["install", "-m", "644", "-o", "0", "-g", "0", str(source), str(target)],
     ):
         result = as_root(command)
         if result.returncode:
             raise AssistantError(
                 f"The settings that keep the engine's command line to reading must "
                 f"belong to root, and {' '.join(command[:2])} as root failed: "
-                f"{one_line(result.stderr)[-300:] or 'no message'}. analyze needs "
-                "sudo, which GitHub's runners have."
+                f"{one_line(result.stderr)[-300:] or 'no message'}. It needs sudo "
+                "without a password prompt: GitHub's runners have it; on your "
+                "computer, run sudo -v first."
             )
 
 
@@ -10013,7 +10031,12 @@ def local_engine(config: Config, work: Path) -> Callable[[], Answered]:
             f"file through cmd.exe, which cuts it. Install {engine.name} as a "
             "program of its own, or run evaluate in WSL."
         )
-    settings = work / "settings.json"
+    if cli and cli.root_settings and not hasattr(os, "geteuid"):
+        # Without root, the command line would run without its settings.
+        raise AssistantError(
+            f"evaluate runs {engine.name} only on Linux, macOS or WSL: it takes the "
+            "settings that keep it to reading only from a file of root's."
+        )
 
     def answer() -> Answered:
         try:
@@ -10026,22 +10049,23 @@ def local_engine(config: Config, work: Path) -> Callable[[], Answered]:
                 for file in ("rules.md", "prompt.md")
             )
             variables = os.environ | cli.variables
-            if cli.settings_variable:
-                settings.write_text(
-                    json.dumps(cli_settings(cli, run)), encoding="utf-8"
+            with ExitStack() as stack:
+                if cli.settings_variable:
+                    settings = stack.enter_context(
+                        placed_settings(cli, json.dumps(cli_settings(cli, run)), work)
+                    )
+                    variables[cli.settings_variable] = str(settings)
+                result = subprocess.run(
+                    cli_command(cli, found, run, prompt),
+                    cwd=config.root,
+                    env=variables,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=ENGINE_MINUTES * 60,
+                    check=False,
                 )
-                variables[cli.settings_variable] = str(settings)
-            result = subprocess.run(
-                cli_command(cli, found, run, prompt),
-                cwd=config.root,
-                env=variables,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=ENGINE_MINUTES * 60,
-                check=False,
-            )
         except subprocess.TimeoutExpired:
             raise AssistantError(
                 f"{engine.name} gave no answer within {ENGINE_MINUTES} minutes."

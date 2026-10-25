@@ -24,7 +24,10 @@ action lacks. `clis` installs each engine's command line at its pinned version a
 --help doesn't list or a value that the flag doesn't take; for a key of its settings
 that the JSON schema of the settings of that version lacks, or for a missing schema;
 and for a run without a key, in a home of its own as `analyze` runs it, that fails at
-anything but the key, or that complains about its settings. Codex checks its key only
+anything but the key, or that complains about its settings. A command line that takes
+its settings from the file that a variable names runs once more with broken settings
+there, which it must refuse naming that file: one that no longer reads the variable,
+or skips the file, would run without them and say nothing. Codex checks its key only
 at OpenAI: it passes when it starts its turn with the arguments of its step and the
 configuration that its action gives it, which --strict-config checks.
 
@@ -82,6 +85,8 @@ PROMPT = "Answer with the word ok."
 TURNS = 3
 # The most seconds that a command line takes for its help or for a run without a key.
 SECONDS = 120
+# Settings that a command line must refuse: JSON, but no object of settings.
+BROKEN_SETTINGS = "[]"
 
 
 @dataclass(frozen=True)
@@ -558,6 +563,52 @@ def run_problems(
     return problems
 
 
+def settings_read(
+    pin: Pin, command_path: str, run: assistant.Run, checkout: Path, work: Path
+) -> list[str]:
+    """A command line that takes its settings from the file that its variable names
+    must refuse broken settings in that file, placed as `analyze` places them. One
+    that no longer reads the variable, or that skips the file, runs on without its
+    settings, and the run without a key couldn't tell."""
+    engine = assistant.ENGINES[pin.key]
+    cli = engine.cli
+    assert cli is not None
+    probe = work / f"{work.name}-probe"
+    home = probe / "home"
+    home.mkdir(parents=True)
+    with assistant.placed_settings(cli, BROKEN_SETTINGS, probe) as settings:
+        try:
+            result = subprocess.run(
+                assistant.cli_command(cli, command_path, run, PROMPT),
+                cwd=checkout,
+                env=assistant.cli_environment(engine, cli, home, settings),
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=SECONDS,
+                check=False,
+            )
+            printed = f"{result.stdout}\n{result.stderr}"
+            failed = bool(result.returncode)
+        except subprocess.TimeoutExpired:
+            printed, failed = f"no end within {SECONDS} seconds", False
+    refused = [
+        line
+        for line in printed.splitlines()
+        if str(settings) in line and "skip" not in line.lower()
+    ]
+    if failed and refused:
+        return []
+    return [
+        f"{pin.name} took broken settings in the file that {cli.settings_variable} "
+        "names without refusing them: it no longer reads that file, or skips it, and "
+        "would run without its settings, silently: "
+        f"{assistant.one_line(printed)[-300:].strip() or 'no output'}"
+    ]
+
+
 def check_cli(pin: Pin, work: Path) -> tuple[str, list[str]]:
     """The flags, the settings and a run without a key of an engine that `analyze`
     runs, as it runs it."""
@@ -600,6 +651,9 @@ def check_cli(pin: Pin, work: Path) -> tuple[str, list[str]]:
     )
     problems += run_problems(pin, result, assistant.settings_path(cli, work))
     checked.append(f"a run without {engine.credentials[0]}")
+    if cli.settings_variable:
+        problems += settings_read(pin, command_path, runs[0], checkout, work)
+        checked.append(f"a run with broken settings in {cli.settings_variable}")
     return ", ".join(checked), problems
 
 
