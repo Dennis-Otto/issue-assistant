@@ -290,7 +290,7 @@ jobs:
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           # renovate: datasource=npm depName=@openai/codex
-          codex-version: "0.162.1"
+          codex-version: "0.163.0"
           # Issues come from people without write access. The sandbox of the
           # profile :read-only lets Codex read files but neither write them nor
           # reach the network, and drop-sudo leaves the API key to the proxy of the
