@@ -67,7 +67,7 @@ jobs:
       endpoints: ${{ steps.endpoints.outputs.endpoints }}
     steps:
       - name: Block every host but GitHub's
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: block
           disable-sudo-and-containers: true
@@ -166,7 +166,7 @@ jobs:
       # isolates them, and run no command that could lift the block.
       - name: Block every host but those of the firewall policy
         if: vars.ISSUE_ASSISTANT_AI_RUNNER != '' && vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: block
           allowed-endpoints: ${{ needs.event.outputs.endpoints }}
@@ -352,7 +352,7 @@ jobs:
       discussions: write
     steps:
       - name: Block every host but GitHub's
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: block
           disable-sudo-and-containers: true
