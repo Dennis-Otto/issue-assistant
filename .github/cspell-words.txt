@@ -9,4 +9,5 @@ PromptPwnd
 Pwnd
 triaging
 WCAG
+westus
 xhigh

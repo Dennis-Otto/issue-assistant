@@ -26,7 +26,10 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 
 ## The workflows of a repository
 
---8<-- "docs/how-it-works.md:workflows-diagram"
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-four-workflows-of-a-repository-and-what-starts-them.dark.svg">
+  <img src="images/diagrams/the-four-workflows-of-a-repository-and-what-starts-them.svg" alt="The four workflows of a repository and what starts them: Four workflows, each with what starts it. In issue-assistant.yml, a new issue, an edit or a comment starts event, which sets the labels of the form and chooses the next task; analyze lets the AI read the checkout and answer with JSON; apply checks the answer and is the only job that writes. In issue-lifecycle.yml, every morning, a merged pull request, a release and the end of a release run start sweep, which sends reminders, closes issues, closes duplicates and marks fixed issues. In labels.yml, a change of labels.toml on main starts sync-labels, which creates and updates the labels. In findings.yml, every morning, a scan on main and a change of findings.toml start findings, which dismisses the accepted findings and fails on the others.">
+</picture>
 
 | Workflow | Jobs |
 | --- | --- |
@@ -70,7 +73,7 @@ The checkout reaches `github.com` and the GitHub CLI `api.github.com`; Harden-Ru
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/which-runner-the-ai-runs-on.dark.svg">
-  <img src="images/diagrams/which-runner-the-ai-runs-on.svg" alt="Which runner the AI runs on: The job event reads the repository variable ISSUE_ASSISTANT_AI_RUNNER. Unset, or ubuntu-24.04-firewall, the job analyze runs on GitHub's egress-firewall runner, whose firewall blocks every host but those of .github/egress-firewall.yaml for the whole machine. For one of GitHub's runners of Ubuntu with a fixed version, such as ubuntu-24.04, the job event names the hosts of the same file with their ports; there Harden-Runner blocks every other host as the first step of analyze, and the next step stops the job when a request to example.com gets through, before the engine runs. For any other runner, such as a self-hosted one or ubuntu-latest, the job event fails and the AI doesn't run.">
+  <img src="images/diagrams/which-runner-the-ai-runs-on.svg" alt="Which runner the AI runs on: The job event reads the repository variable ISSUE_ASSISTANT_AI_RUNNER. Unset, or ubuntu-24.04-firewall, the job analyze runs on GitHub's egress-firewall runner, whose firewall blocks every host but those of .github/egress-firewall.yaml for the whole machine. For one of GitHub's runners of Ubuntu with a fixed version, such as ubuntu-24.04, the job event names the hosts of the same file with their ports; there Harden-Runner blocks every other host as the first step of analyze, and the next step stops the job when requests to example.com still get through after a minute, before the engine runs. For any other runner, such as a self-hosted one or ubuntu-latest, the job event fails and the AI doesn't run.">
 </picture>
 
 The command `endpoints` of the job `event` accepts only GitHub's runners of Ubuntu with a fixed version, and names the hosts of the repository's `.github/egress-firewall.yaml` and GitHub's own, `github.com` and `codeload.github.com`, each on the ports 443 and 80, as the endpoints of Harden-Runner. With the variable unset, both steps of the block are skipped and every job runs as before.

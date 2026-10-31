@@ -22,7 +22,7 @@ Option 3.
 - **The README stays short.** At most 25 KB, and each line of *What it does* leads to the page of its feature. `tests/test_docs.py` holds it to that.
 - **A feature has a page.** `docs/features/<name>.md` opens with a short summary and its picture, then has the details.
 - **A page stays readable on a phone.** About 12,000 pixels tall at most, at a width of 390 pixels. A longer page is split by topic; what the code makes and only grows, every comment and the changelog, folds.
-- **Snippets go only from page to page,** and only where two pages must show the same: the quick start on the home page, and two diagrams. GitHub doesn't resolve a snippet, so a page that lives by them would read badly there.
+- **Snippets go only from page to page,** and only where two pages must show the same: the quick start on the home page. GitHub doesn't resolve a snippet, so a page that lives by them would read badly there; the two diagrams that two pages show are therefore copies, which a test keeps alike.
 - **Links from before keep working.** A page that gave up parts forwards its former anchors with a script of the website, and the README keeps its former anchors on the lines that link the pages that have those sections now.
 
 ## Consequences

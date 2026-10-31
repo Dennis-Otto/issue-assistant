@@ -8,7 +8,7 @@ description: What each AI engine of the issue assistant may do on its runner, an
 
 ## The boundary of each engine
 
-Each engine runs in one step of the job `analyze`, on the runner with GitHub's egress firewall, which lets it reach only the hosts of its own block in `.github/egress-firewall.yaml`; `install` writes the block of the engine of `config.toml` alone. On the runner that `ISSUE_ASSISTANT_AI_RUNNER` names in place of the firewall runner, Harden-Runner blocks every other host for the job, with the hosts of the same file, and the job stops when a request to a host outside them gets through, as [decision 0019](../decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md) explains. What keeps it to reading differs:
+Each engine runs in one step of the job `analyze`, on the runner with GitHub's egress firewall, which lets it reach only the hosts of its own block in `.github/egress-firewall.yaml`; `install` writes the block of the engine of `config.toml` alone. On the runner that `ISSUE_ASSISTANT_AI_RUNNER` names in place of the firewall runner, Harden-Runner blocks every other host for the job, with the hosts of the same file, and the job stops when requests to a host outside them still get through after a minute, as [decision 0019](../decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md) explains. What keeps it to reading differs:
 
 | Engine | Where the boundary lies | What it can read | What it holds |
 | --- | --- | --- | --- |

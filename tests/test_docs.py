@@ -855,9 +855,7 @@ def test_a_page_includes_only_a_part_of_another_page():
         ]
         assert not re.search(r'^--8<-- "README', text, re.M), page
     assert sorted(included) == [
-        ("architecture.md", "how-it-works.md", "workflows-diagram"),
         ("index.md", "getting-started.md", "quick-start"),
-        ("security.md", "how-it-works.md", "trust-boundaries-diagram"),
     ]
     assert sorted(parts) == sorted((source, name) for _, source, name in included)
 
@@ -1317,8 +1315,8 @@ def test_every_box_of_a_diagram_has_a_border_that_stands_out():
 
 
 def test_each_diagram_is_written_once():
-    # A copy drifts away from its original. A page of the website includes the part
-    # of another page with the diagram instead, such as workflows-diagram.
+    # A copy drifts away from its original. Only two diagrams are on two pages, since
+    # GitHub doesn't resolve a snippet, and those copies stay alike.
     shown = every_diagram()
     sources = [source.strip() for _, source in shown]
     copies = [
@@ -1333,8 +1331,15 @@ def test_each_diagram_is_written_once():
         for name, _ in drawn(document.read_text("utf-8"))
     ]
     names = [name for _, name in pictures]
-    copies = [place for place, name in pictures if names.count(name) > 1]
-    assert not copies, f"{copies} show the same diagram"
+    copies = sorted(place for place in pictures if names.count(place[1]) > 1)
+    workflows = "the-four-workflows-of-a-repository-and-what-starts-them"
+    trust = "the-trust-boundaries-of-the-issue-assistant"
+    assert copies == [
+        ("docs/architecture.md", workflows),
+        ("docs/how-it-works.md", workflows),
+        ("docs/how-it-works.md", trust),
+        ("docs/security.md", trust),
+    ], f"{copies} show the same diagram"
 
     def from_the_root(picture: str) -> str:
         return re.sub(r'="(?:\.\./)*(?:docs/)?images/', '="docs/images/', picture)
@@ -1348,14 +1353,11 @@ def test_each_diagram_is_written_once():
     assert not diagrams(readme)
     for name, picture in drawn(readme):
         assert on_pages.get(name) == picture, f"the README differs from a page: {name}"
-    for page, source, marker in [
-        ("architecture.md", "how-it-works.md", "workflows-diagram"),
-        ("security.md", "how-it-works.md", "trust-boundaries-diagram"),
-    ]:
-        text = (ROOT / "docs" / page).read_text("utf-8")
-        assert f'--8<-- "docs/{source}:{marker}"' in text.splitlines()
-        part = page_part(source, marker)
-        assert len(diagrams(part)) + len(drawn(part)) == 1, marker
+    for document in FIGURES[1:]:
+        for name, picture in drawn(document.read_text("utf-8")):
+            assert on_pages[name] == from_the_root(picture), (
+                f"{document} differs: {name}"
+            )
 
 
 # The pages of the website that the code makes or completes: every comment of the

@@ -29,7 +29,7 @@ The action runs `issue_assistant.py` with one command:
 
 ## Inputs and outputs of the action
 
-The workflows of the templates set the inputs of the action; a workflow of your own, such as the check in the CI, sets `command`, and for a command that writes maybe `dry-run`. The tables come from `action.yml` of this version.
+The workflows of the templates set the inputs of the action; a workflow of your own, such as the check in the CI, sets `command`, and for a command that writes maybe `dry-run`. The tables of the website come from [`action.yml`](https://github.com/Dennis-Otto/issue-assistant/blob/main/action.yml) of this version; on GitHub, that file lists the same.
 
 ### Inputs
 

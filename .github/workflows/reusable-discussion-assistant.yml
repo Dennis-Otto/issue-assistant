@@ -67,7 +67,7 @@ jobs:
       endpoints: ${{ steps.endpoints.outputs.endpoints }}
     steps:
       - name: Block every host but GitHub's
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           disable-sudo-and-containers: true
@@ -166,7 +166,7 @@ jobs:
       # isolates them, and run no command that could lift the block.
       - name: Block every host but those of the firewall policy
         if: vars.ISSUE_ASSISTANT_AI_RUNNER != '' && vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           allowed-endpoints: ${{ needs.event.outputs.endpoints }}
@@ -176,10 +176,25 @@ jobs:
       - name: Make sure that the block holds
         if: vars.ISSUE_ASSISTANT_AI_RUNNER != '' && vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
         run: |
-          if curl --silent --max-time 10 --output /dev/null https://example.com; then
-            echo "::error::Harden-Runner let a request to example.com through, a host outside .github/egress-firewall.yaml, so the AI doesn't run. In a private repository it blocks only with a subscription of StepSecurity; unset ISSUE_ASSISTANT_AI_RUNNER for the egress-firewall runner, or set ISSUE_ASSISTANT_AI to off."
-            exit 1
-          fi
+          # Harden-Runner waits only about ten seconds for its agent and lets the job go
+          # on while the agent still starts, so a request right after it can get through.
+          # Ask for up to a minute. It takes two failures in a row, five seconds apart, to
+          # count as the block, so that a hiccup of example.com isn't taken for one.
+          failures=0
+          attempt=0
+          while [ "$failures" -lt 2 ]; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -gt 12 ]; then
+              echo "::error::Harden-Runner let a request to example.com through, a host outside .github/egress-firewall.yaml, so the AI doesn't run. In a private repository it blocks only with a subscription of StepSecurity; unset ISSUE_ASSISTANT_AI_RUNNER for the egress-firewall runner, or set ISSUE_ASSISTANT_AI to off. If the log of Harden-Runner says Reverted changes, its agent gave up at its start: run the job again."
+              exit 1
+            fi
+            if curl --silent --max-time 10 --output /dev/null https://example.com; then
+              failures=0
+            else
+              failures=$((failures + 1))
+            fi
+            [ "$failures" -ge 2 ] || sleep 5
+          done
           echo "Harden-Runner blocks example.com, a host outside .github/egress-firewall.yaml."
       # The checkouts below take the issue assistant of the commit of this workflow,
       # which GitHub names in the context of the job. Without one, actions/checkout
@@ -352,7 +367,7 @@ jobs:
       discussions: write
     steps:
       - name: Block every host but GitHub's
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           disable-sudo-and-containers: true

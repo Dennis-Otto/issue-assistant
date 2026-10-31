@@ -5213,7 +5213,7 @@ def reference_link(
 
 # The heading of the notice to reporters that the footers of an analysis and of a
 # follow-up link: the part on what happens with an issue, which the SUPPORT.md of
-# the blueprint has, as the README advises.
+# the blueprint has, as docs/getting-started.md advises.
 NOTICE_ANCHOR = "what-happens-with-your-issue"
 
 
