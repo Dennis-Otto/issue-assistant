@@ -209,7 +209,8 @@ why = """The job analyze runs behind exactly this block when a repository moves 
 to the runner in reserve. A host that gets through lets the AI reach any host, and a
 blocked host of the policy stops every analysis there."""
 fix = """When `example.com` still got through, Harden-Runner blocked nothing: look at
-its status and the log of its step. When a host of the policy was blocked, compare the
+its status and the log of its step. *Reverted changes* there means that its agent gave
+up at its start, such as on an allowed host that it couldn't resolve: run the job again. When a host of the policy was blocked, compare the
 endpoints in the log of the job before with `.github/egress-firewall.yaml`, and fix
 `firewall_endpoints` in `issue_assistant.py`, with its case in
 `tests/test_setup.py`."""
