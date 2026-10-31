@@ -671,38 +671,67 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     assert event["outputs"]["endpoints"] == "${{ steps.endpoints.outputs.endpoints }}"
 
 
-@pytest.mark.parametrize(("status", "code"), [(0, 1), (6, 0), (7, 0), (28, 0)])
-def test_the_ai_runs_only_where_the_block_holds(tmp_path, status, code):
+@pytest.mark.parametrize("name", list(JOBS_WITH_ENGINE))
+@pytest.mark.parametrize(
+    ("answers", "code", "pauses"),
+    [
+        # A request that fails to resolve, connect or answer in time: the block holds.
+        ([6, 6], 0, 0),
+        ([7, 7], 0, 0),
+        ([28, 28], 0, 0),
+        # The agent was still starting: the block holds from the third request on.
+        ([0, 0, 7, 7], 0, 2),
+        # In the last two requests of the minute it asks for.
+        ([0] * 10 + [7, 7], 0, 10),
+        # One failure among answers is a hiccup of the host, not the block.
+        ([0, 28, 0, 28, 0, 28, 0, 28, 0, 28, 0, 28], 1, 6),
+        ([0] * 11 + [7], 1, 11),
+        # It never blocks.
+        ([0] * 12, 1, 12),
+    ],
+)
+def test_the_ai_runs_only_where_the_block_holds(tmp_path, name, answers, code, pauses):
     """Harden-Runner fails open: in a private repository without a subscription of
-    StepSecurity, or when its service is down, it blocks nothing. The step asks for
-    a host of no firewall policy, and stops the job analyze when the request gets
-    through; a request that fails to resolve, connect or answer in time lets it
-    run."""
-    holds = JOBS["analyze"]["steps"][1]
+    StepSecurity, or when its service is down, it blocks nothing. And it waits only
+    about ten seconds for its agent, so the block can come a little after its step.
+    The step asks for a host of no firewall policy, for up to a minute, and stops the
+    job analyze when requests keep getting through; two requests in a row that fail
+    to resolve, connect or answer in time let it run."""
+    holds = JOBS_WITH_ENGINE[name]["analyze"]["steps"][1]
     policy = (assistant.TEMPLATES / assistant.FIREWALL).read_text(encoding="utf-8")
     assert "example.com" not in assistant.allowed_hosts(policy)
     assert "example.com" not in assistant.FIREWALL_DEFAULT_HOSTS
     folder = tmp_path / "bin"
     folder.mkdir()
     arguments = tmp_path / "arguments"
+    slept = tmp_path / "slept"
+    statuses = tmp_path / "statuses"
+    statuses.write_text("".join(f"{answer}\n" for answer in answers), encoding="utf-8")
+    # Each request takes the next answer; one too many fails the test.
     (folder / "curl").write_text(
-        f'#!/bin/sh\necho "$@" > "{arguments.as_posix()}"\nexit {status}\n',
+        f'#!/bin/sh\necho "$@" >> "{arguments.as_posix()}"\n'
+        f'count=$(wc -l < "{arguments.as_posix()}")\n'
+        f'exit "$(sed -n "${{count}}p" "{statuses.as_posix()}")"\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    (folder / "sleep").write_text(
+        f'#!/bin/sh\necho "$@" >> "{slept.as_posix()}"\n',
         encoding="utf-8",
         newline="\n",
     )
     (folder / "curl").chmod(0o755)
+    (folder / "sleep").chmod(0o755)
     result, _ = run_step(
         holds, tmp_path, PATH=f"{folder}{os.pathsep}{os.environ['PATH']}"
     )
     assert result.returncode == code, result.stderr
-    assert arguments.read_text(encoding="utf-8").split() == [
-        "--silent",
-        "--max-time",
-        "10",
-        "--output",
-        "/dev/null",
-        "https://example.com",
-    ]
+    assert arguments.read_text(encoding="utf-8").splitlines() == [
+        "--silent --max-time 10 --output /dev/null https://example.com"
+    ] * len(answers)
+    assert (slept.read_text(encoding="utf-8").split() if slept.exists() else []) == [
+        "5"
+    ] * pauses
     if code:
         assert result.stdout.startswith(
             "::error::Harden-Runner let a request to example.com through"
@@ -712,6 +741,34 @@ def test_the_ai_runs_only_where_the_block_holds(tmp_path, status, code):
             "Harden-Runner blocks example.com, a host outside "
             ".github/egress-firewall.yaml.\n"
         )
+
+
+# The first version that leaves the hosts of allowed-endpoints open on the runners
+# with GitHub's newer DNS resolver, seen in westus2: the agent sees none of the
+# addresses that they resolve to, so it drops them, a checkout fails, and the job
+# never finishes after its last step, at "Cleaning up orphan processes", until its
+# timeout. https://github.com/step-security/harden-runner/issues/708
+HARDEN_RUNNER_FIXED = (2, 22, 3)
+# The blueprint brings its own workflows with their pins, and renders none of these.
+PROJECT_WORKFLOWS = [
+    OWN / name for name in ("action-test.yml", "canary.yml", "workflow-test.yml")
+] + sorted(OWN.glob("reusable-*.yml"))
+
+
+@pytest.mark.parametrize("path", PROJECT_WORKFLOWS, ids=lambda path: path.name)
+def test_harden_runner_is_a_version_that_lets_the_allowed_hosts_through(path):
+    """An older pin drops the allowed hosts, or hangs the job, on the runners in
+    westus2. The jobs that the reusable workflows run in every repository, and those
+    of the tests here, must not wait for a timeout there."""
+    text = path.read_text(encoding="utf-8")
+    uses = re.findall(rf"{HARDEN_RUNNER}@.*", text)
+    pins = [
+        re.fullmatch(rf"{HARDEN_RUNNER}@[0-9a-f]{{40}} # v(\d+)\.(\d+)\.(\d+)", line)
+        for line in uses
+    ]
+    assert pins and all(pins), uses
+    for pin in pins:
+        assert tuple(int(part) for part in pin.groups()) >= HARDEN_RUNNER_FIXED, uses
 
 
 def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
@@ -780,7 +837,13 @@ def test_the_block_of_the_ai_s_runner_in_reserve_runs_in_ci():
     assert block["steps"][0] == first
     holds = JOBS["analyze"]["steps"][1]["run"]
     checks = block["steps"][1]["run"]
-    assert holds.splitlines()[0] in checks
+
+    def without_the_error(script):
+        return [line for line in script.splitlines() if "::error::" not in line]
+
+    # The same wait for the block, each with its own words for the error.
+    waits = without_the_error(holds)
+    assert without_the_error(checks)[: len(waits)] == waits
     # A host of the policy on 443, and one on 80, which must pass the block.
     (listed,) = re.findall(r"^ *for url in (.+); do$", checks, re.MULTILINE)
     urls = [urllib.parse.urlsplit(url) for url in listed.split()]
