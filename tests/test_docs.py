@@ -1759,6 +1759,8 @@ SETTINGS = {
     "[lifecycle] exempt_assignees": ("lifecycle.exempt_assignees", True),
     "[lifecycle] exempt_upvotes": ("lifecycle.exempt_upvotes", 10),
     "[lifecycle] lock_closed_after_days": ("lifecycle.lock_closed_after_days", 365),
+    "[digest] issue": ("digest_issue", True),
+    "[digest] title": ("digest_title", "Status of the issues"),
 }
 
 

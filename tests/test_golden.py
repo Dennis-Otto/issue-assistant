@@ -373,7 +373,15 @@ def without_gitignore(root):
     (root / ".gitignore").unlink()
 
 
+def with_digest_issue(root):
+    settings = root / ".github" / "issue-assistant" / "config.toml"
+    settings.write_text(
+        settings.read_text("utf-8") + "\n[digest]\nissue = true\n", "utf-8"
+    )
+
+
 ANSWER = json.dumps(make_answer(missing_information=["Which version do you run?"]))
+DIGEST_ISSUE = "digest-issue.md.txt"
 SUMMARIES = {
     "event": (
         lambda config: opened(config)[0],
@@ -391,6 +399,7 @@ SUMMARIES = {
         {"RESULT": ANSWER, "ENGINE": "claude", "GITHUB_SHA": "abc", "DRY_RUN": "true"},
     ),
     "sweep": (lambda config: waiting_since(config, 16), ["sweep"], {}),
+    "sweep-digest-issue": (lambda config: waiting_since(config, 16), ["sweep"], {}),
     "sync-labels": (labels_to_change, ["sync-labels"], {}),
     "stopped-by-github": (
         stopped_by_github,
@@ -402,7 +411,7 @@ SUMMARIES = {
     "check": (lambda config: None, ["check"], {}),
 }
 # The cases that change the files of the repository, in a copy of their own.
-CHANGED_ROOTS = {"check": without_gitignore}
+CHANGED_ROOTS = {"check": without_gitignore, "sweep-digest-issue": with_digest_issue}
 
 
 @pytest.mark.parametrize("case", SUMMARIES)
@@ -423,6 +432,16 @@ def test_each_job_summary_reads_as_its_golden_file(
     assert_golden(f"summaries/{case}.md.txt", summary)
 
 
+def test_the_digest_issue_reads_as_its_golden_file(monkeypatch, tmp_path, root, config):
+    """What a sweep, here one with the quality, writes into the issue of the digest."""
+    with_digest_issue(root)
+    github = waiting_since(config, 16)
+    monkeypatch.setattr(assistant, "datetime", Frozen)
+    run_main(monkeypatch, tmp_path, root, github, "sweep")
+    (issue,) = [item for item in github.store.values() if assistant.is_digest(item)]
+    assert_golden(DIGEST_ISSUE, issue["body"])
+
+
 def test_every_golden_file_has_its_test():
     names = {
         *comment_files(),
@@ -431,5 +450,6 @@ def test_every_golden_file_has_its_test():
         "context/triage-related.txt",
         *(f"events/{case.replace(' ', '-')}.json.txt" for case in EVENTS),
         *(f"summaries/{case}.md.txt" for case in SUMMARIES),
+        DIGEST_ISSUE,
     }
     assert golden_files() == names

@@ -1,0 +1,30 @@
+<!-- issue-assistant:digest -->
+What waits on whom, from the morning sweep. The sweep writes this text anew every morning, which notifies nobody, so a change here doesn't last. `[digest] issue` in `.github/issue-assistant/config.toml` turns it off.
+
+#### Maintainer digest
+
+**Waiting on the maintainers: 0**
+
+**Waiting on reporters: 1**
+
+- [#12](../issues/12): asked 16 days ago; closes on 2026-10-22
+
+**Fixed, waiting for a release: 0**
+
+#### Assistant quality (last 30 days)
+
+| Number | Value |
+| --- | --- |
+| Analyses posted | 1, on 1 issues |
+| Median time from a new issue to its analysis | 24 h |
+| Labels of the AI kept for 14 days | 0 of 0 |
+| Labels that maintainers added within 7 days | 0 |
+| Duplicate notices | 0: closed 0, objected to 0, kept open otherwise 0, waiting 0 |
+| Questions to reporters | 1 issue: answered 0, closed without an answer 0, settled otherwise 0, waiting 1 |
+| Feedback on the analyses | 👍 0, 👎 0 |
+
+Counted on 2026-10-07.
+
+Feedback of the last 30 days: analyses 1, 👍 0, 👎 0; follow-ups 0, 👍 0, 👎 0.
+
+Updated on 2026-10-07.

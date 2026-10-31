@@ -1,6 +1,6 @@
 flowchart TB
   accTitle: What the morning sweep tells the maintainers
-  accDescr: After its steps, the morning sweep, or one started by hand, reads the comments and issues of the last 30 days and the open issues labeled needs-triage, needs-info and fixed-in-next-release. Its summary lists the issues that wait on the maintainers, those that wait on their reporters with the day of the reminder or the closing, and the fixed ones that wait for a release. On the first day of a month, and in a sweep started by hand, it reads the label events of the issues analyzed in those 30 days and adds the numbers of the assistant's quality. The summary holds numbers and links only, never the text of an issue.
+  accDescr: After its steps, the morning sweep, or one started by hand, reads the comments and issues of the last 30 days and the open issues labeled needs-triage, needs-info and fixed-in-next-release. Its summary lists the issues that wait on the maintainers, those that wait on their reporters with the day of the reminder or the closing, and the fixed ones that wait for a release. On the first day of a month, and in a sweep started by hand, it reads the label events of the issues analyzed in those 30 days and adds the numbers of the assistant's quality. The summary holds numbers and links only, never the text of an issue. With the setting issue of the section digest, the sweep keeps the same in one issue, which it opens once and edits after that.
   sweep(["the morning sweep,<br>or one by hand"]) --> reads["reads the comments and issues<br>of the last 30 days and the open issues<br>labeled needs-triage, needs-info<br>and fixed-in-next-release"]
   reads --> digest["`**Maintainer digest**<br>what waits on the maintainers,<br>on reporters and on a release`"]
   reads --> monthly{"the first day of a month,<br>or by hand?"}
@@ -8,11 +8,13 @@ flowchart TB
   events --> quality["`**Assistant quality**<br>analyses, time to the analysis,<br>labels kept, duplicates,<br>questions and feedback`"]
   digest --> summary["the summary of the job:<br>numbers and links only"]
   quality --> summary
+  summary --> asked{"[digest] issue<br>= true?"}
+  asked -- "yes" --> issue["the same in one issue:<br>opened once, pinned by hand,<br>edited without a notification"]
   classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
   classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
   classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
   classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
   class sweep trigger
-  class monthly question
+  class monthly,asked question
   class reads,events job
-  class digest,quality,summary person
+  class digest,quality,summary,issue person

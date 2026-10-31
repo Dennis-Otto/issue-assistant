@@ -97,3 +97,10 @@ exempt_upvotes = 0
 # Lock issues closed for more than this many days, at least the window after a
 # release, with one line that points to a new issue; 0 locks none.
 lock_closed_after_days = 0
+
+[digest]
+# Keep what the summary of the morning sweep says of what waits on whom in one issue
+# too: the first sweep opens it, and each later one edits it, which notifies nobody.
+# Pin it by hand. A comment or a command on it starts nothing, and the AI never reads it.
+issue = false
+title = "Triage digest"

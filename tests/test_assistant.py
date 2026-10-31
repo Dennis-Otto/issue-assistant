@@ -9542,6 +9542,344 @@ def test_the_summary_of_a_sweep_by_hand_has_the_digest_and_the_quality(
     assert not re.search(r"Private|live card", summary, re.IGNORECASE)
 
 
+# The digest as an issue, which [digest] issue asks for.
+
+
+def with_digest(config, **changes):
+    return dataclasses.replace(config, digest_issue=True, **changes)
+
+
+def digest_of(number, *, by=BOT_USER, **changes):
+    """An issue with the marker of the digest, by default the assistant's own."""
+    changes.setdefault("title", "Triage digest")
+    changes.setdefault("labels", ("assistant-muted", "pinned"))
+    changes.setdefault("body", f"{assistant.render_marker('digest')}\nOld lists")
+    return make_issue(number, user=by, **changes)
+
+
+def issue_link_of(number):
+    return f"[#{number}](https://github.com/{REPOSITORY}/issues/{number})"
+
+
+def writes_of(github):
+    return [call for call in github.calls if call[0] != "GET"]
+
+
+OPENED_LINE = (
+    "Digest issue: opened {}. Pin it by hand, with Pin issue in the sidebar of the "
+    "issue."
+)
+
+
+def test_without_the_setting_the_sweep_keeps_the_digest_in_its_summary_alone(config):
+    """No issue appears unasked, and no request looks for one."""
+    assert config.digest_issue is False
+    github = digest_github(config)
+    lines, _ = assistant.report(github, config, NOW, "schedule")
+    assert len(lines) == 1
+    assert writes_of(github) == []
+    assert not [call for call in github.calls if "creator=" in call[1]]
+
+
+def test_the_first_sweep_opens_the_digest_issue_and_later_ones_edit_it(config):
+    config = with_digest(config)
+    github = digest_github(config)
+    before = set(github.store)
+    lines, sections = assistant.report(github, config, NOW, "schedule")
+    (number,) = set(github.store) - before
+    opened = github.store[number]
+    assert lines[1:] == [OPENED_LINE.format(issue_link_of(number))]
+    assert opened["title"] == "Triage digest"
+    assert assistant.label_names(opened) == {"assistant-muted", "pinned"}
+    assert assistant.is_digest(opened)
+    # It creates the labels that the repository doesn't have yet.
+    assert [
+        call[2]["name"] for call in github.calls if call[:2] == ("POST", "labels")
+    ] == ["assistant-muted", "pinned"]
+    # The content of the summary: numbers, links and days, no text of an issue.
+    body = opened["body"]
+    assert sections.replace(f"https://github.com/{REPOSITORY}/", "../") in body
+    assert lines[0] in body
+    assert body.endswith("Updated on 2026-10-07.")
+    assert not re.search(r"Private|live card", body, re.IGNORECASE)
+    # Links with the whole address would show as mentions on the issues.
+    assert "- [#19](../issues/19): needs triage for 5 days, 👍 5" in body
+    assert "- [#33](../issues/33): fixed by [#41](../pull/41) today" in body
+    assert "https://github.com" not in body
+
+    # The next morning finds it among the issues that changed, with no request of
+    # its own, and it lists not itself.
+    github.calls.clear()
+    tomorrow = NOW + timedelta(days=1)
+    lines, _ = assistant.report(github, config, tomorrow, "schedule")
+    assert lines[1:] == [f"Digest issue: updated {issue_link_of(number)}."]
+    assert set(github.store) - before == {number}
+    (edit,) = writes_of(github)
+    assert edit[:2] == ("PATCH", f"issues/{number}")
+    assert set(edit[2]) == {"title", "body"}
+    body = github.store[number]["body"]
+    assert body.endswith("Updated on 2026-10-08.")
+    assert f"#{number}" not in body
+    assert not [call for call in github.calls if "creator=" in call[1]]
+
+    # Another sweep of the same day has nothing to write.
+    github.calls.clear()
+    lines, _ = assistant.report(github, config, tomorrow, "schedule")
+    assert lines[1:] == [f"Digest issue: {issue_link_of(number)} is current."]
+    assert writes_of(github) == []
+
+
+def test_after_a_long_pause_the_sweep_still_finds_its_digest_issue(config):
+    """The issues of the activity are those of the last 30 days; never a second."""
+    config = with_digest(config)
+    github = FakeGitHub(config, make_issue(), digest_of(90, days_ago=60))
+    lines, _ = assistant.report(github, config, NOW, "schedule")
+    assert lines[1:] == [f"Digest issue: updated {issue_link_of(90)}."]
+    assert set(github.store) == {12, 90}
+    assert [call[1] for call in github.calls if "creator=" in call[1]] == [
+        "issues?state=all&creator=github-actions%5Bbot%5D&per_page=100"
+    ]
+
+
+def test_of_two_digest_issues_the_sweep_keeps_the_first(config):
+    """Only another workflow with the same token could open a second one."""
+    config = with_digest(config)
+    github = FakeGitHub(config, digest_of(91), digest_of(90))
+    lines, _ = assistant.report(github, config, NOW, "schedule")
+    assert lines[1:] == [f"Digest issue: updated {issue_link_of(90)}."]
+    assert github.store[91]["body"].endswith("Old lists")
+
+
+def test_nobody_else_can_make_an_issue_pass_for_the_digest_issue(config):
+    """Anyone can write the marker into an issue; only the assistant's own counts."""
+    config = with_digest(config)
+    forged = digest_of(90, by={"login": "reporter", "type": "User"}, labels=("bug",))
+    # Another issue of the assistant's account, such as one of a failing bot.
+    failing = make_issue(91, user=BOT_USER, title="Flaky tests", body="Run 7 failed.")
+    github = FakeGitHub(config, forged, failing)
+    assert not assistant.is_digest(forged)
+    assert not assistant.is_digest(failing)
+    lines, _ = assistant.report(github, config, NOW, "schedule")
+    assert lines[1:] == [OPENED_LINE.format(issue_link_of(92))]
+    assert github.store[90]["body"] == forged["body"]
+    assert github.store[91]["body"] == failing["body"]
+    assert assistant.is_digest(github.store[92])
+    plan = assistant.handle_event(github, "issues", event("opened", forged), config)
+    assert plan.mode == "triage"
+
+
+def test_a_closed_digest_issue_stays_closed_and_brings_no_second_one(config):
+    config = with_digest(config)
+    github = FakeGitHub(config, digest_of(90, state="closed", closed_at=at(2)))
+    lines, _ = assistant.report(github, config, NOW, "schedule")
+    assert lines[1:] == [
+        f"Digest issue: updated {issue_link_of(90)}. It stays closed until you "
+        "reopen it."
+    ]
+    assert github.store[90]["state"] == "closed"
+    assert set(github.store) == {90}
+
+
+def test_a_new_title_in_the_settings_reaches_the_digest_issue(config):
+    github = FakeGitHub(config, make_issue())
+    assistant.report(github, with_digest(config), NOW, "schedule")
+    github.calls.clear()
+    renamed = with_digest(config, digest_title="What waits")
+    lines, _ = assistant.report(github, renamed, NOW, "schedule")
+    assert lines[1:] == [f"Digest issue: updated {issue_link_of(13)}."]
+    assert github.store[13]["title"] == "What waits"
+
+
+def test_the_digest_issue_keeps_the_quality_until_the_next_numbers(config):
+    """The summary has the numbers on one day of a month: the issue, where people
+    look on the other days too, holds them with the day they were counted."""
+    config = with_digest(config)
+    github = quality_github(config)
+    assistant.report(github, config, NOW, "workflow_dispatch")
+    (number,) = [
+        item for item, issue in github.store.items() if assistant.is_digest(issue)
+    ]
+    body = github.store[number]["body"]
+    assert "#### Assistant quality (last 30 days)\n\n| Number | Value |" in body
+    assert "\n\nCounted on 2026-10-07.\n\n" in body
+
+    _, sections = assistant.report(github, config, NOW + timedelta(days=1), "schedule")
+    assert "Assistant quality" not in sections
+    body = github.store[number]["body"]
+    assert "#### Assistant quality (last 30 days)\n\n| Number | Value |" in body
+    assert "\n\nCounted on 2026-10-07.\n\n" in body
+    assert body.endswith("Updated on 2026-10-08.")
+
+    assistant.report(github, config, NOW + timedelta(days=2), "workflow_dispatch")
+    body = github.store[number]["body"]
+    assert body.count("#### Assistant quality") == 1
+    assert "\n\nCounted on 2026-10-09.\n\n" in body
+
+
+def test_the_digest_issue_keeps_the_last_quality_when_github_fails_the_new_one(config):
+    github = FakeGitHub(config)
+    digest = "#### Maintainer digest\n\n**Waiting on the maintainers: 0**"
+    quality = "#### Assistant quality (last 30 days)"
+    previous = assistant.digest_body(
+        github, [digest, f"{quality}\n\n| Numbers |"], "Feedback.", "", NOW
+    )
+    failed = f"{quality}\n\n{assistant.NOT_MADE}"
+    later = NOW + timedelta(days=1)
+    body = assistant.digest_body(github, [digest, failed], "Feedback.", previous, later)
+    assert assistant.NOT_MADE not in body
+    assert f"{quality}\n\n| Numbers |\n\nCounted on 2026-10-07.\n\n" in body
+    assert body.endswith("Updated on 2026-10-08.")
+
+
+def test_github_failing_the_digest_leaves_the_digest_issue_as_it_was(config, capsys):
+    config = with_digest(config)
+    github = FakeGitHub(config, make_issue(), digest_of(90))
+    github.fail(r"^GET issues\?state=open&labels=needs-triage")
+    lines, _ = assistant.report(github, config, NOW, "schedule")
+    assert lines[1:] == ["Digest issue not updated: GitHub failed."]
+    assert writes_of(github) == []
+    assert "::warning::Maintainer digest: gh api: API rate limit" in (
+        capsys.readouterr().out
+    )
+
+
+def test_github_failing_the_digest_issue_is_no_failed_sweep(config, capsys):
+    config = with_digest(config)
+    github = FakeGitHub(config, make_issue())
+    github.fail("^POST issues$")
+    lines, sections = assistant.report(github, config, NOW, "schedule")
+    assert lines[1:] == ["Digest issue not updated: GitHub failed."]
+    assert "#### Maintainer digest" in sections
+    assert "::warning::The issue of the digest: gh api: API rate limit" in (
+        capsys.readouterr().out
+    )
+    # The next morning tries again.
+    github.failures.clear()
+    lines, _ = assistant.report(github, config, NOW, "schedule")
+    assert lines[1:] == [OPENED_LINE.format(issue_link_of(13))]
+
+
+def test_a_dry_run_shows_the_digest_issue_and_writes_nothing(config):
+    config = with_digest(config)
+    github = FakeGitHub(config, make_issue(), dry_run=True)
+    lines, _ = assistant.report(github, config, NOW, "schedule")
+    assert lines[1:] == [OPENED_LINE.format("a new issue")]
+    assert set(github.store) == {12}
+    (body,) = github.previews
+    assert body.startswith("<!-- issue-assistant:digest -->\n")
+    assert writes_of(github) == []
+    github = FakeGitHub(config, digest_of(90), dry_run=True)
+    assistant.report(github, config, NOW, "schedule")
+    assert github.store[90]["body"].endswith("Old lists")
+    assert writes_of(github) == []
+
+
+def test_the_digest_issue_uses_the_labels_that_the_repository_has(config):
+    own = assistant.Label("pinned", "000000", "Stays", "lifecycle")
+    muted = assistant.Label("assistant-muted", "000000", "Quiet", "decision")
+    labeled = with_digest(config, labels=(*config.labels, own, muted))
+    assert assistant.pinned_label(labeled) is own
+    github = FakeGitHub(labeled, make_issue())
+    assistant.report(github, labeled, NOW, "schedule")
+    assert not [call for call in github.calls if call[:2] == ("POST", "labels")]
+    assert assistant.label_names(github.store[13]) == {"assistant-muted", "pinned"}
+
+
+def test_the_sweep_after_a_merge_leaves_the_digest_issue_as_it_is(config):
+    config = with_digest(config)
+    github = FakeGitHub(config, digest_of(90))
+    assert assistant.report(github, config, NOW, "pull_request_target") == ([], "")
+    assert writes_of(github) == []
+
+
+def test_the_event_job_leaves_the_digest_issue_alone(config):
+    """A comment or a command there starts nothing, whoever writes it, also when a
+    maintainer took its labels away; the issue is known by its marker."""
+    issue = digest_of(12, labels=())
+    github = FakeGitHub(config, issue)
+
+    def said(number, text, author="owner", association="OWNER"):
+        return make_comment(number, author, text, 0, association)
+
+    for name, payload in (
+        ("issues", event("opened", issue, "owner")),
+        ("issues", event("edited", issue, "owner", changes={"body": {"from": "x"}})),
+        ("issues", event("labeled", issue, "owner")),
+        ("issue_comment", event("created", issue, "owner", said(5, "Thanks"))),
+        (
+            "issue_comment",
+            event("created", issue, "reporter", said(6, "Mine?", "reporter", "NONE")),
+        ),
+        (
+            "issue_comment",
+            event("created", issue, "owner", said(7, "/assistant again")),
+        ),
+        ("issue_comment", event("created", issue, "owner", said(8, "/assistant mute"))),
+        ("workflow_dispatch", {"inputs": {"issue": "12", "mode": "triage"}}),
+    ):
+        plan = assistant.handle_event(github, name, payload, config)
+        assert plan.mode == "none", (name, payload)
+        assert plan.notes == [assistant.DIGEST_NOTE]
+    assert writes_of(github) == []
+
+
+def test_the_ai_never_reads_the_digest_issue(config):
+    """Not as the issue of a task, and not among the other issues of its context,
+    from where it would turn up as a related issue or a duplicate."""
+    new = make_issue(title="Live card stays empty", body="TypeError: x is undefined")
+    digest = digest_of(90)
+    forged = digest_of(91, by={"login": "reporter", "type": "User"})
+    github = FakeGitHub(config, new, make_issue(20), digest, forged)
+    query = "is:issue (typeerror OR live OR card OR stays OR empty)"
+    github.search_store[f"repo:{REPOSITORY} {query}"] = [digest]
+    others = assistant.related_issues(github, new, "triage", config)
+    # The marker alone hides nothing: a reporter's issue stays in the context.
+    assert [item["number"] for item in others] == [91, 20]
+
+
+@pytest.mark.usefixtures("root")
+def test_the_ai_reads_no_digest_issue_of_a_related_repository(config):
+    config = related(config, SERVER)
+    found = make_issue(31, title="Empty card", body="Same here.", labels=())
+    digest = digest_of(32)
+    github = with_server(config, found, digest)
+    github.store[12] = make_issue(
+        title="Live card stays empty", body="TypeError: x is undefined"
+    )
+    query = "is:issue (typeerror OR live OR card OR stays OR empty)"
+    github.sibling_store[SERVER].search_store[f"repo:{SERVER} {query}"] = [
+        found,
+        digest,
+    ]
+    assistant.write_context(github, 12, "triage", config)
+    folder = config.root / ".issue-assistant"
+    (line,) = read_lines(folder / "related-issues.jsonl")
+    assert line["number"] == 31
+    assert not (folder / "related" / SERVER / "32.md").exists()
+
+
+@pytest.mark.parametrize("title", ["", "   ", "One\nTwo", "x" * 257])
+def test_check_names_a_title_of_the_digest_issue_that_github_refuses(config, title):
+    assert assistant.check_config(dataclasses.replace(config, digest_title=title)) == [
+        ".github/issue-assistant/config.toml: [digest] title must be one line of 1 "
+        "to 256 characters"
+    ]
+
+
+def test_check_takes_a_long_title_of_the_digest_issue(config):
+    long = dataclasses.replace(config, digest_issue=True, digest_title="x" * 256)
+    assert assistant.check_config(long) == []
+
+
+def test_check_names_a_mistake_in_the_section_of_the_digest(root):
+    settings = root / ".github" / "issue-assistant" / "config.toml"
+    settings.write_text("[digest]\nissues = true\ntitle = 3\n", "utf-8")
+    problems = assistant.load_config(root, REPOSITORY, lenient=True).problems
+    assert len(problems) == 2
+    assert "[digest] title" in problems[0]
+    assert "unknown key issues in [digest]; did you mean issue?" in problems[1]
+
+
 def test_a_morning_sweep_reads_the_comments_and_events_of_an_issue_once(
     monkeypatch, tmp_path, sample_root, config
 ):

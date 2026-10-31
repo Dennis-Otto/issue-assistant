@@ -85,6 +85,10 @@ exempt_labels = ["pinned", "security"]   # never reminded, closed or locked by t
 exempt_assignees = false        # true: assigned issues are exempt too
 exempt_upvotes = 0              # issues with at least this many 👍 are exempt; 0: off
 lock_closed_after_days = 0      # lock issues closed longer, at least reopen_after_release_days; 0: off
+
+[digest]
+issue = false                   # true: the morning sweep keeps its digest in one issue too
+title = "Triage digest"         # the title of that issue
 ```
 
 Each key has the type that it has here. A file that isn't TOML, or a value of another type, such as `max_per_day = "5"`, stops every command with an error that names the file and the key. A key that the assistant doesn't know, such as `close_with_releases` or a section `[release]`, would leave the default in place unnoticed: `check` fails on it and names the key that was probably meant, and every other command warns of it.
