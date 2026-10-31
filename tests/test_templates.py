@@ -675,17 +675,18 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
 @pytest.mark.parametrize(
     ("answers", "code", "pauses"),
     [
-        # A request that fails to resolve, connect or answer in time: the block holds.
-        ([6, 6], 0, 0),
-        ([7, 7], 0, 0),
-        ([28, 28], 0, 0),
+        # A request that fails to resolve, connect or answer in time: the block holds,
+        # when the next one fails too, after a pause that a hiccup doesn't outlast.
+        ([6, 6], 0, 1),
+        ([7, 7], 0, 1),
+        ([28, 28], 0, 1),
         # The agent was still starting: the block holds from the third request on.
-        ([0, 0, 7, 7], 0, 2),
+        ([0, 0, 7, 7], 0, 3),
         # In the last two requests of the minute it asks for.
-        ([0] * 10 + [7, 7], 0, 10),
+        ([0] * 10 + [7, 7], 0, 11),
         # One failure among answers is a hiccup of the host, not the block.
-        ([0, 28, 0, 28, 0, 28, 0, 28, 0, 28, 0, 28], 1, 6),
-        ([0] * 11 + [7], 1, 11),
+        ([0, 28, 0, 28, 0, 28, 0, 28, 0, 28, 0, 28], 1, 12),
+        ([0] * 11 + [7], 1, 12),
         # It never blocks.
         ([0] * 12, 1, 12),
     ],
@@ -695,8 +696,8 @@ def test_the_ai_runs_only_where_the_block_holds(tmp_path, name, answers, code, p
     StepSecurity, or when its service is down, it blocks nothing. And it waits only
     about ten seconds for its agent, so the block can come a little after its step.
     The step asks for a host of no firewall policy, for up to a minute, and stops the
-    job analyze when requests keep getting through; two requests in a row that fail
-    to resolve, connect or answer in time let it run."""
+    job analyze when requests keep getting through; two requests in a row, five seconds
+    apart, that fail to resolve, connect or answer in time let it run."""
     holds = JOBS_WITH_ENGINE[name]["analyze"]["steps"][1]
     policy = (assistant.TEMPLATES / assistant.FIREWALL).read_text(encoding="utf-8")
     assert "example.com" not in assistant.allowed_hosts(policy)

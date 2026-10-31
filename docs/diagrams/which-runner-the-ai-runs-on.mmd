@@ -1,6 +1,6 @@
 flowchart TB
   accTitle: Which runner the AI runs on
-  accDescr: The job event reads the repository variable ISSUE_ASSISTANT_AI_RUNNER. Unset, or ubuntu-24.04-firewall, the job analyze runs on GitHub's egress-firewall runner, whose firewall blocks every host but those of .github/egress-firewall.yaml for the whole machine. For one of GitHub's runners of Ubuntu with a fixed version, such as ubuntu-24.04, the job event names the hosts of the same file with their ports; there Harden-Runner blocks every other host as the first step of analyze, and the next step stops the job when a request to example.com gets through, before the engine runs. For any other runner, such as a self-hosted one or ubuntu-latest, the job event fails and the AI doesn't run.
+  accDescr: The job event reads the repository variable ISSUE_ASSISTANT_AI_RUNNER. Unset, or ubuntu-24.04-firewall, the job analyze runs on GitHub's egress-firewall runner, whose firewall blocks every host but those of .github/egress-firewall.yaml for the whole machine. For one of GitHub's runners of Ubuntu with a fixed version, such as ubuntu-24.04, the job event names the hosts of the same file with their ports; there Harden-Runner blocks every other host as the first step of analyze, and the next step stops the job when requests to example.com still get through after a minute, before the engine runs. For any other runner, such as a self-hosted one or ubuntu-latest, the job event fails and the AI doesn't run.
   variable["`the variable<br>**ISSUE_ASSISTANT_AI_RUNNER**`"]
   variable -->|"unset, or ubuntu-24.04-firewall"| firewall
   variable -->|"ubuntu-24.04 and the like"| endpoints
@@ -11,7 +11,7 @@ flowchart TB
   endpoints["`**event** names the hosts of<br>egress-firewall.yaml, on 443 and 80`"]
   subgraph plain ["ubuntu-24.04"]
     hardened["`**analyze**<br>Harden-Runner blocks every other host<br>for the job`"]
-    holds["`does a request to<br>example.com get through?`"]
+    holds["`do requests to example.com<br>still get through after a minute?`"]
     hardened --> holds
   end
   endpoints --> hardened
