@@ -515,7 +515,7 @@ def test_diagrams_scroll_sideways_on_small_screens():
 
 def test_the_pictures_of_a_diagram_stay_for_the_hook_of_the_blueprint(docs: Path):
     # The folder of the fixture has no picture of a diagram: the hook reads no size.
-    # A page gives the path from its folder, and a part of the README from the root;
+    # A page gives the path from its folder, and the README from the root;
     # the page of the automation, which the hook of the blueprint writes, shows the
     # pictures that it serves from .github/, which docs/ lacks.
     for folder in (
@@ -531,7 +531,7 @@ def test_the_pictures_of_a_diagram_stay_for_the_hook_of_the_blueprint(docs: Path
 @pytest.mark.parametrize(
     ("folder", "served", "outside"),
     [
-        # The part of the README gives the path from the root of the repository.
+        # The README gives the path from the root of the repository.
         ("docs/images/diagrams/", "images/diagrams/", False),
         # The page of the automation, whose pictures the blueprint keeps in .github/.
         ("assets/images/automation/", "assets/images/automation/", True),
@@ -628,7 +628,7 @@ def test_the_theme_of_the_system_applies_before_the_pictures_load():
 def test_the_hook_knows_every_picture_of_the_documentation():
     for document in DOCUMENTS:
         text = document.read_text("utf-8")
-        # The guide includes the parts of the README.
+        # The README, which no page includes, as the hook would treat it.
         url = (
             "guide.html"
             if document.name == "README.md"
@@ -720,9 +720,9 @@ def test_the_readme_says_what_why_and_how_before_the_animation():
         r"install --setup\n\Z",
         commands,
     )
-    assert "(#set-up-a-repository)" in top
+    assert "/docs/getting-started.md#set-up-a-repository)" in top
     # They are the first step of the set-up, which has four.
-    steps = readme_part("quick-start")
+    steps = page_part("getting-started.md", "quick-start")
     assert textwrap.indent(commands, "    ") in steps
     assert re.findall(r"^(\d+)\. \*\*", steps, re.MULTILINE) == ["1", "2", "3", "4"]
     for needed in ("Auto-close issues with merged linked pull requests", "Try it"):
@@ -797,16 +797,33 @@ USERS = {
 RENAMED = {"ha-autodarts": "homedarts-for-autodarts"}
 
 
-def readme_part(name: str) -> str:
-    """The part of the README between the markers that the website includes."""
-    text = (ROOT / "README.md").read_text("utf-8")
+def page_part(page: str, name: str) -> str:
+    """The part of a page of docs/ between the markers that another page includes."""
+    text = (ROOT / "docs" / page).read_text("utf-8")
     match = re.search(
         rf"^<!-- --8<-- \[start:{name}\] -->\n(.*?)^<!-- --8<-- \[end:{name}\] -->$",
         text,
         re.MULTILINE | re.DOTALL,
     )
-    assert match, f"the README has no part {name}"
+    assert match, f"{page} has no part {name}"
     return match[1]
+
+
+def section(page: str, heading: str) -> str:
+    """What a page of docs/ has below a heading of the second level."""
+    text = (ROOT / "docs" / page).read_text("utf-8")
+    return text.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def slugs(text: str) -> set[str]:
+    """The anchors of the headings of a Markdown text, as GitHub and the website make
+    them; a comment in a block of code counts too, which harms no test here."""
+    return {
+        re.sub(r"[^\w\- ]", "", heading.replace("`", "").strip().lower()).replace(
+            " ", "-"
+        )
+        for heading in re.findall(r"^#{1,6} (.+)$", text, re.MULTILINE)
+    }
 
 
 def users(text: str, start: str) -> set[str]:
@@ -815,20 +832,208 @@ def users(text: str, start: str) -> set[str]:
     return set(re.findall(r"\(https://github\.com/Dennis-Otto/([\w.-]+)\)", line))
 
 
-def test_every_part_of_the_readme_is_on_the_website_once():
-    text = (ROOT / "README.md").read_text("utf-8")
-    starts = re.findall(r"^<!-- --8<-- \[start:([a-z-]+)\] -->$", text, re.MULTILINE)
-    ends = re.findall(r"^<!-- --8<-- \[end:([a-z-]+)\] -->$", text, re.MULTILINE)
-    assert sorted(starts) == sorted(ends) and len(set(starts)) == len(starts)
-    assert {"requirements", "faq", "troubleshooting", "compare"} <= set(starts)
-    included = [
-        match
-        for page in sorted((ROOT / "docs").rglob("*.md"))
-        for match in re.findall(
-            r'^--8<-- "README\.md:([a-z-]+)"$', page.read_text("utf-8"), re.MULTILINE
-        )
+def test_a_page_includes_only_a_part_of_another_page():
+    # The details are on the pages, in Markdown that reads the same on GitHub: the
+    # README keeps a line and a link for each, and includes nothing, and no page
+    # includes it. What a page includes from another page, GitHub doesn't show there,
+    # so that stays rare.
+    assert "--8<--" not in (ROOT / "README.md").read_text("utf-8")
+    parts: list[tuple[str, str]] = []
+    included: list[tuple[str, str, str]] = []
+    for path in sorted((ROOT / "docs").rglob("*.md")):
+        page = path.relative_to(ROOT / "docs").as_posix()
+        text = path.read_text("utf-8")
+        starts = re.findall(r"^<!-- --8<-- \[start:([a-z-]+)\] -->$", text, re.M)
+        ends = re.findall(r"^<!-- --8<-- \[end:([a-z-]+)\] -->$", text, re.M)
+        assert sorted(starts) == sorted(ends) and len(set(starts)) == len(starts), page
+        parts += [(page, name) for name in starts]
+        included += [
+            (page, source, name)
+            for source, name in re.findall(
+                r'^--8<-- "docs/([\w/.-]+\.md):([a-z-]+)"$', text, re.M
+            )
+        ]
+        assert not re.search(r'^--8<-- "README', text, re.M), page
+    assert sorted(included) == [
+        ("architecture.md", "how-it-works.md", "workflows-diagram"),
+        ("index.md", "getting-started.md", "quick-start"),
+        ("security.md", "how-it-works.md", "trust-boundaries-diagram"),
     ]
-    assert sorted(included) == sorted(starts)
+    assert sorted(parts) == sorted((source, name) for _, source, name in included)
+
+
+BLOB = "https://github.com/Dennis-Otto/issue-assistant/blob/main/"
+# The anchors of the README before its details moved to the pages of docs/, and the
+# page of docs/ that has each now; the link to its page is one tap from the anchor.
+FORMER_README = {
+    "how-it-works": "README.md",
+    "the-life-of-an-issue": "features/life-of-an-issue.md",
+    "priorities-owners-and-issue-types": "features/priorities.md",
+    "waiting-periods-exemptions-and-old-threads": "features/waiting-periods.md",
+    "a-duplicate": "features/duplicates.md",
+    "related-repositories": "features/related-repositories.md",
+    "questions-in-discussions": "features/discussions.md",
+    "slash-commands": "features/slash-commands.md",
+    "from-the-fix-to-the-release": "features/fix-to-release.md",
+    "what-the-ai-reads": "features/what-the-ai-reads.md",
+    "languages": "features/languages.md",
+    "limits-of-the-ai-runs": "features/limits.md",
+    "what-one-run-may-cost": "features/cost.md",
+    "what-the-sweep-tells-the-maintainers": "features/digest.md",
+    "when-github-fails": "features/github-failures.md",
+    "security": "README.md",
+    "requirements": "getting-started.md",
+    "set-up-a-repository": "getting-started.md",
+    "what-install-writes": "getting-started.md",
+    "keep-it-checked": "getting-started.md",
+    "without---setup": "getting-started.md",
+    "settings": "configuration.md",
+    "githublabelstoml": "configuration.md",
+    "githubissue-assistantconfigtoml": "configuration.md",
+    "findings": "configuration.md",
+    "engines": "engines.md",
+    "change-the-engine": "engines.md",
+    "add-an-engine": "engines.md",
+    "commands": "reference.md",
+    "try-a-prompt-locally": "reference.md",
+    "measure-the-accuracy": "accuracy.md",
+    "faq": "faq.md",
+    "what-does-it-cost": "faq.md",
+    "can-i-change-the-model": "faq.md",
+    "can-i-change-when-issues-are-reminded-closed-or-locked": "faq.md",
+    "which-languages-does-it-answer-in": "faq.md",
+    "can-the-maintainers-read-an-issue-in-a-language-they-dont-know": "faq.md",
+    "does-the-assistant-learn-from-its-mistakes": "faq.md",
+    "how-do-i-know-whether-the-assistant-does-well": "faq.md",
+    "which-data-leaves-github": "faq.md",
+    "does-it-work-in-private-repositories": "faq.md",
+    "does-it-answer-questions-in-discussions": "faq.md",
+    "why-didnt-my-own-issue-get-an-analysis": "faq.md",
+    "what-happens-to-spam": "faq.md",
+    "what-if-an-issue-shows-a-secret-or-personal-data": "faq.md",
+    "what-if-an-issue-reports-a-vulnerability": "faq.md",
+    "how-do-i-turn-it-off": "faq.md",
+    "what-if-the-firewall-runner-is-gone": "faq.md",
+    "why-must-the-workflows-equal-the-templates": "faq.md",
+    "does-it-need-claude": "faq.md",
+    "troubleshooting": "troubleshooting.md",
+    "compared-with-other-tools": "README.md",
+    "development": "README.md",
+    "license": "README.md",
+}
+# The largest README, which the GitHub app and a phone show as one long page.
+README_BYTES = 25_000
+
+
+def test_the_readme_is_short_and_leads_to_every_feature():
+    readme = (ROOT / "README.md").read_text("utf-8")
+    assert len(readme.encode("utf-8")) <= README_BYTES
+    features = section_of_readme(readme, "What it does")
+    for page in hooks.FEATURES:
+        (line,) = [line for line in features.splitlines() if f"/docs/{page})" in line]
+        words = re.sub(r"<a name=[^>]*></a>|\(https?://[^)]*\)", "", line)
+        assert len(words) <= 150, f"the line of {page} is {len(words)} long"
+    # A line for each topic of the documentation, and five points of the security.
+    for page in ("getting-started", "configuration", "reference", "faq"):
+        assert f"{BLOB}docs/{page}.md" in readme
+    security = section_of_readme(readme, "Security")
+    assert len(re.findall(r"^- \*\*", security, re.MULTILINE)) == 5
+    assert f"{BLOB}docs/security.md" in security
+
+
+def section_of_readme(readme: str, heading: str) -> str:
+    return readme.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def test_the_anchors_that_the_readme_links_exist():
+    # The link check asks only for the file, and the build of the website doesn't read
+    # the README.
+    readme = (ROOT / "README.md").read_text("utf-8")
+    links = re.findall(rf"\({re.escape(BLOB)}(docs/[^#)]+\.md)#([^)]+)\)", readme)
+    assert links
+    for path, anchor in links:
+        assert anchor in slugs((ROOT / path).read_text("utf-8")), (path, anchor)
+
+
+def test_the_readme_shows_the_comparison_of_its_page():
+    readme = (ROOT / "README.md").read_text("utf-8")
+    page = (ROOT / "docs" / "comparison.md").read_text("utf-8")
+    start = page.index("Other tools cover parts of this.")
+    lines = page[start:].split("\n\n", 2)
+    for line in [lines[0], *lines[1].splitlines()]:
+        assert line in readme, line
+
+
+def test_every_former_anchor_of_the_readme_leads_to_its_content():
+    readme = (ROOT / "README.md").read_text("utf-8")
+    for anchor, page in FORMER_README.items():
+        if page == "README.md":
+            assert anchor in slugs(readme), anchor
+            continue
+        # GitHub keeps the name of an empty link as the anchor of a heading.
+        (line,) = [
+            line for line in readme.splitlines() if f'<a name="{anchor}"></a>' in line
+        ]
+        assert f"{BLOB}docs/{page}" in line, anchor
+        text = (ROOT / "docs" / page).read_text("utf-8")
+        assert hooks.FORMER_HEADINGS.get(anchor, anchor) in slugs(text), anchor
+
+
+def test_every_former_anchor_of_how_it_works_is_forwarded_to_its_content():
+    for anchor, page in FORMER_README.items():
+        if page.startswith("features/"):
+            assert page in hooks.FORMER_PAGES["how-it-works.md"], anchor
+            assert page in hooks.FORMER_PAGES["guide.md"], anchor
+
+
+def test_every_feature_has_a_page_that_opens_with_its_picture():
+    folder = ROOT / "docs" / "features"
+    overview = (folder / "README.md").read_text("utf-8")
+    pages = {path.name for path in folder.glob("*.md")} - {"README.md"}
+    assert {page.removeprefix("features/") for page in hooks.FEATURES} == pages
+    for page in hooks.FEATURES:
+        name = page.removeprefix("features/")
+        assert f"]({name})" in overview, page
+        assert page in menu().values(), page
+        _, markdown = page_meta(ROOT / "docs" / page)
+        assert "--8<--" not in markdown, page
+        title, back, *summary = markdown[: markdown.index("<picture>")].split("\n\n")[
+            :-1
+        ]
+        assert title.strip().startswith("# ") and back == "[← All features](README.md)"
+        assert 1 <= len(summary) <= 2, page
+
+
+# About 40 characters of text fit a line on a phone, of 24 pixels. A picture takes
+# about 500 pixels at the width of a phone. So a page that passes these numbers is about
+# 12,000 pixels tall at most, as measured with a browser at 390 pixels.
+LINE = 40
+LINE_HEIGHT = 24
+PICTURE_HEIGHT = 500
+PHONE_PAGE = 11_000
+
+
+def phone_height(markdown: str) -> int:
+    """About how tall a page is on a phone, without what folds."""
+    pictures = len(re.findall(r"<picture>", markdown))
+    text = re.sub(r"<picture>.*?</picture>", "", markdown, flags=re.DOTALL)
+    text = re.sub(r"<details.*?</details>", "", text, flags=re.DOTALL)
+    text = re.sub(r"\]\([^)]*\)", "]", text)
+    lines = sum(1 + len(line) // LINE for line in text.splitlines() if line.strip())
+    return lines * LINE_HEIGHT + pictures * PICTURE_HEIGHT
+
+
+def test_no_page_of_the_website_is_too_tall_for_a_phone():
+    # What the hook makes, every comment and the changelog, folds there instead.
+    made = {"comments.md", "changelog.md"}
+    for path in (ROOT / "docs").rglob("*.md"):
+        page = path.relative_to(ROOT / "docs").as_posix()
+        if page not in made and not page.startswith("decisions/"):
+            height = phone_height(path.read_text("utf-8"))
+            assert height <= PHONE_PAGE, f"{page} is about {height} pixels tall"
+    # The page that was once 50,000 pixels tall would fail.
+    assert phone_height("Text of a line.\n\n" * 700) > PHONE_PAGE
+    assert phone_height("<details>" + "Text.\n" * 700 + "</details>") == 0
 
 
 def menu() -> dict[str, str]:
@@ -849,11 +1054,13 @@ def menu() -> dict[str, str]:
 
 def test_the_menu_leads_to_the_questions_and_the_comparison():
     pages = menu()
-    assert pages["Help"] == "faq.md" and pages["Compare"] == "comparison.md"
+    assert pages["FAQ"] == "faq.md" and pages["Compare"] == "comparison.md"
+    assert pages["Troubleshooting"] == "troubleshooting.md"
     assert all((ROOT / "docs" / page).is_file() for page in pages.values())
     faq = (ROOT / "docs" / "faq.md").read_text("utf-8")
-    assert '--8<-- "README.md:faq"' in faq
-    assert '--8<-- "README.md:troubleshooting"' in faq
+    assert "\n# FAQ\n" in faq and "\n## What does it cost?\n" in faq
+    troubles = (ROOT / "docs" / "troubleshooting.md").read_text("utf-8")
+    assert "\n# Troubleshooting\n" in troubles
 
 
 def test_the_guide_has_a_page_for_each_topic():
@@ -865,21 +1072,21 @@ def test_the_guide_has_a_page_for_each_topic():
         "guide.md",
         "how-it-works.md",
         "configuration.md",
+        "every-key.md",
         "reference.md",
+        "engines.md",
         "comments.md",
     ]
     assert menu()["Get started"] == "getting-started.md"
-    parts = {
-        "getting-started.md": ["requirements", "set-up"],
-        "how-it-works.md": ["how-it-works", "security"],
-        "configuration.md": ["settings", "findings"],
-        "reference.md": ["commands", "engines", "try-a-prompt"],
-        "faq.md": ["faq", "troubleshooting"],
-        "index.md": ["quick-start"],
+    topics = {
+        "getting-started.md": ["Requirements", "Set up a repository"],
+        "how-it-works.md": ["How it works", "Security"],
+        "configuration.md": ["Settings", "Findings"],
+        "reference.md": ["Commands", "Inputs and outputs of the action"],
     }
-    for page, names in parts.items():
+    for page, names in topics.items():
         text = (ROOT / "docs" / page).read_text("utf-8")
-        assert re.findall(r'^--8<-- "README\.md:([a-z-]+)"$', text, re.M) == names
+        assert all(f"\n## {name}\n" in text for name in names), page
     # The overview of the guide includes nothing and leads to each of its pages.
     overview = (ROOT / "docs" / "guide.md").read_text("utf-8")
     assert "--8<--" not in overview
@@ -932,7 +1139,7 @@ def test_the_requirements_say_that_the_firewall_runner_is_a_preview():
         workflow["jobs"]["analyze"]["runs-on"],
     )
     assert runner, "the job analyze names no runner and no variable"
-    requirements = readme_part("requirements")
+    requirements = section("getting-started.md", "Requirements")
     assert f"`{runner[2]}`" in requirements
     assert f"`{runner[1]}`" in requirements
     assert "technical preview" in requirements and "Linux only" in requirements
@@ -970,9 +1177,9 @@ def test_every_test_that_the_documentation_names_exists():
 
 
 def test_the_comparison_is_dated_and_every_cell_has_a_source():
-    (checked,) = re.findall(r"Checked on (\d{4}-\d{2}-\d{2})", readme_part("compare"))
-    assert date.fromisoformat(checked) <= date.today()
     page = (ROOT / "docs" / "comparison.md").read_text("utf-8")
+    checked = re.findall(r"Checked on (\d{4}-\d{2}-\d{2})", page)[0]
+    assert date.fromisoformat(checked) <= date.today()
     rows = [
         [cell.strip() for cell in line.strip("|").split("|")]
         for line in page.splitlines()
@@ -995,8 +1202,9 @@ def test_the_comparison_is_dated_and_every_cell_has_a_source():
 # The diagrams: Mermaid in docs/diagrams/, which scripts/diagrams.sh draws as the
 # pictures that the Markdown shows, for the GitHub app too, and which the website
 # draws live; a ```mermaid block that the diagram bot hasn't drawn yet counts as well.
-# A page of the website shows a diagram of the README by including the part of the
-# README around it, so that each diagram is written once.
+# A page of the website shows a diagram of another page by including the part of that
+# page around it, so that each diagram is written once; the README shows a few of them
+# as their pages do.
 
 FIGURES = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", *DOCUMENTS[1:]]
 SOURCES = ROOT / "docs" / "diagrams"
@@ -1110,7 +1318,7 @@ def test_every_box_of_a_diagram_has_a_border_that_stands_out():
 
 def test_each_diagram_is_written_once():
     # A copy drifts away from its original. A page of the website includes the part
-    # of the README with the diagram instead, such as workflows-diagram.
+    # of another page with the diagram instead, such as workflows-diagram.
     shown = every_diagram()
     sources = [source.strip() for _, source in shown]
     copies = [
@@ -1121,28 +1329,32 @@ def test_each_diagram_is_written_once():
     assert not copies, f"the same diagram is at {copies}"
     pictures = [
         (document.relative_to(ROOT).as_posix(), name)
-        for document in FIGURES
+        for document in FIGURES[1:]
         for name, _ in drawn(document.read_text("utf-8"))
     ]
     names = [name for _, name in pictures]
     copies = [place for place, name in pictures if names.count(name) > 1]
     assert not copies, f"{copies} show the same diagram"
+
+    def from_the_root(picture: str) -> str:
+        return re.sub(r'="(?:\.\./)*(?:docs/)?images/', '="docs/images/', picture)
+
+    on_pages = {
+        name: from_the_root(picture)
+        for document in FIGURES[1:]
+        for name, picture in drawn(document.read_text("utf-8"))
+    }
     readme = (ROOT / "README.md").read_text("utf-8")
-    markers = re.findall(r"^<!-- --8<-- \[start:([a-z-]+)\] -->$", readme, re.MULTILINE)
-    parts = [readme_part(marker) for marker in markers]
-    figures = [(f"README.md:{line}", source) for line, source in diagrams(readme)]
-    figures += [(f"the picture of {name}", picture) for name, picture in drawn(readme)]
-    for place, figure in figures:
-        assert any(figure in part for part in parts), (
-            f"{place} is in no part of the README that the website includes"
-        )
-    for page, marker in [
-        ("architecture.md", "workflows-diagram"),
-        ("security.md", "trust-boundaries-diagram"),
+    assert not diagrams(readme)
+    for name, picture in drawn(readme):
+        assert on_pages.get(name) == picture, f"the README differs from a page: {name}"
+    for page, source, marker in [
+        ("architecture.md", "how-it-works.md", "workflows-diagram"),
+        ("security.md", "how-it-works.md", "trust-boundaries-diagram"),
     ]:
         text = (ROOT / "docs" / page).read_text("utf-8")
-        assert f'--8<-- "README.md:{marker}"' in text.splitlines()
-        part = readme_part(marker)
+        assert f'--8<-- "docs/{source}:{marker}"' in text.splitlines()
+        part = page_part(source, marker)
         assert len(diagrams(part)) + len(drawn(part)) == 1, marker
 
 
@@ -1271,8 +1483,8 @@ def test_the_comments_page_shows_the_first_comments_in_more_languages():
     assert "2 ноября 2026 г." in shown["reminder"]["ru"]
     # The page shows a tab for each, named in its own language.
     markdown = hooks.comments_part(hooks.examples(), [])
-    assert '=== "中文"\n\n    ia-comment-analysis-zh\n' in markdown
-    assert '=== "Русский"\n\n    ia-comment-reminder-ru\n' in markdown
+    assert '=== "中文"\n\n        ia-comment-analysis-zh\n' in markdown
+    assert '=== "Русский"\n\n        ia-comment-reminder-ru\n' in markdown
     assert "ia-comment-fixed-zh" not in markdown
     # And the HTML of the page gets each of them for its placeholder.
     page = (ROOT / "docs" / "comments.md").read_text("utf-8")
@@ -1283,14 +1495,14 @@ def test_the_comments_page_shows_the_first_comments_in_more_languages():
             assert hooks.with_comments(f"<p>{key}</p>") == hooks.GALLERY[key]
 
 
-# The number of catalogs, as the README writes it.
+# The number of catalogs, as the page of the languages writes it.
 NUMBERS = {7: "seven", 14: "fourteen", 15: "fifteen", 16: "sixteen"}
 
 
-def test_the_readme_lists_every_catalog_with_its_address_and_its_day():
-    readme = (ROOT / "README.md").read_text("utf-8")
+def test_the_languages_page_lists_every_catalog_with_its_address_and_its_day():
+    page = (ROOT / "docs" / "features" / "languages.md").read_text("utf-8")
     rows = re.findall(
-        r"^\| `([a-z]{2})` \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$", readme, re.M
+        r"^\| `([a-z]{2})` \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$", page, re.M
     )
     assert [code for code, *_ in rows] == list(assistant.LANGUAGES)
     for code, name, address, day in rows:
@@ -1298,7 +1510,7 @@ def test_the_readme_lists_every_catalog_with_its_address_and_its_day():
         assert name.startswith(locale.name), code
         assert address == (locale.address or "you"), code
         assert day == assistant.format_date(datetime(2026, 11, 2), code), code
-    assert f"which has {NUMBERS[len(rows)]}:" in readme
+    assert f"which has {NUMBERS[len(rows)]}:" in page
 
 
 def test_the_hook_loads_the_assistant_of_the_commit_it_builds(monkeypatch):
@@ -1413,8 +1625,11 @@ def test_the_comments_take_the_place_that_the_page_keeps_for_them():
         assert f"\n## {hooks.KINDS[kind][0]}\n" in markdown
         for language, name in hooks.LANGUAGES.items():
             key = hooks.placeholder(kind, language)
-            assert f'=== "{name}"\n\n    {key}\n' in markdown
+            assert f'    === "{name}"\n\n        {key}\n' in markdown
             assert hooks.GALLERY[key].startswith('<div class="ia-comment">')
+    # The first comment shows, and the others fold, so that the page stays short.
+    assert markdown.count('???+ note "The comment"') == 1
+    assert markdown.count('??? note "The comment"') == len(hooks.examples()) - 1
     assert "| `bug` | Thanks for the report, @alex-demo! |" in markdown
     assert markdown.rstrip().endswith(
         "| any other kind | Thanks for opening this issue, @alex-demo! | "
@@ -1447,7 +1662,9 @@ def test_every_input_and_output_of_the_action_is_in_the_reference():
     page = (ROOT / "docs" / "reference.md").read_text("utf-8")
     markdown = hooks.action_tables(page, action)
     assert "<!-- action.yml" not in markdown
-    rows = re.findall(r"^\| `([\w-]+)` \|(.*)\|$", markdown, re.MULTILINE)
+    # The table of the commands comes before them on the page.
+    tables = markdown[markdown.index("## Inputs and outputs of the action") :]
+    rows = re.findall(r"^\| `([\w-]+)` \|(.*)\|$", tables, re.MULTILINE)
     named = [name for name, _ in rows]
     assert named == [*action["inputs"], *action["outputs"]]
     # The inputs come first; the outputs have names of inputs, such as issue, too.
@@ -1464,9 +1681,8 @@ def test_every_input_and_output_of_the_action_is_in_the_reference():
 
 
 def reference_table(heading: str) -> dict[str, dict[str, str]]:
-    """The rows of the table under a heading of the configuration, by their key."""
-    text = (ROOT / "docs" / "configuration.md").read_text("utf-8")
-    part = text.split(f"\n### {heading}\n", 1)[1].split("\n### ", 1)[0]
+    """The rows of the table under a heading of Every key, by their key."""
+    part = section("every-key.md", heading)
     lines = [line for line in part.splitlines() if line.startswith("| ")]
     columns = [cell.strip() for cell in lines[0].strip("|").split("|")]
     rows = {}
@@ -1503,7 +1719,7 @@ def test_the_reference_of_the_labels_and_the_findings_has_every_key():
     assert all(f"`{group}`" in groups["What it does"] for group in assistant.GROUPS)
     reasons = reference_table("findings.toml")["reason"]["What `check` makes sure of"]
     assert all(f"`{reason}`" in reasons for reason in assistant.DISMISS_REASONS)
-    page = (ROOT / "docs" / "configuration.md").read_text("utf-8")
+    page = (ROOT / "docs" / "every-key.md").read_text("utf-8")
     assert all(f"`{label}`" in page for label in assistant.LIFECYCLE)
 
 
@@ -1597,21 +1813,22 @@ def test_the_reference_of_config_toml_has_every_key_with_its_default(root: Path)
 
 
 def test_the_documentation_names_the_engines_and_their_models_of_the_assistant():
-    # An engine or its default model changes in ENGINES alone; the reference and
-    # the README must follow, or name what the assistant no longer runs.
+    # An engine or its default model changes in ENGINES alone; the keys and the answer
+    # of the FAQ must follow, or name what the assistant no longer runs.
     rows = reference_table("config.toml")
-    readme = (ROOT / "README.md").read_text("utf-8")
+    page = (ROOT / "docs" / "faq.md").read_text("utf-8")
     engines = assistant.ENGINES
     known = rows["[engine] name"]["What `check` makes sure of"]
     assert re.findall(r"`([^`]+)`", known.split(":", 1)[1]) == sorted(engines)
     for engine in engines.values():
         default = f"`{engine.model}` for {engine.name}"
         assert default in rows["[engine] model"]["What it does"], engine
-        assert default in readme, engine
+        assert default in page, engine
         disclosed = rows["[transparency] files"]["What `check` makes sure of"]
         assert f"{engine.name} and {engine.vendor}" in disclosed, engine
     model = engines[assistant.DEFAULT_ENGINE].model
-    assert f'# model = "{model}"' in readme
+    starter = (ROOT / "docs" / "configuration.md").read_text("utf-8")
+    assert f'# model = "{model}"' in starter
 
 
 def test_the_starters_have_only_keys_of_the_reference():
@@ -1653,45 +1870,90 @@ def page_of(source: str, toc: list[SimpleNamespace]) -> SimpleNamespace:
     )
 
 
-def test_an_anchor_of_the_former_guide_leads_to_the_page_that_has_it(monkeypatch):
-    # The guide was one page: a link to guide.html#settings leads to the settings
-    # on the page Configuration now.
+def test_an_anchor_of_a_former_page_leads_to_the_page_that_has_it(monkeypatch):
+    # The guide and How it works were one page each: a link to guide.html#settings
+    # leads to the settings on the page Configuration now, and one to
+    # how-it-works.html#slash-commands to the page of the slash commands.
     monkeypatch.setattr(hooks, "ANCHORS", {})
     for source, toc in {
         "configuration.md": [heading("settings", heading("engine")), heading("guide")],
         # Earlier in the former guide, so its anchor wins.
         "how-it-works.md": [heading("how-it-works"), heading("engine")],
-        # Never part of the former guide.
-        "security.md": [heading("threats")],
+        "features/slash-commands.md": [heading("slash-commands")],
+        "features/duplicates.md": [heading("duplicates")],
+        # Never part of a former page.
+        "roadmap.md": [heading("threats")],
     }.items():
         hooks.on_page_content("", page_of(source, toc), {"docs_dir": "docs"}, None)
-    assert set(hooks.ANCHORS) == {"configuration.md", "how-it-works.md"}
-    guide = page_of("guide.md", [heading("guide")])
-    output = hooks.on_post_page("<body><p>The guide</p></body>", guide, None)
-    data = re.search(r"<script>\(function\(\)\{var targets=(\{[^}]*\}),", output)
-    assert data and output.endswith("</script></body>")
-    # The anchors of the overview itself stay where they are.
-    assert json.loads(data[1]) == {
+    assert set(hooks.ANCHORS) == {
+        "configuration.md",
+        "how-it-works.md",
+        "features/slash-commands.md",
+        "features/duplicates.md",
+    }
+
+    def forwarded(page: SimpleNamespace) -> dict[str, str]:
+        output = hooks.on_post_page("<body><p>A page</p></body>", page, None)
+        data = re.search(r"<script>\(function\(\)\{var targets=(\{[^}]*\}),", output)
+        assert data and output.endswith("</script></body>")
+        assert "location.replace(targets[anchor]+location.hash)" in output
+        return json.loads(data[1])
+
+    # The anchors of the page itself stay where they are, and a heading that got
+    # another name with its page keeps its former anchor.
+    assert forwarded(page_of("guide.md", [heading("guide")])) == {
+        "a-duplicate": "features/duplicates.html",
+        "duplicates": "features/duplicates.html",
         "engine": "how-it-works.html",
         "how-it-works": "how-it-works.html",
         "settings": "configuration.html",
+        "slash-commands": "features/slash-commands.html",
     }
-    assert "location.replace(targets[anchor]+location.hash)" in output
-    # The paths are relative to the overview.
-    assert '"settings":"../configuration.html"' in hooks.forwarding("a/guide.html", [])
-    # Other pages get no script, and nor does the guide without anchors to forward.
-    faq = page_of("faq.md", [heading("faq")])
-    assert hooks.on_post_page("<body></body>", faq, None) == "<body></body>"
+    assert forwarded(page_of("how-it-works.md", [heading("how-it-works")])) == {
+        "a-duplicate": "features/duplicates.html",
+        "duplicates": "features/duplicates.html",
+        "slash-commands": "features/slash-commands.html",
+    }
+    # The paths are relative to the page.
+    assert '"settings":"../configuration.html"' in hooks.forwarding(
+        "guide.md", "a/guide.html", []
+    )
+    # Other pages get no script, and nor does a page without anchors to forward.
+    roadmap = page_of("roadmap.md", [heading("roadmap")])
+    assert hooks.on_post_page("<body></body>", roadmap, None) == "<body></body>"
     hooks.ANCHORS.clear()
+    guide = page_of("guide.md", [heading("guide")])
     assert hooks.on_post_page("<body></body>", guide, None) == "<body></body>"
 
 
-def test_the_former_guide_is_on_the_pages_that_forward_its_anchors():
-    # Each part of the README that the guide had is on one of those pages.
-    for page in hooks.FORMER_GUIDE:
-        assert (ROOT / "docs" / page).is_file()
-    assert set(hooks.FORMER_GUIDE) < set(menu().values())
-    assert menu()["Overview"] == hooks.GUIDE
+def test_the_former_pages_are_on_the_pages_that_forward_their_anchors():
+    # Each part of a former page is on a page of the menu, and so is the former page.
+    pages = set(menu().values())
+    for source, parts in hooks.FORMER_PAGES.items():
+        assert {source, *parts} <= pages, source
+    assert menu()["Overview"] == "guide.md"
+
+
+def test_the_changelog_folds_its_older_releases():
+    releases = [
+        f'<h2 id="{number}.0.0">{number}.0.0</h2><p>A change</p>' for number in range(6)
+    ]
+    html = hooks.folded_releases("<h1>Changelog</h1>" + "".join(releases))
+    shown, folded = html.split("<details><summary>Older releases</summary>")
+    assert shown.count("<h2") == hooks.OPEN_RELEASES
+    assert folded.count("<h2") == len(releases) - hooks.OPEN_RELEASES
+    assert folded.endswith("</details>")
+    # With few releases nothing folds, and the hook folds only the changelog.
+    few = "".join(releases[: hooks.OPEN_RELEASES])
+    assert hooks.folded_releases(few) == few
+    faq = page_of("faq.md", [heading("faq")])
+    assert hooks.on_page_content(
+        "".join(releases), faq, {"docs_dir": "docs"}, None
+    ) == "".join(releases)
+    changelog = page_of("changelog.md", [heading("changelog")])
+    assert "<details>" in hooks.on_page_content(
+        "".join(releases), changelog, {"docs_dir": "docs"}, None
+    )
 
 
 def test_every_page_has_a_description_of_its_own():
@@ -1951,12 +2213,12 @@ def test_the_hidden_copy_of_a_picture_has_no_link():
     assert "stylesheets/pictures.css" in website["extra_css"]
 
 
-def test_the_readme_says_which_limits_each_engine_stops_at():
-    # The column "Stops at" of the README's table of engines, from ENGINES.
-    readme = (ROOT / "README.md").read_text("utf-8")
+def test_the_page_of_the_engines_says_which_limits_each_stops_at():
+    # The column "Stops at" of its table of engines, from ENGINES.
+    page = (ROOT / "docs" / "engines.md").read_text("utf-8")
     rows = {
         cells[1].strip("` "): cells[-2].strip()
-        for line in readme.splitlines()
+        for line in page.splitlines()
         if line.startswith("| `")
         and (cells := line.split("|"))[1].strip("` ") in assistant.ENGINES
     }

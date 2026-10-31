@@ -45,7 +45,7 @@ The action stores no secrets. A repository keeps the engine's token as a secret 
 
 ## Findings of code scanning
 
-CodeQL and OpenSSF Scorecard report their findings in the repository's Security tab. A new alert of CodeQL of high or critical severity, or a new error, stops the merge of the pull request that adds it, which shows the alert at its lines, and so does every new alert of zizmor, the audit of the workflows. The Findings workflow of the [issue assistant](https://github.com/Dennis-Otto/issue-assistant#findings) dismisses the findings that `.github/findings.toml` accepts, each with its reason, and fails while any other finding is open. It names an open finding only by the number and link of its alert, which only maintainers can open; nothing about a possible vulnerability becomes a public issue.
+CodeQL and OpenSSF Scorecard report their findings in the repository's Security tab. A new alert of CodeQL of high or critical severity, or a new error, stops the merge of the pull request that adds it, which shows the alert at its lines, and so does every new alert of zizmor, the audit of the workflows. The Findings workflow of the [issue assistant](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings) dismisses the findings that `.github/findings.toml` accepts, each with its reason, and fails while any other finding is open. It names an open finding only by the number and link of its alert, which only maintainers can open; nothing about a possible vulnerability becomes a public issue.
 
 ## Verify a release
 

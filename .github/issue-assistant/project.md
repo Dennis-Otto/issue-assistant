@@ -3,7 +3,7 @@ The issue assistant is a GitHub Action for maintainers: an AI that only reads wr
 Where things are:
 
 - `issue_assistant.py` is the whole script; `action.yml` runs it. `prompts/` holds the prompts of the AI's tasks, `templates/` the workflows, the firewall policy and the starter files a repository gets. This repository's own copies of those workflows and of the firewall policy in `.github/` come from the repository blueprint, as the templates of the release that it pins; a change of a template changes `templates/`. `locales/` holds the texts of the comments, one catalog per language (`en.toml`, `de.toml`, …), which `tests/test_assistant.py` holds to English.
-- `README.md` documents the set-up, the settings, the engines and the commands; `SECURITY.md` the security policy; `docs/architecture.md` the components and workflows, `docs/security.md` the security design and `docs/roadmap.md` the plans.
+- `README.md` gives the overview; `docs/getting-started.md` documents the set-up, `docs/configuration.md` and `docs/every-key.md` the settings, `docs/engines.md` the engines, `docs/reference.md` the commands, `docs/faq.md` and `docs/troubleshooting.md` the questions and problems, and `docs/features/` each feature; `SECURITY.md` the security policy; `docs/architecture.md` and `docs/architecture/` the components and workflows, `docs/security.md` and `docs/security/` the security design, and `docs/roadmap.md` the plans.
 - `tests/` holds the tests; `tests/test_templates.py` pins the security rules of the templates.
 - `CHANGELOG.md` lists the changes of every release.
 

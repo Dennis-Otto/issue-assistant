@@ -1334,9 +1334,9 @@ def test_the_docs_install_the_command_lines_from_their_lock_files():
     name the lock files and npm ci, and no page or file of the action names
     engine-version, which analyze no longer takes."""
     pages = {
-        "README.md": ROOT / "README.md",
-        "security": ROOT / "docs" / "security.md",
-        "architecture": ROOT / "docs" / "architecture.md",
+        "engines": ROOT / "docs" / "engines.md",
+        "security": ROOT / "docs" / "security" / "engines.md",
+        "architecture": ROOT / "docs" / "architecture" / "testing.md",
         "decision": ROOT
         / "docs"
         / "decisions"

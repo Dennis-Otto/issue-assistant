@@ -6,75 +6,114 @@ description: The settings of the issue assistant in labels.toml, config.toml and
 
 A repository sets up the issue assistant in three files of `.github/`, which `install` writes as starters when they are missing: the labels, the settings, and the findings of code scanning that it accepts. They change through pull requests like the code, and `check` makes sure of them in the CI.
 
---8<-- "README.md:settings"
+## Settings
 
---8<-- "README.md:findings"
+### `.github/labels.toml`
 
-## Every key
+```toml
+[[label]]
+name = "area: cards"
+color = "bfdadc"
+description = "Dashboard cards"          # at most 100 characters
+group = "area"                            # type, area, topic, priority, lifecycle, decision, release or dependabot
+form_options = ["Live card", "Training card"]   # answers of the Area field that choose it
+owners = ["octocat"]                      # optional: assigned to its issues while nobody is
 
-Each key of the three files, its type, its default and what `check` makes sure of. A key that says *required* has no default. Besides, `check` makes sure that every value has the type of its key, and fails on every key that these tables don't have, naming the key that was probably meant, such as `form_options` for `form_option`.
+[[label]]
+name = "enhancement"
+color = "a2eeef"
+description = "New feature or improvement"
+group = "type"
+ask = false                               # never ask reporters of this kind for information
+issue_type = "Feature"                    # optional: the issue type of the organization for this kind
 
-### labels.toml
+[[label]]
+name = "priority: high"
+color = "b60205"
+description = "Breaks the project for many users or loses data, without a workaround"
+group = "priority"                        # optional: the AI gives one to an issue without a priority
+```
 
-Each `[[label]]` of `.github/labels.toml` is a label of the repository:
+### `.github/issue-assistant/config.toml`
 
-| Key | Type | Default | What it does | What `check` makes sure of |
-| --- | --- | --- | --- | --- |
-| `name` | string | required | The name of the label | 1 to 50 characters, as GitHub allows, and no other label has it, in any case: GitHub takes `bug` and `Bug` for one label |
-| `color` | string | required | Its colour, six hexadecimal digits without `#` | Six digits, such as `d73a4a` |
-| `description` | string | required | What the label means; GitHub shows it with the label | 1 to 100 characters |
-| `group` | string | required | `type`, `area`, `topic`, `priority`, `lifecycle`, `decision`, `release` or `dependabot`. The AI chooses one label of the group `type`, the kind of the issue, any of `area` and `topic`, and, where the repository has labels of the group `priority`, the priority of an issue that has none | One of these groups, at least one label of the group `type`, and no priority named `none`, which the AI answers when it can't judge |
-| `form_options` | list of strings | `[]` | The answers of the area field of the issue forms that choose the label; of a dropdown with `multiple: true`, each chosen answer adds its label | Only kinds, areas and topics have them; each is an option of a form and belongs to one label alone |
-| `ask` | boolean | `true` | For a kind: whether the AI may ask its reporters for information | It is `true` or `false` |
-| `owners` | list of strings | `[]` | For an area: the GitHub logins that a new issue of the area is assigned to, when nobody is assigned to it. GitHub notifies them; the assistant mentions nobody | Only areas have them; each is a login, without `@`, and there are at most 10, as many as GitHub assigns to one issue. The Labels workflow warns of a login that can't be assigned |
-| `issue_type` | string | `""` | For a kind: the [issue type](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/managing-issue-types-in-an-organization) of the organization that issues of the kind get, such as `Bug` | Only kinds have one, without spaces at its start or end. The Labels workflow warns of a type that the repository doesn't have |
+```toml
+[engine]
+name = "claude"                 # claude, codex, gemini or copilot, as Engines compares them
+# model = "claude-opus-5-5"     # the engine's default model if left out; a letter or digit, then letters, digits and ._:@/[]- only
+# light_model = "claude-sonnet-5-5"  # the replies to one comment, yes or no; model if left out
+# effort = "medium"             # low, medium, high, xhigh or max, for the models that take it; their default if left out
+max_turns = 40                  # turns of an analysis and a question; a follow-up gets half, a reply a tenth, each at least 4; 1 to 200
+max_budget_usd = 1.00           # the dollars at which one run stops; more than 0, at most 100
+max_per_day = 20                # analyses, follow-ups and replies after a release in 24 hours; 0: only maintainers, by hand
+max_per_author_per_day = 3      # analyses of one reporter's new issues in 24 hours
+release_replies = 2             # comments of the reporter after each release that the AI reads
 
-The group `lifecycle` needs the seven labels that the assistant sets: `needs-triage`, `needs-info`, `stale`, `possible-duplicate`, `duplicate`, `invalid` and `fixed-in-next-release`, the last one only while `close_with_release` is `true`.
+[context]
+max_issues = 1000               # closed issues that an analysis reads besides every open one: those that changed last
+max_discussions = 1000          # discussions that an analysis reads: those that changed last
+max_analyzed = 30               # issues analyzed last whose corrections by the maintainers a first analysis learns from; 0: none
 
-### config.toml
+[related]
+repositories = ["owner/server"] # public repositories whose issues a first analysis searches too, up to 5
 
-`.github/issue-assistant/config.toml` is optional; without it, every key has its default.
+[discussions]
+answer_categories = ["Q&A"]     # categories whose new discussions get a first answer; [] if left out: none
 
-| Key | Type | Default | What it does | What `check` makes sure of |
-| --- | --- | --- | --- | --- |
-| `[engine] name` | string | `"claude"` | The AI engine that writes the analysis, as [Engines](reference.md#engines) compares them | An engine of the assistant: `claude`, `codex`, `copilot` or `gemini` |
-| `[engine] model` | string | `""` | The model; empty for the engine's default: `claude-opus-5-5` for Claude, `gpt-6.1-sol` for Codex, `auto` for Gemini and `auto` for Copilot, with which the CLI chooses | A model name: a letter or a digit, then letters, digits and `._:@/[]-` |
-| `[engine] light_model` | string | `""` | The model of the [replies to one comment](how-it-works.md#what-one-run-may-cost), which only judge it, yes or no: whether a maintainer's comment waits for the reporter, and whether a problem persists after the release; empty for `model` | A model name, as for `model` |
-| `[engine] effort` | string | `""` | How much the model thinks, for the models that take it; empty for the model's default | `low`, `medium`, `high`, `xhigh` or `max`, and none for Gemini, which takes no effort |
-| `[engine] max_turns` | integer | `40` | The most turns of a first analysis and of a maintainer's question; a follow-up gets half of them, and a reply to one comment a tenth, each rounded up and at least 4 (or `max_turns` when it is fewer), which a reply needs. Claude and Gemini stop at them; Codex and Copilot only at the time of the job | A whole number, 1 to 200 |
-| `[engine] max_budget_usd` | number | `1.00` | The most dollars that one run of the engine may cost, as the engine counts them at the prices of its API; once a run has spent this sum it stops without an answer, so a run can go past it by the cost of its last turn, and the summary of the job says so. Only Claude counts dollars; the others stop at the time of the job | A number, more than 0 and at most 100 |
-| `[engine] max_per_day` | integer | `20` | The most [AI runs](how-it-works.md#limits-of-the-ai-runs) that people who don't maintain the repository start in 24 hours: analyses of new issues, follow-ups and replies after a release; `0` lets only maintainers start the AI, by hand | A whole number, 0 or more |
-| `[engine] max_per_author_per_day` | integer | `3` | The most analyses of one reporter's new issues in 24 hours | A whole number, 0 or more |
-| `[engine] release_replies` | integer | `2` | How many comments of the reporter the AI reads after each release that closed their issue | A whole number, 0 or more |
-| `[context] max_issues` | integer | `1000` | How many closed issues an analysis and a follow-up read besides every open one: those that changed last; see [what the AI reads](how-it-works.md#what-the-ai-reads) | A whole number, 0 or more |
-| `[context] max_discussions` | integer | `1000` | How many discussions an analysis and a follow-up read: those that changed last; `0` reads none | A whole number, 0 or more |
-| `[context] max_analyzed` | integer | `30` | How many of the issues analyzed last a first analysis [learns from](how-it-works.md#what-the-ai-reads): the labels that the maintainers removed or added, the duplicates that someone objected to and the analyses that a maintainer gave a 👎; `0` learns from none | A whole number, 0 or more |
-| `[related] repositories` | list of strings | `[]` | Public repositories that share users and topics with this one, as `owner/name`: a first analysis also searches their issues, links those that help, and says when an issue may belong in one of them, which a maintainer then transfers by hand; see [related repositories](how-it-works.md#related-repositories) | Each is a repository, `owner/name`, other than this one, and named once; at most 5 |
-| `[discussions] answer_categories` | list of strings | `[]` | The categories of GitHub Discussions, such as `Q&A`, whose new discussions get a [first answer](how-it-works.md#questions-in-discussions) of the AI, in any case, once `.github/workflows/discussion-assistant.yml` is there, which `install` writes then; the starter names `Q&A`, and `[]` answers no discussion | Each names a category, once in any case; with any, the workflow of the discussions is there and equals its template |
-| `[maintainers] language` | string | `"en"` | The language that the maintainers read: an analysis, a follow-up or a first answer in Discussions that the AI writes in another language, such as Japanese, folds a [summary for the maintainers](how-it-works.md#languages) in this one below its text | The code of a catalog in `locales/`, such as `de` or `en`; `check` lists the known ones |
-| `[links] hosts` | list of strings | `[]` | The hosts that links in the comments may lead to, besides the repository itself | Each is a host name, such as `docs.example.com` |
-| `[forms] area_field` | string | `"Area"` | The dropdown of the issue forms whose answer chooses an area label | Each of its options belongs to one label, or to `unmapped_options` |
-| `[forms] unmapped_options` | list of strings | `["Other"]` | Answers of that dropdown that choose no label | A list of strings |
-| `[transparency] files` | list of strings | `["SUPPORT.md"]` | The files that tell reporters which AI reads their issue; the footer of every analysis and follow-up links the first, at its heading *What happens with your issue* when it has one | Each exists and names the engine and its vendor: Claude and Anthropic, Codex and OpenAI, Gemini and Google, or Copilot and GitHub |
-| `[releases] close_with_release` | boolean | `true` | Whether a fixed issue stays open until a release ships the fix; `false` for a repository without releases | It is `true` or `false` |
-| `[lifecycle] remind_after_days` | integer | `15` | The days after the last question without an answer until the reminder, which names the day the issue closes | 1 to 3650, and the descriptions of `needs-info` and `stale` in `labels.toml` name no other days |
-| `[lifecycle] close_after_days` | integer | `30` | The days after the last question until an issue without an answer closes as not planned, on the day that the reminder named | More than `remind_after_days`, up to 3650 |
-| `[lifecycle] duplicate_grace_days` | integer | `3` | The days after the notice of a sure duplicate until it closes, unless someone objects | 1 to 3650, and the description of `possible-duplicate` names no other days |
-| `[lifecycle] reopen_after_release_days` | integer | `30` | The days after a release closed an issue in which a comment of its reporter that the problem persists reopens it | 1 to 3650 |
-| `[lifecycle] max_follow_ups` | integer | `2` | How often the AI follows up on the reporter's answers to its questions; `0` for never | 0 to 3650 |
-| `[lifecycle] exempt_labels` | list of strings | `["pinned", "security"]` | Issues with one of these labels, in any case, are never reminded, closed as unanswered or as a duplicate, or locked | A list of strings |
-| `[lifecycle] exempt_assignees` | boolean | `false` | Whether issues assigned to someone are exempt as well | It is `true` or `false` |
-| `[lifecycle] exempt_upvotes` | integer | `0` | Issues with at least this many 👍 are exempt as well; `0` exempts none for their 👍 | 0 to 3650 |
-| `[lifecycle] lock_closed_after_days` | integer | `0` | The sweep locks issues closed for more than this many days as resolved, with one line that points to a new issue, at most 25 in a sweep; `0` locks none | 0, or at least `reopen_after_release_days` and up to 3650 |
+[maintainers]
+language = "en"                 # the language the maintainers read, a code of locales/; a comment in another one folds a summary for them
 
-### findings.toml
+[links]
+hosts = ["docs.example.com"]    # besides this repository
 
-Each `[[accept]]` of `.github/findings.toml` accepts the alerts of one rule of code scanning:
+[forms]
+area_field = "Area"
+unmapped_options = ["Other"]
 
-| Key | Type | Default | What it does | What `check` makes sure of |
-| --- | --- | --- | --- | --- |
-| `tool` | string | required | The tool, as code scanning names it, in any case | It isn't empty |
-| `rule` | string | required | The rule, such as `py/unused-import` | It isn't empty |
-| `reason` | string | required | The reason that GitHub records for the dismissal | `false positive`, `won't fix` or `used in tests` |
-| `comment` | string | required | Why, in words, shown with the dismissed alert | 1 to 200 characters |
-| `path` | string | `""` | Only alerts in this file, or in the files of this folder, such as `vendor` for `vendor/board.js` but not `vendored/board.js`; empty for every file | Nothing; a key that the table doesn't have, such as `paths`, stops the findings command too, since the acceptance would cover every file |
+[transparency]
+files = ["SUPPORT.md"]
+
+[releases]
+close_with_release = true       # false: fixed issues don't wait for a release
+
+[lifecycle]
+remind_after_days = 15          # the reminder after the last question without an answer
+close_after_days = 30           # the closing, on the day that the reminder names; more than remind_after_days
+duplicate_grace_days = 3        # a sure duplicate closes this long after the notice
+reopen_after_release_days = 30  # the reporter's comment after a release reopens the issue this long
+max_follow_ups = 2              # follow-ups of the AI on the reporter's answers; 0: none
+exempt_labels = ["pinned", "security"]   # never reminded, closed or locked by the sweep
+exempt_assignees = false        # true: assigned issues are exempt too
+exempt_upvotes = 0              # issues with at least this many 👍 are exempt; 0: off
+lock_closed_after_days = 0      # lock issues closed longer, at least reopen_after_release_days; 0: off
+```
+
+Each key has the type that it has here. A file that isn't TOML, or a value of another type, such as `max_per_day = "5"`, stops every command with an error that names the file and the key. A key that the assistant doesn't know, such as `close_with_releases` or a section `[release]`, would leave the default in place unnoticed: `check` fails on it and names the key that was probably meant, and every other command warns of it.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/what-the-assistant-does-with-a-problem-of-its-settings.dark.svg">
+  <img src="images/diagrams/what-the-assistant-does-with-a-problem-of-its-settings.svg" alt="What the assistant does with a problem of its settings: Every command reads labels.toml and config.toml. A file that isn't TOML stops every command, with the line of the mistake. A value of another type than its key's stops every other command with an error that names the key; check reads the rest with the defaults and names every problem at once. A key that the assistant doesn't know changes nothing, so check fails on it and names the key that was probably meant, while the other commands warn of it and keep the default.">
+</picture>
+
+The `labels` of an issue form may be a list or one text of names separated by commas, as GitHub allows, and the area field may be a dropdown with `multiple: true`: each option that a reporter chooses adds its label.
+
+## Findings
+
+Code scanning reports findings of CodeQL, OpenSSF Scorecard and other tools in the repository's *Security* tab. Some can't or shouldn't be fixed, such as Scorecard's *Code-Review* for a project with one maintainer. `.github/findings.toml` accepts those, each with a reason, in a file that changes only through pull requests:
+
+```toml
+[[accept]]
+tool = "Scorecard"        # the tool as code scanning names it
+rule = "CodeReviewID"     # the rule, such as py/unused-import
+reason = "won't fix"      # false positive, won't fix or used in tests
+comment = "One maintainer: nobody else can approve a pull request."
+# path = "tests/"         # optional: only alerts in this file or folder
+```
+
+The Findings workflow dismisses every open alert that an entry covers, with the entry's reason and comment, and fails while any other alert is open. GitHub tells the maintainer about the failed run; its summary links the alerts by number. `check` makes sure that every entry has a tool, a rule, one of GitHub's reasons and a comment, and no key that it doesn't know: a typo such as `paths` would accept the alerts of the rule in every file, so it stops the Findings workflow too. Code scanning needs the workflow's `security-events: write`; Dependabot's and secret scanning's alerts are out of its reach and stay with Dependabot's own pull requests and notifications.
+
+A daily run with one accepted and one open finding, in a demo project:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/findings-dark.webp">
+  <img src="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/findings-light.webp" alt="A failed daily run of the Findings workflow on a demo project: an annotation names the open alert number 7 by its link only; the summary says that alert 3 was dismissed as won't fix and asks to fix or accept the others">
+</picture>

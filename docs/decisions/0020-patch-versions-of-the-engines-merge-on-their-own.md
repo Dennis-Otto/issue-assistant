@@ -9,7 +9,7 @@ The engines are the AI: the Claude Code action, the Codex action and its command
 
 The engines release often, and most of their releases are patch versions, such as the Claude Code action's 1.0.248. Each waited a week for its release age and then again for the maintainer, so the repositories that use the assistant got the fixes of the engines late, and a patch that the maintainer had no time for held back the next one too.
 
-Since [the check *engine contracts*](../architecture.md#how-the-names-of-the-engines-are-checked) of the Action test, a pull request that changes an engine is checked without a key: the inputs and outputs of each engine's action, the flags of each command line in its help, the keys of the Gemini CLI's settings in its schema, that each one stops at the missing key alone, and for the lock files of `engines/` the signatures and attestations of npm's registry and that npm refuses another hash. That is what a patch version most often breaks: a renamed input, flag or key.
+Since [the check *engine contracts*](../architecture/testing.md#how-the-names-of-the-engines-are-checked) of the Action test, a pull request that changes an engine is checked without a key: the inputs and outputs of each engine's action, the flags of each command line in its help, the keys of the Gemini CLI's settings in its schema, that each one stops at the missing key alone, and for the lock files of `engines/` the signatures and attestations of npm's registry and that npm refuses another hash. That is what a patch version most often breaks: a renamed input, flag or key.
 
 ## Options
 

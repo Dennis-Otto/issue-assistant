@@ -15,8 +15,8 @@ What the issue assistant intends to do in the next twelve months, until October 
 ## Ideas
 
 - **A tier without a secret.** GitHub Models let a workflow call a model with its own token, until GitHub retired it on 2026-07-30. If GitHub again offers models to the token of a workflow, a lighter analysis of labels, missing information and duplicates could run with no secret at all.
-- **Speakers to check the catalogs of the languages, and more of them** as the reporters of the repositories that use the assistant need them: of the fourteen catalogs, only the English and the German ones are written by hand, and the twelve others, from French to Korean, are machine drafts that a speaker of each language should check. A reporter in a language without a catalog already gets the analysis in their language, with the words of the assistant in English; the [README](https://github.com/Dennis-Otto/issue-assistant#languages) has how to add one.
-- **Another engine,** when a repository needs one. The [README](https://github.com/Dennis-Otto/issue-assistant#add-an-engine) describes what an engine needs: a step that only reads, and the same checks of its answer.
+- **Speakers to check the catalogs of the languages, and more of them** as the reporters of the repositories that use the assistant need them: of the fourteen catalogs, only the English and the German ones are written by hand, and the twelve others, from French to Korean, are machine drafts that a speaker of each language should check. A reporter in a language without a catalog already gets the analysis in their language, with the words of the assistant in English; the [README](features/languages.md) has how to add one.
+- **Another engine,** when a repository needs one. The [README](engines.md#add-an-engine) describes what an engine needs: a step that only reads, and the same checks of its answer.
 
 ## Not planned
 

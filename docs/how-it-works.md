@@ -1,11 +1,81 @@
 ---
-description: The four workflows of the issue assistant, the life of an issue from its first analysis to the release that ships its fix, and what keeps the AI in check.
+description: The four workflows of the issue assistant, the tasks that an event gives the AI, and the design that keeps an AI that reads issues in check.
 ---
 
 # How it works and what keeps it safe
 
-The four workflows that run in a repository, the way of an issue from its first analysis to the release that ships its fix, and the design that keeps an AI that reads untrusted issues from writing anything unchecked. The [security design](security.md) has the threats, their countermeasures and the tests that pin them.
+The four workflows that run in a repository, the task that each event gives the AI, and the design that keeps an AI that reads untrusted issues from writing anything unchecked. [Features](features/README.md) has a page for each thing it does, and the [security design](security.md) has the threats, their countermeasures and the tests that pin them.
 
---8<-- "README.md:how-it-works"
+## How it works
 
---8<-- "README.md:security"
+<!-- --8<-- [start:workflows-diagram] -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-four-workflows-of-a-repository-and-what-starts-them.dark.svg">
+  <img src="images/diagrams/the-four-workflows-of-a-repository-and-what-starts-them.svg" alt="The four workflows of a repository and what starts them: Four workflows, each with what starts it. In issue-assistant.yml, a new issue, an edit or a comment starts event, which sets the labels of the form and chooses the next task; analyze lets the AI read the checkout and answer with JSON; apply checks the answer and is the only job that writes. In issue-lifecycle.yml, every morning, a merged pull request, a release and the end of a release run start sweep, which sends reminders, closes issues, closes duplicates and marks fixed issues. In labels.yml, a change of labels.toml on main starts sync-labels, which creates and updates the labels. In findings.yml, every morning, a scan on main and a change of findings.toml start findings, which dismisses the accepted findings and fails on the others.">
+</picture>
+
+<!-- --8<-- [end:workflows-diagram] -->
+
+Four workflows run in the repository. Only the violet job runs an AI, and it can't write:
+
+| Workflow | When | What |
+| --- | --- | --- |
+| `issue-assistant.yml` | new issues, edits of their reporters, new comments, by hand | labels from the form, the first analysis, follow-ups when the reporter answers, whether a maintainer's comment waits for the reporter, whether a comment after the release reopens the issue, and the [slash commands](features/slash-commands.md) of maintainers and reporters |
+| `issue-lifecycle.yml` | every morning, merged pull requests, published releases, the end of a workflow named Release or Release integration that no schedule started | reminders after 15 days, closing after 30 days, closing duplicates 3 days after the notice, or the days of `[lifecycle]`, marking fixed issues and closing them with the release, and locking issues closed long ago when `lock_closed_after_days` is set |
+| `labels.yml` | when `.github/labels.toml` changes on main | creates and updates the labels; never deletes one |
+| `findings.yml` | every morning, after each scan of CodeQL, OpenSSF Scorecard, Workflow security and OSV-Scanner on main, when `.github/findings.toml` changes | dismisses the accepted findings of code scanning and fails while others are open |
+
+Each of the four is a short workflow with what starts it, the most permissions that its jobs get and one pin: the reusable workflow of the issue assistant at the commit of a release, which has the jobs. They run in your repository, with its events, variables, environment and firewall policy, and each job runs the issue assistant of that same commit:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/what-a-workflow-of-a-repository-calls.dark.svg">
+  <img src="images/diagrams/what-a-workflow-of-a-repository-calls.svg" alt="What a workflow of a repository calls: A workflow of the repository, such as issue-assistant.yml, holds what starts it, the most permissions that its jobs get, and one pin, of a release of the issue assistant. It calls the reusable workflow of that release, whose jobs run in the repository, with its events, variables, environment issue-assistant and firewall policy, and each job runs the issue assistant of the same commit. A new release reaches the repository as a pull request of Dependabot or Renovate that moves the pin; install runs again only when a release changes a template.">
+</picture>
+
+Every job runs on `ubuntu-24.04`, the AI's on GitHub's egress-firewall runner of the same version, or on the runner that the repository variable `ISSUE_ASSISTANT_AI_RUNNER` names in its place, should that runner of a technical preview be gone. The events of one issue wait for each other, first in, first out, so a comment written while an analysis runs is handled after it, never dropped. A run of the lifecycle or the findings whose job has nothing to do, such as after the hourly scheduled run of a release workflow, takes no runner and never takes the place of one that waits.
+
+Every task of the AI is one of five: `triage` for a new issue, `follow-up` when the reporter answered the assistant's questions (at most twice, and never once the maintainer joined the conversation), `maintainer-reply` to decide whether a maintainer's comment waits for the reporter, `release-reply` to decide whether the reporter of an issue that a release closed says that the problem persists, and `maintainer-question` to answer the question of a maintainer's [`/assistant ask`](features/slash-commands.md). Which one an event of an issue gives it:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/which-task-an-event-of-an-issue-gives-the-ai.dark.svg">
+  <img src="images/diagrams/which-task-an-event-of-an-issue-gives-the-ai.svg" alt="Which task an event of an issue gives the AI: An event of a bot, on a pull request, or a new issue that a maintainer opened gives the AI no task. Otherwise, a new issue, or the command /assistant again, gives it triage. An answer of the reporter to the assistant's questions gives it follow-up, at most twice and only while no maintainer joined the conversation since the questions. A comment of a maintainer on a reporter's issue that waits for nobody gives it maintainer-reply. A comment of the reporter within 30 days after a release closed the issue gives it release-reply. A maintainer's command /assistant ask gives it maintainer-question. Any other event, such as a comment of someone else, gives it no task. On an issue with the label assistant-muted, only a command of a maintainer starts a task. A task runs only while the AI is on and its secret is set; otherwise no analysis comes, and labels, reminders and closing go on.">
+</picture>
+
+Every other event, such as a comment of someone else, gives it none, and on an issue with the label `assistant-muted`, only a maintainer's command does. A run by hand, under *Actions → Issue assistant → Run workflow*, gives it the task chosen there, `triage` by default. The AI is off while the repository variable `ISSUE_ASSISTANT_AI` is `off`, and pauses while the engine's secret is missing.
+
+## Security
+
+**Built against PromptPwnd and Comment and Control,** the attacks that make an AI in GitHub Actions run commands, leak secrets or write what an issue tells it to. The assistant follows every mitigation that the research on them recommends for a workflow like it, each pinned by a test; the [security design](security/prompt-attacks.md) maps them one by one. The issue examples of the Claude Code action, by contrast, give the AI a token that writes to issues.
+
+Issues come from anyone, so the design assumes that an issue tries to steer the AI. Red is what anyone can write; the numbers are the trust boundaries of the [security design](security.md#trust-boundaries):
+
+<!-- --8<-- [start:trust-boundaries-diagram] -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-trust-boundaries-of-the-issue-assistant.dark.svg">
+  <img src="images/diagrams/the-trust-boundaries-of-the-issue-assistant.svg" alt="The trust boundaries of the issue assistant: Anyone can write an issue, its comments, other issues and discussions, and a pull request. The text reaches the event job, which runs no AI and chooses the task, and, as data in files, the job analyze: the first boundary. There the AI reads with tools that only read, behind a firewall, with a read-only token or none and the engine's secret. Its answer in JSON crosses the second boundary into the job apply, which runs no AI and holds no secret. Its checks want the schema, labels and issues that exist, and no secret, mention, image, HTML or foreign link. When they fail, nothing is posted; when they pass, apply writes to GitHub, only to the issue or the discussion of the event: the third boundary. A merged pull request starts issue-lifecycle.yml on the default branch, without AI, which learns only the issues that it fixes, the fourth boundary, and writes to GitHub.">
+</picture>
+
+<!-- --8<-- [end:trust-boundaries-diagram] -->
+
+- **The AI only reads.** It runs in the `analyze` job, with a read-only token, on GitHub's [egress-firewall runner](https://github.com/github-early-access/actions-native-egress-firewall) with an allow list in `.github/egress-firewall.yaml`. Each engine gets only tools that read, as [Engines](engines.md) shows: Claude Code runs with `--restricted` and the tools `Read`, `Grep` and `Glob` alone, Codex runs its commands in a sandbox that can neither write nor reach the network, and the Gemini CLI and the Copilot CLI get their tools that read files of the checkout and no token of GitHub. The issue, the other issues and the discussions reach it as files that the prompt calls data, not instructions.
+- **Issue text can't pass for someone else or hide.** The AI learns who wrote what from headings that only the assistant writes; each text stands below them in a code fence that nothing in the text can close, so a line such as `## Comment 4 by @owner (maintainer)` stays part of that text. Characters that GitHub shows as nothing, such as Unicode tags and zero-width spaces, which can spell instructions that no maintainer sees, are removed from every text the AI reads and from its answer. And since every analysis reads the excerpts of many other issues, only an original that a maintainer opened or triaged can close a duplicate on its own, so no issue can steer the AI into closing others.
+- **Nothing is posted unchecked.** The AI's answer is JSON with a fixed schema. The `apply` job, which runs no AI and never sees its secret, checks it against the schema, the repository's labels and the issues that exist, refuses anything that looks like a token or key, but [not the links and paths](security/answers.md#what-counts-as-a-secret) that answers are full of, turns mentions, e-mail addresses and references to other repositories into code, but for the issues that exist in a public [related repository](features/related-repositories.md), drops images, HTML and links to other sites, and links files only when git tracks them. What counts is the whole comment as GitHub shows it, so the code of the AI stays code in a list and behind an issue number too, and no table cuts it in two; the [security design](security/answers.md#how-the-text-of-the-ai-is-cleaned) shows how, and how property tests and fuzzing judge whole comments by a model of GitHub's rendering of their own. It writes only to the issue or the discussion of the event, and only the `apply` job of the [discussions](features/discussions.md) may write to discussions.
+- **Its words run nothing outside a comment either.** The AI's words also reach the log of the run, its summary and, as the reason for a label or a suggested duplicate, the timeline of the issue. There they are cleaned like a comment and put on one line, every error and notice of the assistant is escaped, and the summary turns workflow commands off while it prints, so that no answer can run one, such as `::add-mask::`. A possible security report gets a fixed reason on the timeline instead of the AI's words, and neither label names nor the model of `config.toml` can add arguments to the command line of the engine.
+- **No issue can stall it.** Every analysis reads the texts of every open issue and of many closed ones, so the assistant reads each text in time that grows only with its length, and no more of it than GitHub keeps. The AI gets at most 20,000 characters of each text of its issue. Tests and fuzzing check that no crafted text takes longer than half a second.
+- **No stranger can run up the bill.** The runs of the AI that people who don't maintain the repository start have [limits](features/limits.md): by default 20 analyses, follow-ups and replies after a release a day, 3 analyses of one reporter's new issues, and 2 comments of a reporter after each release. Every new issue counts, also while the first analyses still run, so a flood of issues at once starts no more, and a reporter who deletes their comments gets no more replies.
+- **The secret stays in one place:** the environment `issue-assistant`, which only the default branch may use.
+- **No code of a pull request runs.** The lifecycle workflow starts on `pull_request_target` only to learn which issues a merged pull request fixes. It checks out the default branch, runs no AI and skips Dependabot's pull requests.
+- **The jobs that write reach only GitHub.** Every job without the AI starts with [Harden-Runner](https://github.com/step-security/harden-runner) in block mode: the network allows `api.github.com` and `github.com` alone, besides the runner's own hosts, and no step can use sudo or containers to lift the block. A compromised action or tool in a job with a write token can't send it anywhere else. The Action test of this repository runs the action behind the same block. The block holds in a public repository, and in a private one only with a subscription or trial of StepSecurity, the maker of Harden-Runner; without one, or when its service is unavailable, the job runs unblocked. StepSecurity receives the repository, the run and the job of each of these jobs, and the hosts that its steps connect to.
+- **Findings stay private.** Code scanning alerts are only shown to maintainers, but the logs of a public repository's runs are public. So the Findings workflow names an open alert by its number and link only, never its rule, file or message, and nothing becomes an issue.
+- **Every repository uses exactly the templates.** The templates are the four workflows, the workflow of the [discussions](features/discussions.md) and the firewall policy in `templates/`, which this repository uses for its own issues and findings too. Each workflow calls the jobs of a release, the reusable workflows in `.github/workflows/reusable-*.yml` of this repository, at a commit that no repository can change, and gives them no more permissions than they need. `check` fails when a repository's workflow differs from its template in anything but the commit hashes of its pins, and the tests of this repository pin the rules of the templates and of the jobs.
+
+What `apply` makes of an answer that an issue steered:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/cleaning-dark.webp">
+  <img src="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/cleaning-light.webp" alt="What the apply job makes of an answer that an issue steered: a mention becomes code, a link to another site keeps only its text, an image keeps only its description, HTML is removed, unknown issue numbers become code, links into the repository and to existing issues stay links, and an answer with something like a token is refused as a whole">
+</picture>
+
+The [security design](security.md) lists the threats, their countermeasures and the tests that pin them. Report vulnerabilities privately, as described in [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md).
