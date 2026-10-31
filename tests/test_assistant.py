@@ -9710,6 +9710,13 @@ def test_the_digest_issue_keeps_the_quality_until_the_next_numbers(config):
     assert "\n\nCounted on 2026-10-07.\n\n" in body
     assert body.endswith("Updated on 2026-10-08.")
 
+    # Saving in GitHub's web editor stores the body with CRLF line ends.
+    github.store[number]["body"] = body.replace("\n", "\r\n")
+    assistant.report(github, config, NOW + timedelta(days=1), "schedule")
+    body = github.store[number]["body"]
+    assert "#### Assistant quality (last 30 days)\n\n| Number | Value |" in body
+    assert "\n\nCounted on 2026-10-07.\n\n" in body
+
     assistant.report(github, config, NOW + timedelta(days=2), "workflow_dispatch")
     body = github.store[number]["body"]
     assert body.count("#### Assistant quality") == 1

@@ -7441,7 +7441,7 @@ def digest_body(
     quality = next((section for section in parts[1:] if NOT_MADE not in section), "")
     if quality:
         quality += f"\n\nCounted on {day}."
-    elif held := HELD_QUALITY.search(previous):
+    elif held := HELD_QUALITY.search(previous.replace("\r\n", "\n")):
         quality = held[0]
     sections = (
         f"{render_marker(DIGEST)}\n{DIGEST_INTRO}",
