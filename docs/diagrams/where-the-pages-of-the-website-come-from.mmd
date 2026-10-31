@@ -1,7 +1,8 @@
 flowchart TB
   accTitle: Where the pages of the website come from
-  accDescr: The parts of the README become the pages Get started, How it works, Configuration, Reference, Help and the quick start of the home page. The hook of the website makes every comment of What reporters see from the functions and texts of issue_assistant.py, and the tables of the inputs and outputs on the Reference from action.yml. Every page gets a description of its own, from its front matter or its first paragraph.
-  readme(["README.md,<br>in parts"]) --> pages["Get started, How it works,<br>Configuration, Reference,<br>Help, Home"]
+  accDescr: The Markdown files in docs/ become the pages of the website, among them a page for each feature, and read the same on GitHub; the README keeps a line and a link for each. The hook of the website makes every comment of What reporters see from the functions and texts of issue_assistant.py, and the tables of the inputs and outputs on the Reference from action.yml. Every page gets a description of its own, from its front matter or its first paragraph.
+  readme(["README.md:<br>a line and a link<br>for each"]) --> markdown(["docs/*.md,<br>as GitHub shows them"])
+  markdown --> pages["Features, Get started,<br>How it works, Configuration,<br>Reference, Help, Home"]
   script(["issue_assistant.py:<br>TEXT and render_*()"]) --> hook
   action(["action.yml"]) --> hook
   hook["`**scripts/mkdocs_hooks.py**<br>with every build`"] --> comments["What reporters see:<br>every comment,<br>English and German"]
@@ -11,6 +12,6 @@ flowchart TB
   classDef source fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
   classDef code fill:#8250df33,stroke:#8250df,stroke-width:2px
   classDef page fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
-  class readme,script,action source
+  class readme,markdown,script,action source
   class hook code
   class pages,comments,tables,described page

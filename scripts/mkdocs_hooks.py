@@ -1,13 +1,13 @@
 """Hooks of MkDocs for the website of the documentation (mkdocs.yml).
 
-The pages of the website include the parts of the README, so that nothing is written
-twice. The hooks add what the Markdown of the pages can't say itself.
+The pages of the website are the Markdown files of docs/, which read the same on
+GitHub. The hooks add what the Markdown of the pages can't say itself.
 
-The pictures. The README shows its pictures with their addresses on
-raw.githubusercontent.com, so that they appear wherever it is read. The website shows
-its own copies instead, those of the commit it is built from, so that a pull request
-already shows its new pictures, and lets the switch between light and dark choose
-them:
+The pictures. The README and the pages show their screenshots with their addresses on
+raw.githubusercontent.com, so that they appear wherever they are read. The website
+shows its own copies instead, those of the commit it is built from, so that a pull
+request already shows its new pictures, and lets the switch between light and dark
+choose them:
 
 - The address of a file in docs/ on the main branch becomes the path of that file
   on the website, relative to the page.
@@ -29,9 +29,9 @@ them:
   pixels: docs/stylesheets/diagrams.css gives it its least width. The hook wraps it
   on the finished page, once the hook of the blueprint has drawn it.
 
-The pictures of the README are part of the included Markdown only after the snippets
-are resolved, so the hook works on the HTML of each page, before the plugin glightbox
-makes each picture open enlarged with a click.
+A page may include a part of another page, whose pictures are in the Markdown only
+after the snippets are resolved, so the hook works on the HTML of each page, before
+the plugin glightbox makes each picture open enlarged with a click.
 
 What the code knows:
 
@@ -48,8 +48,13 @@ How each page presents itself to search engines and where a link to it is shared
 - The title of the home page from its front matter, without the name of the website
   a second time.
 
-Links from before: the guide was one page, and a link to one of its anchors, such as
-guide.html#settings, leads to the page that has the anchor now.
+Links from before: the guide and How it works were one page each, and a link to one of
+their anchors, such as guide.html#settings or how-it-works.html#slash-commands, leads
+to the page that has the anchor now. So do those of the other pages that gave up parts,
+such as security.html#threats-and-countermeasures.
+
+Pages that stay short on a phone: the comments on What reporters see and the older
+releases of the changelog fold.
 """
 
 from __future__ import annotations
@@ -77,7 +82,7 @@ except ImportError:  # The tests, which run without MkDocs.
         return lambda function: function
 
 
-# The files of docs/ on the main branch, as the README links them.
+# The files of docs/ on the main branch, as the README and the pages show them.
 DOCS = "https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/"
 ADDRESS = re.compile(rf'\b(?P<attribute>src|srcset)="{re.escape(DOCS)}(?P<path>[^"]+)"')
 # A picture: a <source> for each variant, the dark ones among them, and the <img> of
@@ -1106,14 +1111,20 @@ def placeholder(kind: str, language: str) -> str:
 
 
 def comments_part(shown: list[Example], thanks: list[str]) -> str:
-    """The Markdown of the comments, with a placeholder for each of them."""
+    """The Markdown of the comments, with a placeholder for each of them. The first
+    comment shows, and the others fold, so that the page stays short on a phone."""
     lines = []
-    for example in shown:
-        lines += [f"## {example.title}", "", example.when, ""]
+    for number, example in enumerate(shown):
+        fold = '???+ note "The comment"' if number == 0 else '??? note "The comment"'
+        lines += [f"## {example.title}", "", example.when, "", fold, ""]
         for language in example.texts:
             name = (LANGUAGES | MORE_LANGUAGES)[language]
-            lines += [f'=== "{name}"', "", f"    {placeholder(example.kind, language)}"]
-            lines.append("")
+            lines += [
+                f'    === "{name}"',
+                "",
+                f"        {placeholder(example.kind, language)}",
+                "",
+            ]
     lines += [
         "## How an analysis begins",
         "",
@@ -1206,17 +1217,58 @@ def with_comments(html: str) -> str:
     return PLACEHOLDER.sub(lambda match: GALLERY[match[1]], html)
 
 
-# The guide was one page until these pages took its parts, in this order. A link to
-# one of its anchors, such as guide.html#settings, leads to the page that has the
-# anchor now, so that links from before keep working.
-GUIDE = "guide.md"
-FORMER_GUIDE = (
-    "how-it-works.md",
-    "getting-started.md",
-    "configuration.md",
-    "reference.md",
+# Pages that were one until the pages that follow took their parts, in this order. A
+# link to one of their anchors, such as guide.html#settings or
+# how-it-works.html#slash-commands, leads to the page that has the anchor now, so that
+# links from before keep working.
+FEATURES = (
+    "features/first-analysis.md",
+    "features/life-of-an-issue.md",
+    "features/priorities.md",
+    "features/waiting-periods.md",
+    "features/duplicates.md",
+    "features/related-repositories.md",
+    "features/discussions.md",
+    "features/slash-commands.md",
+    "features/fix-to-release.md",
+    "features/what-the-ai-reads.md",
+    "features/languages.md",
+    "features/limits.md",
+    "features/cost.md",
+    "features/digest.md",
+    "features/github-failures.md",
 )
-# The address and the anchors of each of those pages, of the current build.
+FORMER_PAGES: dict[str, tuple[str, ...]] = {
+    "guide.md": (
+        "how-it-works.md",
+        *FEATURES,
+        "getting-started.md",
+        "configuration.md",
+        "every-key.md",
+        "reference.md",
+        "engines.md",
+    ),
+    "how-it-works.md": FEATURES,
+    "configuration.md": ("every-key.md",),
+    "reference.md": ("engines.md",),
+    "faq.md": ("troubleshooting.md",),
+    "security.md": (
+        "security/prompt-attacks.md",
+        "security/engines.md",
+        "security/issue-text.md",
+        "security/answers.md",
+        "security/threats.md",
+    ),
+    "architecture.md": (
+        "architecture/templates.md",
+        "architecture/testing.md",
+        "architecture/dry-runs.md",
+        "architecture/failures.md",
+    ),
+}
+# Headings that got another name with their page, as their former anchors name them.
+FORMER_HEADINGS = {"a-duplicate": "duplicates"}
+# The address and the anchors of each page of the current build that took a part.
 ANCHORS: dict[str, tuple[str, list[str]]] = {}
 
 
@@ -1229,21 +1281,24 @@ def anchors(toc: Any) -> list[str]:
 
 
 def remember_anchors(page: Any) -> None:
-    """Keep the anchors of a page that has a part of the former guide."""
-    if page.file.src_uri in FORMER_GUIDE:
+    """Keep the anchors of a page that took a part of a former page."""
+    if any(page.file.src_uri in parts for parts in FORMER_PAGES.values()):
         ANCHORS[page.file.src_uri] = (page.file.url, anchors(page.toc))
 
 
-def forwarding(url: str, own: list[str]) -> str:
-    """The script that leads an anchor of the former guide at url to the page that
-    has it now; an anchor of the page itself stays."""
+def forwarding(source: str, url: str, own: list[str]) -> str:
+    """The script that leads a former anchor of the page source at url to the page
+    that has it now; an anchor of the page itself stays."""
     folder = posixpath.dirname(url) or "."
     targets: dict[str, str] = {}
-    for source in FORMER_GUIDE:
-        address, found = ANCHORS.get(source, ("", []))
+    for part in FORMER_PAGES[source]:
+        address, found = ANCHORS.get(part, ("", []))
         for anchor in found:
             if anchor not in own:
                 targets.setdefault(anchor, posixpath.relpath(address, folder))
+    for former, heading in FORMER_HEADINGS.items():
+        if heading in targets:
+            targets[former] = targets[heading]
     if not targets:
         return ""
     # Anchors are slugs and addresses paths of pages, so nothing ends the script.
@@ -1257,11 +1312,30 @@ def forwarding(url: str, own: list[str]) -> str:
 
 
 def with_forwarding(output: str, page: Any) -> str:
-    """The overview of the guide with the script that forwards its former anchors."""
-    if page.file.src_uri != GUIDE:
+    """A page that gave up parts with the script that forwards its former anchors."""
+    if page.file.src_uri not in FORMER_PAGES:
         return output
-    script = forwarding(page.file.url, anchors(page.toc))
+    script = forwarding(page.file.src_uri, page.file.url, anchors(page.toc))
     return output.replace("</body>", f"{script}</body>", 1)
+
+
+# The changelog grows with every release, so only the newest ones stay open on the
+# website. Its headings stay in the menu beside it, and the Material theme opens a fold
+# around an anchor that a link leads to.
+CHANGELOG = "changelog.md"
+OPEN_RELEASES = 4
+RELEASE = re.compile(r"<h2[ >]")
+
+
+def folded_releases(html: str) -> str:
+    """The HTML of the changelog, with the older releases in one fold."""
+    starts = [match.start() for match in RELEASE.finditer(html)]
+    if len(starts) <= OPEN_RELEASES:
+        return html
+    cut = starts[OPEN_RELEASES]
+    return (
+        f"{html[:cut]}<details><summary>Older releases</summary>{html[cut:]}</details>"
+    )
 
 
 # The events of MkDocs.
@@ -1275,6 +1349,8 @@ def on_page_markdown(markdown: str, page: Any, config: Any, files: Any) -> str:
 @event_priority(50)
 def on_page_content(html: str, page: Any, config: Any, files: Any) -> str:
     remember_anchors(page)
+    if page.file.src_uri == CHANGELOG:
+        html = folded_releases(html)
     return localized(with_comments(html), page.file.url, Path(config["docs_dir"]))
 
 

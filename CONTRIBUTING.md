@@ -129,17 +129,25 @@ The READMEs, this guide and the pages of `docs/` have one column, so that they r
 
 `scripts/check.sh` fails on a `<table>` with a picture and on a cell with a width in a README, a CONTRIBUTING file or a page of `docs/`, with its file and line, and warns of a cell of a Markdown table with more than 30 words, which fails nothing yet. `python3 .github/blueprint.py pages --fix` puts the cells of such a table one below the other, the text before its picture, and leaves out the widths; a table inside a table it leaves to you.
 
-Each page of the website has one topic. It includes the parts of the README that belong to it, between the markers `<!-- --8<-- [start:name] -->` and `<!-- --8<-- [end:name] -->`, so that nothing is written twice, and `tests/test_docs.py` checks that each part is on the website once. `scripts/mkdocs_hooks.py` adds what no file of `docs/` holds:
+Each page of the website has one topic, and its Markdown file in `docs/` reads the same on GitHub: the pages hold the details, and [the README links them](docs/decisions/0022-the-pages-hold-the-details.md).
+
+- **The README stays short,** at most 25 KB: the pitch, the quick start, a line and a link for each feature, five points of the security, the comparison and the links.
+- **A feature has a page** in `docs/features/`, which opens with a short summary and its picture, and a line in the README; `tests/test_docs.py` fails without them.
+- **A page stays readable on a phone,** about 12,000 pixels tall at most at a width of 390 pixels; the test estimates that from its Markdown. Split a longer page by topic.
+- **A page includes a part of another page** only where both must show the same, between the markers `<!-- --8<-- [start:name] -->` and `<!-- --8<-- [end:name] -->`, as the home page does with the quick start.
+
+`scripts/mkdocs_hooks.py` adds what no file of `docs/` holds:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/where-the-pages-of-the-website-come-from.dark.svg">
-  <img src="docs/images/diagrams/where-the-pages-of-the-website-come-from.svg" alt="Where the pages of the website come from: The parts of the README become the pages Get started, How it works, Configuration, Reference, Help and the quick start of the home page. The hook of the website makes every comment of What reporters see from the functions and texts of issue_assistant.py, and the tables of the inputs and outputs on the Reference from action.yml. Every page gets a description of its own, from its front matter or its first paragraph.">
+  <img src="docs/images/diagrams/where-the-pages-of-the-website-come-from.svg" alt="Where the pages of the website come from: The Markdown files in docs/ become the pages of the website, among them a page for each feature, and read the same on GitHub; the README keeps a line and a link for each. The hook of the website makes every comment of What reporters see from the functions and texts of issue_assistant.py, and the tables of the inputs and outputs on the Reference from action.yml. Every page gets a description of its own, from its front matter or its first paragraph.">
 </picture>
 
 - **What reporters see** shows every comment that the assistant posts, in English and in German. The hook makes them with every build, by the functions and with the texts of `issue_assistant.py`, for the demo project of the pictures, in place of the part of `docs/comments.md` between `<!-- comments of issue_assistant.py -->` and `<!-- end of the comments -->`. A new text of the catalogs in `locales/` or a new kind of comment needs an example in the hook; a test fails without one.
-- **The reference** has a table of the inputs or the outputs of `action.yml` where a page has the line `<!-- action.yml: inputs -->` or `<!-- action.yml: outputs -->`. The tables of the keys of the settings on the page *Configuration* are written by hand, and tests compare them with the code: every key, its default and the values that `check` accepts.
+- **The reference** has a table of the inputs or the outputs of `action.yml` where a page has the line `<!-- action.yml: inputs -->` or `<!-- action.yml: outputs -->`. The tables of the keys of the settings on the page *Every key* are written by hand, and tests compare them with the code: every key, its default and the values that `check` accepts.
 - **Every page has a description of its own** for search engines and the cards of shared links: the `description` of its front matter, or else its first paragraph.
-- **Links from before keep working.** The guide was one page; a link to one of its anchors, such as `guide.html#settings`, leads to the page that has the anchor now, by a script that the hook adds to the overview of the guide.
+- **Links from before keep working.** A page that gave up parts, such as the guide or *How it works*, forwards: a link to one of its anchors, such as `guide.html#settings` or `how-it-works.html#slash-commands`, leads to the page that has the anchor now, by a script that the hook adds, and `FORMER_PAGES` of the hook lists them. The README keeps its former anchors as `<a name="…"></a>` on the line that links the page with the section now.
+- **What only grows folds.** The hook folds every comment on *What reporters see* but the first, and the older releases of the changelog.
 - **The brand** is the speech bubble of the social preview in `docs/assets/logo.svg`, the logo of the header and the icon of the tab, and the violet of the badge of the action in `docs/stylesheets/brand.css`, light and dark. Tests make sure that each colour has the contrast that WCAG asks for; links in the text are underlined, as on GitHub, since their colour alone sets them apart too little.
 
 The social plugin, which draws the cards of shared links, needs the library Cairo; without it, as on Windows, build the website in a Linux container or let the check *docs* build it.

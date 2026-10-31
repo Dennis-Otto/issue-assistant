@@ -34,7 +34,7 @@ why = """The job runs the action as the repositories that use it run it, with th
 templates that the next release brings them: what fails here fails for them."""
 fix = """Run the check again; if it fails at the same step, the log of the check says
 why."""
-docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
+docs = "docs/architecture/templates.md"
 autofix = """A step that fails before the parts needs a look at its log; each part
 says in its own explanation how it is fixed."""
 
@@ -52,7 +52,7 @@ fix = """Fix each line that the log names, in `templates/`, never in the copies 
 commands = [
   "docker run --rm -v \"$PWD:/repo\" -w /repo rhysd/actionlint:1.7.12 -config-file .github/actionlint.yaml -ignore 'unexpected key \"queue\" for \"concurrency\" section' templates/.github/workflows/*.yml",
 ]
-docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
+docs = "docs/architecture/templates.md"
 autofix = """A mistake of a workflow needs a person, who knows what the template should
 do, and no bot writes a template that every repository runs."""
 
@@ -92,7 +92,7 @@ commands = [
   'ISSUE_ASSISTANT_ROOT="$root" python3 issue_assistant.py install --ref "$(git rev-parse HEAD)" --version smoke-test',
   'ISSUE_ASSISTANT_ROOT="$root" python3 issue_assistant.py check',
 ]
-docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
+docs = "docs/architecture/templates.md"
 autofix = """What `install` writes and what `check` accepts are rules of the action,
 which a person decides."""
 
@@ -116,7 +116,7 @@ commands = [
   'ISSUE_ASSISTANT_ROOT="$root" python3 issue_assistant.py install --ref "$(git rev-parse HEAD)" --version smoke-test',
   'ISSUE_ASSISTANT_ROOT="$root" python3 issue_assistant.py check',
 ]
-docs = "docs/architecture.md#how-a-change-of-a-template-reaches-the-repositories"
+docs = "docs/architecture/templates.md"
 autofix = """Whether the set-up of this repository or a template gives way is the
 decision of a maintainer."""
 
@@ -134,7 +134,7 @@ GitHub refuses, or a host that the action starts to need, fails here before a re
 brings it to every repository."""
 fix = """Run the check again; if it fails at the same step, the log of the check says
 why."""
-docs = "docs/architecture.md#how-the-requests-to-github-are-tested"
+docs = "docs/architecture/testing.md#how-the-requests-to-github-are-tested"
 autofix = """A step that fails before the parts needs a look at its log; each part
 says in its own explanation how it is fixed."""
 
@@ -159,7 +159,7 @@ commands = [
   "DRY_RUN=true GH_REPO={repo} python3 issue_assistant.py sweep",
   "DRY_RUN=true GH_REPO={repo} python3 issue_assistant.py sync-labels",
 ]
-docs = "docs/architecture.md#how-the-requests-to-github-are-tested"
+docs = "docs/architecture/testing.md#how-the-requests-to-github-are-tested"
 autofix = """A request that GitHub refuses, or a host that the block stops, needs a
 person, who knows what the action should ask of GitHub."""
 
@@ -178,7 +178,7 @@ in, and writes its files into `.issue-assistant/`:"""
 commands = [
   "GH_REPO=Dennis-Otto/homedarts-for-autodarts python3 issue_assistant.py context --issue 105 --mode triage",
 ]
-docs = "docs/architecture.md#how-the-requests-to-github-are-tested"
+docs = "docs/architecture/testing.md#how-the-requests-to-github-are-tested"
 autofix = """What the AI should read of an issue is the decision of a person."""
 
 # ---------------------------------------------------------------- the AI's runner in reserve
@@ -238,7 +238,7 @@ commands = [
   "curl --fail --silent --show-error --location --output tests/github/schema.docs.graphql https://docs.github.com/public/fpt/schema.docs.graphql",
   "python3 -m pytest tests/test_graphql_contract.py",
 ]
-docs = "docs/architecture.md#how-the-requests-to-github-are-tested"
+docs = "docs/architecture/testing.md#how-the-requests-to-github-are-tested"
 autofix = """A document that GitHub's schema no longer takes needs a person, who
 chooses what replaces the field; a fresh copy of the schema alone would only move the
 failure into the required check."""
@@ -257,7 +257,7 @@ check that does before a release brings them to every repository that uses the
 action."""
 fix = """Run the check again; if it fails at the same step, the log of the check says
 why."""
-docs = "docs/architecture.md#how-the-names-of-the-engines-are-checked"
+docs = "docs/architecture/testing.md#how-the-names-of-the-engines-are-checked"
 autofix = """A step that fails before the parts needs a look at its log; each part
 says in its own explanation how it is fixed."""
 
@@ -272,7 +272,7 @@ fix = """Run the check again; GitHub's API was most likely down for a moment."""
 commands = [
   "PR=<number> GITHUB_REPOSITORY={repo} python3 scripts/engine_contract.py changes",
 ]
-docs = "docs/architecture.md#how-the-names-of-the-engines-are-checked"
+docs = "docs/architecture/testing.md#how-the-names-of-the-engines-are-checked"
 autofix = """A failed request to GitHub needs another run, not a change of the
 repository."""
 
@@ -296,7 +296,7 @@ check runs on your machine with the GitHub CLI signed in:"""
 commands = [
   "python3 scripts/engine_contract.py actions",
 ]
-docs = "docs/security.md#the-boundary-of-each-engine"
+docs = "docs/security/engines.md#the-boundary-of-each-engine"
 autofix = """A renamed input of an engine's action can change its security boundary,
 so a person decides what replaces it; no bot moves the read-only boundary of an
 engine."""
@@ -322,7 +322,7 @@ may not be what its author published, and `analyze` installs it with the engine'
 secret in every repository."""
 fix = """Read the release notes of the command line and change the flag or the key in
 `ENGINES` of `issue_assistant.py`, with its test in `tests/test_engines.py` and the
-rows in `docs/security.md`, or keep the old pin until it is clear what replaces it. A
+rows in `docs/security/engines.md`, or keep the old pin until it is clear what replaces it. A
 run that stopped elsewhere shows in the log what the command line printed. A
 signature that doesn't verify is no flake: don't merge the update, keep the lock file
 of `main`, and report the package to npm. The check
@@ -332,7 +332,7 @@ commands = [
   "sudo -v",
   "python3 scripts/engine_contract.py clis",
 ]
-docs = "docs/security.md#the-boundary-of-each-engine"
+docs = "docs/security/engines.md#the-boundary-of-each-engine"
 autofix = """A renamed flag or key of an engine's command line can change its
 security boundary, so a person decides what replaces it; no bot moves the read-only
 boundary of an engine."""
@@ -385,7 +385,7 @@ The tests of the workflows run on your machine:"""
 commands = [
   "python3 -m pytest tests/test_workflow_test.py tests/test_templates.py",
 ]
-docs = "docs/architecture.md#the-workflow-test"
+docs = "docs/architecture/dry-runs.md#the-workflow-test"
 autofix = """A job that doesn't run as it should needs a person, who knows what the
 reusable workflow should do; no bot changes a workflow that every repository runs."""
 

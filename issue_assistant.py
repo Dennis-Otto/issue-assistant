@@ -816,7 +816,7 @@ class Engine:
 
 
 # The engines the workflow template has a step for; .github/issue-assistant/config.toml
-# of a repository chooses one. README.md#engines describes how to add one.
+# of a repository chooses one. docs/engines.md describes how to add one.
 ENGINES = {
     "claude": Engine(
         "Claude",
@@ -1525,7 +1525,7 @@ def load_config(root: Path, repository: str, *, lenient: bool = False) -> Config
     if not project_file.is_file() or not (root / LABELS_FILE).is_file():
         raise AssistantError(
             f"{LABELS_FILE} and {SETTINGS / 'project.md'} are needed; "
-            "see https://github.com/Dennis-Otto/issue-assistant#set-up-a-repository."
+            "see https://dennis-otto.github.io/issue-assistant/getting-started.html."
         )
     try:
         project = project_file.read_text(encoding="utf-8").strip()
@@ -5213,7 +5213,7 @@ def reference_link(
 
 # The heading of the notice to reporters that the footers of an analysis and of a
 # follow-up link: the part on what happens with an issue, which the SUPPORT.md of
-# the blueprint has, as the README advises.
+# the blueprint has, as docs/getting-started.md advises.
 NOTICE_ANCHOR = "what-happens-with-your-issue"
 
 

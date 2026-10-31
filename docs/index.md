@@ -132,9 +132,9 @@ What the assistant does on its own, so that an answer never makes matters worse:
 
 ## Quick start
 
---8<-- "README.md:quick-start"
+--8<-- "docs/getting-started.md:quick-start"
 
-[Get started](getting-started.md) has the [requirements](getting-started.md#requirements) of a repository, every step in detail and how to check that it works; [Configuration](configuration.md) has every setting.
+[Get started](getting-started.md) has the [requirements](getting-started.md#requirements) of a repository, every step in detail and how to check that it works; [Configuration](configuration.md) has the settings.
 
 ## Learn more
 
@@ -148,11 +148,19 @@ What the assistant does on its own, so that an answer never makes matters worse:
 
     [:octicons-arrow-right-24: Get started](getting-started.md)
 
+- :material-star-outline:{ .lg .middle } **Features**
+
+    ---
+
+    A page for each thing that it does, from the first analysis of an issue to the release that ships its fix, each with a picture.
+
+    [:octicons-arrow-right-24: Features](features/README.md)
+
 - :material-sitemap-outline:{ .lg .middle } **How it works**
 
     ---
 
-    The four workflows, the life of an issue from its first analysis to the release that ships its fix, and what keeps the AI in check.
+    The four workflows, the task that each event gives the AI, and what keeps the AI in check.
 
     [:octicons-arrow-right-24: How it works](how-it-works.md)
 
@@ -160,7 +168,7 @@ What the assistant does on its own, so that an answer never makes matters worse:
 
     ---
 
-    Every key of the labels, the settings and the accepted findings, the commands, and every input and output of the action.
+    The labels, the settings and the accepted findings with [every key](every-key.md), the commands, every input and output of the action, and the [engines](engines.md).
 
     [:octicons-arrow-right-24: Configuration](configuration.md) · [Reference](reference.md)
 
