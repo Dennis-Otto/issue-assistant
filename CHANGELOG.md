@@ -4,6 +4,14 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.8.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.8.0...v1.8.1) (2026-10-31)
+
+
+### Bug fixes
+
+* **deps:** update dependency @github/copilot to v1.0.100 ([#215](https://github.com/Dennis-Otto/issue-assistant/issues/215)) ([82bccc4](https://github.com/Dennis-Otto/issue-assistant/commit/82bccc40a678b1fa806740e5ccbb44bb9bf51ab1))
+* **deps:** update dependency @github/copilot to v1.0.98 ([#207](https://github.com/Dennis-Otto/issue-assistant/issues/207)) ([436ee8a](https://github.com/Dennis-Otto/issue-assistant/commit/436ee8a9597ac27c31487f64466a3240c359779e))
+
 ## [1.8.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.7.0...v1.8.0) (2026-10-25)
 
 ### Added
