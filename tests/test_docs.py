@@ -1430,7 +1430,7 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
 
         monkeypatch.setattr(assistant, name, record)
     hooks.examples()
-    assert called == set(writers) and len(writers) == 13
+    assert called == set(writers) and len(writers) == 14
 
 
 def test_the_comments_page_examples_carry_their_marker_and_language():
@@ -1759,6 +1759,7 @@ SETTINGS = {
     "[links] hosts": ("hosts", ["docs.example.com"]),
     "[forms] area_field": ("area_field", "Component"),
     "[forms] unmapped_options": ("unmapped_options", ["None"]),
+    "[forms] opt_out_field": ("opt_out_field", "No AI"),
     "[transparency] files": ("notices", ["README.md"]),
     "[transparency] credit": ("credit", False),
     "[releases] close_with_release": ("releases", False),

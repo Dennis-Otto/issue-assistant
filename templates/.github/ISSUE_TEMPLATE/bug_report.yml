@@ -61,3 +61,10 @@ body:
           required: true
         - label: I removed tokens, keys and personal data from everything I posted.
           required: true
+  - type: checkboxes
+    id: automated-analysis
+    attributes:
+      label: Automated analysis
+      description: An AI reads new issues and answers first; [SUPPORT.md](../blob/HEAD/SUPPORT.md#what-happens-with-your-issue) says which, and what it receives. The box keeps it out of this issue, and the maintainers read it either way. If you change your mind, write `/assistant again` in a comment.
+      options:
+        - label: Don't let the AI assistant read this issue.

@@ -1,0 +1,3 @@
+### Features
+
+- A reporter can say no to the AI: the starter forms of `install` have a box *Automated analysis*, and a ticked box mutes the issue when it opens, or when the reporter clicks it later. No run of the AI starts on the issue, its text stays out of what the AI reads for other issues, and labels, reminders and the closing with a release go on. The reporter lets the AI in later with `/assistant again`. `[forms] opt_out_field` names the field, and `check` validates it. A repository with forms of its own adds the field and the line of the notice by hand: [Saying no to the AI](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/opt-out.md) shows how.

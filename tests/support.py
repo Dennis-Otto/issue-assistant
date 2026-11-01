@@ -52,6 +52,10 @@ Live card
 
 _No response_
 """
+# The text of an issue with the box of [forms] opt_out_field, as GitHub writes it.
+BOX = "\n### Automated analysis\n\n- [{}] Don't let the AI assistant read this issue.\n"
+BOX_TICKED = BUG_BODY + BOX.format("X")
+BOX_UNTICKED = BUG_BODY + BOX.format(" ")
 # How the assistant read forms and HTML before its patterns took linear time, for
 # the tests to compare with. Their quantifiers overlap, so that some texts took the
 # form pattern hours and the HTML pattern seconds; give them short texts only.

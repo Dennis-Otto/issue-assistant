@@ -28,3 +28,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0020](0020-patch-versions-of-the-engines-merge-on-their-own.md) | A patch version of an engine merges on its own once the check of its contracts passed | accepted |
 | [0021](0021-letters-of-a-script-count-as-stopwords.md) | Letters of a script of their own count as stopwords in the guess of the language, and Russian and Ukrainian get a third form of a number of days | accepted |
 | [0022](0022-the-pages-hold-the-details.md) | The pages of `docs/` hold the details, with a page for each feature, and a short README links them | accepted |
+| [0023](0023-a-reporter-can-keep-the-ai-out.md) | A reporter can keep the AI out of their issue with a box of the form, which mutes it and takes its text out of every other run | accepted |

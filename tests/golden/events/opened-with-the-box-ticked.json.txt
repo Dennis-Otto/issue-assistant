@@ -1,0 +1,55 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "none",
+    "notes": [
+      "The reporter ticked the box 'Automated analysis': muted on #12 (assistant-muted), no AI run; /assistant again of the reporter or /assistant unmute ends it."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [
+    "add area: cards to #12",
+    "add needs-triage to #12",
+    "create label assistant-muted",
+    "add assistant-muted to #12"
+  ],
+  "requests": [
+    [
+      "POST",
+      "issues/12/labels",
+      {
+        "labels": [
+          "area: cards"
+        ]
+      }
+    ],
+    [
+      "POST",
+      "issues/12/labels",
+      {
+        "labels": [
+          "needs-triage"
+        ]
+      }
+    ],
+    [
+      "POST",
+      "labels",
+      {
+        "name": "assistant-muted",
+        "color": "ededed",
+        "description": "The assistant starts no AI run on this issue; /assistant unmute ends it"
+      }
+    ],
+    [
+      "POST",
+      "issues/12/labels",
+      {
+        "labels": [
+          "assistant-muted"
+        ]
+      }
+    ]
+  ]
+}

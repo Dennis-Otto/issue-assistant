@@ -1,0 +1,20 @@
+flowchart TB
+  accTitle: What the box of the issue form does
+  accDescr: A new issue with the box ticked, or a click of its reporter on the box in the issue, adds the label assistant-muted. No run of the AI starts on the issue then, and its text stays out of what the AI reads for other issues, while the labels of the form, the owners, the reminders and the closing with a release go on. A new issue without the box ticked gets its first analysis as always. On a muted issue, the reporter's /assistant again, while the issue has needs-triage and within the limits of the day, removes the label and lets the AI read it, and a maintainer's /assistant again or /assistant ask lets it read too. Without either, and also when the box is only unticked, the AI stays out.
+  start(["a new issue, or a click<br>of its reporter on the box"]) --> ticked{"the box<br>ticked?"}
+  ticked -- "no" --> analysis["`**the AI reads it**<br>as on every issue`"]
+  ticked -- "yes" --> muted["`**muted**<br>no run of the AI,<br>and its text stays<br>out of what the AI<br>reads for others`"]
+  muted --> rest["the labels of the form,<br>the owners, the reminders<br>and the closing with a<br>release go on"]
+  muted --> changed{"the reporter's<br>/assistant again?"}
+  changed -- "yes, with needs-triage,<br>within the limits" --> analysis
+  changed -- "no" --> command{"a maintainer's<br>command?"}
+  command -- "again or ask" --> analysis
+  command -- "no" --> out["the AI stays out"]
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  class start trigger
+  class ticked,changed,command question
+  class analysis ai
+  class muted,rest,out job

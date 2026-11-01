@@ -89,6 +89,7 @@ nav:
       - Slash commands: features/slash-commands.md
       - From the fix to the release: features/fix-to-release.md
       - What the AI reads: features/what-the-ai-reads.md
+      - Saying no to the AI: features/opt-out.md
       - Languages: features/languages.md
       - Limits of the AI runs: features/limits.md
       - What one run may cost: features/cost.md
