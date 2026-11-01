@@ -1,12 +1,12 @@
 flowchart TB
   accTitle: What install writes, what you edit and what you set on GitHub
-  accDescr: install of a release, run in the root of the repository, writes the four workflows, the workflow of the discussions where answer_categories of config.toml names a category, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore; adds the notice to reporters to SUPPORT.md and the queue of issue-assistant.yml to actionlint's settings where they are missing; and writes starters of project.md, config.toml, labels.toml, findings.toml and a bug report form when they are missing. With --setup, it also creates the environment issue-assistant on GitHub, limited to the default branch, and asks for the engine's secret. Then you describe the project in project.md, adapt the starters, and turn off the auto-close of issues by merged pull requests. Then check passes, and a run by hand shows the first analysis as a dry run.
+  accDescr: install of a release, run in the root of the repository, writes the four workflows, the workflow of the discussions where answer_categories of config.toml names a category, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore; adds the notice to reporters to SUPPORT.md and the queue of issue-assistant.yml to actionlint's settings where they are missing; and writes starters of project.md, config.toml, labels.toml, findings.toml, two issue forms and their chooser when they are missing. With --setup, it also creates the environment issue-assistant on GitHub, limited to the default branch, and asks for the engine's secret. Then you describe the project in project.md, adapt the starters, turn off the auto-close of issues by merged pull requests, and turn on what the links of the chooser need: Discussions and private vulnerability reporting. Then check passes, and a run by hand shows the first analysis as a dry run.
   install(["`**install --setup** of a release,<br>in the root of the repository`"]) --> written
   subgraph written ["install writes"]
     direction TB
     workflows["the four workflows,<br>the one of the discussions<br>where categories are named,<br>the firewall policy,<br>a line in .gitignore"]
     notices["where missing: the notice<br>to reporters in SUPPORT.md,<br>the queue for actionlint"]
-    starters["starters, when missing:<br>project.md, config.toml,<br>labels.toml, findings.toml,<br>a bug report form"]
+    starters["starters, when missing:<br>project.md, config.toml,<br>labels.toml, findings.toml,<br>two issue forms, their chooser"]
   end
   written -- "with --setup" --> github
   subgraph github ["install sets up on GitHub"]
@@ -19,7 +19,7 @@ flowchart TB
   subgraph edited ["you edit and set"]
     direction TB
     describe["project.md: what the<br>project is; the starters:<br>labels, forms, settings"]
-    autoclose["on GitHub: no auto-close<br>of issues by merged<br>pull requests"]
+    autoclose["on GitHub: no auto-close<br>of issues by merged<br>pull requests; Discussions and<br>private vulnerability reporting<br>for the links of the chooser"]
     describe ~~~ autoclose
   end
   edited --> check(["`**check** passes, and a run<br>by hand shows the first<br>analysis as a dry run`"])

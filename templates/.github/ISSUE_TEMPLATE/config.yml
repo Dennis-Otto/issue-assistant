@@ -1,0 +1,16 @@
+# A starter of the issue assistant: https://github.com/Dennis-Otto/issue-assistant
+# What GitHub shows before the forms. Every issue starts from a form, and these links
+# take the rest to where it belongs. On GitHub, under the settings of the repository,
+# turn on what they need: Discussions for the questions, and private vulnerability
+# reporting for the vulnerabilities; remove a link that you don't want.
+blank_issues_enabled: false
+contact_links:
+  - name: Question
+    url: https://github.com/OWNER/NAME/discussions/categories/CATEGORY
+    about: Ask it in the discussions, where an AI issue assistant posts a first answer.
+  - name: Security vulnerability
+    url: https://github.com/OWNER/NAME/security/advisories/new
+    about: Report it privately, never in a public issue.
+  - name: Support
+    url: NOTICE_LINK
+    about: Where to get help, and what happens with your issue.

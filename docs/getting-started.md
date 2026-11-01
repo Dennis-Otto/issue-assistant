@@ -19,7 +19,7 @@ A set-up has three parts: what `install` writes, what you edit, and what you set
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/what-install-writes-what-you-edit-and-what-you-set-on-github.dark.svg">
-  <img src="images/diagrams/what-install-writes-what-you-edit-and-what-you-set-on-github.svg" alt="What install writes, what you edit and what you set on GitHub: install of a release, run in the root of the repository, writes the four workflows, the workflow of the discussions where answer_categories of config.toml names a category, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore; adds the notice to reporters to SUPPORT.md and the queue of issue-assistant.yml to actionlint's settings where they are missing; and writes starters of project.md, config.toml, labels.toml, findings.toml and a bug report form when they are missing. With --setup, it also creates the environment issue-assistant on GitHub, limited to the default branch, and asks for the engine's secret. Then you describe the project in project.md, adapt the starters, and turn off the auto-close of issues by merged pull requests. Then check passes, and a run by hand shows the first analysis as a dry run.">
+  <img src="images/diagrams/what-install-writes-what-you-edit-and-what-you-set-on-github.svg" alt="What install writes, what you edit and what you set on GitHub: install of a release, run in the root of the repository, writes the four workflows, the workflow of the discussions where answer_categories of config.toml names a category, the firewall policy .github/egress-firewall.yaml and an entry in .gitignore; adds the notice to reporters to SUPPORT.md and the queue of issue-assistant.yml to actionlint's settings where they are missing; and writes starters of project.md, config.toml, labels.toml, findings.toml, two issue forms and their chooser when they are missing. With --setup, it also creates the environment issue-assistant on GitHub, limited to the default branch, and asks for the engine's secret. Then you describe the project in project.md, adapt the starters, turn off the auto-close of issues by merged pull requests, and turn on what the links of the chooser need: Discussions and private vulnerability reporting. Then check passes, and a run by hand shows the first analysis as a dry run.">
 </picture>
 
 <!-- --8<-- [start:quick-start] -->
@@ -43,6 +43,8 @@ A set-up has three parts: what `install` writes, what you edit, and what you set
 
 3. **Let the release close fixed issues:** under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**, so that a fixed issue stays open until the release that ships the fix. GitHub has no API for this setting. A repository without releases sets `close_with_release = false` in `config.toml` instead.
 
+    **Turn on what the chooser links to,** when `install` wrote `.github/ISSUE_TEMPLATE/config.yml`, as both links lead nowhere until then: *Settings → General → Features → Discussions*, and *Settings → Advanced Security → Private vulnerability reporting*. GitHub offers private vulnerability reporting only for public repositories, so a private repository removes that link.
+
 4. **Try it:** commit the set-up, push it to the default branch, and under *Actions → Issue assistant → Run workflow*, enter the number of an existing issue. A run by hand starts as a dry run, which writes nothing; the summary of its `apply` job shows the labels and the comment that it would post:
 
     <picture>
@@ -65,10 +67,18 @@ On Windows, run the commands in Git Bash; Python's launcher `py` takes the place
 | `.github/labels.toml` | when missing | define the labels: the seven lifecycle labels are required; kinds, areas, topics and, if you add them, priorities are what the AI chooses from |
 | `.github/issue-assistant/config.toml` | when missing | choose the engine, the hosts that links may lead to, the field of the issue forms that chooses an area, the categories of the discussions that get a first answer, and the files that tell reporters which AI reads their issue |
 | `.github/findings.toml` | when missing | accept findings of code scanning that can't or shouldn't be fixed, each with its reason |
-| `.github/ISSUE_TEMPLATE/bug_report.yml` | together with the starter `labels.toml`, when the repository has no issue forms or templates | adapt the answers of the field *Area*, whose `form_options` in `labels.toml` choose an area label |
+| `.github/ISSUE_TEMPLATE/bug_report.yml`, `feature_request.yml` | together with the starter `labels.toml`, when the repository has no issue forms or templates | adapt the answers of the field *Area*, whose `form_options` in `labels.toml` choose an area label |
+| `.github/ISSUE_TEMPLATE/config.yml` | with these forms, when it is missing | turn on what its links need in the settings of the repository: Discussions, for the first category of `[discussions] answer_categories`, and private vulnerability reporting, which GitHub offers only for public repositories; remove a link that you don't want or that can't work |
 | `SUPPORT.md`, or the files of `[transparency]` | when they don't name the engine | the section *What happens with your issue*, which the footer of every analysis and follow-up links, tells reporters which AI reads their issue, in German for a file such as `SUPPORT.de.md` |
 | `.github/actionlint.yaml` | when it exists | nothing: it ignores the `queue` of `issue-assistant.yml`, which actionlint 1.7.12 doesn't know yet |
 | `.gitignore` | when the entry is missing | nothing: `/.issue-assistant/` keeps the context of the AI out of commits |
+
+The chooser is what GitHub shows on *New issue*. It turns blank issues off, so that every issue starts from a form, and its links take the rest to where it belongs: the first category of `answer_categories`, a link that it leaves out when none is named, private vulnerability reporting, and the first file of `[transparency]`. `install` takes the owner and the name in these links from `GH_REPO`, from `GITHUB_REPOSITORY` or from the remote `origin`; without any of them, it writes `OWNER/NAME`, and the check asks you to replace it; running `install` again does that once the remote names the repository.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/where-the-chooser-of-new-issues-leads.dark.svg">
+  <img src="images/diagrams/where-the-chooser-of-new-issues-leads.svg" alt="Where the chooser of new issues leads: On New issue, GitHub shows the chooser that install writes for a repository without forms, with blank issues turned off. A bug report and a feature request each open a form, whose answers choose the labels before the first analysis. A question goes to the discussions, a vulnerability to a private report, and the link of the support says what happens with an issue">
+</picture>
 
 GitHub ignores the case of label names, so the Labels workflow renames a label that the repository has in another case, such as `Bug` for `bug`, instead of creating a second one. A YAML file that `install` can't edit without changing the rest, such as a list in braces, it leaves as it is and names what to add.
 
