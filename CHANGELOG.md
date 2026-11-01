@@ -4,6 +4,27 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.9.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.8.0...v1.9.0) (2026-11-01)
+
+
+### Features
+
+* an Evaluate workflow that publishes the measured accuracy on the website ([#228](https://github.com/Dennis-Otto/issue-assistant/issues/228)) ([ec33fff](https://github.com/Dennis-Otto/issue-assistant/commit/ec33fffe4647f8fa210dccb41fbc5af88d9b80ac))
+* an optional pinned issue that shows the maintainer digest ([#223](https://github.com/Dennis-Otto/issue-assistant/issues/223)) ([175f7ef](https://github.com/Dennis-Otto/issue-assistant/commit/175f7ef1d4b8f500b735af5e0e58632ed6e4eda8))
+* install writes a feature request form and an issue chooser for repositories without them ([#230](https://github.com/Dennis-Otto/issue-assistant/issues/230)) ([ecd148b](https://github.com/Dennis-Otto/issue-assistant/commit/ecd148bf6b2f3256c8a0a953e6e82a54fe0ebf6f))
+* link the project from the comment footer and offer a badge for adopters ([#225](https://github.com/Dennis-Otto/issue-assistant/issues/225)) ([5da05ed](https://github.com/Dennis-Otto/issue-assistant/commit/5da05ed1fb5ec48c5a34c65d09975f6a0ef1d6cd))
+* reporters can opt out of the AI analysis in the issue form ([#232](https://github.com/Dennis-Otto/issue-assistant/issues/232)) ([b17a992](https://github.com/Dennis-Otto/issue-assistant/commit/b17a992386afea0b3965fb9b8bbf43e32e4a57ea))
+* the digest names good first issue candidates for the maintainers to confirm ([#234](https://github.com/Dennis-Otto/issue-assistant/issues/234)) ([ae5b770](https://github.com/Dennis-Otto/issue-assistant/commit/ae5b770273f37c694eb38f8e6fb15a512452ab30))
+
+
+### Bug fixes
+
+* **deps:** update dependency @github/copilot to v1.0.100 ([#215](https://github.com/Dennis-Otto/issue-assistant/issues/215)) ([82bccc4](https://github.com/Dennis-Otto/issue-assistant/commit/82bccc40a678b1fa806740e5ccbb44bb9bf51ab1))
+* **deps:** update dependency @github/copilot to v1.0.98 ([#207](https://github.com/Dennis-Otto/issue-assistant/issues/207)) ([436ee8a](https://github.com/Dennis-Otto/issue-assistant/commit/436ee8a9597ac27c31487f64466a3240c359779e))
+* name a too-old Python instead of a traceback, and test the action on Ubuntu 26.04 and ARM ([#241](https://github.com/Dennis-Otto/issue-assistant/issues/241)) ([7a66047](https://github.com/Dennis-Otto/issue-assistant/commit/7a660479d03d76a4c15b600aac43eea8100d9746))
+* short jobs with Harden-Runner no longer hang ([#245](https://github.com/Dennis-Otto/issue-assistant/issues/245)) ([0ea38cb](https://github.com/Dennis-Otto/issue-assistant/commit/0ea38cb860934e48d08154ddf752fcd564d0affd))
+* stop jobs hanging behind Harden-Runner and wait for its late agent ([#218](https://github.com/Dennis-Otto/issue-assistant/issues/218)) ([67d8934](https://github.com/Dennis-Otto/issue-assistant/commit/67d89344a8674ffba31a50839cf6cd60a007fb72))
+
 ## [1.8.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.7.0...v1.8.0) (2026-10-25)
 
 ### Added
