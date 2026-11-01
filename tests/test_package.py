@@ -6,6 +6,7 @@ code as text, so the Mutation workflow leaves them out.
 """
 
 import ast
+import json
 import os
 import shlex
 import shutil
@@ -114,7 +115,7 @@ def action_command() -> list[str]:
     action = yaml.safe_load((ROOT / "action.yml").read_text(encoding="utf-8"))
     (step,) = (step for step in action["runs"]["steps"] if step.get("id") == "run")
     variable, python, *arguments, command = shlex.split(step["run"])
-    assert variable == "PYTHONPATH=$GITHUB_ACTION_PATH"
+    assert variable == "PYTHONPATH=$GITHUB_ACTION_PATH${PYTHONPATH:+:$PYTHONPATH}"
     assert (python, command) == ("python3", "$COMMAND")
     return [sys.executable, *arguments, "--help"]
 
@@ -160,6 +161,65 @@ def test_the_action_runs_no_code_of_the_checkout(tool, hostile_checkout):
     without = [word for word in action_command() if word != "-P"]
     result = started(without, tool, hostile_checkout)
     assert "ran the code of the checkout" in result.stderr
+
+
+# Python separates the entries of PYTHONPATH with ; on Windows, where no job of the
+# templates runs, and the line that the action runs needs bash.
+needs_a_runner = pytest.mark.skipif(
+    sys.platform == "win32", reason="the action runs on Linux and macOS"
+)
+
+
+def path_of_the_action(
+    tool: Path, cwd: Path, caller: Path | None
+) -> subprocess.CompletedProcess:
+    """Run the action's line in bash, with Python showing its imports in place of the tool."""
+    action = yaml.safe_load((ROOT / "action.yml").read_text(encoding="utf-8"))
+    (step,) = (step for step in action["runs"]["steps"] if step.get("id") == "run")
+    probe = "import json, sys; print(json.dumps(sys.path)); import yaml"
+    line = step["run"].replace("python3", shlex.quote(sys.executable))
+    line = line.replace('-m issue_assistant "$COMMAND"', f"-c {shlex.quote(probe)}")
+    env = {**os.environ, "GITHUB_ACTION_PATH": str(tool), "PYTHONIOENCODING": "utf-8"}
+    env.pop("PYTHONPATH", None)
+    if caller:
+        env["PYTHONPATH"] = str(caller)
+    return subprocess.run(
+        ["bash", "-c", line],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+
+@needs_a_runner
+def test_the_action_keeps_a_path_of_its_caller_behind_its_own(
+    tool, hostile_checkout, tmp_path
+):
+    caller = tmp_path / "caller"
+    caller.mkdir()
+    # As a job hides PyYAML from the action, to see what it does without.
+    (caller / "yaml.py").write_text(
+        'raise ImportError("hidden by the caller")\n', encoding="utf-8"
+    )
+    result = path_of_the_action(tool, hostile_checkout, caller)
+    assert "hidden by the caller" in result.stderr
+    path = json.loads(result.stdout)
+    assert path[:2] == [str(tool), str(caller)]
+    assert "" not in path and str(hostile_checkout) not in path
+
+
+@needs_a_runner
+def test_the_action_adds_no_empty_entry_without_a_path_of_its_caller(
+    tool, hostile_checkout
+):
+    # An empty entry would be the current folder, the checkout that -P keeps out: its
+    # json.py would stop this run.
+    result = path_of_the_action(tool, hostile_checkout, None)
+    path = json.loads(result.stdout)
+    assert path[0] == str(tool)
+    assert "" not in path and str(hostile_checkout) not in path
 
 
 def test_the_action_leaves_its_folder_as_its_commit_has_it(tool, hostile_checkout):

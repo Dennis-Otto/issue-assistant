@@ -12,7 +12,7 @@ Coding agents find these rules in short in [AGENTS.md](AGENTS.md), with the file
 - Changes need tests, and the checks of `scripts/check.sh` pass.
 - Every commit carries a [Developer Certificate of Origin](https://developercertificate.org/) sign-off, `Signed-off-by: Your Name <you@example.com>`, which `git commit -s` adds.
 - Name the issue that a pull request fixes with `Fixes #123` in its description. The issue stays open until a release ships the fix and then closes with a link to the release.
-- The script and the hooks of the website in `scripts/mkdocs_hooks.py` keep 100 % line and branch coverage; `tests/test_templates.py` pins the security rules of the templates, and every rule that keeps the AI read-only or checks its answer has a test.
+- The package `issue_assistant/` and the hooks of the website in `scripts/mkdocs_hooks.py` keep 100 % line and branch coverage; `tests/test_templates.py` pins the security rules of the templates, and every rule that keeps the AI read-only or checks its answer has a test.
 - The action runs on the Python 3.12 of GitHub's runners with the standard library alone. Use no third-party packages in `issue_assistant/`.
 - The code is the package `issue_assistant/`, and [the map of its modules](docs/architecture/modules.md) says where a change goes. A module imports only from those before it in `issue_assistant/__init__.py`, and a test that replaces a name does so in the module that looks it up.
 - The prompts in `prompts/` and the comment texts in the catalogs of `locales/` name no AI vendor; only `ENGINES` does. A test checks this. A new text goes into every catalog, with the same placeholders; the tests check that too.

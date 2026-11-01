@@ -111,5 +111,6 @@ runs:
       # Every value reaches the script through the environment, never the script text.
       # -P keeps the checkout of the repository out of the imports, where a json.py of a
       # pull request would run otherwise, and -B leaves the folder of the action as its
-      # commit has it.
-      run: PYTHONPATH="$GITHUB_ACTION_PATH" python3 -P -B -m issue_assistant "$COMMAND"
+      # commit has it. A PYTHONPATH of the caller stays behind the tool's, and only when
+      # it is set: an empty entry would be the current folder again.
+      run: PYTHONPATH="$GITHUB_ACTION_PATH${PYTHONPATH:+:$PYTHONPATH}" python3 -P -B -m issue_assistant "$COMMAND"

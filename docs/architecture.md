@@ -89,7 +89,7 @@ The command `endpoints` of the job `event` accepts only GitHub's runners of Ubun
 - **The requests follow a version of GitHub's API, not its default.** Every call asks for `API_VERSION`. The tests check every GraphQL document and every REST request against GitHub's own schema and description, and every week against those of that day; [decision 0024](decisions/0024-requests-against-github-s-own-descriptions.md) explains how.
 - **An error of GitHub is never an answer.** Only "not found" means that a thing is missing; any other error stops the run instead of changing what it posts, and a run again completes it without a second comment.
 - **No text can make it slow.** Issues come from anyone, so every pattern that reads them takes time linear in the length of the text.
-- **No third-party packages.** The script needs only the standard library, `gh` and `git`, which GitHub's runners have.
+- **No third-party packages.** The package needs only the standard library, `gh` and `git`, which GitHub's runners have.
 - **The maintainer has the last word.** The assistant labels, asks and suggests; it never decides on behalf of the maintainer.
 
 ## The details

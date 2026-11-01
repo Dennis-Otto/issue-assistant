@@ -1306,7 +1306,8 @@ def test_untrusted_text_never_reaches_a_shell_script(path):
 def test_the_action_passes_every_input_through_the_environment():
     (step,) = ACTION["runs"]["steps"]
     assert step["run"] == (
-        'PYTHONPATH="$GITHUB_ACTION_PATH" python3 -P -B -m issue_assistant "$COMMAND"'
+        'PYTHONPATH="$GITHUB_ACTION_PATH${PYTHONPATH:+:$PYTHONPATH}" '
+        'python3 -P -B -m issue_assistant "$COMMAND"'
     )
     inputs = {f"${{{{ inputs.{name} }}}}" for name in ACTION["inputs"]}
     assert inputs <= set(step["env"].values())
