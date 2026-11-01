@@ -1759,6 +1759,7 @@ SETTINGS = {
     "[links] hosts": ("hosts", ["docs.example.com"]),
     "[forms] area_field": ("area_field", "Component"),
     "[forms] unmapped_options": ("unmapped_options", ["None"]),
+    "[forms] opt_out_field": ("opt_out_field", "No AI"),
     "[transparency] files": ("notices", ["README.md"]),
     "[transparency] credit": ("credit", False),
     "[releases] close_with_release": ("releases", False),

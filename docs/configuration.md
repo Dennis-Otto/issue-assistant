@@ -68,6 +68,7 @@ hosts = ["docs.example.com"]    # besides this repository
 [forms]
 area_field = "Area"
 unmapped_options = ["Other"]
+opt_out_field = "Automated analysis"   # the box with which a reporter keeps the AI out of their issue
 
 [transparency]
 files = ["SUPPORT.md"]

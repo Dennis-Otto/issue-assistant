@@ -1235,6 +1235,7 @@ FEATURES = (
     "features/slash-commands.md",
     "features/fix-to-release.md",
     "features/what-the-ai-reads.md",
+    "features/opt-out.md",
     "features/languages.md",
     "features/limits.md",
     "features/cost.md",

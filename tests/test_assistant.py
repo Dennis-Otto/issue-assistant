@@ -23,6 +23,8 @@ import issue_assistant as assistant
 from oracle import problems
 from support import (
     BOT_USER,
+    BOX_TICKED,
+    BOX_UNTICKED,
     BUG_BODY,
     ESCAPES,
     NOW,
@@ -1336,6 +1338,283 @@ def test_a_muted_issue_gets_no_ai_run_of_its_own(config):
     github.store[12]["labels"].append({"name": "assistant-muted"})
     assert comment_after_release(github, config).mode == "none"
     assert assistant.runs_of(github.comment_store[12][1]) == []
+
+
+# The box of the forms that keeps the AI out of an issue
+
+
+def opened_with(config, body, author="reporter", association="NONE"):
+    """A new issue with the text `body`, its fake GitHub and its plan."""
+    issue = make_issue(body=body, author=author, association=association, labels=())
+    github = FakeGitHub(config, issue)
+    payload = event("opened", github.issue(12), author)
+    return github, assistant.handle_event(github, "issues", payload, config)
+
+
+TICKED_NOTE = (
+    "The reporter ticked the box 'Automated analysis': muted on #12 "
+    "(assistant-muted), no AI run; /assistant again of the reporter or "
+    "/assistant unmute ends it."
+)
+
+
+@pytest.mark.parametrize(
+    "box",
+    ["- [X] No AI", "- [x] No AI", "* [x] No AI", "  - [X] No AI", "- [ ] A\n- [x] B"],
+)
+def test_a_ticked_box_keeps_the_ai_out_of_a_new_issue(config, box):
+    body = f"{BUG_BODY}\n### Automated analysis\n\n{box}\n"
+    github, plan = opened_with(config, body)
+    assert (plan.mode, plan.notes) == ("none", [TICKED_NOTE])
+    # All that runs without AI goes on: the labels of its form and the triage.
+    assert github.labels_of(12) == {"area: cards", "needs-triage", "assistant-muted"}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        BUG_BODY,
+        BOX_UNTICKED,
+        f"{BUG_BODY}\n### Automated analysis\n\n_No response_\n",
+        # A box of another field, and a box without a field.
+        f"{BUG_BODY}\n### Checklist\n\n- [X] I searched the issues\n",
+        f"- [X] Automated analysis\n\n{BUG_BODY}",
+        # No list item, whatever the words look like.
+        f"{BUG_BODY}\n### Automated analysis\n\nSee [x] in the log\n",
+    ],
+)
+def test_without_a_ticked_box_a_new_issue_gets_its_analysis(config, body):
+    github, plan = opened_with(config, body)
+    assert plan.mode == "triage"
+    assert "assistant-muted" not in github.labels_of(12)
+
+
+def test_the_box_of_a_maintainer_s_issue_mutes_it_too(config):
+    github, plan = opened_with(config, BOX_TICKED, "maintainer", "OWNER")
+    assert plan.notes == [TICKED_NOTE]
+    assert "assistant-muted" in github.labels_of(12)
+
+
+def test_the_box_follows_the_name_in_the_settings(config):
+    named = dataclasses.replace(config, opt_out_field="Keine KI")
+    github = FakeGitHub(named, make_issue(body=BOX_TICKED))
+    payload = event("opened", github.issue(12))
+    plan = assistant.handle_event(github, "issues", payload, named)
+    assert plan.mode == "triage"
+    assert assistant.box_ticked("### Keine KI\n\n- [x] Nein\n", named)
+
+
+def test_a_ticked_box_creates_the_label_where_it_is_missing(config):
+    github, _ = opened_with(config, BOX_TICKED)
+    created = [
+        call[2]["name"] for call in github.calls if call[:2] == ("POST", "labels")
+    ]
+    assert created == ["assistant-muted"]
+
+
+def edited_box(config, before, after, editor="reporter", labels=("bug",)):
+    """The text of #12 changed from `before` to `after`; its fake GitHub and plan."""
+    github = FakeGitHub(config, make_issue(labels=labels, body=before))
+    changes = github.edit(12, editor, body=after)
+    payload = event("edited", github.issue(12), editor, changes=changes)
+    return github, assistant.handle_event(github, "issues", payload, config)
+
+
+def test_a_click_on_the_box_in_the_issue_keeps_the_ai_out_from_then_on(config):
+    github, plan = edited_box(
+        config, BOX_UNTICKED, BOX_TICKED, labels=("bug", "needs-info", "stale")
+    )
+    assert (plan.mode, plan.notes) == ("none", [TICKED_NOTE])
+    # A click answers no question, so the issue goes on waiting.
+    assert github.labels_of(12) == {"bug", "needs-info", "stale", "assistant-muted"}
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "editor"),
+    [
+        # A box that stays ticked doesn't undo the /assistant unmute of a maintainer.
+        (BOX_TICKED, f"{BOX_TICKED}\nVersion 1.9.1", "reporter"),
+        # Only the reporter speaks for the reporter.
+        (BOX_UNTICKED, BOX_TICKED, "maintainer"),
+    ],
+)
+def test_other_edits_of_a_ticked_box_mute_nothing(config, before, after, editor):
+    github, plan = edited_box(config, before, after, editor)
+    assert plan.notes == ["Edit without a pending question."]
+    assert "assistant-muted" not in github.labels_of(12)
+
+
+def test_a_click_that_unticks_the_box_lets_in_no_ai_by_itself(config):
+    muted = ("bug", "needs-triage", "assistant-muted")
+    github, plan = edited_box(config, BOX_TICKED, BOX_UNTICKED, labels=muted)
+    assert (plan.mode, plan.notes) == ("none", ["Edit without a pending question."])
+    assert "assistant-muted" in github.labels_of(12)
+    # The reporter's request does, as the form says.
+    plan, reactions = command_event(
+        config, github, "/assistant again", "reporter", "NONE"
+    )
+    assert (plan.mode, reactions) == ("triage", ["eyes"])
+    assert "assistant-muted" not in github.labels_of(12)
+
+
+def muted_by_the_box(config, *comments, **options):
+    """#12 with the ticked box of its form, muted, and no analysis yet."""
+    labels = options.pop("labels", ("bug", "needs-triage", "assistant-muted"))
+    github = FakeGitHub(config, make_issue(labels=labels, body=BOX_TICKED))
+    github.comment_store[12] = list(comments)
+    return github
+
+
+def test_the_reporter_s_again_lets_the_ai_in_after_the_box(config):
+    github = muted_by_the_box(config)
+    plan, reactions = command_event(
+        config, github, "/assistant again", "reporter", "NONE"
+    )
+    assert (plan.mode, plan.notes, reactions) == (
+        "triage",
+        ["New analysis on request."],
+        ["eyes"],
+    )
+    assert (plan.answers, plan.marks) == (None, {})
+    assert "assistant-muted" not in github.labels_of(12)
+    # The issue is one that the AI reads again, with the box still ticked.
+    assert not assistant.opted_out(github.issue(12), config)
+
+
+def test_the_reporter_s_again_after_the_box_counts_as_once_after_an_analysis(config):
+    # A box ticked after the first analysis: the one request that the reporter has.
+    github = muted_by_the_box(config, analysis(1, days_ago=1))
+    plan, _ = command_event(config, github, "/assistant again", "reporter", "NONE")
+    assert (plan.mode, plan.marks) == ("triage", {"again": "1"})
+    assert "assistant-muted" not in github.labels_of(12)
+    github.add_labels(12, ["assistant-muted"])
+    plan, reactions = command_event(
+        config, github, "/assistant again", "reporter", "NONE", comment_id=6
+    )
+    assert (plan.mode, reactions) == ("none", ["confused"])
+    assert plan.notes == ["The reporter of #12 asked for a new analysis once already."]
+    assert "assistant-muted" in github.labels_of(12)
+
+
+def test_the_reporter_s_again_after_the_box_waits_for_the_limits(config):
+    limited_config = dataclasses.replace(config, max_per_day=0)
+    github = muted_by_the_box(limited_config)
+    plan, reactions = command_event(
+        limited_config, github, "/assistant again", "reporter", "NONE"
+    )
+    assert (plan.mode, reactions) == ("none", ["confused"])
+    # It stays muted, for the request of a later day.
+    assert "assistant-muted" in github.labels_of(12)
+
+
+def test_the_reporter_s_again_after_the_box_needs_the_triage_still_open(config):
+    github = muted_by_the_box(config, labels=("bug", "assistant-muted"))
+    plan, reactions = command_event(
+        config, github, "/assistant again", "reporter", "NONE"
+    )
+    assert (plan.mode, reactions) == ("none", ["confused"])
+    assert "assistant-muted" in github.labels_of(12)
+
+
+def test_the_box_ends_no_mute_of_a_maintainer(config):
+    # With the command, and the box added to the text afterwards.
+    muted = make_comment(5, "maintainer", "/assistant mute", 1, "OWNER")
+    github = muted_by_the_box(config, muted)
+    plan, reactions = command_event(
+        config, github, "/assistant again", "reporter", "NONE", comment_id=6
+    )
+    assert (plan.mode, reactions) == ("none", ["confused"])
+    assert plan.notes == ["#12 has no analysis that the reporter could ask again."]
+    assert "assistant-muted" in github.labels_of(12)
+    # With an analysis, the mute stops the request as on any muted issue.
+    github = muted_by_the_box(config, analysis(1, days_ago=2), muted)
+    plan, _ = command_event(
+        config, github, "/assistant again", "reporter", "NONE", comment_id=6
+    )
+    assert (plan.mode, plan.notes) == ("none", [MUTED_NOTE])
+    assert "assistant-muted" in github.labels_of(12)
+    # By hand: the label that a person added, and no command.
+    github = muted_by_the_box(config)
+    person = {"login": "maintainer", "type": "User"}
+    github.event_store[12] = [
+        {
+            "event": "labeled",
+            "label": {"name": "assistant-muted"},
+            "actor": person,
+            "created_at": at(1),
+        }
+    ]
+    plan, _ = command_event(config, github, "/assistant again", "reporter", "NONE")
+    assert plan.mode == "none"
+    assert "assistant-muted" in github.labels_of(12)
+
+
+def test_labels_of_a_bot_and_others_of_a_person_keep_the_box_the_reporter_s(config):
+    github = muted_by_the_box(config)
+    person = {"login": "maintainer", "type": "User"}
+    github.event_store[12] = [
+        {
+            "event": "labeled",
+            "label": {"name": "assistant-muted"},
+            "actor": BOT_USER,
+            "created_at": at(1),
+        },
+        {
+            "event": "labeled",
+            "label": {"name": "bug"},
+            "actor": person,
+            "created_at": at(1),
+        },
+        {"event": "renamed", "actor": person, "created_at": at(1)},
+    ]
+    plan, _ = command_event(config, github, "/assistant again", "reporter", "NONE")
+    assert plan.mode == "triage"
+
+
+def test_a_form_without_the_field_gives_the_reporter_no_way_past_a_mute(config):
+    github = FakeGitHub(
+        config, make_issue(labels=("bug", "needs-triage", "assistant-muted"))
+    )
+    plan, _ = command_event(config, github, "/assistant again", "reporter", "NONE")
+    assert plan.notes == ["#12 has no analysis that the reporter could ask again."]
+    assert "assistant-muted" in github.labels_of(12)
+
+
+@pytest.mark.usefixtures("root")
+def test_the_text_of_an_opted_out_issue_reaches_no_other_analysis(config):
+    muted = ("bug", "assistant-muted")
+    github = FakeGitHub(
+        config,
+        make_issue(12),
+        # Out: the box is ticked and the issue muted.
+        make_issue(20, labels=muted, body=BOX_TICKED),
+        # In: a maintainer's mute says nothing of the reporter's wish.
+        make_issue(21, labels=muted),
+        # In: the reporter's /assistant again, or an /assistant unmute, took the label.
+        make_issue(22, labels=("bug",), body=BOX_TICKED),
+    )
+    others = assistant.related_issues(github, github.issue(12), "triage", config)
+    assert [item["number"] for item in others] == [22, 21]
+    assistant.write_context(github, 12, "triage", config)
+    folder = config.root / ".issue-assistant"
+    assert not (folder / "issues" / "20.md").exists()
+    assert (folder / "issues" / "21.md").exists()
+
+
+@pytest.mark.usefixtures("root")
+def test_the_text_of_an_opted_out_issue_of_a_related_repository_stays_out(config):
+    config = related(config, SERVER)
+    new = make_issue(title="Live card stays empty", body="TypeError: x is undefined")
+    found = make_issue(
+        31, title="Empty card", labels=("assistant-muted",), body=BOX_TICKED
+    )
+    github = with_server(config, found)
+    github.store[12] = new
+    query = "is:issue (typeerror OR live OR card OR stays OR empty)"
+    github.sibling_store[SERVER].search_store[f"repo:{SERVER} {query}"] = [found]
+    assistant.write_context(github, 12, "triage", config)
+    folder = config.root / ".issue-assistant"
+    assert (folder / "related-issues.jsonl").read_text("utf-8") == ""
 
 
 def test_a_maintainer_s_again_and_question_run_also_on_a_muted_issue(config):

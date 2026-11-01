@@ -467,6 +467,8 @@ HTML_TAG = re.compile(rf"{TAG}|(?P<open></?[A-Za-z][^>\n]*)")
 # A heading of an issue form: GitHub writes the label of each field as `### Label`
 # above its answer.
 FORM_HEADING = re.compile(r"^###[ \t]+(.*)$", re.MULTILINE)
+# A ticked box of a form, as GitHub writes it into the text of the issue.
+TICKED_BOX = re.compile(r"^[ \t]*[-*][ \t]+\[[xX]\]", re.MULTILINE)
 # The marks of a heading, without the line break after them.
 HEADING_LINE = re.compile(r"^[ \t]{0,3}#{1,6}(?:[ \t]+|$)", re.MULTILINE)
 SECRET = re.compile(
@@ -1231,6 +1233,8 @@ class Config:
     hosts: frozenset[str] = frozenset()
     area_field: str = "Area"
     unmapped_options: tuple[str, ...] = ("Other",)
+    # The box of the forms that keeps the AI out of an issue; see box_ticked.
+    opt_out_field: str = "Automated analysis"
     notices: tuple[str, ...] = ("SUPPORT.md",)
     # Whether the footers of the AI's comments link the project; see invitation.
     credit: bool = True
@@ -1343,6 +1347,7 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
     "forms": {
         "area_field": Key("area_field", str),
         "unmapped_options": Key("unmapped_options", list, tuple),
+        "opt_out_field": Key("opt_out_field", str),
     },
     "transparency": {
         "files": Key("notices", list, tuple),
@@ -3150,6 +3155,21 @@ def form_labels(issue: dict[str, Any], config: Config) -> list[str]:
     return [label.name for label in config.labels if answers & set(label.form_options)]
 
 
+def box_ticked(body: str | None, config: Config) -> bool:
+    """Whether the text of an issue has the box of [forms] opt_out_field ticked, with
+    which its reporter keeps the AI out of it."""
+    answer = form_fields(body or "").get(config.opt_out_field, "")
+    return TICKED_BOX.search(answer) is not None
+
+
+def opted_out(issue: dict[str, Any], config: Config) -> bool:
+    """Whether the AI stays out of the issue at its reporter's wish, also when it
+    reads for another issue: the box is ticked and the issue still muted. Both ways
+    back remove the label: the reporter's /assistant again and a maintainer's
+    /assistant unmute."""
+    return MUTED in label_names(issue) and box_ticked(text_of(issue), config)
+
+
 def detect_language(text: str) -> str:
     """The language of the catalog whose stopwords and letters of its own, as
     OWN_LETTERS describes them, the text has the most of; English when no other
@@ -3335,12 +3355,22 @@ def handle_event(
         assign_owners(github, issue, areas, config)
         if NEEDS_TRIAGE not in current:
             github.add_labels(number, [NEEDS_TRIAGE])
+        if box_ticked(text_of(issue), config):
+            return keep_out_the_ai(github, number, config)
         if is_maintainer(issue):
             return Plan(number, notes=["Opened by a maintainer: no analysis."])
         return limited(github, Plan(number, "triage"), issue, created(issue), config)
     if name == "issues" and action == "edited":
-        if "body" not in (payload.get("changes") or {}):
+        changes = payload.get("changes") or {}
+        if "body" not in changes:
             return Plan(number, notes=["A new title alone answers nothing."])
+        # GitHub shows the box of the form as one that a click ticks in the issue.
+        if (
+            login(payload.get("sender")) == author
+            and box_ticked(text_of(issue), config)
+            and not box_ticked(changes["body"].get("from"), config)
+        ):
+            return keep_out_the_ai(github, number, config)
         if (
             issue["state"] == "open"
             and login(payload.get("sender")) == author
@@ -3364,6 +3394,20 @@ def handle_event(
         plan.notes.insert(0, refused)
         return plan
     return Plan(number, notes=[f"Event {name}.{action} is not handled."])
+
+
+def keep_out_the_ai(github: GitHub, number: int, config: Config) -> Plan:
+    """The reporter ticked the box of [forms] opt_out_field: the issue is muted, so
+    that no run of the AI starts on it, and all that runs without AI goes on."""
+    mute(github, number, config)
+    return Plan(
+        number,
+        notes=[
+            f"The reporter ticked the box {config.opt_out_field!r}: muted on "
+            f"#{number} ({MUTED}), no AI run; /assistant again of the reporter or "
+            "/assistant unmute ends it."
+        ],
+    )
 
 
 def discussion_by_hand(github: GitHub, number: int) -> Plan:
@@ -3546,11 +3590,7 @@ def carry_out(
     number = issue["number"]
     name = given.name
     if name == "mute":
-        if not any(
-            label["name"].casefold() == MUTED.casefold() for label in github.labels()
-        ):
-            github.create_label(muted_label(config))
-        github.add_labels(number, [MUTED])
+        mute(github, number, config)
         return Plan(number, notes=[f"Muted on #{number}: no AI run of its own."])
     if name == "unmute":
         github.remove_label(number, MUTED)
@@ -3580,6 +3620,16 @@ def defined_label(config: Config, starter: Label) -> Label:
     return next(
         (label for label in config.labels if label.name == starter.name), starter
     )
+
+
+def mute(github: GitHub, number: int, config: Config) -> None:
+    """Add the label of muted issues to the issue, which creates it where it is
+    missing."""
+    if not any(
+        label["name"].casefold() == MUTED.casefold() for label in github.labels()
+    ):
+        github.create_label(muted_label(config))
+    github.add_labels(number, [MUTED])
 
 
 def muted_label(config: Config) -> Label:
@@ -3620,7 +3670,8 @@ def again(
     A maintainer may ask for one at any time. The reporter may ask once per issue,
     while it waits for the maintainer's triage and after an analysis: its marker
     records the run, within the limits of the day, so that a deleted comment gives
-    no second one.
+    no second one. A reporter who kept the AI out with the box of the form lets it in
+    this way, also without an analysis, and ends that mute with it, and no other.
     """
     number = issue["number"]
     plan = Plan(number, "triage", ["New analysis on request."])
@@ -3630,21 +3681,52 @@ def again(
                 f"The reporter of #{number} may ask for a new analysis only while it "
                 f"has {NEEDS_TRIAGE}."
             )
-        analyses = [
-            item for item in github.comments(number) if kind_of(item) == "analysis"
-        ]
-        if not analyses:
+        comments = github.comments(number)
+        analyses = [item for item in comments if kind_of(item) == "analysis"]
+        own_mute = muted_by_reporter(github, issue, comments, config)
+        if not analyses and not own_mute:
             return f"#{number} has no analysis that the reporter could ask again."
         if any("again" in (marker(item) or ("", {}))[1] for item in analyses):
             return f"The reporter of #{number} asked for a new analysis once already."
-        plan.answers, plan.marks = analyses[-1], {"again": "1"}
-        plan = limited(github, plan, comment, created(comment), config)
+        if analyses:
+            plan.answers, plan.marks = analyses[-1], {"again": "1"}
+        allowed = within_limits if own_mute else limited
+        plan = allowed(github, plan, comment, created(comment), config)
         if plan.mode == "none":
             return plan.notes[-1]
+        if own_mute:
+            github.remove_label(number, MUTED)
     if POSSIBLE_DUPLICATE in label_names(issue):
         # The new analysis adds it again, with a new notice, if it finds one.
         github.remove_label(number, POSSIBLE_DUPLICATE)
     return plan
+
+
+def muted_by_reporter(
+    github: GitHub,
+    issue: dict[str, Any],
+    comments: list[dict[str, Any]],
+    config: Config,
+) -> bool:
+    """Whether the issue is muted by the box of its form, which the reporter may undo.
+
+    A maintainer's mute, with /assistant mute or by hand, is not theirs to end, also
+    when they add the box to the text afterwards: a label that a person added, and
+    the command, tell the two apart, as the command adds it as a bot does.
+    """
+    if MUTED not in label_names(issue) or config.opt_out_field not in form_fields(
+        text_of(issue)
+    ):
+        return False
+    given = [command_of(issue, item) for item in comments if is_maintainer(item)]
+    if any(item is not None and item.name == "mute" for item in given):
+        return False
+    return not any(
+        event["event"] == "labeled"
+        and (event.get("label") or {}).get("name") == MUTED
+        and not is_bot(event.get("actor"))
+        for event in github.events(issue["number"])
+    )
 
 
 def mark_duplicate(
@@ -4114,7 +4196,8 @@ def related_issues(
 ) -> list[dict[str, Any]]:
     """The other issues that the engine reads, the newest first: every open one, the
     max_issues closed ones that changed last and, for a first analysis, those that a
-    search for its words finds among the older ones."""
+    search for its words finds among the older ones; none whose reporter keeps the AI
+    out of it."""
     found = {
         item["number"]: item
         for item in github.recent_issues(limit(config, "max_issues"))
@@ -4131,7 +4214,7 @@ def related_issues(
     return [
         found[number]
         for number in sorted(found, reverse=True)
-        if not is_digest(found[number])
+        if not is_digest(found[number]) and not opted_out(found[number], config)
     ]
 
 
@@ -4447,7 +4530,7 @@ def write_siblings(
             found += [
                 (repository, item)
                 for item in other.search_issues(terms)
-                if not is_digest(item)
+                if not is_digest(item) and not opted_out(item, config)
             ]
         except GitHubError as error:
             command("warning", f"The search in {repository} failed: {error}")
@@ -8337,6 +8420,7 @@ def check_forms(config: Config) -> list[str]:
     problems = []
     defined = {label.name for label in config.labels}
     options: list[str] = []
+    offered = False
     for path in sorted((config.root / FORMS).glob("*.y*ml")):
         if path.stem == "config":
             continue
@@ -8363,6 +8447,16 @@ def check_forms(config: Config) -> list[str]:
                 and attributes.get("label") == config.area_field
             ):
                 options += attributes.get("options") or []
+            if attributes.get("label") == config.opt_out_field:
+                offered = True
+                problems += opt_out_problems(where, item, config)
+    # A repository that keeps the default name and has no such box offers no opt-out;
+    # a name of its own that no form has is a mistake, and reporters would lose it.
+    if not offered and config.opt_out_field != Config.opt_out_field:
+        problems.append(
+            f"{SETTINGS / 'config.toml'}: [forms] opt_out_field names "
+            f"{config.opt_out_field!r}, which no form has"
+        )
     for option in dict.fromkeys(options):
         owners = [label.name for label in config.labels if option in label.form_options]
         if len(owners) > 1:
@@ -8378,6 +8472,18 @@ def check_forms(config: Config) -> list[str]:
                     f"{LABELS_FILE}: {label.name} names the option '{option}', which no form has"
                 )
     return problems
+
+
+def opt_out_problems(where: str, item: dict[str, Any], config: Config) -> list[str]:
+    """What keeps the field of [forms] opt_out_field in a form from being one box
+    that a reporter may leave unticked."""
+    field = f"{where}: the field {config.opt_out_field!r} of [forms] opt_out_field"
+    boxes = (item.get("attributes") or {}).get("options") or []
+    if item.get("type") != "checkboxes" or len(boxes) != 1:
+        return [f"{field} must be checkboxes with one box"]
+    if isinstance(boxes[0], dict) and boxes[0].get("required"):
+        return [f"{field} must not be required, or every reporter would opt out"]
+    return []
 
 
 # A block of hosts in the firewall template that belongs to one engine starts with
@@ -9884,8 +9990,9 @@ def maintainers_asked(
 def sample_of(github: GitHub, config: Config, issue: dict[str, Any]) -> Sample | None:
     """The sample of a closed issue that people labelled with a label of a scored
     group or closed as a duplicate of an older issue, and that the assistant never
-    analyzed; None for any other issue, such as one that a bot opened."""
-    if is_bot(issue["user"]):
+    analyzed; None for any other issue, such as one that a bot opened or whose
+    reporter keeps the AI out of it."""
+    if is_bot(issue["user"]) or opted_out(issue, config):
         return None
     duplicate = issue["duplicate_of"]
     original = (

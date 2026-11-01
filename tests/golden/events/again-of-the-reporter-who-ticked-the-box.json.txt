@@ -1,0 +1,29 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "triage",
+    "notes": [
+      "New analysis on request."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [
+    "remove assistant-muted from #12",
+    "react with eyes to comment 5"
+  ],
+  "requests": [
+    [
+      "DELETE",
+      "issues/12/labels/assistant-muted",
+      null
+    ],
+    [
+      "POST",
+      "issues/comments/5/reactions",
+      {
+        "content": "eyes"
+      }
+    ]
+  ]
+}

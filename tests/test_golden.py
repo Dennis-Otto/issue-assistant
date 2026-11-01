@@ -18,6 +18,8 @@ import pytest
 import issue_assistant as assistant
 from support import (
     BOT_USER,
+    BOX_TICKED,
+    BOX_UNTICKED,
     BUG_BODY,
     FakeGitHub,
     Frozen,
@@ -236,6 +238,18 @@ def commented(config, author, text, *, labels=("bug", "needs-info"), **options):
     return github, "issue_comment", payload
 
 
+def again_after_the_box(config):
+    """The reporter of #12, muted by the box of its form, lets the AI in."""
+    issue = make_issue(
+        labels=("bug", "needs-triage", "assistant-muted"), body=BOX_TICKED
+    )
+    comment = make_comment(5, "reporter", "/assistant again", 0, "NONE")
+    github = FakeGitHub(config, issue)
+    github.comment_store[12] = [comment]
+    payload = event("created", github.issue(12), "reporter", comment)
+    return github, "issue_comment", payload
+
+
 def closed_unanswered(config):
     """The reporter's answer on an issue that the sweep closed without one."""
     github, name, payload = commented(
@@ -277,6 +291,10 @@ def by_hand(config):
 
 EVENTS = {
     "opened": opened,
+    "opened with the box ticked": lambda config: opened(config, body=BOX_TICKED),
+    "opened with the box unticked": lambda config: opened(config, body=BOX_UNTICKED),
+    "box ticked by an edit": lambda config: edited(config, body=BOX_TICKED),
+    "again of the reporter who ticked the box": again_after_the_box,
     "opened by a maintainer": lambda config: opened(config, "maintainer", "OWNER"),
     "opened by a bot": lambda config: opened(config, "renovate[bot]"),
     "pull request": lambda config: opened(config, pull_request={"url": "x"}),

@@ -64,6 +64,10 @@ In the summary of the morning sweep: under *Actions*, the workflow *Issue lifecy
 
 The `analyze` job sends the vendor of the engine, Anthropic for Claude, OpenAI for Codex, Google for Gemini and GitHub for Copilot, what the AI reads: the issue and its comments, at most 20,000 characters of each text, short excerpts of the other issues and of the discussions, the labels, `.github/issue-assistant/project.md` and the files of the default branch that the AI opens. The engine runs with its telemetry and error reports turned off. What the vendor may do with the data follows your agreement with it: for Claude, the terms of your API account or of your subscription, and the privacy settings of that account. Google may use what reaches the free tier of the Gemini API to improve its products, so a private repository is better served by its paid tier. The jobs without AI tell StepSecurity, the maker of Harden-Runner, the repository, the run and the hosts that their steps reach, as the [security design](security.md#residual-risks) says. The action keeps no database and no service of its own, and the notice in `SUPPORT.md` tells reporters which AI reads their issue.
 
+## Can a reporter say no to the AI?
+
+Yes, where the issue form has the box *Automated analysis*, as the starter form of `install` does. A ticked box mutes the issue when it opens: no run of the AI starts on it, and its text stays out of what the AI reads for other issues, while labels, reminders and the closing with a release go on. `/assistant again` lets the AI in later, and a maintainer's command still starts it. [Saying no to the AI](features/opt-out.md) has the details, and how to add the box to your own forms.
+
 ## Does it work in private repositories?
 
 Yes, with three differences. The runners' minutes count toward the plan of the account. Harden-Runner blocks every host but GitHub's in the jobs without AI only with a subscription or trial of StepSecurity, and lets them run unblocked otherwise. And the AI reads private code, which reaches the vendor of the engine as above.

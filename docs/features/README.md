@@ -17,6 +17,7 @@ Every feature of the issue assistant has a page of its own, which opens with a p
 - **[Slash commands](slash-commands.md):** steer the assistant from the issue, such as `/assistant again` or `/assistant ask <question>`.
 - **[From the fix to the release](fix-to-release.md):** a fixed issue stays open until a release ships the fix, then closes with a link to it.
 - **[What the AI reads](what-the-ai-reads.md):** each task reads what it needs and no more, and a first analysis learns from the maintainers' corrections.
+- **[Saying no to the AI](opt-out.md):** a box in the issue form keeps the AI out of an issue, and all that runs without AI goes on.
 - **[Languages](languages.md):** fourteen catalogs for the reporters, and a folded summary for maintainers who don't read their language.
 - **[Limits of the AI runs](limits.md):** no stranger can run up the bill: the runs that others than the maintainers start are limited.
 - **[What one run may cost](cost.md):** each run stops at its turns and its dollars, and the summary of its job says what it cost.
