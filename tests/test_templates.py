@@ -844,6 +844,25 @@ def test_the_leg_on_the_runner_of_the_templates_keeps_the_required_check():
     assert legs["include"][0] == {"runner": RUNNER, "check": "action"}
 
 
+def test_every_leg_runs_check_with_yq_and_without_pyyaml():
+    """check prefers PyYAML, so only a job that hides it runs each image's real yq."""
+    job = load(OWN / "action-test.yml")["jobs"]["action"]
+    steps = {step.get("id"): step for step in job["steps"]}
+    step = steps["sample-check-yq"]
+    assert step["uses"] == "./"
+    assert step["with"]["command"] == "check"
+    assert "matrix.runner" not in step["if"]
+    assert step["env"]["PYTHONPATH"] == "${{ runner.temp }}/no-pyyaml"
+    install = steps["sample-install"]["run"]
+    assert "no-pyyaml/yaml.py" in install and "raise ImportError" in install
+    failed = next(
+        step["env"]["FAILED"]
+        for step in job["steps"]
+        if step.get("name") == "Explain the failure"
+    )
+    assert "steps.sample-check-yq.outcome == 'failure'" in failed
+
+
 def test_only_one_leg_lints_the_templates():
     """What actionlint and zizmor find doesn't depend on the runner, so the other
     legs run only what can differ, as quickly as they can."""

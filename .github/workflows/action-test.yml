@@ -10,7 +10,8 @@ name: Action test
 # the templates keeps the name of the job, which main requires. The block of the AI's
 # runner in reserve holds, and on a Python that is too old the action stops with its
 # message. The action runs on the runner's own Python, without installing PyYAML:
-# check falls back to yq where the image has no PyYAML. The commands
+# check falls back to yq where the image has no PyYAML, and it runs once with PyYAML
+# hidden on every leg, so that each image's yq really reads the set-up. The commands
 # that only read run against GitHub itself, and every week the GraphQL documents and
 # the REST requests of the script meet GitHub's schema and description of that day, so
 # that a field that GitHub deprecates fails here months before GitHub removes it, and
@@ -102,12 +103,26 @@ jobs:
         run: |
           cp -r tests/sample "$ISSUE_ASSISTANT_ROOT"
           python3 issue_assistant.py install --ref "$GITHUB_SHA" --version smoke-test
+          mkdir "$RUNNER_TEMP/no-pyyaml"
+          echo 'raise ImportError' > "$RUNNER_TEMP/no-pyyaml/yaml.py"
       - name: Check the sample's set-up through the action
         id: sample-check
         if: ${{ !cancelled() && steps.sample-install.outcome == 'success' }}
         uses: ./
         env:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
+        with:
+          command: check
+      # check prefers PyYAML, which an image may have on its Python, and doesn't log
+      # which one read a file. With an import of PyYAML that fails, only yq can read
+      # the set-up: a check that passes here ran the yq of this image for real.
+      - name: Check the sample's set-up through the action, with yq in place of PyYAML
+        id: sample-check-yq
+        if: ${{ !cancelled() && steps.sample-install.outcome == 'success' }}
+        uses: ./
+        env:
+          ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
+          PYTHONPATH: ${{ runner.temp }}/no-pyyaml
         with:
           command: check
       # This repository's workflows and firewall policy are the blueprint's copies of
@@ -143,7 +158,7 @@ jobs:
           FAILED: |
             ${{ steps.template-lint.outcome == 'failure' && 'template-lint' || '' }}
             ${{ steps.template-security.outcome == 'failure' && 'template-security' || '' }}
-            ${{ (steps.sample-install.outcome == 'failure' || steps.sample-check.outcome == 'failure') && 'sample-setup' || '' }}
+            ${{ (steps.sample-install.outcome == 'failure' || steps.sample-check.outcome == 'failure' || steps.sample-check-yq.outcome == 'failure') && 'sample-setup' || '' }}
             ${{ (steps.own-install.outcome == 'failure' || steps.own-check.outcome == 'failure') && 'own-setup' || '' }}
             ${{ matrix.runner != 'ubuntu-24.04' && 'other-runner' || '' }}
         run: |

@@ -79,7 +79,8 @@ every repository runs."""
 title = "The set-up of the sample repository"
 problem = """`install` of this commit couldn't set up the sample repository in
 `tests/sample/`, or `check` of the action found a problem in the set-up that `install`
-wrote; the annotations of the step name each problem."""
+wrote, with PyYAML or, in the step that hides PyYAML, with the `yq` of the runner; the
+annotations of the step name each problem."""
 why = """The sample is a repository that uses the action, set up as a new user sets it
 up. When `check` rejects what `install` writes, every repository that runs `install`
 after the next release gets a set-up that its own check rejects."""
@@ -135,8 +136,7 @@ fails for them, while the workflows of the templates, on `ubuntu-24.04`, keep
 working."""
 fix = """Compare the log of this leg with the leg on `ubuntu-24.04`. The set-up of each
 runner lists what its image brings at the top of the log, and the images are described
-in [actions/runner-images](https://github.com/actions/runner-images) and
-[actions/partner-runner-images](https://github.com/actions/partner-runner-images). Make
+in [actions/runner-images](https://github.com/actions/runner-images). Make
 `issue_assistant.py` work with both, with a test of the difference. When the image is at
 fault, such as a broken release of it, run the check again later."""
 docs = "docs/architecture/dry-runs.md#the-runners-that-the-action-is-tested-on"
