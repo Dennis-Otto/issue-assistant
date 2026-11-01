@@ -39,7 +39,7 @@ from graphql import (
 from graphql.validation import NoDeprecatedCustomRule, specified_rules
 
 import issue_assistant as assistant
-from support import REF, REPOSITORY
+from support import REF, REPOSITORY, package_source
 
 SCHEMA = Path(
     os.environ.get("GRAPHQL_SCHEMA")
@@ -656,7 +656,7 @@ def calls(source: str, name: str) -> Iterator[ast.Call]:
 def calls_in_the_script(name: str) -> Iterator[ast.Call]:
     """The calls in the script as it is; a test that reads them is mutation_unsafe,
     because mutmut's copy holds every mutant beside its function."""
-    return calls(Path(assistant.__file__).read_text(encoding="utf-8"), name)
+    return calls(package_source(), name)
 
 
 @pytest.mark.parametrize("name", REQUESTS)
@@ -713,8 +713,7 @@ def test_the_answer_to_a_discussion_is_one_comment_on_it(monkeypatch, schema):
 
 @pytest.mark.mutation_unsafe
 def test_the_script_never_marks_a_comment_as_the_answer():
-    source = Path(assistant.__file__).read_text(encoding="utf-8")
-    assert "markDiscussionCommentAsAnswer" not in source
+    assert "markDiscussionCommentAsAnswer" not in package_source()
 
 
 @pytest.mark.mutation_unsafe

@@ -804,7 +804,9 @@ def test_check_cli_fails_without_the_schema_of_the_settings(monkeypatch, tmp_pat
     monkeypatch.setattr(contract, "help_of", lambda command, home: GEMINI_HELP)
     monkeypatch.setattr(contract, "settings_schema", lambda pin, path: None)
     monkeypatch.setattr(
-        assistant, "run_cli", lambda *arguments: completed(GEMINI_WITHOUT_KEY, code=41)
+        assistant,
+        "run_cli",
+        lambda *arguments: completed(GEMINI_WITHOUT_KEY, code=41),
     )
     _, (problem,) = contract.check_cli(GEMINI_PIN, tmp_path)
     assert problem.startswith(
@@ -826,7 +828,9 @@ def test_check_cli_checks_every_effort_and_no_settings_of_copilot(
     monkeypatch.setattr(contract, "help_of", lambda command, home: COPILOT_HELP)
     printed = "Error: No authentication information found. Set COPILOT_GITHUB_TOKEN."
     monkeypatch.setattr(
-        assistant, "run_cli", lambda *arguments: completed(stderr=printed, code=1)
+        assistant,
+        "run_cli",
+        lambda *arguments: completed(stderr=printed, code=1),
     )
     pin = contract.Pin("copilot", "@github/copilot", "1.0.97")
     checked, problems = contract.check_cli(pin, tmp_path)
@@ -1174,7 +1178,7 @@ def test_clis_runs_no_engine_with_a_key(monkeypatch):
     ("files", "runs"),
     [
         (".github/workflows/reusable-discussion-assistant.yml\nREADME.md\n", "true"),
-        ("issue_assistant.py\n", "true"),
+        ("issue_assistant/cli.py\n", "true"),
         ("engines/copilot/package-lock.json\n", "true"),
         ("README.md\ndocs/security.md\n", "false"),
     ],
@@ -1268,7 +1272,7 @@ def placed(monkeypatch):
         commands.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr(assistant, "as_root", run)
+    monkeypatch.setattr(assistant.running, "as_root", run)
     return commands
 
 

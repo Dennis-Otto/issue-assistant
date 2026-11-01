@@ -2,7 +2,7 @@
 
 Every picture shows a demo project, demo-org/plant-monitor, with made-up people,
 issues, pull requests and alerts. The texts of the assistant in them come from
-issue_assistant.py itself: its commands run against the fake GitHub of the tests,
+the package issue_assistant itself: its commands run against the fake GitHub of the tests,
 so that the pictures show what the assistant posts. This module builds the HTML of
 each page, without a browser; render.py takes the pictures of them.
 
@@ -284,13 +284,13 @@ def run(
             ISSUE_ASSISTANT_ROOT=str(root),
             **env,
         )
-        assistant.GitHub = lambda repository, dry_run=False: github  # type: ignore[assignment,misc]
+        assistant.cli.GitHub = lambda repository, dry_run=False: github  # type: ignore[assignment,misc]
         log = io.StringIO()
         try:
             with contextlib.redirect_stdout(log):
                 assistant.main(argv)
         finally:
-            assistant.GitHub = original  # type: ignore[misc]
+            assistant.cli.GitHub = original  # type: ignore[misc]
             os.environ.clear()
             os.environ.update(saved)
         return log.getvalue(), summary.read_text("utf-8")

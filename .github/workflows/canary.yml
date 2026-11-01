@@ -31,7 +31,7 @@ on:
     branches: [main]
     paths:
       - action.yml
-      - issue_assistant.py
+      - issue_assistant/**
       - prompts/**
       - locales/**
       - .github/workflows/reusable-issue-assistant.yml

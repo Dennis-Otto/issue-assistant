@@ -15,7 +15,7 @@
 
 ## Decision
 
-Option 3. Hangul counts for Korean. Kana count for Japanese, together with the Chinese characters around them, as long as there is at least one kana per ten Chinese characters, since Japanese writes kana between its kanji and Chinese none. Chinese characters without enough kana count for Chinese. ё, ъ, ы and э count for Russian, ґ, є, і and ї for Ukrainian. Each character is one vote beside the stopwords of the Latin-script catalogs, so a Chinese issue with an English log stays Chinese and an English issue that quotes a Chinese label stays English. The scripts are `OWN_LETTERS`, `KANA` and `HAN` in `issue_assistant.py`, and property tests check that no letter belongs to two of them.
+Option 3. Hangul counts for Korean. Kana count for Japanese, together with the Chinese characters around them, as long as there is at least one kana per ten Chinese characters, since Japanese writes kana between its kanji and Chinese none. Chinese characters without enough kana count for Chinese. ё, ъ, ы and э count for Russian, ґ, є, і and ї for Ukrainian. Each character is one vote beside the stopwords of the Latin-script catalogs, so a Chinese issue with an English log stays Chinese and an English issue that quotes a Chinese label stays English. The scripts are `OWN_LETTERS`, `KANA` and `HAN` in `issue_assistant/languages.py`, and property tests check that no letter belongs to two of them.
 
 Russian and Ukrainian get `days.few` beside `days.one` and `days.other`, chosen by the plural rules of the Unicode CLDR in `plural_form`.
 

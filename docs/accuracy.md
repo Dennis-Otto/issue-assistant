@@ -38,7 +38,7 @@ How often would the assistant have been right in your repository? `evaluate` rep
 
 ```sh
 export GH_REPO=OWNER/REPO
-python3 path/to/issue_assistant.py evaluate --issues 50
+PYTHONPATH=path/to/issue-assistant python3 -P -m issue_assistant evaluate --issues 50
 ```
 
 <picture>

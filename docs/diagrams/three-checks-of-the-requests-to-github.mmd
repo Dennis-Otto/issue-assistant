@@ -1,7 +1,7 @@
 flowchart TB
   accTitle: Three checks of the requests to GitHub
-  accDescr: The GraphQL documents and the REST requests of issue_assistant.py, each with the version of GitHub's API, meet the copies of GitHub's schema and OpenAPI description in the required check of every pull request. The commands sweep, sync-labels and context run against GitHub itself with a token that can only read, on every pull request, on main and every week. Every week the requests also meet the schema and the description that GitHub publishes that day. When those differ from the copies and the requests still pass, one pull request from bot/github-schemas refreshes the copies and merges itself.
-  script["`**issue_assistant.py**<br>its GraphQL documents<br>and REST requests`"]
+  accDescr: The GraphQL documents and the REST requests of the package issue_assistant, each with the version of GitHub's API, meet the copies of GitHub's schema and OpenAPI description in the required check of every pull request. The commands sweep, sync-labels and context run against GitHub itself with a token that can only read, on every pull request, on main and every week. Every week the requests also meet the schema and the description that GitHub publishes that day. When those differ from the copies and the requests still pass, one pull request from bot/github-schemas refreshes the copies and merges itself.
+  script["`**issue_assistant/**<br>its GraphQL documents<br>and REST requests`"]
   copy[("the copies of GitHub's schema<br>and OpenAPI description<br>in tests/github/")]
   github[("GitHub itself")]
   today[("GitHub's schema and<br>description of the day")]

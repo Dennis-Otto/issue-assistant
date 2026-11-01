@@ -9,7 +9,7 @@ markers = [
     # The Mutation workflow runs the tests with -m "not mutation_unsafe" in mutmut's
     # copy, mutants/, which holds every mutant of a function beside it; see
     # tests/test_mutation_safety.py.
-    "mutation_unsafe: can't pass in mutmut's copy of the repository, because it reads the script as text, asks Git or starts the tool",
+    "mutation_unsafe: can't pass in mutmut's copy of the repository, because it reads the package as text, asks Git or starts the tool",
 ]
 
 [tool.coverage.run]
@@ -32,6 +32,12 @@ extend-exclude = [".github/blueprint.py"]
 select = ["E", "F", "I", "B", "UP", "SIM"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# The package hands on the names of its modules to the tests, the fuzzers and the
+# scripts. No code of it runs on those names, so no name can be undefined there, and
+# the modules stay in the order of their layers, from the ground up.
+"issue_assistant/__init__.py" = ["F403", "I001"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -39,7 +45,7 @@ strict = true
 # of the names that keep each engine to reading, the script that keeps the copies of
 # GitHub's schemas, and the script of the Workflow test that checks the jobs of its run.
 files = [
-  "issue_assistant.py",
+  "issue_assistant",
   "scripts/canary_queue.py",
   "scripts/engine_contract.py",
   "scripts/github_schemas.py",

@@ -53,7 +53,7 @@ plugins:
 # pictures of the pages come from the commit that the website is built from, the
 # switch between light and dark chooses them, and only the shown ones load; the
 # comments of What reporters see and the tables of the inputs and outputs of the
-# action come from issue_assistant.py and action.yml; and every page gets a
+# action come from the package issue_assistant and action.yml; and every page gets a
 # description of its own. Links from before lead to the page that has their anchor
 # now. This list replaces that of the blueprint, so it names the hooks of the
 # blueprint too, which try a failed download again.
@@ -119,6 +119,7 @@ nav:
       - Threats to the runs and the workflows: security/threats-to-the-runs.md
   - Project:
       - Architecture: architecture.md
+      - The modules of the package: architecture/modules.md
       - How a template travels: architecture/templates.md
       - How the assistant is tested: architecture/testing.md
       - The canary and the Workflow test: architecture/dry-runs.md
