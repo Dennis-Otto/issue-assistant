@@ -134,6 +134,18 @@ The footer of every comment of the AI already links the issue assistant, unless 
 [![issues: triaged by issue assistant](https://img.shields.io/badge/issues-triaged%20by%20issue%20assistant-blue)](https://dennis-otto.github.io/issue-assistant/)
 ```
 
+## Supported runners
+
+The workflows that `install` writes choose their own runners: `ubuntu-24.04`, and `ubuntu-24.04-firewall` for the AI. A job of your own that calls the action, such as the one that runs [`check`](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.md#keep-it-checked), runs on any of these; every pull request here tests the action on each:
+
+| Runner | Python | What it is |
+| --- | --- | --- |
+| `ubuntu-24.04` | 3.12 | The runner of the workflows |
+| `ubuntu-26.04` | 3.14 | What `ubuntu-latest` means since 2026-10-19 |
+| `ubuntu-24.04-arm` | 3.12 | ARM, free in public repositories |
+
+The action needs Python 3.12 or newer as `python3`, with `gh` and `git`; `check` also reads YAML with PyYAML or `yq`. On an older Python, such as on `ubuntu-22.04`, on a self-hosted runner or after `actions/setup-python` with an older version, the action stops in its first step with an error that names the version it found and the fix: run the job on `ubuntu-24.04`, or add `actions/setup-python` with `python-version: 3.12` before the action.
+
 ## Development
 
 See [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). The script needs only Python 3.12's standard library, `gh` and `git`, which GitHub's runners have; `check` reads YAML with PyYAML or `yq`. The tests check every GraphQL request against GitHub's schema, [dry runs](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) run the path of an issue through the AI and each reusable workflow as a repository calls them, and a change of [a template](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/templates.md) reaches the repositories with a release.

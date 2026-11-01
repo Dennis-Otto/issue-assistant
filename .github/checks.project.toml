@@ -79,7 +79,8 @@ every repository runs."""
 title = "The set-up of the sample repository"
 problem = """`install` of this commit couldn't set up the sample repository in
 `tests/sample/`, or `check` of the action found a problem in the set-up that `install`
-wrote; the annotations of the step name each problem."""
+wrote, with PyYAML or, in the step that hides PyYAML, with the `yq` of the runner; the
+annotations of the step name each problem."""
 why = """The sample is a repository that uses the action, set up as a new user sets it
 up. When `check` rejects what `install` writes, every repository that runs `install`
 after the next release gets a set-up that its own check rejects."""
@@ -119,6 +120,44 @@ commands = [
 docs = "docs/architecture/templates.md"
 autofix = """Whether the set-up of this repository or a template gives way is the
 decision of a maintainer."""
+
+# ---------------------------------------------------------------- the runners
+
+[check.other-runner]
+title = "The action on a runner other than that of the templates"
+problem = """The job also runs on `ubuntu-26.04`, which `ubuntu-latest` means since
+2026-10-19, and on `ubuntu-24.04-arm`; the name of the check ends with the runner of
+this leg. The job failed on it. When the check without a runner in its name passes, the
+cause is what this image has differently: the version of Python, of `gh` or of `yq`,
+PyYAML on the Python of the image, or the architecture."""
+why = """Repositories call the action from jobs of their own, such as `check` on
+`ubuntu-latest`, and the README names these runners as supported. What fails only here
+fails for them, while the workflows of the templates, on `ubuntu-24.04`, keep
+working."""
+fix = """Compare the log of this leg with the leg on `ubuntu-24.04`. The set-up of each
+runner lists what its image brings at the top of the log, and the images are described
+in [actions/runner-images](https://github.com/actions/runner-images). Make
+the `issue_assistant` package work with both, with a test of the difference. When the image is at
+fault, such as a broken release of it, run the check again later."""
+docs = "docs/architecture/dry-runs.md#the-runners-that-the-action-is-tested-on"
+autofix = """Which difference of a runner matters is for a person to find in the two
+logs."""
+
+[check."the action on a Python that is too old"]
+title = "The message of the action on a Python that is too old"
+problem = """On Python 3.11 the action didn't stop in its first step with the message that
+names the version and the fix: it either ran, or the step that checks the version in
+`action.yml` let this Python through, wrote no such message or wrote a traceback; the
+log says which."""
+why = """A repository on an older runner, such as `ubuntu-22.04`, or with an older Python
+from `actions/setup-python`, needs to read what to change. The script itself can't say
+it: an older Python may stop before the script's first line runs."""
+fix = """Look at the first step of `action.yml`: it must fail on a Python older than the one
+that `pyproject.toml` names, name the version it found, and stand before the step that
+runs the script. Its cases are in `tests/test_templates.py`:"""
+commands = ["python -m pytest tests/test_templates.py -k guard"]
+docs = "docs/architecture/dry-runs.md#the-runners-that-the-action-is-tested-on"
+autofix = """The text of the message and when it shows are a decision for a person."""
 
 # ---------------------------------------------------------------- the job egress
 

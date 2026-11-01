@@ -12,9 +12,11 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tomllib
 import urllib.parse
 from glob import iglob as files_matching
+from pathlib import Path
 
 import pytest
 import yaml
@@ -81,6 +83,8 @@ TOOL_CHECKOUT = {
 # The runner of every job without the AI: a fixed version of Ubuntu, so that a new
 # image behind ubuntu-latest never reaches the repositories untested.
 RUNNER = "ubuntu-24.04"
+# The runners that the Action test runs the action on, the one of the templates first.
+ACTION_RUNNERS = [RUNNER, "ubuntu-26.04", "ubuntu-24.04-arm"]
 HARDEN_RUNNER = "step-security/harden-runner"
 # The hosts that a job without the AI reaches: the checkout and the GitHub CLI.
 # Harden-Runner allows the hosts of the runner itself, such as those of the logs.
@@ -794,7 +798,7 @@ def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
         and not name.startswith("fallback")
         and name not in {"engines", "schema-refresh"}
     ]
-    assert job["runs-on"] == RUNNER
+    assert job["runs-on"] == "${{ matrix.runner }}"
     assert job["steps"][0] == JOBS["event"]["steps"][0]
     runs = [step["with"] for step in job["steps"] if step.get("uses") == "./"]
     # Dry runs of the commands that read the most of GitHub, which only read.
@@ -813,6 +817,68 @@ def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
         "issues": "read",
         "pull-requests": "read",
     }
+
+
+@pytest.mark.parametrize(
+    ("key", "name"),
+    [("action", "action"), ("egress", "action behind the egress block")],
+)
+def test_the_action_test_runs_the_action_on_every_supported_runner(key, name):
+    """People call the action from their own jobs, also on ubuntu-latest and on the
+    free ARM runners. The leg on the runner of the templates keeps the name of the
+    job, which main may require, and a failure on one runner cancels no other leg."""
+    job = load(OWN / "action-test.yml")["jobs"][key]
+    assert job["name"] == "${{ matrix.check }}"
+    assert job["runs-on"] == "${{ matrix.runner }}"
+    assert job["strategy"]["fail-fast"] is False
+    assert job["strategy"]["matrix"]["include"] == [
+        {"runner": runner, "check": name if runner == RUNNER else f"{name} ({runner})"}
+        for runner in ACTION_RUNNERS
+    ]
+
+
+def test_the_leg_on_the_runner_of_the_templates_keeps_the_required_check():
+    assert "action" in SETTINGS["branch"]["required_checks"]
+    legs = load(OWN / "action-test.yml")["jobs"]["action"]["strategy"]["matrix"]
+    assert legs["include"][0] == {"runner": RUNNER, "check": "action"}
+
+
+def test_every_leg_runs_check_with_yq_and_without_pyyaml():
+    """check prefers PyYAML, so only a job that hides it runs each image's real yq."""
+    job = load(OWN / "action-test.yml")["jobs"]["action"]
+    steps = {step.get("id"): step for step in job["steps"]}
+    step = steps["sample-check-yq"]
+    assert step["uses"] == "./"
+    assert step["with"]["command"] == "check"
+    assert "matrix.runner" not in step["if"]
+    assert step["env"]["PYTHONPATH"] == "${{ runner.temp }}/no-pyyaml"
+    install = steps["sample-install"]["run"]
+    assert "no-pyyaml/yaml.py" in install and "raise ImportError" in install
+    failed = next(
+        step["env"]["FAILED"]
+        for step in job["steps"]
+        if step.get("name") == "Explain the failure"
+    )
+    assert "steps.sample-check-yq.outcome == 'failure'" in failed
+
+
+def test_only_one_leg_lints_the_templates():
+    """What actionlint and zizmor find doesn't depend on the runner, so the other
+    legs run only what can differ, as quickly as they can."""
+    steps = load(OWN / "action-test.yml")["jobs"]["action"]["steps"]
+    lints = [step for step in steps if step.get("id", "").startswith("template-")]
+    assert len(lints) == 2
+    only_on_one = f"matrix.runner == '{RUNNER}'"
+    assert all(only_on_one in step["if"] for step in lints)
+    others = [step for step in steps if step not in lints and "if" in step]
+    assert others and not any(only_on_one in step["if"] for step in others)
+
+
+def test_the_readme_names_the_runners_that_the_action_test_runs_on():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    (section,) = re.findall(r"^## Supported runners\n(.+?)^## ", readme, re.M | re.S)
+    table = re.findall(r"^\| `([^`]+)`", section, re.MULTILINE)
+    assert table == ACTION_RUNNERS
 
 
 def test_the_block_of_the_ai_s_runner_in_reserve_runs_in_ci():
@@ -1240,7 +1306,7 @@ def test_the_canary_s_issue_is_one_that_this_repository_could_get():
 
 def test_the_github_cli_sends_no_telemetry():
     # Its telemetry would only knock at a host that the block doesn't allow.
-    (step,) = ACTION["runs"]["steps"]
+    step = ACTION["runs"]["steps"][-1]
     assert step["env"]["GH_TELEMETRY"] == "false"
 
 
@@ -1304,7 +1370,7 @@ def test_untrusted_text_never_reaches_a_shell_script(path):
 
 
 def test_the_action_passes_every_input_through_the_environment():
-    (step,) = ACTION["runs"]["steps"]
+    step = ACTION["runs"]["steps"][-1]
     assert step["run"] == (
         'PYTHONPATH="$GITHUB_ACTION_PATH${PYTHONPATH:+:$PYTHONPATH}" '
         'python3 -P -B -m issue_assistant "$COMMAND"'
@@ -1313,6 +1379,176 @@ def test_the_action_passes_every_input_through_the_environment():
     assert inputs <= set(step["env"].values())
     for name, output in ACTION["outputs"].items():
         assert output["value"] == f"${{{{ steps.run.outputs.{name} }}}}"
+
+
+# How the action says that the Python of the runner is too old or missing.
+NEEDS_PYTHON = "::error::The issue assistant needs Python 3.12 or newer, and "
+HOW_TO_FIX_THE_PYTHON = (
+    " Run the job on a runner with a newer one, such as runs-on: ubuntu-24.04, or add "
+    "actions/setup-python with python-version: 3.12 before this step.\n"
+)
+
+
+def fake_python(folder, version):
+    """A python3 in folder that reports this version, to the guard of the action. It
+    runs what the guard asks on the real Python, whose version it replaces."""
+    folder.mkdir(exist_ok=True)
+    python = Path(sys.executable).as_posix()
+    replaced = f"sys.version_info = ({version.replace('.', ', ')}, 'final', 0)"
+    fake = folder / "python3"
+    fake.write_text(
+        "#!/bin/sh\n"
+        f'if [ "$1" = --version ]; then echo "Python {version}"; exit 0; fi\n'
+        f'exec "{python}" -c "import sys; {replaced}; exec(sys.argv[1])" "$2"\n',
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    return folder
+
+
+def run_the_guard(folder):
+    (guard, _) = ACTION["runs"]["steps"]
+    return subprocess.run(
+        [shutil.which("bash"), "-e", "-c", guard["run"]],
+        env={**os.environ, "PATH": str(folder)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_the_action_checks_the_python_before_it_runs_the_script():
+    """A failed step of a composite action stops the steps after it, unless one of
+    them asks otherwise; so the script never starts on a Python that it doesn't
+    support, where a check inside the script would come too late."""
+    (guard, script) = ACTION["runs"]["steps"]
+    assert guard["id"] == "python" and guard["shell"] == "bash"
+    assert "continue-on-error" not in guard
+    assert "if" not in script
+    assert "issue_assistant" not in guard["run"]
+    # It takes no input, so no value of an issue or a repository reaches its text.
+    assert "${{" not in guard["run"] and "env" not in guard
+
+
+def test_the_python_of_the_guard_is_the_one_that_the_script_targets():
+    """Decision 0003: the version that ruff and mypy check the script for."""
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    major, minor = project["tool"]["mypy"]["python_version"].split(".")
+    (guard, _) = ACTION["runs"]["steps"]
+    assert f"sys.version_info < ({major}, {minor})" in guard["run"]
+    assert NEEDS_PYTHON.removeprefix("::error::").startswith(
+        f"The issue assistant needs Python {major}.{minor} or newer"
+    )
+    assert f"python-version: {major}.{minor}" in HOW_TO_FIX_THE_PYTHON
+
+
+@pytest.mark.parametrize("version", ["3.12.0", "3.14.4"])
+def test_the_guard_lets_a_python_that_is_new_enough_pass(tmp_path, version):
+    result = run_the_guard(fake_python(tmp_path / "bin", version))
+    assert (result.returncode, result.stdout, result.stderr) == (0, "", "")
+
+
+@pytest.mark.parametrize("version", ["3.11.9", "3.10.12", "3.8.10"])
+def test_the_guard_names_a_python_that_is_too_old_and_how_to_fix_it(tmp_path, version):
+    result = run_the_guard(fake_python(tmp_path / "bin", version))
+    assert result.returncode == 1
+    assert result.stdout == (
+        f"{NEEDS_PYTHON}python3 on this runner is Python {version}."
+        f"{HOW_TO_FIX_THE_PYTHON}"
+    )
+    assert result.stderr == ""
+
+
+def test_the_guard_says_so_when_the_runner_has_no_python(tmp_path):
+    (tmp_path / "bin").mkdir()
+    result = run_the_guard(tmp_path / "bin")
+    assert result.returncode == 1
+    assert result.stdout == (
+        f"{NEEDS_PYTHON}this runner has no python3.{HOW_TO_FIX_THE_PYTHON}"
+    )
+    assert result.stderr == ""
+
+
+def old_python_job():
+    return load(OWN / "action-test.yml")["jobs"]["old-python"]
+
+
+def test_the_action_test_runs_the_action_on_a_python_that_is_too_old():
+    """The real action on the real Python 3.11, which must fail in its first step."""
+    job = old_python_job()
+    assert job["runs-on"] == RUNNER
+    uses = [step.get("uses", "").split("@")[0] for step in job["steps"]]
+    setup = uses.index("actions/setup-python")
+    action = uses.index("./")
+    assert uses.index("actions/checkout") < setup < action
+    assert job["steps"][setup]["with"] == {"python-version": "3.11"}
+    refused = job["steps"][action]
+    # Only the next step decides, so that the action failing is what makes it pass.
+    assert refused["continue-on-error"] is True
+    assert refused["with"] == {"command": "check"}
+    verified = job["steps"][action + 1]
+    assert verified["env"]["OUTCOME"] == f"${{{{ steps.{refused['id']}.outcome }}}}"
+
+
+@pytest.mark.parametrize(
+    ("outcome", "version", "guard", "error"),
+    [
+        ("failure", "3.11.9", None, None),
+        ("success", "3.11.9", None, "The action ran on Python 3.11"),
+        ("failure", "3.12.0", None, "let Python 3.12.0 through"),
+        ("failure", "3.10.12", None, "doesn't name Python 3.11"),
+        ("failure", "3.11.9", "echo Traceback; exit 1", "doesn't name Python 3.11"),
+        (
+            "failure",
+            "3.11.9",
+            'echo "::error::Python 3.11.9"; echo Traceback >&2; exit 1',
+            "traceback",
+        ),
+    ],
+)
+def test_the_job_on_the_old_python_passes_only_with_the_message(
+    tmp_path, outcome, version, guard, error
+):
+    """It reads the check out of action.yml, so that it runs what the action runs."""
+    folder = fake_python(tmp_path / "bin", version)
+    (real, _) = ACTION["runs"]["steps"]
+    (tmp_path / "guard").write_text(guard or real["run"], encoding="utf-8")
+    fake_yq = folder / "yq"
+    fake_yq.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = \'.runs.steps[] | select(.id == "python") | .run\' ] '
+        '&& [ "$2" = action.yml ]; then\n'
+        f'  cat "{(tmp_path / "guard").as_posix()}"\n'
+        "else\n"
+        "  exit 2\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    fake_yq.chmod(0o755)
+    (step,) = [
+        step for step in old_python_job()["steps"] if "OUTCOME" in step.get("env", {})
+    ]
+    result = subprocess.run(
+        [shutil.which("bash"), "-e", "-c", step["run"]],
+        env={
+            **os.environ,
+            "OUTCOME": outcome,
+            "PATH": os.pathsep.join([str(folder), os.environ["PATH"]]),
+            "RUNNER_TEMP": str(tmp_path),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if error is None:
+        assert result.returncode == 0, result.stdout + result.stderr
+        # The message shows in the log, and only the action makes it an annotation.
+        assert "> ::error::" in result.stdout
+        assert "\n::error::" not in f"\n{result.stdout}"
+    else:
+        assert result.returncode == 1
+        (message,) = re.findall(r"^::error::(.+)$", result.stdout, re.MULTILINE)
+        assert error in message
 
 
 def test_every_engine_has_rules_a_step_and_credentials():

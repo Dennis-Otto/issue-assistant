@@ -92,6 +92,21 @@ outputs:
 runs:
   using: composite
   steps:
+    # The script is written and checked for Python 3.12 (decision 0003). An older one
+    # stops with a traceback, as Python 3.10 at the import of tomllib, or runs what no
+    # test has run, and a check inside the script would come too late.
+    - id: python
+      name: Check the version of Python
+      shell: bash
+      run: |
+        if ! command -v python3 > /dev/null; then
+          echo "::error::The issue assistant needs Python 3.12 or newer, and this runner has no python3. Run the job on a runner with a newer one, such as runs-on: ubuntu-24.04, or add actions/setup-python with python-version: 3.12 before this step."
+          exit 1
+        fi
+        if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 12))'; then
+          echo "::error::The issue assistant needs Python 3.12 or newer, and python3 on this runner is $(python3 --version 2>&1). Run the job on a runner with a newer one, such as runs-on: ubuntu-24.04, or add actions/setup-python with python-version: 3.12 before this step."
+          exit 1
+        fi
     - id: run
       shell: bash
       env:

@@ -2,11 +2,16 @@ name: Action test
 
 # The templates in templates/, which every repository that uses the action gets,
 # pass actionlint and zizmor. Then the action runs as its users run it, on the
-# runner of the templates: installed into the sample repository and into a copy of
-# this repository, whose set-ups it checks, and behind the egress block of the
-# templates, and the block of the AI's runner in reserve holds. The action runs on
-# the runner's own Python, without PyYAML: check falls
-# back to yq, as it does in every repository that uses the action. The commands
+# runner of the templates and on the two others that the README names, whose images
+# differ, as ubuntu-latest and the free ARM runners do from the runner of the
+# templates: installed into the sample repository and into a copy of this repository,
+# whose set-ups it checks, and behind the egress block of the templates. The legs
+# run side by side, so they add no time to the check, and the leg on the runner of
+# the templates keeps the name of the job, which main requires. The block of the AI's
+# runner in reserve holds, and on a Python that is too old the action stops with its
+# message. The action runs on the runner's own Python, without installing PyYAML:
+# check falls back to yq where the image has no PyYAML, and it runs once with PyYAML
+# hidden on every leg, so that each image's yq really reads the set-up. The commands
 # that only read run against GitHub itself, and every week the GraphQL documents and
 # the REST requests of the script meet GitHub's schema and description of that day, so
 # that a field that GitHub deprecates fails here months before GitHub removes it, and
@@ -38,9 +43,20 @@ concurrency:
 
 jobs:
   action:
-    name: action
-    runs-on: ubuntu-24.04
+    name: ${{ matrix.check }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
+    strategy:
+      # Every leg reports, so that a failure shows on the runners where it happens.
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            check: action
+          - runner: ubuntu-26.04
+            check: action (ubuntu-26.04)
+          - runner: ubuntu-24.04-arm
+            check: action (ubuntu-24.04-arm)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         id: checkout
@@ -51,10 +67,11 @@ jobs:
       # which GitHub has documented since 2026-05-07; only that message is ignored.
       # actionlint's problem matcher, as in the Lint workflow, shows each error as an
       # annotation at its line, in the files of the pull request and in the comment
-      # of the PR coach too.
+      # of the PR coach too. What it finds doesn't depend on the runner, so one leg
+      # is enough.
       - name: Lint the templates
         id: template-lint
-        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && matrix.runner == 'ubuntu-24.04' }}
         env:
           ACTIONLINT: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         run: |
@@ -72,7 +89,7 @@ jobs:
       # to templates/, as this repository's own workflows.
       - name: Check the security of the templates
         id: template-security
-        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && matrix.runner == 'ubuntu-24.04' }}
         uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
         with:
           inputs: templates
@@ -86,12 +103,26 @@ jobs:
         run: |
           cp -r tests/sample "$ISSUE_ASSISTANT_ROOT"
           python3 -m issue_assistant install --ref "$GITHUB_SHA" --version smoke-test
+          mkdir "$RUNNER_TEMP/no-pyyaml"
+          echo 'raise ImportError' > "$RUNNER_TEMP/no-pyyaml/yaml.py"
       - name: Check the sample's set-up through the action
         id: sample-check
         if: ${{ !cancelled() && steps.sample-install.outcome == 'success' }}
         uses: ./
         env:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
+        with:
+          command: check
+      # check prefers PyYAML, which an image may have on its Python, and doesn't log
+      # which one read a file. With an import of PyYAML that fails, only yq can read
+      # the set-up: a check that passes here ran the yq of this image for real.
+      - name: Check the sample's set-up through the action, with yq in place of PyYAML
+        id: sample-check-yq
+        if: ${{ !cancelled() && steps.sample-install.outcome == 'success' }}
+        uses: ./
+        env:
+          ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
+          PYTHONPATH: ${{ runner.temp }}/no-pyyaml
         with:
           command: check
       # This repository's workflows and firewall policy are the blueprint's copies of
@@ -118,16 +149,18 @@ jobs:
           command: check
       # The PR coach: what failed, why it matters and how to fix it, in the summary
       # of the check and as its annotation, from .github/checks.project.toml: each
-      # part of the job that failed, or the job itself when none of them did.
+      # part of the job that failed, or the job itself when none of them did; a leg
+      # on another runner also says what to look at there.
       - name: Explain the failure
         if: failure()
         env:
-          CHECK: action
+          CHECK: ${{ matrix.check }}
           FAILED: |
             ${{ steps.template-lint.outcome == 'failure' && 'template-lint' || '' }}
             ${{ steps.template-security.outcome == 'failure' && 'template-security' || '' }}
-            ${{ (steps.sample-install.outcome == 'failure' || steps.sample-check.outcome == 'failure') && 'sample-setup' || '' }}
+            ${{ (steps.sample-install.outcome == 'failure' || steps.sample-check.outcome == 'failure' || steps.sample-check-yq.outcome == 'failure') && 'sample-setup' || '' }}
             ${{ (steps.own-install.outcome == 'failure' || steps.own-check.outcome == 'failure') && 'own-setup' || '' }}
+            ${{ matrix.runner != 'ubuntu-24.04' && 'other-runner' || '' }}
         run: |
           mapfile -t parts < <(grep . <<<"$FAILED" || true)
           python3 .github/blueprint.py coach explain "$CHECK" --parts "${parts[@]}"
@@ -138,14 +171,25 @@ jobs:
   # refuses, or a host that the action or the GitHub CLI starts to need, fails here,
   # before a release brings it to every repository.
   egress:
-    name: action behind the egress block
-    runs-on: ubuntu-24.04
+    name: ${{ matrix.check }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     permissions:
       contents: read
       discussions: read
       issues: read
       pull-requests: read
+    strategy:
+      # Every leg reports, so that a failure shows on the runners where it happens.
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            check: action behind the egress block
+          - runner: ubuntu-26.04
+            check: action behind the egress block (ubuntu-26.04)
+          - runner: ubuntu-24.04-arm
+            check: action behind the egress block (ubuntu-24.04-arm)
     steps:
       - name: Block every host but GitHub's
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -203,13 +247,67 @@ jobs:
       - name: Explain the failure
         if: failure()
         env:
-          CHECK: action behind the egress block
+          CHECK: ${{ matrix.check }}
           FAILED: |
             ${{ (steps.sweep.outcome == 'failure' || steps.sync-labels.outcome == 'failure') && 'egress-dry-runs' || '' }}
             ${{ steps.context.outcome == 'failure' && 'egress-context' || '' }}
+            ${{ matrix.runner != 'ubuntu-24.04' && 'other-runner' || '' }}
         run: |
           mapfile -t parts < <(grep . <<<"$FAILED" || true)
           python3 .github/blueprint.py coach explain "$CHECK" --parts "${parts[@]}"
+
+  # The action on a Python that is too old, as on ubuntu-22.04, on a self-hosted runner
+  # or after setup-python: it must stop in its first step, with a message that names
+  # the version and the fix. The log of a step can't be read in its own job, so the
+  # step after it runs that first step once more, as action.yml has it, and reads what
+  # it writes. The annotation of the error that this job shows, while it passes, is the
+  # one that it waits for.
+  old-python:
+    name: the action on a Python that is too old
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Run the action, which must refuse this Python
+        id: refused
+        continue-on-error: true
+        uses: ./
+        with:
+          command: check
+      - name: Make sure that it refused it with its message and no traceback
+        env:
+          OUTCOME: ${{ steps.refused.outcome }}
+        run: |
+          if [ "$OUTCOME" != failure ]; then
+            echo "::error::The action ran on Python 3.11, where it must stop with its message."
+            exit 1
+          fi
+          yq '.runs.steps[] | select(.id == "python") | .run' action.yml > "$RUNNER_TEMP/guard.sh"
+          if bash -e "$RUNNER_TEMP/guard.sh" > "$RUNNER_TEMP/guard.log" 2>&1; then
+            echo "::error::The check of the Python in action.yml let $(python3 --version) through."
+            exit 1
+          fi
+          # With a mark before each line, so that the runner takes no line for a command.
+          sed 's/^/> /' "$RUNNER_TEMP/guard.log"
+          if ! grep --quiet '^::error::.*Python 3\.11\.' "$RUNNER_TEMP/guard.log"; then
+            echo "::error::The message of the check of the Python in action.yml doesn't name Python 3.11."
+            exit 1
+          fi
+          if grep --quiet 'Traceback' "$RUNNER_TEMP/guard.log"; then
+            echo "::error::The check of the Python in action.yml wrote a traceback."
+            exit 1
+          fi
+      # On the Python of the runner, which blueprint.py supports; this job's isn't.
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: the action on a Python that is too old
+        run: /usr/bin/python3 .github/blueprint.py coach explain "$CHECK"
 
   # The AI's runner in reserve, decision 0019: with ISSUE_ASSISTANT_AI_RUNNER set to
   # ubuntu-24.04, the job event names the hosts of .github/egress-firewall.yaml for

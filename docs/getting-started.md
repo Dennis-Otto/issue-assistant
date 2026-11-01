@@ -99,7 +99,7 @@ Add the check to the CI of the repository, so that a change of the labels, the f
     command: check
 ```
 
-The check runs on Linux, macOS or Windows, with Python 3.12 or newer, and reads YAML with PyYAML or `yq`. When a workflow differs from its template, it names the commands that write the templates of its release anew.
+The check runs on Linux, macOS or Windows, with Python 3.12 or newer, and reads YAML with PyYAML or `yq`. In a job, the action is tested on `ubuntu-24.04`, `ubuntu-26.04` and `ubuntu-24.04-arm`; on an older Python it stops with an error that names the version and the fix. When a workflow differs from its template, it names the commands that write the templates of its release anew.
 
 ### Without `--setup`
 
