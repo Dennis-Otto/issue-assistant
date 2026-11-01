@@ -794,9 +794,10 @@ def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
         if job["steps"][0].get("uses", "").startswith(f"{HARDEN_RUNNER}@")
         and job["steps"][0]["with"]["egress-policy"] == "block"
         # The jobs of the AI's runner in reserve run no command that reads GitHub,
-        # and the engine contracts none of the action's (tests/test_engine_contract.py).
+        # the engine contracts none of the action's (tests/test_engine_contract.py), and
+        # the refresh of the copies of GitHub's schemas only its own script.
         and not name.startswith("fallback")
-        and name != "engines"
+        and name not in {"engines", "schema-refresh"}
     ]
     assert job["runs-on"] == "${{ matrix.runner }}"
     assert job["steps"][0] == JOBS["event"]["steps"][0]
@@ -919,12 +920,12 @@ def test_the_graphql_documents_meet_github_s_schema_of_the_day_every_week():
     assert job["if"] == (
         "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'"
     )
-    (download,) = [step for step in job["steps"] if "curl" in step.get("run", "")]
-    assert "https://docs.github.com/public/fpt/schema.docs.graphql" in download["run"]
     (check,) = [
         step for step in job["steps"] if "GRAPHQL_SCHEMA" in step.get("env", {})
     ]
-    assert check["run"].endswith("tests/test_graphql_contract.py")
+    assert "tests/test_graphql_contract.py" in check["run"]
+    # tests/test_rest_contract.py checks the download and the REST requests.
+    assert job["steps"][job["steps"].index(check) - 1]["id"] == "download"
 
 
 # The Canary runs the AI's path of every repository every week, for an issue of a

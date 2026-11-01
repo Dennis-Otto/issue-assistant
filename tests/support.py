@@ -7,6 +7,7 @@ runs; only `gh` itself is replaced. tests/README.md explains all three.
 
 import dataclasses
 import difflib
+import importlib.util
 import json
 import os
 import re
@@ -21,6 +22,15 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 import issue_assistant as assistant
 from oracle import problems
+
+_spec = importlib.util.spec_from_file_location(
+    "github_schemas",
+    Path(__file__).resolve().parent.parent / "scripts/github_schemas.py",
+)
+assert _spec and _spec.loader
+schemas = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = schemas
+_spec.loader.exec_module(schemas)
 
 REPOSITORY = "owner/project"
 # The settings that the property tests and the fuzzers clean with: a repository, a
@@ -530,6 +540,16 @@ def as_graphql(issue):
     }
 
 
+def described(method, request):
+    """Fail the test for a REST request that GitHub's OpenAPI description doesn't have
+    in this form: an unknown path or query parameter, or a deprecated operation. An
+    AssertionError passes every fallback of the script, which would turn the error of
+    GitHub into a notice."""
+    __tracebackhide__ = True
+    found = schemas.pinned().problems(method, request)
+    assert not found, " ".join(found)
+
+
 class FakeGitHub(assistant.GitHub):
     """The REST and GraphQL endpoints the script uses, in memory."""
 
@@ -655,6 +675,7 @@ class FakeGitHub(assistant.GitHub):
         -label:"NAME" and no:assignee, the oldest first."""
         parts = urlsplit(args[1])
         assert parts.path == "search/issues", args
+        described("GET", args[1])
         query = parse_qs(parts.query)
         assert (query["sort"], query["order"]) == (["created"], ["asc"])
         self.calls.append(("SEARCH", query["q"][0], None))
@@ -691,6 +712,7 @@ class FakeGitHub(assistant.GitHub):
         }
 
     def rest(self, path, *, method="GET", data=None, pages=False):
+        described(method, f"repos/{self.repository}/{path}")
         self.calls.append((method, path, deepcopy(data)))
         self._failing(f"{method} {path}")
         parts = urlsplit(path)
@@ -1425,6 +1447,9 @@ def fake_gh(monkeypatch, folder, *answers):
     The assistant runs gh with Python's real subprocess.run and its own options,
     such as check=False; only the program is tests/fake_gh.py in place of gh, so
     that a test never reaches GitHub, also on a computer that has gh.
+
+    Every `gh api` has to end with the header of the version of GitHub's API, which
+    the calls leave out, and a REST request has to be in GitHub's description.
     """
     log = folder / "gh-calls.jsonl"
     log.unlink(missing_ok=True)
@@ -1436,9 +1461,15 @@ def fake_gh(monkeypatch, folder, *answers):
 
     def run(command, **options):
         assert command[0] == "gh", command
+        arguments = command[1:]
+        if arguments[0] == "api":
+            assert arguments[-2:] == ["--header", assistant.API_VERSION_HEADER], command
+            arguments = arguments[:-2]
+            if request := schemas.request_of(arguments[1:]):
+                described(*request)
         result = REAL_RUN([sys.executable, "-I", str(FAKE_GH), *command[1:]], **options)
         call = json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
-        calls.append((["gh", *call["arguments"]], call["input"]))
+        calls.append((["gh", *arguments], call["input"]))
         return result
 
     monkeypatch.setattr(assistant.subprocess, "run", run)

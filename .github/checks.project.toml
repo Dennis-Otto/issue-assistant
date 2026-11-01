@@ -139,7 +139,7 @@ in [actions/runner-images](https://github.com/actions/runner-images) and
 [actions/partner-runner-images](https://github.com/actions/partner-runner-images). Make
 `issue_assistant.py` work with both, with a test of the difference. When the image is at
 fault, such as a broken release of it, run the check again later."""
-docs = "docs/architecture/testing.md#the-runners-that-the-action-is-tested-on"
+docs = "docs/architecture/dry-runs.md#the-runners-that-the-action-is-tested-on"
 autofix = """Which difference of a runner matters is for a person to find in the two
 logs."""
 
@@ -156,7 +156,7 @@ fix = """Look at the first step of `action.yml`: it must fail on a Python older 
 that `pyproject.toml` names, name the version it found, and stand before the step that
 runs the script. Its cases are in `tests/test_templates.py`:"""
 commands = ["python -m pytest tests/test_templates.py -k guard"]
-docs = "docs/architecture/testing.md#the-runners-that-the-action-is-tested-on"
+docs = "docs/architecture/dry-runs.md#the-runners-that-the-action-is-tested-on"
 autofix = """The text of the message and when it shows are a decision for a person."""
 
 # ---------------------------------------------------------------- the job egress
@@ -259,28 +259,51 @@ person."""
 
 # ---------------------------------------------------------------- the job schema
 
-[check."GraphQL against GitHub's current schema"]
-title = "The GraphQL documents against GitHub's schema of today"
-problem = """A GraphQL document of `issue_assistant.py` uses a field, an argument or a
-value of an enum that GitHub's schema of today deprecates or no longer has, as the log
-of `tests/test_graphql_contract.py` names it, or the download of the schema from
-docs.github.com failed. The summary of the job shows what changed in the schema since
-the copy in `tests/github/`."""
+[check."GraphQL and REST against GitHub's current schemas"]
+title = "The requests against GitHub's schema and description of today"
+problem = """A GraphQL document or a REST request of `issue_assistant.py` uses something
+that GitHub's schema or OpenAPI description of today deprecates or no longer has, such
+as a field, a value of an enum, an operation or a query parameter, as the log of
+`tests/test_graphql_contract.py` or `tests/test_rest_contract.py` names it, or the
+download from docs.github.com or raw.githubusercontent.com failed. The summary of the
+job shows what changed since the copies in `tests/github/`."""
 why = """GitHub deprecates a part of its API months before it removes it. The weekly
 run turns red as soon as the action uses something deprecated, while it still works,
 so that a release moves away from it before every repository that uses the action
 breaks."""
-fix = """When the download failed, run the job again. Otherwise refresh the copy of
-the schema, run the test, and change each document that it names as GitHub's
-changelog of the schema recommends, in one pull request:"""
+fix = """When the download failed, run the job again. Otherwise refresh the copies, run
+the tests, and change each request that they name as GitHub's changelog recommends, in
+one pull request:"""
 commands = [
-  "curl --fail --silent --show-error --location --output tests/github/schema.docs.graphql https://docs.github.com/public/fpt/schema.docs.graphql",
-  "python3 -m pytest tests/test_graphql_contract.py",
+  "python3 scripts/github_schemas.py download tests/github",
+  "python3 -m pytest tests/test_graphql_contract.py tests/test_rest_contract.py",
 ]
 docs = "docs/architecture/testing.md#how-the-requests-to-github-are-tested"
-autofix = """A document that GitHub's schema no longer takes needs a person, who
-chooses what replaces the field; a fresh copy of the schema alone would only move the
+autofix = """Copies that still pass come by themselves: the job after this one opens one
+pull request from `bot/github-schemas`. A request that GitHub's schema no longer takes
+needs a person, who chooses what replaces it; a fresh copy alone would only move the
 failure into the required check."""
+
+[check."the copies of GitHub's schemas in a pull request"]
+title = "The pull request with the copies of GitHub's schemas"
+problem = """The contract tests passed against GitHub's schema and description of today,
+but the job couldn't bring the copies in `tests/github/` to the one pull request from
+`bot/github-schemas`, couldn't turn on its automatic merge, or couldn't close that pull
+request when `main` already has the copies: GitHub refused a request
+or the token of the release app, as the log names it."""
+why = """The copies stay behind what GitHub publishes, so the required check of every
+pull request checks the requests against an older description. Nothing breaks until the
+next weekly run, which tries again."""
+fix = """Run the job again. When GitHub refuses the token, check the installation of the
+release app and the secret `RELEASE_AUTOMATION_PRIVATE_KEY` of the environment `release`.
+The copies can also go into a pull request by hand:"""
+commands = [
+  "python3 scripts/github_schemas.py download tests/github",
+  "python3 -m pytest tests/test_graphql_contract.py tests/test_rest_contract.py",
+]
+docs = "docs/architecture/testing.md#how-the-requests-to-github-are-tested"
+autofix = """A failed request to GitHub or a refused token needs another run or a look at
+the app, not a change of the repository."""
 
 # ---------------------------------------------------------------- the job engines
 

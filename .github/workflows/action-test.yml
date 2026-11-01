@@ -11,9 +11,10 @@ name: Action test
 # runner in reserve holds, and on a Python that is too old the action stops with its
 # message. The action runs on the runner's own Python, without installing PyYAML:
 # check falls back to yq where the image has no PyYAML. The commands
-# that only read run against GitHub itself, and every week the GraphQL documents of
-# the script meet GitHub's schema of that day, so that a field that GitHub
-# deprecates fails here months before GitHub removes it. The names that keep each
+# that only read run against GitHub itself, and every week the GraphQL documents and
+# the REST requests of the script meet GitHub's schema and description of that day, so
+# that a field that GitHub deprecates fails here months before GitHub removes it, and
+# copies that are behind but still pass come in a pull request. The names that keep each
 # engine to reading, such as the inputs of its action and the flags of its command
 # line, meet the versions that the workflows pin, on a pull request that changes an
 # engine and every week, so that an update that renames one fails before a release.
@@ -456,11 +457,11 @@ jobs:
           python3 .github/blueprint.py coach explain "$CHECK" --parts "${parts[@]}"
 
   # GitHub changes its API without a release of the action. The tests check the
-  # GraphQL documents of the script against the copy of GitHub's schema in
-  # tests/github/; here, every week, they meet the schema of that day. A copy that
-  # is behind only gets a notice: refresh it in a pull request.
+  # GraphQL documents and the REST requests of the script against the copies of
+  # GitHub's schema and description in tests/github/; here, every week, they meet what
+  # GitHub publishes that day. Copies that still pass go to the next job.
   schema:
-    name: GraphQL against GitHub's current schema
+    name: GraphQL and REST against GitHub's current schemas
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -479,35 +480,166 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - name: Install the hash-pinned tools
         run: pip install --require-hashes -r requirements-dev.txt
-      - name: Download GitHub's schema of today
+      - name: Download GitHub's schema and description of today
         id: download
-        run: >-
-          curl --fail --silent --show-error --location --retry 3
-          --output "$RUNNER_TEMP/schema.docs.graphql"
-          https://docs.github.com/public/fpt/schema.docs.graphql
-      - name: Check the GraphQL documents against it
+        run: python scripts/github_schemas.py download "$RUNNER_TEMP/github"
+      - name: Check the requests against them
         env:
-          GRAPHQL_SCHEMA: ${{ runner.temp }}/schema.docs.graphql
-        run: python -m pytest -p no:cacheprovider tests/test_graphql_contract.py
-      # Also when a document fails: the changes of the schema show what GitHub changed.
-      - name: Compare it with the copy in tests/github/
+          GRAPHQL_SCHEMA: ${{ runner.temp }}/github/schema.docs.graphql
+          REST_DESCRIPTION: ${{ runner.temp }}/github/api.github.com.json
+        run: python -m pytest -p no:cacheprovider tests/test_graphql_contract.py tests/test_rest_contract.py
+      # Also when a request fails: the changes show what GitHub changed.
+      - name: Compare them with the copies in tests/github/
         if: ${{ !cancelled() && steps.download.outcome == 'success' }}
         run: |
-          if cmp --silent "$RUNNER_TEMP/schema.docs.graphql" tests/github/schema.docs.graphql; then
-            echo "The copy of GitHub's schema in tests/github/ is current." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::notice::GitHub's schema has changed since the copy in tests/github/; refresh it in a pull request (see tests/test_graphql_contract.py)."
+          for file in schema.docs.graphql api.github.com.json; do
+            if cmp --silent "$RUNNER_TEMP/github/$file" "tests/github/$file"; then
+              echo "The copy of \`$file\` in tests/github/ is current." >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            echo "::notice::GitHub has changed $file since the copy in tests/github/."
             {
-              echo "GitHub's schema has changed since the copy in tests/github/:"
+              echo "GitHub has changed \`$file\` since the copy in tests/github/:"
               echo
               echo '```'
-              diff --unified=0 tests/github/schema.docs.graphql "$RUNNER_TEMP/schema.docs.graphql" | grep -E '^[-+][^-+]' | head -n 40 || true
+              diff --unified=0 "tests/github/$file" "$RUNNER_TEMP/github/$file" | grep -E '^[-+][^-+]' | head -n 40 || true
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-          fi
+          done
+      - name: Keep them for the pull request
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: github-schemas
+          path: ${{ runner.temp }}/github/
+          if-no-files-found: error
+          retention-days: 1
       # The PR coach, as in the job action; this job has no parts.
       - name: Explain the failure
         if: failure()
         env:
-          CHECK: GraphQL against GitHub's current schema
+          CHECK: GraphQL and REST against GitHub's current schemas
         run: python3 .github/blueprint.py coach explain "$CHECK"
+
+  # The copies of the job before, which passed the contract tests, in the one pull
+  # request from bot/github-schemas: the release app's, since a pull request of the
+  # job's token starts no check. It merges itself once its checks pass, and closes
+  # when main already has these copies, which is why the job also runs without a change.
+  schema-refresh:
+    name: the copies of GitHub's schemas in a pull request
+    needs: schema
+    if: github.ref_name == github.event.repository.default_branch
+    concurrency:
+      group: ${{ github.workflow }}-schema-refresh
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The environment holds the private key of the release app; only main may use it.
+    environment:
+      name: release
+      deployment: false
+    permissions:
+      contents: read
+    env:
+      # The GitHub CLI's telemetry would only knock at a blocked host.
+      GH_TELEMETRY: "false"
+    steps:
+      - name: Block every host that the job doesn't need
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+            results-receiver.actions.githubusercontent.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch the copies of the job before
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: github-schemas
+          path: ${{ runner.temp }}/github
+      # Without the release app of the owner, the run names what is missing rather than
+      # fail at the token; every workflow has this step, the same but for its variables.
+      - name: Check that the release app is set up
+        id: release-app
+        env:
+          CLIENT_ID: ${{ vars.RELEASE_AUTOMATION_CLIENT_ID }}
+          KEY_SET: ${{ secrets.RELEASE_AUTOMATION_PRIVATE_KEY != '' }}
+          # Who needs the app and for what, what happens without it, and whether the
+          # run fails then.
+          BOT: the job schema of the Action test
+          TASK: open the pull request with the copies of GitHub's schemas
+          WITHOUT: the summary of the job before shows what GitHub changed
+          REQUIRED: "false"
+        run: |
+          if [[ -z "$CLIENT_ID" ]]; then
+            missing="names no release app in the variable RELEASE_AUTOMATION_CLIENT_ID"
+          elif [[ "$KEY_SET" != true ]]; then
+            missing="has no private key of its release app in the secret RELEASE_AUTOMATION_PRIVATE_KEY of the environment release"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          level=warning
+          if [[ "$REQUIRED" == true ]]; then
+            level=error
+          fi
+          echo "::$level::This repository $missing, which $BOT needs to $TASK; $WITHOUT."
+          {
+            echo "### ${BOT^} needs the release app of the owner"
+            echo
+            echo "This repository $missing, which $BOT needs to $TASK; $WITHOUT. The release app is a GitHub App of the owner, whose token may do what the token of a job can't: start the checks of a pull request, change a workflow and apply the settings."
+            echo
+            echo "\`python3 .github/blueprint.py checklist\` shows the steps: a link that registers the app with its permissions filled in, the update of the answers of the blueprint that names it in \`.github/repository.toml\`, the settings and its private key. Once they are done, $BOT can $TASK in its next run."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$REQUIRED" == true ]]; then
+            exit 1
+          fi
+      - name: Create a token of the release app
+        id: app
+        if: steps.release-app.outputs.ready == 'true'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_AUTOMATION_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_AUTOMATION_PRIVATE_KEY }}
+          # What the branch, the pull request and its merge need. Workflows because the
+          # branch of an open pull request moves from a commit on an older main to one
+          # on the newest, and GitHub refuses that move without workflows when main
+          # changed a workflow in between. The commit itself holds only the two copies.
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+      - name: Open, update or close the one pull request
+        id: refresh
+        if: steps.app.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/github_schemas.py refresh "$RUNNER_TEMP/github"
+      - name: Let the pull request merge itself
+        if: steps.refresh.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ steps.refresh.outputs.number }}
+        # GitHub refuses auto-merge once every check has passed: then it merges at once.
+        run: gh pr merge --auto --squash "$NUMBER" || gh pr merge --squash "$NUMBER"
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: the copies of GitHub's schemas in a pull request
+        run: python3 .github/blueprint.py coach explain "$CHECK"
+      - name: Wait until Harden-Runner has removed Docker
+        # Harden-Runner removes Docker with apt-get in the background; a job that ends
+        # before it finishes hangs in "Cleaning up orphan processes" until its timeout.
+        if: always()
+        run: |
+          for _ in {1..120}; do
+            pgrep -x 'apt-get|dpkg' >/dev/null || exit 0
+            sleep 1
+          done
+          echo "::warning::Harden-Runner still removes Docker after two minutes; the job may hang until its timeout."

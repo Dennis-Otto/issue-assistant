@@ -158,6 +158,12 @@ GITHUB_REMOTE = re.compile(
     r"(?P<name>\S+?)(?:\.git)?/?"
 )
 
+# The version of GitHub's REST API that every call of gh asks for, so that an answer
+# doesn't follow whatever version GitHub serves by default. tests/test_rest_contract.py
+# checks every request against GitHub's description of this version.
+API_VERSION = "2022-11-28"
+API_VERSION_HEADER = f"X-GitHub-Api-Version: {API_VERSION}"
+
 BOT = "github-actions[bot]"
 MAINTAINERS = {"OWNER", "MEMBER", "COLLABORATOR"}
 
@@ -1850,7 +1856,7 @@ class GitHub:
         tries = 1
         while True:
             result = subprocess.run(
-                ["gh", *args],
+                ["gh", *args, "--header", API_VERSION_HEADER],
                 input=None if data is None else json.dumps(data),
                 text=True,
                 encoding="utf-8",

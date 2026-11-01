@@ -11,6 +11,7 @@
 | `test_assistant.py` | The events, the sweeps, the answers of the AI and the commands of the script |
 | `test_discussions.py` | The first answers in Discussions: the event, the limits, the context, the checks of the answer and the set-up |
 | `test_graphql_contract.py` | Every GraphQL document against the copy of GitHub's schema in `github/` |
+| `test_rest_contract.py` | Every REST request against the copy of GitHub's OpenAPI description in `github/`, the version that every call asks for, and `scripts/github_schemas.py`, which keeps the copies current |
 | `test_properties.py`, `test_lifecycle_properties.py` | Property tests of the cleaning, of whole comments and of the lifecycle |
 | `oracle.py`, `test_oracle.py` | The Markdown parser that judges the cleaning, held to what GitHub's renderer does |
 | `test_findings.py` | The findings of code scanning |
@@ -28,6 +29,7 @@
 
 `FakeGitHub` in `support.py` answers the REST and GraphQL calls of the script from what a test puts into its stores, such as `comment_store[12]` for the comments of issue #12. The rest of the class `GitHub` runs as it is, so a test reaches the same requests as a run on GitHub. The fake is as strict as GitHub where a mistake would show only there:
 
+- **A request has to be in GitHub's description.** A method, a path or a query parameter that the copy of GitHub's OpenAPI description in `github/` doesn't have, or that it deprecates, fails the test, as `described` in `support.py` checks.
 - **Lists come in pages.** A list of the REST API has pages of 30 items, or of up to 100 that the path asks for with `per_page`. A reader that pages, with `pages=True` as `gh api --paginate` does, gets every item; one that doesn't gets the page that the path names, the first unless it names another. `make_comments(150)` builds a thread longer than a page, and `test_every_list_is_read_to_its_last_page` holds each reader to the last one.
 - **A write has the body that GitHub reads.** A body without a key that GitHub needs, with one that it ignores, or with a reaction, a colour or a reason for closing that it doesn't know fails the test.
 - **A failure is one call away.** `github.fail("^POST issues/12/comments")` lets every matching call fail, with a rate limit or with the error that it is given.
@@ -36,7 +38,7 @@
 
 ## The fake gh
 
-The tests of the class `GitHub` itself check the commands that it builds. `fake_gh(monkeypatch, tmp_path, *answers)` lets Python's real `subprocess.run` start `fake_gh.py` with the options of the script, in place of `gh`. Each answer is a dict with its `stdout`, `stderr` and exit `status`; the last one repeats. The call returns the list of the calls so far, each as the whole command and the text that `gh` read from its input, which it reads only for `--input -`:
+The tests of the class `GitHub` itself check the commands that it builds. `fake_gh(monkeypatch, tmp_path, *answers)` lets Python's real `subprocess.run` start `fake_gh.py` with the options of the script, in place of `gh`. Each answer is a dict with its `stdout`, `stderr` and exit `status`; the last one repeats. The call returns the list of the calls so far, each as the whole command and the text that `gh` read from its input, which it reads only for `--input -`. Every `gh api` has to end with the header of the version of GitHub's API, which the list leaves out, and a REST request has to be in GitHub's description:
 
 ```python
 calls = fake_gh(
