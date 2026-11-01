@@ -98,8 +98,18 @@ from .constants import (
     STALE,
     WONTFIX,
 )
+from .patterns import (
+    CODE,
+    CROSS_REFERENCE,
+    Checked,
+    HTML_COMMENT,
+    INVISIBLE,
+    ISSUE_REFERENCE,
+    SHA,
+)
 from .paths import *  # noqa: F403
 from .constants import *  # noqa: F403
+from .patterns import *  # noqa: F403
 
 # The section that tells reporters what happens with their issue, which install adds
 # to each file of [transparency] that doesn't name the engine yet, in English or, for
@@ -285,63 +295,7 @@ MARKER = re.compile(r"<!-- issue-assistant:([a-z-]+)((?: [a-z]+=[\w.+/-]+)*) -->
 # takes some of them for spaces, which Markdown doesn't, so they could make the two
 # see different lines.
 STRAY_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
-# Characters that GitHub shows as nothing, but that the engine reads, so that a text
-# could hold instructions that no maintainer sees: the format characters of Unicode
-# (category Cf), such as zero-width spaces and joiners, the controls of the direction
-# of writing and the tags U+E0001 to U+E007F, which spell ASCII invisibly; and the
-# code points that Unicode calls default ignorable, which a program shows as nothing
-# when it doesn't know them, such as the variation selectors, which can carry a byte
-# each behind any character, and the fillers of Hangul. A test checks the list
-# against the Unicode of the Python that runs it. The pattern is built from the
-# numbers of the code points, first and last of each range: CodeQL takes the
-# characters above U+FFFF in a pattern for U+FFFD, and their ranges for overlapping.
-INVISIBLE_RANGES = (
-    (0x00AD, 0x00AD),
-    (0x034F, 0x034F),
-    (0x0600, 0x0605),
-    (0x061C, 0x061C),
-    (0x06DD, 0x06DD),
-    (0x070F, 0x070F),
-    (0x0890, 0x0891),
-    (0x08E2, 0x08E2),
-    (0x115F, 0x1160),
-    (0x17B4, 0x17B5),
-    (0x180B, 0x180F),
-    (0x200B, 0x200F),
-    (0x202A, 0x202E),
-    (0x2060, 0x206F),
-    (0x3164, 0x3164),
-    (0xFE00, 0xFE0F),
-    (0xFEFF, 0xFEFF),
-    (0xFFA0, 0xFFA0),
-    (0xFFF0, 0xFFFB),
-    (0x110BD, 0x110BD),
-    (0x110CD, 0x110CD),
-    (0x13430, 0x1343F),
-    (0x1BCA0, 0x1BCA3),
-    (0x1D173, 0x1D17A),
-    (0xE0000, 0xE0FFF),
-)
-INVISIBLE = re.compile(
-    "[" + "".join(f"{chr(first)}-{chr(last)}" for first, last in INVISIBLE_RANGES) + "]"
-)
-# Code that Markdown shows as it is, by the rules of CommonMark: a fenced block from
-# a fence line to a closing fence line of the same character and at least the same
-# length, and a code span within one line between backtick runs of the same length
-# that no other backtick touches. A fence counts only at the very start of a line:
-# indented, it can belong to a list item before it, which the next line without
-# indentation ends, and the code with it. The line break before the fence belongs
-# to the block, so that no cleaning of the text before can join the two. The fence
-# is all of its characters: a shorter one doesn't close it, so GitHub's block would
-# run on, out of the text into the next one of the comment. A span over several
-# lines can be cut by a fence or a quote on the next line, so it, like anything else
-# that doesn't fit these rules exactly, counts as text: the safe side.
-CODE = re.compile(
-    r"(?:\A|\n)(?P<fence>(?P<char>[`~])(?P=char){2,})(?!(?P=char))[^`\n]*\n.*?"
-    r"^ {0,3}(?P=fence)(?P=char)*[ \t]*$"
-    r"|(?<![`\\])(?P<run>`+)(?!`)[^\n]*?(?<!`)(?P=run)(?!`)",
-    re.MULTILINE | re.DOTALL,
-)
+
 # Also a link without a target, [text](), which points to the page itself. A target
 # with a ( is no link here: Markdown's target runs on past the ) that closes it.
 MARKDOWN_LINK = re.compile(
@@ -369,12 +323,7 @@ TRAILING = frozenset(")?!.,:;*_~'\"")
 # after any character but a letter or digit; an underscore can start or end an
 # emphasis, so a reference counts whatever follows its number.
 MENTION = re.compile(r"(?<![A-Za-z0-9])@([A-Za-z0-9][A-Za-z0-9-]{0,38}(?:/[\w-]+)?)")
-CROSS_REFERENCE = re.compile(r"(?<![A-Za-z0-9])([\w.-]+/[\w.-]+#\d+)")
-# An issue or a discussion that the checks found, which a comment may link: one of
-# this repository by its number, or an issue of a related repository of [related]
-# as owner/name#123, with the name that [related] gives it.
-Checked = int | str
-ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)", re.IGNORECASE)
+
 # GitHub also links an e-mail address, with or without mailto: or xmpp:, and a
 # commit of another repository or of a fork: owner/repository@sha or user@sha. Each
 # pattern starts only where a run of the characters it reads starts, so that it
@@ -395,13 +344,7 @@ TILDE_FENCE = re.compile(r"^([ \t]*)(?=~~~)", re.MULTILINE)
 TABLE_HYPHEN = re.compile(r"(?<=[|:])([ \t]*)-|-(?=[ \t]*[|:])")
 # A line of a list item after its first, with the spaces and tabs that indent it.
 CONTINUATION = re.compile(r"\n([ \t]*)(?=[^ \t\n])")
-# The patterns that read the text of an issue look at each character a bounded
-# number of times, so that no text, however crafted, makes them slow. The tests and
-# fuzz/fuzz_issue_text.py time them on texts that took earlier patterns hours.
-#
-# An HTML comment. comment_parts splits a text where its last `-->` ends, so that
-# this pattern only reads the part in which a `-->` follows every `<!--`.
-HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+
 # A line that starts with `<!--`: on GitHub, an HTML block that runs to its `-->`, or
 # without one, hides the rest of the text.
 COMMENT_LINE = re.compile(r"^ {0,3}<!--", re.MULTILINE)
@@ -454,7 +397,6 @@ GITHUB_REPOSITORY = re.compile(
 LETTER_PAIR = re.compile(r"(?=[A-Za-z]{2})")
 CASE_CHANGE = re.compile(r"(?=[a-z][A-Z]|[A-Z][a-z])")
 LOWER_CASE = re.compile(r"[a-z]+")
-SHA = re.compile(r"[0-9a-f]{40}")
 
 
 @dataclass(frozen=True)
