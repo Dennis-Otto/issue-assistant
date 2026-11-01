@@ -4,6 +4,30 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.9.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.8.0...v1.9.0) (2026-11-01)
+
+### Features
+
+- The page [How accurate is it?](https://dennis-otto.github.io/issue-assistant/accuracy.html) can now show real numbers. A new workflow of this repository, *Evaluate*, runs `evaluate` by hand on GitHub's runner with the egress firewall, and a job without an AI takes only the numbers of its report into a pull request, as a table for each repository with the day, the engine, the model and the counts. The new command `accuracy-page` writes them, and refuses a report that has anything else in their place.
+- `[digest] issue = true` in `.github/issue-assistant/config.toml` keeps what the morning sweep says of what waits on whom in one issue as well, which you pin to the top of the Issues tab. The first sweep opens it, each later one edits it without notifying anyone, and there is never a second one. A comment or a command on it starts nothing and the AI never reads it. It is off by default.
+- The morning digest names good first issue candidates for the maintainers to confirm. Where `.github/labels.toml` has labels of the new group `contribution`, as the starter's `good first issue` and `help wanted` now do, the first analysis also judges whether someone new to the project could take the issue. It changes no comment and no label: a maintainer who has triaged the issue finds it in the fourth part of the digest and adds the label, and the monthly quality numbers count what became of the candidates.
+- The footer of every analysis, follow-up, answer and first answer in Discussions now ends with a link to the issue assistant, in the language of the comment, so that someone who likes what they read can find the tool that wrote it. The link mentions nobody, and `[transparency] credit = false` in `.github/issue-assistant/config.toml` leaves it out. The README and the set-up guide also offer a badge that shows that a repository uses the assistant.
+- `install` gives a repository without issue forms a feature request form and an issue chooser, next to the bug report form. The chooser turns blank issues off and sends questions to the discussions where `[discussions] answer_categories` names a category, vulnerabilities to private reporting and everything else to `SUPPORT.md`, with links that name the repository itself. A repository that has forms gets nothing new. `check` asks for the repository when `install` couldn't find it, and names a chooser that is no valid YAML, which GitHub ignores without a word. In Discussions, the answer to a feature request now links the feature request form where the repository has it.
+- A reporter can say no to the AI: the starter forms of `install` have a box *Automated analysis*, and a ticked box mutes the issue when it opens, or when the reporter clicks it later. No run of the AI starts on the issue, its text stays out of what the AI reads for other issues, and labels, reminders and the closing with a release go on. The reporter lets the AI in later with `/assistant again`. `[forms] opt_out_field` names the field, and `check` validates it. A repository with forms of its own adds the field and the line of the notice by hand: [Saying no to the AI](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/opt-out.md) shows how.
+
+### Changes
+
+- The code of the action is now a package instead of one long script. Nothing changes for a repository that uses the action or its workflows. Whoever runs a command by hand writes `PYTHONPATH="$dir" python3 -P -m issue_assistant check` instead of `python3 "$dir/issue_assistant.py" check`, as the getting started guide shows.
+- The action is now tested on `ubuntu-26.04`, which `ubuntu-latest` means since 2026-10-19, and on `ubuntu-24.04-arm`, beside `ubuntu-24.04`. The README names these supported runners.
+
+### Bug fixes
+
+- On a Python older than 3.12, or without `python3`, as in a job of your own on `ubuntu-22.04` or on a self-hosted runner, the action now stops in its first step with an error that names the version it found and how to fix it, instead of a traceback or a run that no test covers.
+- The short jobs of the reusable workflows no longer hang after their last step, until their timeout, when Harden-Runner is still removing Docker: every job that runs without sudo and containers now waits for that, for up to two minutes, as its last step.
+- The checkout of a job of the reusable workflows no longer fails right after Harden-Runner, on an address that the runner had asked for before the block began: every job that blocks now waits until Harden-Runner lets its hosts through, for up to two minutes, and then warns and goes on. On the runner that `ISSUE_ASSISTANT_AI_RUNNER` names, `analyze` waits for GitHub's hosts only, so that an engine that you don't use can't hold it up.
+- The jobs of the reusable workflows no longer hang until their timeout, or fail to reach GitHub, on GitHub's runners in `westus2`: they run Harden-Runner 2.22.3, which lets the allowed hosts through there.
+- On the runner that `ISSUE_ASSISTANT_AI_RUNNER` names, `analyze` no longer stops with *Harden-Runner let a request to example.com through* when the agent of Harden-Runner starts a few seconds late: the step asks for up to a minute until the block holds, and fails as before when it never does.
+
 ## [1.8.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.7.0...v1.8.0) (2026-10-25)
 
 ### Added
