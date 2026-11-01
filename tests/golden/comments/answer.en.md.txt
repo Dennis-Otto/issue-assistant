@@ -8,5 +8,5 @@ Only the chart. `ChartFeed.start()` subscribes once and returns early while `sub
 
 - [`src/plant_monitor/chart.py`, line 52](https://github.com/demo-org/plant-monitor/blob/4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c/src/plant_monitor/chart.py#L52): Returns early while `subscribed` is still set.
 
-<sub>🤖 Automated answer by Claude, based on the code, the documentation and this issue. It can be wrong; check it before you rely on it. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+<sub>🤖 Automated answer by Claude, based on the code, the documentation and this issue. It can be wrong; check it before you rely on it. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped. · [issue assistant](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

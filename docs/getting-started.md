@@ -115,3 +115,11 @@ Updates arrive as pull requests of Dependabot or Renovate that move the commit h
 4. **A new issue gets its analysis** within a few minutes. Open it from an account that is not a maintainer's: issues of the owner, members and collaborators get the labels of their form, but no analysis.
 
 When no comment comes, [troubleshooting](troubleshooting.md) has the usual causes, each with its fix. [What reporters see](comments.md) shows every comment that the assistant posts.
+
+## Show that you use it
+
+The footer of every comment of the AI already links the issue assistant, unless `[transparency] credit = false` in `.github/issue-assistant/config.toml` leaves that out. A badge in your README tells people before they open an issue, and helps others find the tool:
+
+```markdown
+[![issues: triaged by issue assistant](https://img.shields.io/badge/issues-triaged%20by%20issue%20assistant-blue)](https://dennis-otto.github.io/issue-assistant/)
+```

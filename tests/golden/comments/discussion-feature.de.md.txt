@@ -9,5 +9,5 @@ Noch nicht: Das Dashboard zeigt die Warnungen zu trockenen Pflanzen nur auf sein
 
 Das klingt nach dem Wunsch nach einer neuen Funktion. Um sie vorzuschlagen, [eröffne bitte ein Issue](https://github.com/demo-org/plant-monitor/issues/new/choose), damit die Maintainer sie verfolgen können.
 
-<sub>🤖 Automatische erste Antwort von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues und Diskussionen. Sie kann falsch sein; prüfe sie, bevor du dich darauf verlässt. Wenn sie deine Frage beantwortet, kannst du sie als Antwort markieren. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+<sub>🤖 Automatische erste Antwort von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues und Diskussionen. Sie kann falsch sein; prüfe sie, bevor du dich darauf verlässt. Wenn sie deine Frage beantwortet, kannst du sie als Antwort markieren. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat. · [Issue-Assistent](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

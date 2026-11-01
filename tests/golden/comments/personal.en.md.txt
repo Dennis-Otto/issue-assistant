@@ -13,5 +13,5 @@ The installation guide still names version 1.2 of the hub.
 
 The current release is 1.4, and its first step changed: the hub now asks for the network on its own screen.
 
-<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `documentation`. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `documentation`. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped. · [issue assistant](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

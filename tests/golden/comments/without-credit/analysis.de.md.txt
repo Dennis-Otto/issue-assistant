@@ -1,0 +1,42 @@
+<!-- issue-assistant:analysis lang=de questions=1 engine=claude -->
+
+Danke für deine Meldung, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
+
+### Zusammenfassung
+
+Nachdem sich der Sensor wieder verbunden hat, bleibt das Feuchtigkeitsdiagramm leer, während der aktuelle Wert weiter aktualisiert wird.
+
+### Erste Analyse
+
+Das Diagramm abonniert den Verlaufsstream nur einmal. Nach dem Wiederverbinden kehrt `ChartFeed.start()` sofort zurück, weil `subscribed` noch gesetzt ist, und das Diagramm bekommt den neuen Stream nie. Der aktuelle Wert hat ein eigenes Abonnement und erholt sich.
+
+### Das kannst du ausprobieren
+
+- Lade das Dashboard nach dem Wiederverbinden neu; dann füllt sich das Diagramm wieder.
+- Bis ein Fix erscheint, setze `chart.refresh` auf `30s`.
+
+### Fehlende Informationen
+
+Damit es weitergehen kann, ergänze bitte Folgendes, als Kommentar oder indem du das Issue bearbeitest:
+
+- Die Firmware-Version des Sensors.
+- Das Log des Hubs vom Wiederverbinden, mit `log_level: debug`.
+
+Ohne Antwort folgt nach 15 Tagen eine Erinnerung, nach 30 Tagen wird das Issue geschlossen. Ist es geschlossen, öffnet eine Antwort es wieder.
+
+<details><summary>Zum Nachlesen: 4 Links</summary>
+
+### Verwandte Themen
+
+- #17: Dasselbe Symptom nach einem Neustart des Hubs, behoben in 1.2.0.
+- #9 (Diskussion): Wie das Diagramm den Verlauf eines Sensors lädt.
+
+### Zum Nachlesen
+
+- [`src/plant_monitor/chart.py`, Zeile 52](https://github.com/demo-org/plant-monitor/blob/4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c/src/plant_monitor/chart.py#L52): Kehrt früh zurück, solange `subscribed` gesetzt ist.
+- [The chart stays empty](https://github.com/demo-org/plant-monitor/blob/HEAD/docs/troubleshooting.md#the-chart-stays-empty) in `docs/troubleshooting.md`: Wie du das Log sammelst.
+
+</details>
+
+<sub>🤖 Automatische Erstanalyse von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer entscheiden. Labels: `connectivity`. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+

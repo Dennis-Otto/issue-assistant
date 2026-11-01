@@ -5,5 +5,5 @@ Danke für deine Meldung, @alex-demo! Ich bin der Issue-Assistent dieses Reposit
 > [!CAUTION]
 > Das könnte eine Sicherheitslücke beschreiben. Bitte melde so etwas vertraulich, wie in der [Sicherheitsrichtlinie](https://github.com/demo-org/plant-monitor/security/policy) beschrieben, und entferne die Details hier.
 
-<sub>🤖 Automatische Erstanalyse von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer entscheiden. Labels: `bug`. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+<sub>🤖 Automatische Erstanalyse von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer entscheiden. Labels: `bug`. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat. · [Issue-Assistent](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

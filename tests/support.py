@@ -1337,8 +1337,8 @@ def own_details(body):
 
 def stray_problems(body, numbers, config, author="reporter", *, security=False):
     """What the oracle finds in a comment of the assistant beyond its own words: its
-    marker, the thanks that mention the reporter, the HTML of its footer, of the
-    fold of its links and of its summary for the maintainers and, in the comment on a possible security report, the link to
+    marker, the thanks that mention the reporter, the HTML of its footer and its link
+    to the project, of the fold of its links and of its summary for the maintainers and, in the comment on a possible security report, the link to
     the security policy, in an answer, the link to the question of #12 that it
     answers, and in the first answer to a bug or a feature request in Discussions,
     the link to the form of an issue, each once at most."""
@@ -1355,6 +1355,7 @@ def stray_problems(body, numbers, config, author="reporter", *, security=False):
             f"mention @{author}",
             "HTML '<sub>'",
             "HTML '</sub>'",
+            f"link to {assistant.PROJECT}",
             *own_details(body),
             *([f"link to {config.policy}"] if security else []),
             *(

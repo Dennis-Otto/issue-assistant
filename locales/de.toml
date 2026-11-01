@@ -89,6 +89,7 @@ footer = """\
   entscheiden.{labels} {feedback}</sub>"""
 labels = " Labels: {labels}."
 about = "[So arbeitet der Assistent]({notice})"
+credit = "[Issue-Assistent]({project})"
 feedback = """\
   Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat."""
 "feedback.duplicate" = """\

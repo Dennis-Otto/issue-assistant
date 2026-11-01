@@ -32,7 +32,7 @@ To continue, please add the following, in a comment or by editing the issue:
 
 Without an answer, a reminder follows after 15 days and the issue closes after 30 days. If it closes, an answer reopens it.
 
-<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `area: cards`. [How the assistant works](https://github.com/owner/project/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `area: cards`. [How the assistant works](https://github.com/owner/project/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped. · [issue assistant](https://github.com/Dennis-Otto/issue-assistant)</sub>
 ```
 
 </details>

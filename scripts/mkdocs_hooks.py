@@ -1052,8 +1052,9 @@ def reminder(ia: ModuleType, language: str) -> str:
     )
 
 
-def examples() -> list[Example]:
-    """The comments of the page, in the order of the life of an issue."""
+def examples(**settings: Any) -> list[Example]:
+    """The comments of the page, in the order of the life of an issue, for a
+    repository with these settings of its Config."""
     ia = assistant()
     texts: dict[str, dict[str, str]] = {kind: {} for kind in KINDS}
     with tempfile.TemporaryDirectory() as folder:
@@ -1061,7 +1062,9 @@ def examples() -> list[Example]:
         for path, text in DEMO_FILES.items():
             (root / path).parent.mkdir(parents=True, exist_ok=True)
             (root / path).write_text(text, "utf-8")
-        config = ia.Config(root=root, repository=DEMO, labels=(), project="")
+        config = ia.Config(
+            root=root, repository=DEMO, labels=(), project="", **settings
+        )
         for language in LANGUAGES:
             for kind, text in comments(ia, config, language).items():
                 texts[kind][language] = text

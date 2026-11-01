@@ -91,6 +91,7 @@ footer = """\
   {feedback}</sub>"""
 labels = " Etiketler: {labels}."
 about = "[Asistan nasıl çalışır]({notice})"
+credit = "[konu asistanı]({project})"
 feedback = """\
   Bu yoruma vereceğiniz 👍 veya 👎, bakımcılara işe yarayıp yaramadığını söyler."""
 "feedback.duplicate" = """\

@@ -132,6 +132,8 @@ DISCUSSION_WORKFLOW = "discussion-assistant.yml"
 # The reasons GitHub accepts for dismissing a code scanning alert.
 DISMISS_REASONS = ("false positive", "won't fix", "used in tests")
 ACTION = "Dennis-Otto/issue-assistant"
+# Where a reader of a comment finds the tool that wrote it; see invitation.
+PROJECT = f"https://github.com/{ACTION}"
 REUSABLE_PREFIX = "reusable-"
 # A pin of the issue assistant in a template: of one of its reusable workflows, or
 # of the action itself.
@@ -1230,6 +1232,8 @@ class Config:
     area_field: str = "Area"
     unmapped_options: tuple[str, ...] = ("Other",)
     notices: tuple[str, ...] = ("SUPPORT.md",)
+    # Whether the footers of the AI's comments link the project; see invitation.
+    credit: bool = True
     # Whether a fixed issue stays open until a release ships the fix.
     releases: bool = True
     # The limits of the AI runs; see LIMITS.
@@ -1340,7 +1344,10 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
         "area_field": Key("area_field", str),
         "unmapped_options": Key("unmapped_options", list, tuple),
     },
-    "transparency": {"files": Key("notices", list, tuple)},
+    "transparency": {
+        "files": Key("notices", list, tuple),
+        "credit": Key("credit", bool),
+    },
     "releases": {"close_with_release": Key("releases", bool)},
     # The attributes of Config.lifecycle.
     "lifecycle": {
@@ -5417,11 +5424,16 @@ def link_sections(language: str, related: list[str], references: list[str]) -> s
 
 
 def invitation(language: str, config: Config, *, duplicate: bool = False) -> str:
-    """The end of a footer: a link to how the assistant works, and the request for a
-    👍 or 👎, which on a duplicate notice also objects to the closing."""
+    """The end of a footer: a link to how the assistant works, the request for a 👍
+    or 👎, which on a duplicate notice also objects to the closing, and the link to
+    the project, unless `[transparency] credit` leaves it out."""
     notice = notice_link(config)
-    ask = say(language, "feedback.duplicate" if duplicate else "feedback")
-    return f"{say(language, 'about', notice=notice)} · {ask}" if notice else ask
+    ends = [
+        say(language, "about", notice=notice) if notice else "",
+        say(language, "feedback.duplicate" if duplicate else "feedback"),
+        say(language, "credit", project=PROJECT) if config.credit else "",
+    ]
+    return " · ".join(end for end in ends if end)
 
 
 def for_maintainers(

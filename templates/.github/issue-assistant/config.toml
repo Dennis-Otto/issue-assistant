@@ -69,6 +69,9 @@ unmapped_options = ["Other"]
 # Files that tell reporters which AI reads their issue; the check command makes sure
 # they name the engine.
 files = ["SUPPORT.md"]
+# The footer of each comment of the AI links the issue assistant, so that a reader
+# can find the tool that wrote it. Set to false to leave the link out.
+credit = true
 
 [releases]
 # A merged pull request that fixes an issue labels it fixed-in-next-release; the

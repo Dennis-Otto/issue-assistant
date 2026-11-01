@@ -16,5 +16,5 @@ A button that exports the moisture history of a plant as a CSV file.
 
 The dashboard has no export yet. `ChartFeed.history()` returns the points that the chart shows, which an export could write.
 
-<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `area: dashboard`. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped; a 👎 also keeps the issue open.</sub>
+<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `area: dashboard`. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped; a 👎 also keeps the issue open. · [issue assistant](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

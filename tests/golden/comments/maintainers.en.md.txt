@@ -24,5 +24,5 @@ The reporter writes in Portuguese: after the sensor reconnects, the moisture cha
 
 </details>
 
-<sub>🤖 Primeira análise automática por Claude, com base no código, na documentação e em issues anteriores. Ela pode estar errada; os mantenedores decidem. Rótulos: `bug`. [Como o assistente funciona](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Um 👍 ou um 👎 neste comentário diz aos mantenedores se ele ajudou.</sub>
+<sub>🤖 Primeira análise automática por Claude, com base no código, na documentação e em issues anteriores. Ela pode estar errada; os mantenedores decidem. Rótulos: `bug`. [Como o assistente funciona](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Um 👍 ou um 👎 neste comentário diz aos mantenedores se ele ajudou. · [assistente de issues](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

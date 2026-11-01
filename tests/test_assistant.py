@@ -14,6 +14,7 @@ import tomllib
 import unicodedata
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlsplit
 
 import pytest
 from markdown_it import MarkdownIt
@@ -3381,14 +3382,15 @@ NOTICE = "https://github.com/owner/project/blob/HEAD/SUPPORT.md"
             "en",
             "It can be wrong; the maintainers decide. Labels: `area: cards`. "
             f"[How the assistant works]({NOTICE}#what-happens-with-your-issue) · A 👍 "
-            "or 👎 on this comment tells the maintainers whether it helped.</sub>\n",
+            "or 👎 on this comment tells the maintainers whether it helped. · "
+            f"[issue assistant]({assistant.PROJECT})</sub>\n",
         ),
         (
             "de",
             "Sie kann falsch sein; die Maintainer entscheiden. Labels: `area: cards`. "
             f"[So arbeitet der Assistent]({NOTICE}#what-happens-with-your-issue) · Ein "
             "👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen "
-            "hat.</sub>\n",
+            f"hat. · [Issue-Assistent]({assistant.PROJECT})</sub>\n",
         ),
     ],
 )
@@ -3421,7 +3423,8 @@ def test_the_footer_of_a_follow_up_asks_too(config):
     assert body.endswith(
         "<sub>🤖 Automated follow-up by Claude. It can be wrong; the maintainers "
         f"decide. [How the assistant works]({NOTICE}#what-happens-with-your-issue) · "
-        "A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>\n"
+        "A 👍 or 👎 on this comment tells the maintainers whether it helped. · "
+        f"[issue assistant]({assistant.PROJECT})</sub>\n"
     )
 
 
@@ -3433,7 +3436,10 @@ def test_the_footer_of_a_duplicate_notice_says_that_a_thumbs_down_objects(config
     )
     assistant.apply_answer(github, "triage", 12, json.dumps(answer), config, "abc")
     (body,) = github.posted(12)
-    assert "whether it helped; a 👎 also keeps the issue open.</sub>" in body
+    assert (
+        "whether it helped; a 👎 also keeps the issue open. · "
+        f"[issue assistant]({assistant.PROJECT})</sub>"
+    ) in body
 
 
 @pytest.mark.parametrize(
@@ -3462,8 +3468,37 @@ def test_the_footer_links_the_first_notice_to_reporters(
     settings = dataclasses.replace(config, notices=notices)
     assert assistant.notice_link(settings) == link
     ask = "A 👍 or 👎 on this comment tells the maintainers whether it helped."
+    credit = f"[issue assistant]({assistant.PROJECT})"
     expected = f"[How the assistant works]({link}) · {ask}" if link else ask
+    assert assistant.invitation("en", settings) == f"{expected} · {credit}"
+    # Without the credit, the footer ends with what it asks.
+    settings = dataclasses.replace(settings, credit=False)
     assert assistant.invitation("en", settings) == expected
+
+
+@pytest.mark.parametrize("path", sorted(LOCALES.glob("*.toml")), ids=lambda p: p.stem)
+def test_the_credit_of_every_catalog_links_the_project_and_nothing_else(path, config):
+    credit = assistant.say(path.stem, "credit", project=assistant.PROJECT)
+    # One link, to the address of the project, with no mention, reference or HTML:
+    # the oracle of tests/oracle.py judges it, as it judges all the comments.
+    assert problems(credit, set(), config) == [f"link to {assistant.PROJECT}"]
+    parts = urlsplit(assistant.PROJECT)
+    assert (parts.scheme, parts.netloc) == ("https", "github.com")
+    assert parts.path == f"/{assistant.ACTION}"
+
+
+@pytest.mark.parametrize("credit", [True, False])
+def test_the_credit_reaches_the_analysis_that_is_posted_unless_it_is_off(
+    config, credit
+):
+    settings = dataclasses.replace(config, credit=credit)
+    github = FakeGitHub(settings, make_issue())
+    answer = json.dumps(make_answer())
+    assistant.apply_answer(github, "triage", 12, answer, settings, "abc")
+    (body,) = github.posted(12)
+    assert (f"[issue assistant]({assistant.PROJECT})</sub>" in body) is credit
+    assert (assistant.PROJECT in body) is credit
+    assert stray_problems(body, set(), settings) == []
 
 
 def test_the_kind_is_corrected_while_nobody_triaged_the_issue(config):

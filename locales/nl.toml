@@ -89,6 +89,7 @@ footer = """\
   {feedback}</sub>"""
 labels = " Labels: {labels}."
 about = "[Hoe de assistent werkt]({notice})"
+credit = "[issue-assistent]({project})"
 feedback = "Een 👍 of 👎 op deze reactie laat de maintainers weten of ze geholpen heeft."
 "feedback.duplicate" = """\
   Een 👍 of 👎 op deze reactie laat de maintainers weten of ze geholpen heeft; een 👎 \

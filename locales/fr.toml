@@ -92,6 +92,7 @@ footer = """\
   décident.{labels} {feedback}</sub>"""
 labels = " Étiquettes\u00A0: {labels}."
 about = "[Comment fonctionne l'assistant]({notice})"
+credit = "[assistant de tickets]({project})"
 feedback = "Un 👍 ou un 👎 sur ce commentaire indique aux mainteneurs s'il a été utile."
 "feedback.duplicate" = """\
   Un 👍 ou un 👎 sur ce commentaire indique aux mainteneurs s'il a été utile\u00A0; un 👎 \
