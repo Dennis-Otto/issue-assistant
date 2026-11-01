@@ -14,7 +14,7 @@
 
 - [#12](https://github.com/owner/project/issues/12): analyzed 5 days ago
 
-The AI thinks that someone new to the project could take these; it sets no label. Add `good first issue` to those you confirm. A 👎 on the analysis takes one off this list.
+The AI thinks that someone new to the project could take these; it sets no label. Add `good first issue` to those you confirm. A 😕 on the analysis takes one off this list.
 
 #### Assistant quality (last 30 days)
 

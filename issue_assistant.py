@@ -4385,8 +4385,11 @@ NEWCOMER_RULE = (
     "with a located cause or a fix of the documentation. It is false for a security "
     "report, a duplicate, an open design question and anything that still needs "
     "information from the reporter or a decision of a maintainer, and whenever you "
-    "doubt. `reason` says why in one sentence. The maintainers alone decide what to "
-    "offer to newcomers, so this field changes nothing that anyone sees: don't mention "
+    "doubt. `reason` says why in one sentence, in the language that the maintainers "
+    "read, since nobody else reads it. For a security report, `fit` is false and "
+    "`reason` stays empty, because the log of the run can be public. The maintainers "
+    "alone decide what to offer to newcomers, so this field changes nothing that "
+    "anyone sees: don't mention "
     "it in your other texts, and don't invite anyone to work on the issue."
 )
 
@@ -4684,8 +4687,8 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
         }
     )
     # Only a repository with labels to offer to newcomers is asked. An answer may
-    # leave the field out, which says no: a hint that nobody sees must never cost an
-    # analysis.
+    # leave the field out, which says no, and parse_answer drops one that breaks the
+    # schema: a hint that nobody sees must never cost an analysis.
     if config.group("contribution"):
         triage["properties"]["newcomer"] = record(
             {"fit": {"type": "boolean"}, "reason": text(NEWCOMER_REASON)}
@@ -4897,6 +4900,20 @@ def parse_answer(mode: str, raw: str, config: Config) -> dict[str, Any]:
             "notice",
             f"Removed {visible.removed} invisible characters from the engine's answer.",
         )
+    # An engine may not enforce the schema, and a hint that nobody sees must never
+    # cost the reporter the analysis.
+    newcomer = schema["properties"].get("newcomer")
+    if (
+        newcomer
+        and isinstance(answer, dict)
+        and "newcomer" in answer
+        and validate(newcomer, answer["newcomer"])
+    ):
+        command(
+            "notice",
+            "Left out the engine's note on a newcomer: it breaks the schema.",
+        )
+        del answer["newcomer"]
     problems = validate(schema, answer)
     if problems:
         raise AssistantError(
@@ -7036,14 +7053,15 @@ def turned_down(
 ) -> bool:
     """Whether a maintainer said no to a candidate: removed a label of the group
     `contribution` from it, which only a person who may triage can, or gave one of its
-    analyses a 👎, as `disliked` counts it. One request for the events, which the
-    GitHub object keeps for the run, and those of a 👎."""
+    analyses a 😕, which says no to the candidate alone, or a 👎, which says that the
+    analysis itself is wrong. One request for the events, which the GitHub object keeps
+    for the run, and those of a reaction."""
     return any(
         event["event"] == "unlabeled"
         and (event.get("label") or {}).get("name") in config.group("contribution")
         and not is_bot(event.get("actor"))
         for event in github.events(number)
-    ) or disliked(github, comments, pushers)
+    ) or reacted_to(github, comments, pushers, ("confused", "-1"))
 
 
 def newcomer_candidates(
@@ -7084,7 +7102,7 @@ def candidates_for_newcomers(
     return (
         f"{listed}\n\nThe AI thinks that someone new to the project could take these; "
         f"it sets no label. Add `{config.group('contribution')[0]}` to those you "
-        "confirm. A 👎 on the analysis takes one off this list."
+        "confirm. A 😕 on the analysis takes one off this list."
     )
 
 
@@ -7298,21 +7316,31 @@ def objected_duplicate(
     return None
 
 
-def disliked(
-    github: GitHub, comments: list[dict[str, Any]], pushers: dict[str, bool]
+def reacted_to(
+    github: GitHub,
+    comments: list[dict[str, Any]],
+    pushers: dict[str, bool],
+    contents: tuple[str, ...],
 ) -> bool:
     """Whether a maintainer, someone who may push, gave one of the assistant's
-    analyses among the comments a 👎. Only an analysis with a 👎 costs a call, and
-    each person one more, which `pushers` keeps for the run. A bot's 👎 counts
-    for nothing, and after MAX_DISLIKERS people the 👎 of anyone not yet asked
-    about is ignored, so that many accounts can't make a triage read more."""
+    analyses among the comments one of these reactions. Only an analysis with one
+    costs a call, and each person one more, which `pushers` keeps for the run. A bot's
+    reaction counts for nothing, and after MAX_DISLIKERS people the reaction of anyone
+    not yet asked about is ignored, so that many accounts can't make a triage read
+    more."""
     for comment in comments:
         reactions = comment.get("reactions") or {}
-        if kind_of(comment) != "analysis" or not int(reactions.get("-1") or 0):
+        if kind_of(comment) != "analysis" or not any(
+            int(reactions.get(content) or 0) for content in contents
+        ):
             continue
         for reaction in github.reactions(comment["id"]):
             user = login(reaction.get("user"))
-            if reaction["content"] != "-1" or not user or is_bot(reaction["user"]):
+            if (
+                reaction["content"] not in contents
+                or not user
+                or is_bot(reaction["user"])
+            ):
                 continue
             if user not in pushers:
                 if len(pushers) >= MAX_DISLIKERS:
@@ -7321,6 +7349,14 @@ def disliked(
             if pushers[user]:
                 return True
     return False
+
+
+def disliked(
+    github: GitHub, comments: list[dict[str, Any]], pushers: dict[str, bool]
+) -> bool:
+    """Whether a maintainer gave one of the assistant's analyses a 👎, which says that
+    the analysis was wrong."""
+    return reacted_to(github, comments, pushers, ("-1",))
 
 
 def learned_corrections(

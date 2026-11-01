@@ -54,7 +54,7 @@ Yes, from yours: correct the issue, and the next analysis knows. Every first ana
 
 ## How do I know whether the assistant does well?
 
-Open the summary of the morning sweep on the first day of a month, or start the sweep by hand: it counts the labels of the AI that the maintainers kept and those they had to add, the time from a new issue to its analysis, what became of the duplicate notices and of the questions to reporters, and the 👍 and 👎 on the analyses, for the 30 days before. Every morning, it also lists what waits on the maintainers, on reporters and on a release.
+Open the summary of the morning sweep on the first day of a month, or start the sweep by hand: it counts the labels of the AI that the maintainers kept and those they had to add, the time from a new issue to its analysis, what became of the duplicate notices, of the questions to reporters and of the good first issue candidates, where `labels.toml` has them, and the 👍 and 👎 on the analyses, for the 30 days before. Every morning, it also lists what waits on the maintainers, on reporters and on a release.
 
 ## Where do I see what waits on me?
 

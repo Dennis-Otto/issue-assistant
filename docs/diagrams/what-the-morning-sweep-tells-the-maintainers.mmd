@@ -5,7 +5,7 @@ flowchart TB
   reads --> digest["`**Maintainer digest**<br>what waits on the maintainers,<br>on reporters and on a release,<br>and the good first issue candidates`"]
   reads --> monthly{"the first day of a month,<br>or by hand?"}
   monthly -- "yes" --> events["reads the label events<br>of the issues analyzed"]
-  events --> quality["`**Assistant quality**<br>analyses, time to the analysis,<br>labels kept, duplicates,<br>questions and feedback`"]
+  events --> quality["`**Assistant quality**<br>analyses, time to the analysis,<br>labels kept, duplicates,<br>questions, good first issue<br>candidates and feedback`"]
   digest --> summary["the summary of the job:<br>numbers and links only"]
   quality --> summary
   summary --> asked{"[digest] issue<br>= true?"}

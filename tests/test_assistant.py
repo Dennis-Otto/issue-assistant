@@ -9643,6 +9643,8 @@ def test_the_task_asks_for_a_candidate_only_where_there_are_labels_to_offer(conf
         "a bug with a located cause",
         "a fix of the documentation",
         "security report",
+        "`reason` stays empty",
+        "the language that the maintainers read",
         "a duplicate",
         "open design question",
         "whenever you doubt",
@@ -9668,28 +9670,37 @@ def test_an_answer_may_leave_the_candidate_out(config):
 
 
 @pytest.mark.parametrize(
-    ("candidate", "problem"),
+    "candidate",
     [
-        (
-            {"fit": "yes", "reason": "Small."},
-            "answer.newcomer.fit is not true or false",
-        ),
-        ({"fit": True}, "answer.newcomer.reason is missing"),
-        (
-            {"fit": True, "reason": "x" * 201},
-            "answer.newcomer.reason is longer than 200 characters",
-        ),
-        (
-            {"fit": True, "reason": "Small.", "label": "good first issue"},
-            "answer.newcomer.label is not expected",
-        ),
+        {"fit": "yes", "reason": "Small."},
+        {"fit": True},
+        {"fit": True, "reason": "x" * 201},
+        {"fit": True, "reason": "Small.", "label": "good first issue"},
+        "yes",
     ],
 )
-def test_a_candidate_that_breaks_the_schema_is_refused(config, candidate, problem):
-    with pytest.raises(assistant.AssistantError, match=re.escape(problem)):
-        assistant.parse_answer(
-            "triage", json.dumps(make_answer(newcomer=candidate)), offering(config)
-        )
+def test_a_candidate_that_breaks_the_schema_costs_no_analysis(
+    config, candidate, capsys
+):
+    """An engine may not enforce the schema, and nobody sees the hint: the reporter
+    still gets the analysis, without the mark."""
+    parsed = assistant.parse_answer(
+        "triage", json.dumps(make_answer(newcomer=candidate)), offering(config)
+    )
+    assert parsed == make_answer()
+    assert "Left out the engine's note on a newcomer" in capsys.readouterr().out
+
+
+def test_the_rest_of_an_answer_still_has_to_fit_with_a_broken_candidate(config):
+    answer = make_answer(newcomer={"fit": "yes"})
+    del answer["summary"]
+    with pytest.raises(assistant.AssistantError, match="answer.summary is missing"):
+        assistant.parse_answer("triage", json.dumps(answer), offering(config))
+
+
+def test_a_candidate_on_an_answer_that_is_no_object_changes_nothing(config):
+    with pytest.raises(assistant.AssistantError, match="answer is not an object"):
+        assistant.parse_answer("triage", '"newcomer"', offering(config))
 
 
 def test_a_repository_without_labels_to_offer_refuses_a_candidate(config):
@@ -9817,16 +9828,17 @@ def candidates_github(config):
         private(80, labels=triaged, days_ago=5, locked=True),
         # Closed without a label.
         private(81, labels=triaged, days_ago=5, state="closed"),
-        # A maintainer said no: took the label back, or gave a 👎.
+        # A maintainer said no: took the label back, or gave a 👎 or a 😕.
         private(82, labels=triaged, days_ago=5),
         private(83, labels=triaged, days_ago=5),
+        private(87, labels=triaged, days_ago=5),
         # Never marked, and no more since an analysis by hand.
         private(84, labels=triaged, days_ago=5),
         private(85, labels=triaged, days_ago=5),
         # Marked before the 30 days.
         private(86, labels=triaged, days_ago=40),
     )
-    for number in (63, 65, 66, 70, *range(71, 84)):
+    for number in (63, 65, 66, 70, *range(71, 84), 87):
         github.comment_store[number] = [marked(number * 10, 3)]
     github.comment_store[60] = [marked(600, 8)]
     github.comment_store[61] = [marked(610, 5)]
@@ -9846,6 +9858,10 @@ def candidates_github(config):
     github.comment_store[83][0]["reactions"] = {"-1": 1}
     github.reaction_store[830] = [
         {"content": "-1", "user": {"login": "owner", "type": "User"}}
+    ]
+    github.comment_store[87][0]["reactions"] = {"confused": 1}
+    github.reaction_store[870] = [
+        {"content": "confused", "user": {"login": "owner", "type": "User"}}
     ]
     github.permission_store["owner"] = ("admin", "admin")
     github.event_store[66] = [
@@ -9890,7 +9906,7 @@ def test_the_digest_names_the_candidates_for_the_maintainers_to_confirm(config):
             f"- [#66]({link}/66): analyzed 3 days ago",
             "",
             "The AI thinks that someone new to the project could take these; it sets "
-            "no label. Add `good first issue` to those you confirm. A 👎 on the "
+            "no label. Add `good first issue` to those you confirm. A 😕 on the "
             "analysis takes one off this list.",
         ]
     )
@@ -9923,7 +9939,7 @@ def test_a_candidate_reads_the_events_of_the_triaged_issues_alone(config):
     github = candidates_github(offered)
     assistant.newcomer_candidates(github, offered, activity_of(github), NOW)
     read = {int(call[1].split("/")[1]) for call in github.calls if "/events" in call[1]}
-    assert read == {60, 61, 62, 63, 64, 65, 66, 82, 83}
+    assert read == {60, 61, 62, 63, 64, 65, 66, 82, 83, 87}
 
 
 def test_the_quality_counts_what_became_of_the_candidates(config):
@@ -9931,7 +9947,7 @@ def test_the_quality_counts_what_became_of_the_candidates(config):
     github = candidates_github(offered)
     table = assistant.quality(github, offered, activity_of(github)).splitlines()
     assert table[-2:] == [
-        "| Good first issue candidates | 21: kept 2, removed 2, closed without a "
+        "| Good first issue candidates | 22: kept 2, removed 3, closed without a "
         "label 1, waiting 16 |",
         "| Feedback on the analyses | 👍 0, 👎 2 |",
     ]
@@ -9945,7 +9961,7 @@ def test_the_quality_counts_the_candidates_marked_last_alone(monkeypatch, config
     github = candidates_github(offered)
     monkeypatch.setattr(assistant, "MAX_CORRECTED", 2)
     assert assistant.newcomer_outcomes(github, offered, activity_of(github)) == (
-        "21: kept 1, removed 0, closed without a label 1, waiting 0, of the 2 marked "
+        "22: kept 1, removed 0, closed without a label 1, waiting 0, of the 2 marked "
         "last"
     )
 
