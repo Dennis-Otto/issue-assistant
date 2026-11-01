@@ -106,6 +106,7 @@ from .context import write_context
 from .events import handle_event
 from .sweeps import sweep
 from .labels import sync_labels
+from .code_scanning import watch_findings
 from .paths import *  # noqa: F403
 from .constants import *  # noqa: F403
 from .patterns import *  # noqa: F403
@@ -128,6 +129,7 @@ from .commands import *  # noqa: F403
 from .events import *  # noqa: F403
 from .sweeps import *  # noqa: F403
 from .labels import *  # noqa: F403
+from .code_scanning import *  # noqa: F403
 
 # The section that tells reporters what happens with their issue, which install adds
 # to each file of [transparency] that doesn't name the engine yet, in English or, for
@@ -204,41 +206,6 @@ MIN_PROJECT = 80
 
 # The longest title of an issue that GitHub takes.
 MAX_TITLE = 256
-
-
-def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
-    """Dismiss the accepted findings and count the others, which stay open.
-
-    The summary of a public repository's run is public, while code scanning alerts
-    are only shown to maintainers: the lines name an open alert by its number and
-    link only, never its rule, file or message. An accepted finding is named, since
-    .github/findings.toml names it anyway.
-    """
-    accepted = load_findings(root)
-    alerts = github.open_alerts()
-    if alerts is None:
-        return ["Code scanning isn't set up; there is nothing to check."], 0
-    done, left = [], []
-    for alert in sorted(alerts, key=lambda item: item["number"]):
-        acceptance = next((item for item in accepted if item.covers(alert)), None)
-        if acceptance is None:
-            left.append(alert)
-            continue
-        github.dismiss_alert(
-            alert["number"],
-            acceptance.reason,
-            f"{acceptance.comment} (accepted in {FINDINGS_FILE})",
-        )
-        done.append(
-            f"Alert #{alert['number']} ({acceptance.tool} {acceptance.rule}) "
-            f"dismissed as {acceptance.reason}."
-        )
-    done += [f"Alert #{alert['number']} is open: {alert['html_url']}" for alert in left]
-    if left:
-        done.append(
-            f"Fix these findings, or accept them with a reason in {FINDINGS_FILE}."
-        )
-    return done, len(left)
 
 
 def load_yaml(path: Path, where: str = "") -> Any:
