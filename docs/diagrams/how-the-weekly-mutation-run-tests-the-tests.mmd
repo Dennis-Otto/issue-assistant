@@ -1,7 +1,7 @@
 flowchart TB
   accTitle: How the weekly mutation run tests the tests
-  accDescr: In every pull request, tests/test_mutation_safety.py fails for a test that reads issue_assistant.py as text without the marker mutation_unsafe, and names the fix. Every Saturday the Mutation workflow copies the repository into mutants/, where each function of the script has its mutants beside it, and runs the tests there without the marked ones, first without any mutant; a test that fails then stops the whole run. Then each mutant runs against the tests that call its function, and the report lists the mutants that no test noticed.
-  pr(["a pull request"]) --> reads{"a test reads<br>issue_assistant.py as text<br>without mutation_unsafe?"}
+  accDescr: In every pull request, tests/test_mutation_safety.py fails for a test that reads the package issue_assistant as text without the marker mutation_unsafe, and names the fix. Every Saturday the Mutation workflow copies the repository into mutants/, where each function of the script has its mutants beside it, and runs the tests there without the marked ones, first without any mutant; a test that fails then stops the whole run. Then each mutant runs against the tests that call its function, and the report lists the mutants that no test noticed.
+  pr(["a pull request"]) --> reads{"a test reads the package<br>issue_assistant as text<br>without mutation_unsafe?"}
   reads -- "yes" --> fix["test_mutation_safety.py<br>fails and names the fix"]
   reads -- "no" --> weekly(["the weekly Mutation run"])
   weekly --> copy[("mutants/: each function<br>with its mutants beside it")]

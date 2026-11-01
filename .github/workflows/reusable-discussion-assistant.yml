@@ -106,7 +106,7 @@ jobs:
           # docs and tests of the issue assistant would only mislead it there.
           sparse-checkout: |
             /action.yml
-            /issue_assistant.py
+            /issue_assistant/
             /version.txt
             /prompts/
             /locales/
@@ -224,7 +224,7 @@ jobs:
           # docs and tests of the issue assistant would only mislead it there.
           sparse-checkout: |
             /action.yml
-            /issue_assistant.py
+            /issue_assistant/
             /version.txt
             /prompts/
             /locales/
@@ -401,7 +401,7 @@ jobs:
           # docs and tests of the issue assistant would only mislead it there.
           sparse-checkout: |
             /action.yml
-            /issue_assistant.py
+            /issue_assistant/
             /version.txt
             /prompts/
             /locales/

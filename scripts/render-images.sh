@@ -4,7 +4,7 @@
 # upright for phones and each also still, a first analysis, what the checks make of a
 # steered answer, issues that try to steer the AI, a dry run and a failing Findings
 # run. scripts/images/pages.py builds their pages from demo data with the texts of
-# issue_assistant.py itself, so that they show what the assistant posts, and
+# the package issue_assistant itself, so that they show what the assistant posts, and
 # scripts/images/render.py takes the pictures and writes scripts/images/manifest.json.
 # Run this after a change of those texts or of the pictures, and commit docs/images
 # and the manifest with it: test_the_pictures_show_what_the_assistant_posts fails

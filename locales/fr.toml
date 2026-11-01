@@ -30,7 +30,7 @@ stopwords = [
 
 sample = "La carte reste vide quand je lance une fléchette, et ce n'est pas normal."
 
-# The texts of the comments, by the keys that issue_assistant.py uses.
+# The texts of the comments, by the keys that the package issue_assistant uses.
 [text]
 "thanks.default" = "Merci d'avoir ouvert ce ticket, @{author}\u00A0!"
 "thanks.bug" = "Merci pour votre signalement, @{author}\u00A0!"

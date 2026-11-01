@@ -21,14 +21,14 @@ months = [
 ]
 # Japanese leaves no space between its words, so no word of it can be counted: the
 # guess of a reporter's language counts its letters instead, as OWN_LETTERS of
-# issue_assistant.py describes, and the catalog has no stopwords.
+# issue_assistant/languages.py describes, and the catalog has no stopwords.
 stopwords = []
 
 # A sentence that a reporter in this language might write; the tests check
 # that the assistant guesses the language from it.
 sample = "ダーツを投げても、カードに何も表示されません。これは正しくありません。"
 
-# The texts of the comments, by the keys that issue_assistant.py uses.
+# The texts of the comments, by the keys that the package issue_assistant uses.
 [text]
 "thanks.default" = "@{author} さん、Issue を作成していただきありがとうございます！"
 "thanks.bug" = "@{author} さん、ご報告ありがとうございます！"

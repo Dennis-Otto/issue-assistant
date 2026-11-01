@@ -27,7 +27,7 @@ If a fix needs longer, for example because the cause lies in an upstream project
 
 ## Scope
 
-In scope are the action (`action.yml`, `issue_assistant.py`), its prompts, the workflow and firewall templates, and the CI and release workflows of this repository.
+In scope are the action (`action.yml`, `issue_assistant/`), its prompts, the workflow and firewall templates, and the CI and release workflows of this repository.
 
 Out of scope, and reported to their own projects instead: the Claude Code action and Claude Code (<https://github.com/anthropics/claude-code-action/security>), GitHub Actions and its egress firewall (<https://bounty.github.com>).
 

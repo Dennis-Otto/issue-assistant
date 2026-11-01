@@ -30,7 +30,7 @@ stopwords = [
 
 sample = "O cartão não mostra nada quando eu lanço um dardo, e isso não é normal."
 
-# The texts of the comments, by the keys that issue_assistant.py uses.
+# The texts of the comments, by the keys that the package issue_assistant uses.
 [text]
 "thanks.default" = "Obrigado por abrir esta issue, @{author}!"
 "thanks.bug" = "Obrigado pelo relato, @{author}!"

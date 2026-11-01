@@ -4,11 +4,11 @@ description: The commands of the issue assistant, every input and output of its 
 
 # Reference
 
-The commands of `issue_assistant.py`, the inputs and outputs of the action that runs them, and how to try a prompt on your own computer. [Engines](engines.md) compares the AI engines that it supports.
+The commands of the package `issue_assistant`, the inputs and outputs of the action that runs them, and how to try a prompt on your own computer. [Engines](engines.md) compares the AI engines that it supports.
 
 ## Commands
 
-The action runs `issue_assistant.py` with one command:
+The action runs the package `issue_assistant` with one command:
 
 | Command | Job | What |
 | --- | --- | --- |
@@ -46,11 +46,11 @@ The commands `event`, `engine` and `context` set the outputs for the steps and j
 
 ```sh
 export GH_REPO=OWNER/REPO DRY_RUN=true
-python3 issue_assistant.py context --issue 12 --mode triage    # in the repository's checkout
+python3 -m issue_assistant context --issue 12 --mode triage    # in the repository's checkout
 claude -p "$(cat .issue-assistant/prompt.md)" --restricted --tools "Read,Grep,Glob" \
   --append-system-prompt-file .issue-assistant/rules.md --max-turns 40 --max-budget-usd 1 \
   --json-schema "$(cat .issue-assistant/schema.json)" --output-format json > answer.json
-RESULT="$(jq -c .structured_output answer.json)" python3 issue_assistant.py apply --issue 12 --mode triage
+RESULT="$(jq -c .structured_output answer.json)" python3 -m issue_assistant apply --issue 12 --mode triage
 ```
 
 To try it on an issue that exists nowhere, write the issue and its comments into a JSON file, as GitHub's REST API gives them, and name the file in `ISSUE_ASSISTANT_FIXTURE`, relative to the checkout. `context` and `apply` then read that issue instead of one on GitHub, take its number, and write nothing, as in a dry run; the other issues, the discussions and the labels still come from GitHub. The issue of the project's own canary, `tests/fixtures/canary-issue.json`, is an example:
@@ -58,5 +58,5 @@ To try it on an issue that exists nowhere, write the issue and its comments into
 ```sh
 gh api repos/OWNER/REPO/issues/12 | jq '{issue: ., comments: []}' > issue.json    # then change it
 export ISSUE_ASSISTANT_FIXTURE=issue.json
-python3 issue_assistant.py context --mode triage
+python3 -m issue_assistant context --mode triage
 ```

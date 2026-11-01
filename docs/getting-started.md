@@ -30,7 +30,7 @@ A set-up has three parts: what `install` writes, what you edit, and what you set
     tag="$(gh release view --repo Dennis-Otto/issue-assistant --json tagName --jq .tagName)"
     dir="$(mktemp -d)"
     git clone --quiet --depth 1 --branch "$tag" https://github.com/Dennis-Otto/issue-assistant "$dir" &&
-      python3 "$dir/issue_assistant.py" install --setup
+      PYTHONPATH="$dir" python3 -P -m issue_assistant install --setup
     ```
 
     `install` pins the workflows to the commit and the tag of its checkout, and writes the settings and the starters that the repository lacks. `--setup` creates the environment `issue-assistant`, which only the default branch may use, and asks for the engine's secret. For Claude, `claude setup-token` creates the token of a Claude subscription, `CLAUDE_CODE_OAUTH_TOKEN`; an API key goes into `ANTHROPIC_API_KEY` instead. For another engine, set its `name` in `config.toml` first, as [Change the engine](engines.md#change-the-engine) shows, and `--setup` asks for its secret. Each step looks first, so running it again changes nothing but the workflows.
@@ -38,7 +38,7 @@ A set-up has three parts: what `install` writes, what you edit, and what you set
 2. **Describe the project** in `.github/issue-assistant/project.md`: what it does, where the code, documentation, troubleshooting guide and changelog are, which versions and logs matter in a bug report, and how to address reporters if not as the [catalogs of the languages](features/languages.md) do, such as with *Sie* in German. The AI reads it before every task. Then adapt the starters to the project, its labels and its issue forms, until the check passes:
 
     ```sh
-    python3 "$dir/issue_assistant.py" check
+    PYTHONPATH="$dir" python3 -P -m issue_assistant check
     ```
 
 3. **Let the release close fixed issues:** under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**, so that a fixed issue stays open until the release that ships the fix. GitHub has no API for this setting. A repository without releases sets `close_with_release = false` in `config.toml` instead.

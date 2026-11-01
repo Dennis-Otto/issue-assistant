@@ -30,7 +30,7 @@ stopwords = [
 
 sample = "La scheda non mostra niente quando lancio una freccetta: non è normale."
 
-# The texts of the comments, by the keys that issue_assistant.py uses.
+# The texts of the comments, by the keys that the package issue_assistant uses.
 [text]
 "thanks.default" = "Grazie per aver aperto questa segnalazione, @{author}!"
 "thanks.bug" = "Grazie per la segnalazione, @{author}!"

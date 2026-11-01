@@ -1,10 +1,10 @@
 """Issue assistant: labels, a first analysis, duplicates and unanswered questions.
 
-The GitHub Action in action.yml runs this script in the repository it looks after.
-That repository keeps its labels in .github/labels.toml, a description of the
-project and its settings in .github/issue-assistant/, and copies of the four
-workflows and the firewall policy, which install writes from templates/.github/;
-see README.md.
+The GitHub Action in action.yml runs this package, with `python3 -m issue_assistant`,
+in the repository it looks after. That repository keeps its labels in
+.github/labels.toml, a description of the project and its settings in
+.github/issue-assistant/, and copies of the four workflows and the firewall policy,
+which install writes from templates/.github/; see README.md.
 
 An AI engine from ENGINES writes the analysis. It only reads: the checkout and a
 context folder that `context` writes, with the prompt and the JSON schema of its
@@ -12,6 +12,9 @@ answer. The answer reaches GitHub only through `apply`, which checks it against 
 schema, the labels and the issues that exist, and which runs in a job without the
 engine. Reminders, closing, reopening and the labels of the issue forms work
 without one.
+
+docs/architecture/modules.md has the map of the modules. Each imports only from
+those above it in the list below, so the list reads from the ground up.
 """
 
 from __future__ import annotations
@@ -42,7 +45,7 @@ from statistics import median
 from typing import Any
 from urllib.parse import quote, unquote, urlencode, urlsplit
 
-TOOL = Path(__file__).resolve().parent
+TOOL = Path(__file__).resolve().parent.parent
 PROMPTS = TOOL / "prompts"
 # The files a repository gets, in the places they go: the workflows, the firewall
 # policy and the starter files. This repository's own copies of the workflows and
@@ -766,9 +769,6 @@ def command(name: str, message: str) -> None:
     print(f"::{name}::{escaped}")
 
 
-# Engines
-
-
 # How an engine gets the JSON schema of its answer: it enforces the schema as it is;
 # it enforces a strict form, in which every field is required and one that the
 # answer may leave out may be null, as some APIs of structured outputs want; or the
@@ -1096,9 +1096,6 @@ def engine_named(name: str | None) -> str:
             f"Unknown engine {key}; known engines: {', '.join(sorted(ENGINES))}."
         )
     return key
-
-
-# The repository's settings
 
 
 @dataclass(frozen=True)
@@ -1717,9 +1714,6 @@ def label_names(issue: dict[str, Any]) -> set[str]:
     return {label["name"] for label in issue.get("labels") or []}
 
 
-# A fixture: an issue from a file
-
-
 @dataclass(frozen=True)
 class Fixture:
     """An issue and its comments from a file, as GitHub's REST API gives them.
@@ -1816,9 +1810,6 @@ def read_fixture(root: Path, name: str) -> Fixture:
     if problems:
         raise AssistantError(f"The fixture {name} doesn't fit: {'; '.join(problems)}.")
     return Fixture(data["issue"], comments)
-
-
-# GitHub
 
 
 class GitHub:
@@ -2946,9 +2937,6 @@ class GitHub:
         )
 
 
-# Comments and issues
-
-
 def as_rest(
     node: dict[str, Any], owns: Callable[[dict[str, Any]], bool]
 ) -> dict[str, Any]:
@@ -3328,9 +3316,6 @@ def record_run(
     github.edit_comment(comment["id"], MARKER.sub(recorded, text_of(comment), count=1))
 
 
-# Events
-
-
 @dataclass
 class Plan:
     """What the event job did, and which task the engine gets next."""
@@ -3543,9 +3528,6 @@ def limited(
             "/assistant unmute ends it.",
         )
     return within_limits(github, plan, trigger, at, config)
-
-
-# Commands
 
 
 @dataclass(frozen=True)
@@ -3988,9 +3970,6 @@ def reopen_if_answered(
         plan.mode = "follow-up"
         plan.answers = asked
     return plan
-
-
-# Context for the engine
 
 
 @dataclass
@@ -4656,9 +4635,6 @@ def related_rules(config: Config) -> dict[str, str]:
     }
 
 
-# The engine's answer
-
-
 def text(limit: int) -> dict[str, Any]:
     return {"type": "string", "maxLength": limit}
 
@@ -5066,9 +5042,6 @@ def parse_answer(mode: str, raw: str, config: Config) -> dict[str, Any]:
         answer["maintainer_summary"] = ""
     result: dict[str, Any] = answer
     return result
-
-
-# Text that the engine wrote
 
 
 def allowed_url(url: str, config: Config) -> bool:
@@ -5522,9 +5495,6 @@ def notice_link(config: Config) -> str | None:
     if name.lower().endswith(".md") and NOTICE_ANCHOR in headings(file):
         return f"{address}#{NOTICE_ANCHOR}"
     return address
-
-
-# Comments of the assistant
 
 
 def texts(language: str) -> dict[str, str]:
@@ -6013,9 +5983,6 @@ def render_locked(language: str, lifecycle: Lifecycle) -> str:
     """The one line on an issue that the sweep locks: where to go instead."""
     periods = lifecycle.text(language)
     return f"{render_marker('locked')}\n{say(language, 'locked', **periods)}\n"
-
-
-# Applying the engine's answer
 
 
 def other_issue(github: GitHub, number: int, current: int) -> dict[str, Any] | None:
@@ -6785,9 +6752,6 @@ def apply_release_reply(
     return [f"#{number} reopened: {reason}"]
 
 
-# The daily sweep
-
-
 # Runs a step of the sweep, named for the log, and returns what it did.
 Isolate = Callable[[str, Callable[[], list[str]]], list[str]]
 
@@ -7381,8 +7345,6 @@ def corrected_labels(
             )
     return Corrections(labeled, tuple(removed), tuple(added), 1, 1)
 
-
-# Learning from the corrections
 
 # A first analysis learns from what the maintainers corrected of the analyses of the
 # max_analyzed issues analyzed last: those whose analysis is among the comments of
@@ -8425,9 +8387,6 @@ def lock_issue(
     ]
 
 
-# Labels as code
-
-
 def sync_labels(github: GitHub, config: Config) -> list[str]:
     """Create and update the labels of labels.toml; never delete one.
 
@@ -8502,9 +8461,6 @@ def check_routing(github: GitHub, config: Config) -> list[str]:
     return problems
 
 
-# Findings of code scanning
-
-
 def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
     """Dismiss the accepted findings and count the others, which stay open.
 
@@ -8538,9 +8494,6 @@ def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
             f"Fix these findings, or accept them with a reason in {FINDINGS_FILE}."
         )
     return done, len(left)
-
-
-# Checking a repository's set-up
 
 
 def load_yaml(path: Path, where: str = "") -> Any:
@@ -9080,9 +9033,6 @@ def check(config: Config) -> list[str]:
     )
 
 
-# Setting up a repository
-
-
 def git_says(folder: Path, *args: str) -> str | None:
     """What git prints for `args` in `folder`; None when git fails or is missing."""
     try:
@@ -9172,12 +9122,9 @@ def reinstall() -> str:
     return (
         "write the templates of this release anew with: "
         f'dir="$(mktemp -d)" && git clone --quiet --depth 1 --branch v{version} '
-        f'https://github.com/{ACTION} "$dir" && python3 "$dir/issue_assistant.py" '
-        "install"
+        f'https://github.com/{ACTION} "$dir" && '
+        'PYTHONPATH="$dir" python3 -P -m issue_assistant install'
     )
-
-
-# Editing actionlint's settings, which are YAML
 
 
 def yaml_of(text: str) -> Any:
@@ -9354,9 +9301,6 @@ def add_to_actionlint(root: Path) -> list[str]:
         path.write_text(edited, encoding="utf-8", newline="\n")
         done.append(f"{what} in {ACTIONLINT}")
     return done
-
-
-# The files of a set-up
 
 
 def chooser(config: Config) -> str:
@@ -9582,9 +9526,6 @@ def install(root: Path, ref: str, version: str, repository: str = "") -> list[st
     ]
 
 
-# Setting up GitHub
-
-
 def repository_of_remote(root: Path) -> str:
     """The repository on GitHub that the remote origin of the checkout in `root`
     names, as install finds it without gh; nothing for another host or no remote."""
@@ -9702,9 +9643,6 @@ def set_up_github(github: GitHub, config: Config, *, ask: bool) -> Iterator[str]
             f"merged linked pull requests on https://github.com/{github.repository}"
             "/settings, so that a fixed issue stays open until its release"
         )
-
-
-# Command line
 
 
 def output(name: str, value: str) -> None:
@@ -10083,17 +10021,17 @@ def install_as_root(source: Path, target: PurePath) -> None:
     write to, as the folder around it; a command line that takes its settings only
     so would otherwise run without them."""
     folder = target.parent
-    for command in (
+    for arguments in (
         # Root's numbers, as macOS has no group named root.
         ["install", "-d", "-m", "755", "-o", "0", "-g", "0"]
         + [str(folder.parent), str(folder)],
         ["install", "-m", "644", "-o", "0", "-g", "0", str(source), str(target)],
     ):
-        result = as_root(command)
+        result = as_root(arguments)
         if result.returncode:
             raise AssistantError(
                 f"The settings that keep the engine's command line to reading must "
-                f"belong to root, and {' '.join(command[:2])} as root failed: "
+                f"belong to root, and {' '.join(arguments[:2])} as root failed: "
                 f"{one_line(result.stderr)[-300:] or 'no message'}. It needs sudo "
                 "without a password prompt: GitHub's runners have it; on your "
                 "computer, run sudo -v first."
@@ -11243,10 +11181,14 @@ SCRIPT_OPTIONS: dict[str, dict[str, dict[str, Any]]] = {
     },
 }
 
+DESCRIPTION = (
+    "Issue assistant: labels, a first analysis, duplicates and unanswered questions."
+)
+
 
 def command_line() -> argparse.ArgumentParser:
     """The parser of SCRIPT_COMMANDS and their options."""
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(prog="issue_assistant", description=DESCRIPTION)
     commands = parser.add_subparsers(dest="command", required=True)
     for name, text_ in SCRIPT_COMMANDS.items():
         given = commands.add_parser(name, help=text_)
@@ -11363,7 +11305,7 @@ def install_command(root: Path, arguments: argparse.Namespace) -> int:
             print(line)
     print(
         f"next: describe the project in {SETTINGS / 'project.md'}, run "
-        f"python3 {(TOOL / 'issue_assistant.py').as_posix()} check, commit, "
+        f"PYTHONPATH={TOOL.as_posix()} python3 -P -m issue_assistant check, commit, "
         "push, and try it under Actions > Issue assistant > Run workflow"
     )
     return 0
@@ -11615,7 +11557,3 @@ def sweep_command(run: CommandRun, github: GitHub, config: Config) -> int:
     counted, sections = report(github, config, now, event)
     summary(run.title, done + counted, run.dry_run, github.previews, sections)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

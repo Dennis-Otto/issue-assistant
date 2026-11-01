@@ -23,7 +23,7 @@ months = [
 # writes in the language of whose stopwords their words have the most, in
 # English when no other language has more, or fewer than two.
 # Hangul, which only Korean writes, counts as well, as OWN_LETTERS of
-# issue_assistant.py describes.
+# issue_assistant/languages.py describes.
 stopwords = [
   "그리고", "하지만", "그런데", "그래서", "있습니다", "없습니다", "합니다", "됩니다",
   "않습니다", "있는", "없는", "하는", "되는", "때", "후", "제가", "수", "것", "안",
@@ -34,7 +34,7 @@ stopwords = [
 # that the assistant guesses the language from it.
 sample = "다트를 던져도 카드에 아무것도 표시되지 않습니다. 이건 맞지 않습니다."
 
-# The texts of the comments, by the keys that issue_assistant.py uses.
+# The texts of the comments, by the keys that the package issue_assistant uses.
 [text]
 "thanks.default" = "@{author}님, 이슈를 열어 주셔서 감사합니다!"
 "thanks.bug" = "@{author}님, 보고해 주셔서 감사합니다!"
