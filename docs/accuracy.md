@@ -8,9 +8,29 @@ How often the assistant's labels, duplicates and questions match what the mainta
 
 ## The numbers
 
-None yet. The first ones come from the repositories that use the assistant, [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync) and [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), each with the day, the engine and the model of its measurement, as `evaluate` writes them into its report.
+They come from the repositories that use the assistant, [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync) and [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), each with the day, the engine and the model of its measurement, as `evaluate` writes them into its report. [The next section](#how-the-numbers-get-here) says how they get here.
+
+<!-- accuracy numbers: start -->
+
+None yet: the first run of the workflow *Evaluate* brings the first table.
+
+<!-- accuracy numbers: end -->
 
 A number of your own repository is welcome in the [discussions](https://github.com/Dennis-Otto/issue-assistant/discussions): the table of measures of the report, with the day, the engine and the model that it names.
+
+## How the numbers get here
+
+The workflow `.github/workflows/evaluate.yml`, which only this repository has, runs `evaluate` on GitHub in place of a maintainer's computer, and a person merges what it writes.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/how-the-numbers-get-onto-the-accuracy-page.dark.svg">
+  <img src="images/diagrams/how-the-numbers-get-onto-the-accuracy-page.svg" alt="How the numbers get onto the accuracy page: A maintainer starts the workflow Evaluate by hand with a repository and a number of issues. The job replay, on the egress-firewall runner with a read-only token and the engine's secret, runs evaluate against a checkout of that repository and keeps its report as an artifact. The job publish runs no AI: accuracy-page takes only numbers and names from the report, and refuses a report that has anything else. The release app adds them to one pull request, which a person merges, and the website shows the table.">
+</picture>
+
+- **Who starts it.** A maintainer, under *Actions → Evaluate → Run workflow*, with the repository and the number of closed issues to replay, 30 by default. Nothing starts it on its own, since a run costs money: about $0.20 for each issue with Opus at the prices of the API, so about $6 for 30. It draws on the secret of the environment `issue-assistant`, which only `main` may use, so a subscription's token uses up its limits as any analysis does.
+- **The job `replay` has the AI.** It runs on the egress-firewall runner, whose firewall lets through only the hosts of `.github/egress-firewall.yaml`, with a token that only reads and with the command line of Claude from the lock file in `.github/evaluate/`. The checkout of the measured repository is the root of the replays, so the engine's tools that read see nothing outside it. The report is an artifact of the run.
+- **The job `publish` has no AI.** The report comes from a job with an AI, so it counts as untrusted: the command `accuracy-page` takes from it only numbers and the names of the measures, the engine, the model and the repository, recalculates each share, and refuses a report in which anything else stands there. The lines of the issues stay in the artifact.
+- **One pull request.** The release app, with a token that may write only contents and pull requests, keeps one pull request from the branch `bot/accuracy`, and each run adds its repository to it. The table of a repository replaces its older one when it comes again. Without the release app, the run warns and leaves the report in the artifact.
 
 ## Measure the accuracy
 

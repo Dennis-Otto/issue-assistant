@@ -87,5 +87,16 @@
         "**This patch version merges on its own** once every required check passed, as [decision 0020](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/0020-patch-versions-of-the-engines-merge-on-their-own.md) says; a minor or major version waits for the maintainer. Codex, Gemini and Copilot run only in the job `analyze`, with their secrets, and the Canary runs Claude alone, so neither a check of this pull request nor the Canary runs these versions with a key. The required check *engine contracts* below runs them without one: green, the action still has each input that the workflows pass and each output that they read, each command line lists each flag of its step in its help and takes its values, the Gemini CLI's schema has each key of its settings, and each one starts and stops only for the missing key. For the Gemini CLI and the Copilot CLI, it also installs the lock files of `engines/` as `analyze` does, verifies the signature of npm's registry and the attestations of every package that npm installs from them on GitHub's Ubuntu x64 runner, where `analyze` runs, and checks that npm refuses a package whose hash is not the one of the lock file. It can't see their answers or their hosts: before the next release, read their release notes and look at what the diff of `package-lock.json` adds, since a new indirect dependency runs with the secret of the engine in every repository after the release; if anything looks wrong, revert this update.",
       ],
     },
+    {
+      // The command line of Claude in .github/evaluate/, which only the Evaluate
+      // workflow installs, when a maintainer runs it; the job analyze gets Claude Code
+      // from its action. It comes out nearly every day, and a measurement can wait, so
+      // once a month is enough. Nothing in the releases changes with it, and a run by
+      // hand shows a version that fails.
+      matchDepNames: ["@anthropic-ai/claude-code"],
+      groupName: "the command line of Claude for the Evaluate workflow",
+      schedule: ["* * 1 * *"],
+      automerge: true,
+    },
   ],
 }

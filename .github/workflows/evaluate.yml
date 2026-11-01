@@ -1,0 +1,278 @@
+name: Evaluate
+
+# The numbers of docs/accuracy.md: how often the assistant's labels, duplicates and
+# questions match what the maintainers of a repository decided, by the command
+# evaluate, on GitHub in place of a maintainer's computer. Only by hand, since a run
+# costs about $0.20 for each issue with Opus at the prices of the API, from the secret
+# of the environment issue-assistant, which only main may use.
+#
+# The job replay runs the AI on GitHub's egress-firewall runner, with a read-only token
+# and the engine's secret, and only its tools that read the checkout of the repository.
+# The job publish runs no AI and takes only numbers from the report, which the command
+# accuracy-page checks, into a pull request of the release app. Each run adds its
+# repository to the one open pull request. docs/accuracy.md describes it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: The repository to measure
+        required: true
+        type: choice
+        options:
+          - Dennis-Otto/homedarts-for-autodarts
+          - Dennis-Otto/paperless-sync
+          - Dennis-Otto/paperless-unified-search
+      issues:
+        description: How many closed issues to replay, at about $0.20 each with Opus
+        required: true
+        type: number
+        default: 30
+
+permissions: {}
+
+env:
+  # The GitHub CLI of the jobs sends no telemetry to GitHub.
+  GH_TELEMETRY: "false"
+
+jobs:
+  replay:
+    name: replay closed issues
+    # One measurement of a repository at a time.
+    concurrency:
+      group: ${{ github.workflow }}-${{ inputs.repository }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04-firewall
+    # The replays run one after the other, and the report comes only at their end.
+    timeout-minutes: 350
+    # The engine's secret belongs to this environment, limited to the default branch;
+    # no deployment is recorded for a run.
+    environment:
+      name: issue-assistant
+      deployment: false
+    permissions:
+      contents: read
+      issues: read
+      discussions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # In a folder of its own, the root of the replays: the tools of the engine read
+      # nothing outside it, so neither this repository nor the report.
+      - name: Check out the repository to measure
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          path: target
+          persist-credentials: false
+      # npm ci takes each package at the version of the lock file and refuses one whose
+      # hash isn't its integrity there. The script that npm leaves out only copies the
+      # program of the runner's system over the placeholder of the package.
+      - name: Install the command line of Claude from its lock file
+        timeout-minutes: 5
+        run: |
+          npm ci --prefix .github/evaluate --ignore-scripts --no-audit --no-fund --loglevel error
+          mkdir -p "$RUNNER_TEMP/bin"
+          ln -s "$PWD/.github/evaluate/node_modules/@anthropic-ai/claude-code-linux-x64/claude" "$RUNNER_TEMP/bin/claude"
+          "$RUNNER_TEMP/bin/claude" --version
+      - name: Replay the closed issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ inputs.repository }}
+          ISSUES: ${{ inputs.issues }}
+          ISSUE_ASSISTANT_ROOT: ${{ github.workspace }}/target
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DISABLE_TELEMETRY: "1"
+          DISABLE_ERROR_REPORTING: "1"
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+        run: |
+          # Only the secret that the environment has counts as set.
+          [[ -n "$ANTHROPIC_API_KEY" ]] || unset ANTHROPIC_API_KEY
+          [[ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]] || unset CLAUDE_CODE_OAUTH_TOKEN
+          if [[ -z "${ANTHROPIC_API_KEY:-}${CLAUDE_CODE_OAUTH_TOKEN:-}" ]]; then
+            echo "::error::The environment issue-assistant has neither CLAUDE_CODE_OAUTH_TOKEN nor ANTHROPIC_API_KEY, which the engine needs."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/accuracy"
+          PATH="$RUNNER_TEMP/bin:$PATH" python3 issue_assistant.py evaluate \
+            --engine claude --issues "$ISSUES" --report "$RUNNER_TEMP/accuracy/report.md"
+      - name: Keep the report for the job publish
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: accuracy
+          path: ${{ runner.temp }}/accuracy/report.md
+          if-no-files-found: error
+          retention-days: 7
+      # The PR coach: what failed, why it matters and how to fix it, in the summary of
+      # the job and as its annotation, from .github/checks.project.toml.
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: replay closed issues
+        run: python3 .github/blueprint.py coach explain "$CHECK"
+
+  publish:
+    name: publish the numbers
+    needs: replay
+    # One run at a time ends what it started with the branch and the pull request.
+    concurrency:
+      group: ${{ github.workflow }}-publish
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The environment holds the private key of the release app; only main may use it.
+    environment:
+      name: release
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - name: Block every host that the job doesn't need
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+            results-receiver.actions.githubusercontent.com:443
+      # The script of this commit, which reads the report as data, the page and the
+      # explanation of a failure.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /issue_assistant.py
+            /locales/
+            /docs/accuracy.md
+            /.github/
+          sparse-checkout-cone-mode: false
+      - name: Fetch the report of the job replay
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: accuracy
+          path: ${{ runner.temp }}/accuracy
+      # Without the release app of the owner, the run names what is missing rather than
+      # fail at the token; every workflow has this step, the same but for its variables.
+      - name: Check that the release app is set up
+        id: release-app
+        env:
+          CLIENT_ID: ${{ vars.RELEASE_AUTOMATION_CLIENT_ID }}
+          KEY_SET: ${{ secrets.RELEASE_AUTOMATION_PRIVATE_KEY != '' }}
+          # Who needs the app and for what, what happens without it, and whether the
+          # run fails then.
+          BOT: the Evaluate workflow
+          TASK: open the pull request with the numbers
+          WITHOUT: the artifact accuracy of the job replay holds them
+          REQUIRED: "false"
+        run: |
+          if [[ -z "$CLIENT_ID" ]]; then
+            missing="names no release app in the variable RELEASE_AUTOMATION_CLIENT_ID"
+          elif [[ "$KEY_SET" != true ]]; then
+            missing="has no private key of its release app in the secret RELEASE_AUTOMATION_PRIVATE_KEY of the environment release"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          level=warning
+          if [[ "$REQUIRED" == true ]]; then
+            level=error
+          fi
+          echo "::$level::This repository $missing, which $BOT needs to $TASK; $WITHOUT."
+          {
+            echo "### ${BOT^} needs the release app of the owner"
+            echo
+            echo "This repository $missing, which $BOT needs to $TASK; $WITHOUT. The release app is a GitHub App of the owner, whose token may do what the token of a job can't: start the checks of a pull request, change a workflow and apply the settings."
+            echo
+            echo "\`python3 .github/blueprint.py checklist\` shows the steps: a link that registers the app with its permissions filled in, the update of the answers of the blueprint that names it in \`.github/repository.toml\`, the settings and its private key. Once they are done, $BOT can $TASK in its next run."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$REQUIRED" == true ]]; then
+            exit 1
+          fi
+      - name: Create a token of the release app
+        id: app
+        if: steps.release-app.outputs.ready == 'true'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_AUTOMATION_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_AUTOMATION_PRIVATE_KEY }}
+          # Only what the branch and the pull request need. The token of a job could
+          # write them too, but a pull request of its token starts no check.
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Write the numbers into a pull request
+        if: steps.app.outputs.token != ''
+        timeout-minutes: 8
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          TARGET: ${{ inputs.repository }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # The branch of the pull request, and the first line of its commits and its title.
+          BRANCH: bot/accuracy
+          HEADLINE: "docs: publish the measured accuracy"
+          PAGE: docs/accuracy.md
+        run: |
+          # Only the app's own pull request from the branch of this repository: a fork
+          # may open one from a branch of the same name.
+          open="$(gh pr list --head "$BRANCH" --state open --json number,isCrossRepository,author \
+            --jq "map(select(.isCrossRepository == false and .author.login == \"app/$APP_SLUG\"))[0].number // empty")"
+          # The numbers of an open pull request stay; those of this run join them.
+          ref="$BRANCH"
+          if [[ -z "$open" ]]; then
+            ref="$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)"
+          fi
+          gh api "repos/$GH_REPO/contents/$PAGE?ref=$ref" > "$RUNNER_TEMP/page.json"
+          jq --raw-output .content "$RUNNER_TEMP/page.json" | base64 --decode > "$PAGE"
+          cp "$PAGE" "$RUNNER_TEMP/before.md"
+          python3 issue_assistant.py accuracy-page --report "$RUNNER_TEMP/accuracy/report.md"
+          if cmp --silent "$PAGE" "$RUNNER_TEMP/before.md"; then
+            echo "The page already has these numbers of $TARGET." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [[ -z "$open" ]]; then
+            # A branch that a closed pull request left behind starts anew.
+            if gh api "repos/$GH_REPO/git/ref/heads/$BRANCH" > /dev/null 2>&1; then
+              gh api --method DELETE "repos/$GH_REPO/git/refs/heads/$BRANCH" > /dev/null
+            fi
+            gh api --method POST "repos/$GH_REPO/git/refs" -f ref="refs/heads/$BRANCH" -f sha="$ref" > /dev/null
+          fi
+          # The commit goes through GitHub's API as the release app: GitHub signs it, and
+          # it starts the checks. The sign-off names the app's account, its author.
+          user_id="$(gh api "users/${APP_SLUG}[bot]" --jq .id)"
+          message="$HEADLINE of $TARGET
+
+          Measured by the Evaluate workflow: $URL
+
+          Signed-off-by: ${APP_SLUG}[bot] <${user_id}+${APP_SLUG}[bot]@users.noreply.github.com>"
+          base64 --wrap=0 "$PAGE" > "$RUNNER_TEMP/page.b64"
+          gh api --method PUT "repos/$GH_REPO/contents/$PAGE" -f branch="$BRANCH" -f message="$message" \
+            -f sha="$(jq --raw-output .sha "$RUNNER_TEMP/page.json")" -F content=@"$RUNNER_TEMP/page.b64" > /dev/null
+          if [[ -z "$open" ]]; then
+            cat > "$RUNNER_TEMP/body.md" <<BODY
+          The [Evaluate workflow]($URL) measured $TARGET. This pull request changes only the block of numbers on \`$PAGE\`, which the command \`accuracy-page\` writes from the report: numbers and the names of the measures, the engine, the model and the repository.
+
+          A person looks at the numbers and merges them. A later run of the workflow adds its repository to this pull request.
+          BODY
+            created="$(gh pr create --base main --head "$BRANCH" --title "$HEADLINE" --body-file "$RUNNER_TEMP/body.md")"
+            open="${created##*/}"
+          fi
+          echo "The numbers of $TARGET are in the pull request #$open from $BRANCH." >> "$GITHUB_STEP_SUMMARY"
+      - name: Explain the failure
+        if: failure()
+        env:
+          CHECK: publish the numbers
+        run: python3 .github/blueprint.py coach explain "$CHECK"
+      - name: Wait until Harden-Runner has removed Docker
+        # Harden-Runner removes Docker with apt-get in the background; a job that ends
+        # before it finishes hangs in "Cleaning up orphan processes" until its timeout.
+        if: always()
+        run: |
+          for _ in {1..120}; do
+            pgrep -x 'apt-get|dpkg' >/dev/null || exit 0
+            sleep 1
+          done
+          echo "::warning::Harden-Runner still removes Docker after two minutes; the job may hang until its timeout."

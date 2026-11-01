@@ -417,3 +417,44 @@ docs = "docs/decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone
 autofix = """Which runner the AI may use instead is a decision of the security of
 every repository that uses the action, for a person; a wait for a runner has no fix
 in the code."""
+
+# ---------------------------------------------------------------- the Evaluate workflow
+
+[check."replay closed issues"]
+title = "The replay of closed issues (Evaluate workflow)"
+problem = """The job with the AI of the Evaluate workflow stopped before it had a report:
+the log of the failed step says why, such as a repository without
+`.github/labels.toml`, an environment without the engine's secret, or a number of
+issues outside 1 to 200. Only a run by hand starts it, on `main`."""
+why = """The numbers of `docs/accuracy.md` show how far the analyses can be trusted, and
+this job measures them. Without a report the page keeps its older numbers, and no
+repository gets worse for it."""
+fix = """Fix what the log names and start the run again; each issue costs about $0.20
+with Opus at the prices of the API, so try a small number first:"""
+commands = [
+  "gh workflow run evaluate.yml --repo {repo} -f repository=Dennis-Otto/paperless-sync -f issues=3",
+]
+docs = "docs/accuracy.md#how-the-numbers-get-here"
+autofix = """A run that failed costs money each time it runs again, so a person looks at
+it first; no bot starts it."""
+
+[check."publish the numbers"]
+title = "The numbers of the accuracy page (Evaluate workflow)"
+problem = """The job without an AI of the Evaluate workflow couldn't bring the numbers of
+the report into the pull request: the log names the step. `accuracy-page` refuses a
+report whose head isn't what `evaluate` writes, or a page without its block of
+numbers; a token of the release app may have lost a permission, or a commit of the
+branch may have come in between."""
+why = """A report that doesn't fit could carry text from the job with the AI into the
+website, so the job stops rather than publish it."""
+fix = """A commit in between goes away with a run of the failed job again. A refused
+report needs a look at the artifact `accuracy` of the run; when `render_evaluation`
+changed the head of a report, `REPORT` of `issue_assistant.py` follows it. The tests
+of the two run without an AI:"""
+commands = [
+  "python3 -m pytest tests/test_evaluate.py -k accuracy",
+  "gh run rerun --failed --repo {repo} RUN",
+]
+docs = "docs/accuracy.md#how-the-numbers-get-here"
+autofix = """Whether a report that doesn't fit is a change of the report or an attempt to
+reach the website is for a person to decide, so no command fixes it."""
