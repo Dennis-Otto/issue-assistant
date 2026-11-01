@@ -1726,6 +1726,16 @@ def test_the_starter_labels_have_every_lifecycle_label():
     assert set(assistant.LIFECYCLE) == lifecycle
 
 
+def test_the_starter_labels_have_what_a_maintainer_offers_to_newcomers():
+    data = tomllib.loads(
+        (assistant.TEMPLATES / assistant.LABELS_FILE).read_text(encoding="utf-8")
+    )
+    offered = [
+        item["name"] for item in data["label"] if item["group"] == "contribution"
+    ]
+    assert offered == ["good first issue", "help wanted"]
+
+
 def test_mute_creates_the_label_of_the_starter_and_of_this_repository(sample_config):
     """The label of muted issues is the maintainer's decision, so labels.toml need
     not define it; where it doesn't, /assistant mute creates it as the starter has it.

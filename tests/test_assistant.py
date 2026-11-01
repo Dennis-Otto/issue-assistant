@@ -9577,6 +9577,391 @@ def test_the_summary_of_a_sweep_by_hand_has_the_digest_and_the_quality(
     assert not re.search(r"Private|live card", summary, re.IGNORECASE)
 
 
+# The candidates for a label that a maintainer offers to newcomers.
+
+CONFIRMED = {"fit": True, "reason": "One sentence of the guide is wrong."}
+LOCATED = [{"path": "docs/troubleshooting.md", "reason": "It says what to do."}]
+
+
+def offering(config):
+    """The sample with labels of the group `contribution`, as the starter has them."""
+    return dataclasses.replace(
+        config,
+        labels=(
+            *config.labels,
+            assistant.Label(
+                "good first issue", "7057ff", "Good for newcomers", "contribution"
+            ),
+            assistant.Label(
+                "help wanted", "008672", "Extra attention is needed", "contribution"
+            ),
+        ),
+    )
+
+
+def suited(**changes):
+    return make_answer(**{"newcomer": CONFIRMED, "references": LOCATED, **changes})
+
+
+def test_only_a_first_analysis_where_there_are_labels_to_offer_is_asked(config):
+    offered = offering(config)
+    assert "newcomer" not in assistant.answer_schema("triage", config)["properties"]
+    schema = assistant.answer_schema("triage", offered)
+    assert schema["properties"]["newcomer"] == {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["fit", "reason"],
+        "properties": {
+            "fit": {"type": "boolean"},
+            "reason": {"type": "string", "maxLength": 200},
+        },
+    }
+    for mode in set(assistant.MODES) - {"triage"}:
+        assert "newcomer" not in assistant.answer_schema(mode, offered)["properties"]
+
+
+def test_the_ai_can_choose_no_label_to_offer(config):
+    offered = offering(config)
+    assert "good first issue" not in assistant.render_labels(offered)
+    assert "good first issue" not in assistant.schema_json("triage", offered)
+
+
+@pytest.mark.usefixtures("root")
+def test_the_task_asks_for_a_candidate_only_where_there_are_labels_to_offer(config):
+    github = FakeGitHub(config, make_issue())
+    task = assistant.write_context(github, 12, "triage", config)["task"]
+    assert "{newcomer}" not in task and "newcomer" not in task
+    task = assistant.write_context(github, 12, "triage", offering(config))["task"]
+    assert assistant.NEWCOMER_RULE in task
+    assert "{newcomer}" not in task
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        "confirmed, small, local change",
+        "a bug with a located cause",
+        "a fix of the documentation",
+        "security report",
+        "a duplicate",
+        "open design question",
+        "whenever you doubt",
+        "don't invite anyone",
+    ],
+)
+def test_the_rule_of_the_candidates_says_what_fits_and_what_never_does(words):
+    assert words in assistant.NEWCOMER_RULE
+
+
+def test_an_answer_may_leave_the_candidate_out(config):
+    """A hint that nobody sees must never cost an analysis: not in the schema, and
+    not in its strict form, where a null stands for a field that is left out."""
+    offered = offering(config)
+    schema = assistant.answer_schema("triage", offered)
+    assert "newcomer" not in schema["required"]
+    strict = assistant.strict_schema(schema)
+    assert "newcomer" in strict["required"]
+    assert strict["properties"]["newcomer"]["anyOf"][1] == {"type": "null"}
+    for answer in (make_answer(), make_answer(newcomer=None)):
+        parsed = assistant.parse_answer("triage", json.dumps(answer), offered)
+        assert parsed == make_answer()
+
+
+@pytest.mark.parametrize(
+    ("candidate", "problem"),
+    [
+        (
+            {"fit": "yes", "reason": "Small."},
+            "answer.newcomer.fit is not true or false",
+        ),
+        ({"fit": True}, "answer.newcomer.reason is missing"),
+        (
+            {"fit": True, "reason": "x" * 201},
+            "answer.newcomer.reason is longer than 200 characters",
+        ),
+        (
+            {"fit": True, "reason": "Small.", "label": "good first issue"},
+            "answer.newcomer.label is not expected",
+        ),
+    ],
+)
+def test_a_candidate_that_breaks_the_schema_is_refused(config, candidate, problem):
+    with pytest.raises(assistant.AssistantError, match=re.escape(problem)):
+        assistant.parse_answer(
+            "triage", json.dumps(make_answer(newcomer=candidate)), offering(config)
+        )
+
+
+def test_a_repository_without_labels_to_offer_refuses_a_candidate(config):
+    with pytest.raises(assistant.AssistantError, match="newcomer is not expected"):
+        assistant.parse_answer("triage", json.dumps(suited()), config)
+
+
+def test_the_mark_changes_no_comment_and_no_label(config):
+    """The mark stays in the hidden marker: readers of the analysis see the same
+    comment, and the issue has the same labels, with it and without it."""
+    offered = offering(config)
+
+    def applied(answer):
+        github = FakeGitHub(offered, make_issue())
+        done = assistant.apply_answer(
+            github, "triage", 12, json.dumps(answer), offered, "abc"
+        )
+        return github, done
+
+    with_mark, done = applied(suited())
+    without, _ = applied(make_answer(references=LOCATED))
+    ((body,), (other,)) = (with_mark.posted(12), without.posted(12))
+    assert " newcomer=1 -->" in body
+    assert body.replace(" newcomer=1", "") == other
+    assert with_mark.labels_of(12) == without.labels_of(12)
+    assert not with_mark.labels_of(12) & set(offered.group("contribution"))
+    assert assistant.marks_newcomer(with_mark.comment_store[12][-1])
+    assert not assistant.marks_newcomer(without.comment_store[12][-1])
+    assert done[-1] == (
+        "#12 may suit a newcomer, so the digest names it once a maintainer has "
+        "triaged it: One sentence of the guide is wrong."
+    )
+
+
+def test_the_reason_of_a_candidate_mentions_nobody_in_the_summary(config):
+    offered = offering(config)
+    github = FakeGitHub(offered, make_issue())
+    answer = suited(newcomer={"fit": True, "reason": "Ask @someone\nabout it."})
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(answer), offered, "abc"
+    )
+    assert done[-1].endswith("triaged it: Ask `@someone` about it.")
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"newcomer": {"fit": False, "reason": "An open design question."}},
+        {"references": []},
+        {"references": [{"path": "no/such/file.md", "reason": "Made up."}]},
+        {"missing_information": ["Which version do you run?"]},
+        {"duplicates": [{"number": 7, "confidence": "medium", "reason": "The same."}]},
+        {"duplicates": [{"number": 7, "confidence": "high", "reason": "The same."}]},
+        {"security_report": True},
+    ],
+)
+def test_only_a_confirmed_and_located_change_gets_the_mark(config, changes):
+    """Whatever the AI says: a reporter's text can talk it into a `fit`."""
+    offered = offering(config)
+    github = FakeGitHub(offered, make_issue(), make_issue(7, labels=("bug",)))
+    done = assistant.apply_answer(
+        github, "triage", 12, json.dumps(suited(**changes)), offered, "abc"
+    )
+    (body,) = github.posted(12)
+    assert "newcomer" not in body
+    assert "newcomer" not in " ".join(done)
+
+
+@pytest.mark.parametrize(
+    ("changes", "findings"),
+    [
+        ({}, {}),
+        ({"security_report": True}, {}),
+        ({"duplicates": [{"number": 7}]}, {}),
+        ({"missing_information": ["Which version?"]}, {}),
+        ({}, {"belongs_in": "owner/server"}),
+        ({}, {"references": []}),
+    ],
+)
+def test_the_script_checks_what_the_ai_says_of_a_candidate(changes, findings):
+    checked = assistant.Findings(**{"references": ["a link"], **findings})
+    expected = not changes and not findings
+    assert assistant.suits_newcomer(suited(**changes), checked) is expected
+
+
+def test_an_answer_without_the_field_marks_nothing():
+    checked = assistant.Findings(references=["a link"])
+    assert assistant.suits_newcomer(make_answer(), checked) is False
+
+
+def marked(comment_id, days_ago):
+    """An analysis of the assistant that marks its issue as a candidate."""
+    return notice(comment_id, days_ago, newcomer=1)
+
+
+def candidates_github(config):
+    """A repository with a candidate of every case of the digest and the quality."""
+    triaged = ("bug",)
+    github = FakeGitHub(
+        config,
+        # Triaged, so that a maintainer can confirm them, the longest waiting first.
+        private(60, labels=triaged, days_ago=9),
+        private(61, labels=triaged, days_ago=6, reactions={"+1": 2}),
+        private(62, labels=triaged, days_ago=6),
+        # A maintainer's own issue, analyzed by hand.
+        private(63, days_ago=4, author="owner", association="OWNER"),
+        # Marked again by a second analysis, and with a 👎 of someone else, and a
+        # label that a bot took back, and the name of another label removed.
+        private(64, labels=triaged, days_ago=8),
+        private(65, labels=triaged, days_ago=4),
+        private(66, labels=triaged, days_ago=4),
+        # No maintainer has triaged it yet.
+        private(70, days_ago=3),
+        # Settled by a maintainer's label.
+        private(71, labels=("bug", "good first issue"), days_ago=5),
+        private(72, labels=("bug", "help wanted"), days_ago=5, state="closed"),
+        # A decision against the issue, or it waits on someone else.
+        private(73, labels=("bug", "wontfix"), days_ago=5),
+        private(74, labels=("bug", "assistant-muted"), days_ago=5),
+        private(75, labels=("bug", "invalid"), days_ago=5),
+        private(76, labels=("bug", "duplicate"), days_ago=5),
+        private(77, labels=("bug", "needs-info"), days_ago=5),
+        private(78, labels=("bug", "possible-duplicate"), days_ago=5),
+        private(79, labels=("bug", "fixed-in-next-release"), days_ago=5),
+        private(80, labels=triaged, days_ago=5, locked=True),
+        # Closed without a label.
+        private(81, labels=triaged, days_ago=5, state="closed"),
+        # A maintainer said no: took the label back, or gave a 👎.
+        private(82, labels=triaged, days_ago=5),
+        private(83, labels=triaged, days_ago=5),
+        # Never marked, and no more since an analysis by hand.
+        private(84, labels=triaged, days_ago=5),
+        private(85, labels=triaged, days_ago=5),
+        # Marked before the 30 days.
+        private(86, labels=triaged, days_ago=40),
+    )
+    for number in (63, 65, 66, 70, *range(71, 84)):
+        github.comment_store[number] = [marked(number * 10, 3)]
+    github.comment_store[60] = [marked(600, 8)]
+    github.comment_store[61] = [marked(610, 5)]
+    github.comment_store[62] = [marked(620, 5)]
+    github.comment_store[64] = [notice(640, 7), marked(641, 6), said(642, "owner", 1)]
+    github.comment_store[84] = [notice(840, 4)]
+    github.comment_store[85] = [marked(850, 4), notice(851, 3)]
+    github.comment_store[86] = [marked(860, 35)]
+    # The two marked last.
+    github.comment_store[71] = [marked(710, 2)]
+    github.comment_store[81] = [marked(810, 1)]
+    # The 👎 of someone who may not push counts for nothing.
+    github.comment_store[65][0]["reactions"] = {"-1": 1}
+    github.reaction_store[650] = [
+        {"content": "-1", "user": {"login": "someone", "type": "User"}}
+    ]
+    github.comment_store[83][0]["reactions"] = {"-1": 1}
+    github.reaction_store[830] = [
+        {"content": "-1", "user": {"login": "owner", "type": "User"}}
+    ]
+    github.permission_store["owner"] = ("admin", "admin")
+    github.event_store[66] = [
+        labeling("labeled", "good first issue", 2, {"login": "x[bot]", "type": "Bot"}),
+        labeling(
+            "unlabeled", "good first issue", 1, {"login": "x[bot]", "type": "Bot"}
+        ),
+        labeling("labeled", "area: cards", 2, OWNER),
+        labeling("unlabeled", "area: cards", 1, OWNER),
+    ]
+    github.event_store[82] = [
+        labeling("labeled", "help wanted", 2, OWNER),
+        labeling("unlabeled", "help wanted", 1, OWNER),
+    ]
+    for number in github.comment_store:
+        if number != 86:
+            github.store[number]["updated_at"] = at(0)
+    return github
+
+
+def activity_of(github):
+    return assistant.Activity.read(github, NOW - assistant.FEEDBACK_PERIOD)
+
+
+def test_the_digest_names_the_candidates_for_the_maintainers_to_confirm(config):
+    """Only issues that a maintainer has triaged, without a label to offer: links and
+    numbers alone, and nothing that it writes."""
+    offered = offering(config)
+    github = candidates_github(offered)
+    link = f"{WEB}/issues"
+    part = assistant.candidates_for_newcomers(github, offered, activity_of(github), NOW)
+    assert part == "\n".join(
+        [
+            "**Good first issue candidates: 7**",
+            "",
+            f"- [#60]({link}/60): analyzed 8 days ago",
+            f"- [#64]({link}/64): analyzed 6 days ago",
+            f"- [#61]({link}/61): analyzed 5 days ago, 👍 2",
+            f"- [#62]({link}/62): analyzed 5 days ago",
+            f"- [#63]({link}/63): analyzed 3 days ago",
+            f"- [#65]({link}/65): analyzed 3 days ago",
+            f"- [#66]({link}/66): analyzed 3 days ago",
+            "",
+            "The AI thinks that someone new to the project could take these; it sets "
+            "no label. Add `good first issue` to those you confirm. A 👎 on the "
+            "analysis takes one off this list.",
+        ]
+    )
+    assert "Private" not in part
+    assert github.writes == []
+
+
+def test_the_digest_says_when_there_is_no_candidate(config):
+    offered = offering(config)
+    github = FakeGitHub(offered)
+    assert (
+        assistant.candidates_for_newcomers(github, offered, activity_of(github), NOW)
+        == "**Good first issue candidates: 0**"
+    )
+
+
+def test_the_digest_has_the_candidates_only_where_there_are_labels_to_offer(config):
+    offered = offering(config)
+    github = candidates_github(offered)
+    activity = activity_of(github)
+    assert "Good first issue" not in assistant.digest(github, config, activity, NOW)
+    both = assistant.digest(github, offered, activity, NOW)
+    assert both.split("\n\n**")[-1].startswith("Good first issue candidates: 7**")
+
+
+def test_a_candidate_reads_the_events_of_the_triaged_issues_alone(config):
+    """An untriaged issue costs no request, so that a flood of issues that talk the
+    AI into a `fit` makes the morning sweep read no more."""
+    offered = offering(config)
+    github = candidates_github(offered)
+    assistant.newcomer_candidates(github, offered, activity_of(github), NOW)
+    read = {int(call[1].split("/")[1]) for call in github.calls if "/events" in call[1]}
+    assert read == {60, 61, 62, 63, 64, 65, 66, 82, 83}
+
+
+def test_the_quality_counts_what_became_of_the_candidates(config):
+    offered = offering(config)
+    github = candidates_github(offered)
+    table = assistant.quality(github, offered, activity_of(github)).splitlines()
+    assert table[-2:] == [
+        "| Good first issue candidates | 21: kept 2, removed 2, closed without a "
+        "label 1, waiting 16 |",
+        "| Feedback on the analyses | 👍 0, 👎 2 |",
+    ]
+    assert "Good first issue" not in assistant.quality(
+        github, config, activity_of(github)
+    )
+
+
+def test_the_quality_counts_the_candidates_marked_last_alone(monkeypatch, config):
+    offered = offering(config)
+    github = candidates_github(offered)
+    monkeypatch.setattr(assistant, "MAX_CORRECTED", 2)
+    assert assistant.newcomer_outcomes(github, offered, activity_of(github)) == (
+        "21: kept 1, removed 0, closed without a label 1, waiting 0, of the 2 marked "
+        "last"
+    )
+
+
+def test_github_failing_the_candidates_is_a_warning_of_the_digest(config, capsys):
+    offered = offering(config)
+    github = candidates_github(offered)
+    github.fail(r"^GET issues/60/events")
+    lines, sections = assistant.report(github, offered, NOW, "schedule")
+    assert "#### Maintainer digest\n\nNot made: GitHub failed." in sections
+    assert "::warning::Maintainer digest: gh api: API rate limit" in (
+        capsys.readouterr().out
+    )
+    assert lines[0].startswith("Feedback of the last 30 days")
+
+
 # The digest as an issue, which [digest] issue asks for.
 
 

@@ -261,6 +261,7 @@ STALE = "stale"
 POSSIBLE_DUPLICATE = "possible-duplicate"
 DUPLICATE = "duplicate"
 INVALID = "invalid"
+WONTFIX = "wontfix"
 FIXED = "fixed-in-next-release"
 LIFECYCLE = (
     NEEDS_TRIAGE,
@@ -278,6 +279,7 @@ GROUPS = (
     "priority",
     "lifecycle",
     "decision",
+    "contribution",
     "release",
     "dependabot",
 )
@@ -4301,6 +4303,7 @@ def write_context(
         "maintainers": LOCALES[maintainers(config)].name,
         "maintainers_code": maintainers(config),
         "priority": PRIORITY_RULE if config.group("priority") else "",
+        "newcomer": NEWCOMER_RULE if config.group("contribution") else "",
         **related_rules(config),
     }
 
@@ -4372,6 +4375,19 @@ PRIORITY_RULE = (
     "the issue best, judged by what the issue shows: how many people it affects, how "
     "badly, and whether there is a workaround; `priority_rationale` says why in one "
     'sentence. Choose `"none"` when the issue shows too little to judge.'
+)
+
+NEWCOMER_RULE = (
+    "\n   - `newcomer`: whether someone new to the project could take this on. "
+    "`fit` is true only for a confirmed, small, local change: the issue shows what is "
+    "wrong or what to write, your investigation located it in the files that you name "
+    "in `references`, and it takes no knowledge of the whole project, such as a bug "
+    "with a located cause or a fix of the documentation. It is false for a security "
+    "report, a duplicate, an open design question and anything that still needs "
+    "information from the reporter or a decision of a maintainer, and whenever you "
+    "doubt. `reason` says why in one sentence. The maintainers alone decide what to "
+    "offer to newcomers, so this field changes nothing that anyone sees: don't mention "
+    "it in your other texts, and don't invite anyone to work on the issue."
 )
 
 
@@ -4547,6 +4563,9 @@ def record(properties: dict[str, Any]) -> dict[str, Any]:
 # another language folds below its text; see for_maintainers.
 MAINTAINER_SUMMARY = 700
 
+# The longest reason why an issue could suit someone new to the project.
+NEWCOMER_REASON = 200
+
 
 def many(values: list[str], items: int) -> dict[str, Any]:
     if not values:
@@ -4638,7 +4657,7 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
         repositories = choice([config.repository, *names])
         related = {"repository": repositories, **related}
         belongs = {"belongs_in": repositories}
-    return record(
+    triage = record(
         common
         | {
             "summary": text(700),
@@ -4664,6 +4683,14 @@ def answer_schema(mode: str, config: Config) -> dict[str, Any]:
             "security_report": {"type": "boolean"},
         }
     )
+    # Only a repository with labels to offer to newcomers is asked. An answer may
+    # leave the field out, which says no: a hint that nobody sees must never cost an
+    # analysis.
+    if config.group("contribution"):
+        triage["properties"]["newcomer"] = record(
+            {"fit": {"type": "boolean"}, "reason": text(NEWCOMER_REASON)}
+        )
+    return triage
 
 
 def strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
@@ -5472,6 +5499,24 @@ def maintainer_mark(folded: str, config: Config) -> dict[str, str]:
     return {"maint": maintainers(config)} if folded else {}
 
 
+def suits_newcomer(answer: dict[str, Any], findings: Findings) -> bool:
+    """Whether the analysis marks the issue as a candidate for a label of the group
+    `contribution`, which the digest names once a maintainer has triaged it.
+
+    The AI says so, and the script checks what it can: a change is located only by a
+    file that exists, and is confirmed only with nothing missing. A security report, a
+    duplicate and an issue of another repository never count, whatever the AI says.
+    """
+    return bool(
+        answer.get("newcomer", {}).get("fit")
+        and findings.references
+        and not answer["missing_information"]
+        and not answer["duplicates"]
+        and not answer["security_report"]
+        and not findings.belongs_in
+    )
+
+
 def render_analysis(
     answer: dict[str, Any],
     author: str,
@@ -5504,6 +5549,7 @@ def render_analysis(
                 if findings.duplicate
                 else {}
             ),
+            **({"newcomer": 1} if suits_newcomer(answer, findings) else {}),
         ),
         sentences(thanks(language, answer["kind"], author), say(language, "intro")),
     ]
@@ -6381,6 +6427,11 @@ def apply_answer(
             f"#{number} may belong in {findings.belongs_in}; a maintainer can "
             "transfer it."
         )
+    if suits_newcomer(answer, findings):
+        done.append(
+            f"#{number} may suit a newcomer, so the digest names it once a maintainer "
+            f"has triaged it: {plain(answer['newcomer']['reason'], config)}"
+        )
     return done
 
 
@@ -6856,6 +6907,14 @@ def objected(comments: list[dict[str, Any]]) -> datetime | None:
     return objection
 
 
+def marks_newcomer(comment: dict[str, Any]) -> bool:
+    """Whether the comment is an analysis that marks its issue as a candidate."""
+    found = marker(comment)
+    return (
+        found is not None and found[0] == "analysis" and found[1].get("newcomer") == "1"
+    )
+
+
 def waits_on_others(issue: dict[str, Any]) -> bool:
     """Whether the issue waits on its reporter, the sweep or a release, or is
     locked."""
@@ -6953,30 +7012,106 @@ def waiting_for_release(
     return found
 
 
-def digest(
-    github: GitHub, lifecycle: Lifecycle, activity: Activity, now: datetime
+def marked_newcomer(activity: Activity) -> dict[int, datetime]:
+    """The issues whose last analysis of the activity marks them as candidates, and
+    the moment of that analysis: another analysis by hand has the last word."""
+    last = {
+        number: comment
+        for number, comment in activity.posted("analysis")
+        if number in activity.issues
+    }
+    return {
+        number: created(comment)
+        for number, comment in last.items()
+        if marks_newcomer(comment)
+    }
+
+
+def turned_down(
+    github: GitHub,
+    config: Config,
+    number: int,
+    comments: list[dict[str, Any]],
+    pushers: dict[str, bool],
+) -> bool:
+    """Whether a maintainer said no to a candidate: removed a label of the group
+    `contribution` from it, which only a person who may triage can, or gave one of its
+    analyses a 👎, as `disliked` counts it. One request for the events, which the
+    GitHub object keeps for the run, and those of a 👎."""
+    return any(
+        event["event"] == "unlabeled"
+        and (event.get("label") or {}).get("name") in config.group("contribution")
+        and not is_bot(event.get("actor"))
+        for event in github.events(number)
+    ) or disliked(github, comments, pushers)
+
+
+def newcomer_candidates(
+    github: GitHub, config: Config, activity: Activity, now: datetime
+) -> list[Waiting]:
+    """The open issues for a maintainer to offer to newcomers: their last analysis
+    marks them, a maintainer opened or triaged them, and they wait on nobody else.
+    A label of the group `contribution` settles it, as does a decision against the
+    issue or a maintainer's no; the assistant itself never sets such a label."""
+    settled = {*config.group("contribution"), DUPLICATE, INVALID, WONTFIX, MUTED}
+    pushers: dict[str, bool] = {}
+    found = []
+    for number, since in marked_newcomer(activity).items():
+        issue = activity.issues[number]
+        if (
+            issue["state"] == "open"
+            and vouched_for(issue)
+            and not waits_on_others(issue)
+            and not label_names(issue) & settled
+            and not turned_down(
+                github, config, number, activity.comments[number], pushers
+            )
+        ):
+            found.append(
+                Waiting(since, number, upvotes(issue), f"analyzed {ago(since, now)}")
+            )
+    return found
+
+
+def candidates_for_newcomers(
+    github: GitHub, config: Config, activity: Activity, now: datetime
 ) -> str:
+    """The list of the candidates, and what a maintainer does with them."""
+    found = newcomer_candidates(github, config, activity, now)
+    listed = listing(github, "Good first issue candidates", found)
+    if not found:
+        return listed
+    return (
+        f"{listed}\n\nThe AI thinks that someone new to the project could take these; "
+        f"it sets no label. Add `{config.group('contribution')[0]}` to those you "
+        "confirm. A 👎 on the analysis takes one off this list."
+    )
+
+
+def digest(github: GitHub, config: Config, activity: Activity, now: datetime) -> str:
     """What waits on whom, for the summary of the sweep: links and numbers alone,
     no text of an issue."""
-    return "\n\n".join(
-        [
-            listing(
-                github,
-                "Waiting on the maintainers",
-                waiting_on_maintainers(github, activity, now),
-            ),
-            listing(
-                github,
-                "Waiting on reporters",
-                waiting_on_reporters(github, lifecycle, now),
-            ),
-            listing(
-                github,
-                "Fixed, waiting for a release",
-                waiting_for_release(github, activity, now),
-            ),
-        ]
-    )
+    lists = [
+        listing(
+            github,
+            "Waiting on the maintainers",
+            waiting_on_maintainers(github, activity, now),
+        ),
+        listing(
+            github,
+            "Waiting on reporters",
+            waiting_on_reporters(github, config.lifecycle, now),
+        ),
+        listing(
+            github,
+            "Fixed, waiting for a release",
+            waiting_for_release(github, activity, now),
+        ),
+    ]
+    # Without labels to offer to newcomers, the AI isn't asked for candidates.
+    if config.group("contribution"):
+        lists.append(candidates_for_newcomers(github, config, activity, now))
+    return "\n\n".join(lists)
 
 
 @dataclass(frozen=True)
@@ -7382,6 +7517,32 @@ def question_outcomes(activity: Activity) -> str:
     )
 
 
+def newcomer_outcomes(github: GitHub, config: Config, activity: Activity) -> str:
+    """What became of the issues marked as candidates, at most of the MAX_CORRECTED
+    marked last: they have a label of the group `contribution`, a maintainer said no,
+    they closed without such a label, or they still wait."""
+    found = marked_newcomer(activity)
+    latest = sorted(found, key=lambda number: found[number], reverse=True)
+    latest = latest[:MAX_CORRECTED]
+    pushers: dict[str, bool] = {}
+    kept = removed = closed = pending = 0
+    for number in latest:
+        issue = activity.issues[number]
+        if label_names(issue) & set(config.group("contribution")):
+            kept += 1
+        elif turned_down(github, config, number, activity.comments[number], pushers):
+            removed += 1
+        elif issue["state"] == "open":
+            pending += 1
+        else:
+            closed += 1
+    of = f", of the {len(latest)} marked last" if len(latest) < len(found) else ""
+    return (
+        f"{len(found)}: kept {kept}, removed {removed}, closed without a label "
+        f"{closed}, waiting {pending}{of}"
+    )
+
+
 def quality(github: GitHub, config: Config, activity: Activity) -> str:
     """How the assistant did since the activity's moment, as a table of numbers."""
     first = activity.analyzed()
@@ -7418,6 +7579,14 @@ def quality(github: GitHub, config: Config, activity: Activity) -> str:
         ("Questions to reporters", question_outcomes(activity)),
         ("Feedback on the analyses", f"👍 {up}, 👎 {down}"),
     ]
+    if config.group("contribution"):
+        rows.insert(
+            -1,
+            (
+                "Good first issue candidates",
+                newcomer_outcomes(github, config, activity),
+            ),
+        )
     return "| Number | Value |\n| --- | --- |\n" + "\n".join(
         f"| {name} | {value} |" for name, value in rows
     )
@@ -7545,7 +7714,7 @@ def report(
     parts = [
         part(
             "Maintainer digest",
-            partial(digest, github, config.lifecycle, activity, now),
+            partial(digest, github, config, activity, now),
         )
     ]
     if monthly(event, now):

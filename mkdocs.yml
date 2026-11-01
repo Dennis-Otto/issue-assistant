@@ -93,6 +93,7 @@ nav:
       - Limits of the AI runs: features/limits.md
       - What one run may cost: features/cost.md
       - What the sweep tells the maintainers: features/digest.md
+      - Good first issue candidates: features/good-first-issues.md
       - When GitHub fails: features/github-failures.md
   - Guide:
       - Overview: guide.md

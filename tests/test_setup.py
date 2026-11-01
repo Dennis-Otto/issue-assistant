@@ -394,6 +394,7 @@ def test_the_starter_files_make_a_valid_set_up(tmp_path):
     assert "added what happens with an issue to SUPPORT.md; adapt it" in done
     project = tmp_path / assistant.SETTINGS / "project.md"
     config = assistant.load_config(tmp_path, REPOSITORY, lenient=True)
+    assert config.group("contribution") == ["good first issue", "help wanted"]
     # The one thing to write by hand: what the project is.
     assert assistant.check(config) == [
         ".github/issue-assistant/project.md: replace the starter's first line with "
