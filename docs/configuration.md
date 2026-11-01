@@ -71,6 +71,7 @@ unmapped_options = ["Other"]
 
 [transparency]
 files = ["SUPPORT.md"]
+credit = true                   # false: the footers of the AI's comments don't link the project
 
 [releases]
 close_with_release = true       # false: fixed issues don't wait for a release

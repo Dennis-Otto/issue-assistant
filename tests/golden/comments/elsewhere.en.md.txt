@@ -16,5 +16,5 @@ This may belong in `demo-org/plant-hub-firmware` rather than here; if so, a main
 
 - [demo-org/plant-hub-firmware#31](https://github.com/demo-org/plant-hub-firmware/issues/31): The same nightly drop, traced to the channel scan of the firmware.
 
-<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `bug`, `area: sensors`. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+<sub>🤖 Automated first analysis by Claude, based on the code, the documentation and earlier issues. It can be wrong; the maintainers decide. Labels: `bug`, `area: sensors`. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped. · [issue assistant](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

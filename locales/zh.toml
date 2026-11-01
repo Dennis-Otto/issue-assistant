@@ -76,6 +76,7 @@ footer = """\
   者做决定。{labels}{feedback}</sub>"""
 labels = "标签：{labels}。"
 about = "[助手的工作方式]({notice})"
+credit = "[议题助手]({project})"
 feedback = "对这条评论点 👍 或 👎，可以让维护者知道它是否有帮助。"
 "feedback.duplicate" = """\
   对这条评论点 👍 或 👎，可以让维护者知道它是否有帮助；点 👎 还会让议题保持打开。"""

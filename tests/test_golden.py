@@ -65,6 +65,36 @@ def test_every_comment_reads_as_its_golden_file(name):
     assert_golden(name, comment_files()[name])
 
 
+# A repository that sets [transparency] credit = false: the comments of the AI, whose
+# footers link the project in the files above, without that link.
+CREDITED = ("analysis", "follow-up", "answer", "discussion-answer")
+
+
+def comment_files_without_credit():
+    return {
+        f"comments/without-credit/{example.kind}.{language}.md.txt": example.texts[
+            language
+        ]
+        for example in hooks.examples(credit=False)
+        if example.kind in CREDITED
+        for language in ("en", "de")
+    }
+
+
+@pytest.mark.parametrize("name", sorted(comment_files_without_credit()))
+def test_a_comment_without_the_credit_reads_as_its_golden_file(name):
+    text = comment_files_without_credit()[name]
+    assert assistant.PROJECT not in text
+    assert_golden(name, text)
+
+
+@pytest.mark.parametrize("kind", CREDITED)
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_every_comment_of_the_ai_links_the_project(kind, language):
+    name = f"comments/{kind}.{language}.md.txt"
+    assert f"]({assistant.PROJECT})</sub>" in comment_files()[name]
+
+
 # The comments page shows the summary for the maintainers below an analysis in
 # Portuguese, a language of the catalogs; here it is below one in Vietnamese, which
 # has none, so the assistant's own words around the AI's are English.
@@ -445,6 +475,7 @@ def test_the_digest_issue_reads_as_its_golden_file(monkeypatch, tmp_path, root, 
 def test_every_golden_file_has_its_test():
     names = {
         *comment_files(),
+        *comment_files_without_credit(),
         OTHER,
         *(f"context/{mode}.txt" for mode in assistant.MODES),
         "context/triage-related.txt",

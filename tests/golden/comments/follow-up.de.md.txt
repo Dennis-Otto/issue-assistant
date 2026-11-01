@@ -16,5 +16,5 @@ Ohne Antwort folgt nach 15 Tagen eine Erinnerung, nach 30 Tagen wird das Issue g
 
 - [`src/plant_monitor/chart.py`, Zeile 52](https://github.com/demo-org/plant-monitor/blob/4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c/src/plant_monitor/chart.py#L52): Kehrt früh zurück, solange `subscribed` gesetzt ist.
 
-<sub>🤖 Automatische Rückmeldung von Claude. Sie kann falsch sein; die Maintainer entscheiden. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+<sub>🤖 Automatische Rückmeldung von Claude. Sie kann falsch sein; die Maintainer entscheiden. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat. · [Issue-Assistent](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

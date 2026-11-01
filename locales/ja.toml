@@ -84,6 +84,7 @@ footer = """\
   です。誤っている可能性があり、判断するのはメンテナーです。{labels}{feedback}</sub>"""
 labels = "ラベル：{labels}。"
 about = "[アシスタントの仕組み]({notice})"
+credit = "[Issue アシスタント]({project})"
 feedback = """\
   このコメントに 👍 または 👎 を付けると、役に立ったかどうかがメンテナーに伝わります。"""
 "feedback.duplicate" = """\

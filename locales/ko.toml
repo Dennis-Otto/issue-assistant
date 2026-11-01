@@ -89,6 +89,7 @@ footer = """\
   수 있으며, 결정은 메인테이너가 합니다.{labels} {feedback}</sub>"""
 labels = " 라벨: {labels}."
 about = "[어시스턴트의 작동 방식]({notice})"
+credit = "[이슈 어시스턴트]({project})"
 feedback = """\
   이 댓글에 👍 또는 👎 반응을 남기면 도움이 되었는지 메인테이너에게 알릴 수 있습니다."""
 "feedback.duplicate" = """\

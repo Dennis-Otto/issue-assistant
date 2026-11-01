@@ -132,12 +132,13 @@ LABEL = (
             CONFIG,
             '[links]\nhosts = "docs.example.com"\n\n[forms]\narea_field = 3\n'
             'unmapped_options = ["Other", 1]\n\n[transparency]\nfiles = "SUPPORT.md"\n'
-            '\n[releases]\nclose_with_release = "no"\n',
+            'credit = "no"\n\n[releases]\nclose_with_release = "no"\n',
             [
                 f"{CONFIG}: [links] hosts must be a list of strings",
                 f"{CONFIG}: [forms] area_field must be a string",
                 f"{CONFIG}: [forms] unmapped_options must be a list of strings",
                 f"{CONFIG}: [transparency] files must be a list of strings",
+                f"{CONFIG}: [transparency] credit must be true or false",
                 f"{CONFIG}: [releases] close_with_release must be true or false",
             ],
         ),

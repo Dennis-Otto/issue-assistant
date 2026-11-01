@@ -38,5 +38,5 @@ Ohne Antwort folgt nach 15 Tagen eine Erinnerung, nach 30 Tagen wird das Issue g
 
 </details>
 
-<sub>🤖 Automatische Erstanalyse von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer entscheiden. Labels: `connectivity`. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat.</sub>
+<sub>🤖 Automatische Erstanalyse von Claude auf Grundlage des Codes, der Dokumentation und früherer Issues. Sie kann falsch sein; die Maintainer entscheiden. Labels: `connectivity`. [So arbeitet der Assistent](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · Ein 👍 oder 👎 auf diesen Kommentar zeigt den Maintainern, ob er geholfen hat. · [Issue-Assistent](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

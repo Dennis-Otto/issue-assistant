@@ -923,6 +923,20 @@ FORMER_README = {
 README_BYTES = 25_000
 
 
+def test_the_readme_and_the_set_up_offer_the_same_badge_that_leads_to_the_website():
+    badge = (
+        "[![issues: triaged by issue assistant](https://img.shields.io/badge/"
+        "issues-triaged%20by%20issue%20assistant-blue)]"
+        "(https://dennis-otto.github.io/issue-assistant/)"
+    )
+    readme = (ROOT / "README.md").read_text("utf-8")
+    # In the README as a picture and as the snippet to copy; the website takes the
+    # badges out of its pages, so its page has the snippet alone.
+    assert section_of_readme(readme, "Show that you use it").count(badge) == 2
+    page = (ROOT / "docs" / "getting-started.md").read_text("utf-8")
+    assert page.split("\n## Show that you use it\n", 1)[1].count(badge) == 1
+
+
 def test_the_readme_is_short_and_leads_to_every_feature():
     readme = (ROOT / "README.md").read_text("utf-8")
     assert len(readme.encode("utf-8")) <= README_BYTES
@@ -1746,6 +1760,7 @@ SETTINGS = {
     "[forms] area_field": ("area_field", "Component"),
     "[forms] unmapped_options": ("unmapped_options", ["None"]),
     "[transparency] files": ("notices", ["README.md"]),
+    "[transparency] credit": ("credit", False),
     "[releases] close_with_release": ("releases", False),
     "[lifecycle] remind_after_days": ("lifecycle.remind_after_days", 20),
     "[lifecycle] close_after_days": ("lifecycle.close_after_days", 45),

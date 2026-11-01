@@ -9,5 +9,5 @@ Not yet: the dashboard shows the alerts of dry plants on its own screen only, an
 
 This sounds like a request for a new feature. To propose it, please [open an issue](https://github.com/demo-org/plant-monitor/issues/new/choose), so that the maintainers can track it.
 
-<sub>🤖 Automated first answer by Claude, based on the code, the documentation and earlier issues and discussions. It can be wrong; check it before you rely on it. If it answers your question, you can mark it as the answer. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+<sub>🤖 Automated first answer by Claude, based on the code, the documentation and earlier issues and discussions. It can be wrong; check it before you rely on it. If it answers your question, you can mark it as the answer. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped. · [issue assistant](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

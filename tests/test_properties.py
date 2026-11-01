@@ -275,7 +275,7 @@ def test_a_whole_comment_mentions_nobody_and_links_only_allowed_places(
     """Any answer that fits the schema, as the assistant posts it: every text where
     the comment puts it, next to the assistant's own words and the links that it
     checked. Only its own words may mention the reporter or the maintainer who
-    asked, show HTML or link to the security policy or the question."""
+    asked, show HTML or link to the security policy, the question or the project."""
     answer = answer_of(assistant.answer_schema(mode, sample_config), Drawn(data))
     bodies, numbers = posted_comments(sample_config, mode, answer)
     # How many answers the checks refuse, for --hypothesis-show-statistics.

@@ -14,5 +14,5 @@ To answer more precisely, please add the following in a comment:
 
 - [`src/plant_monitor/chart.py`, line 52](https://github.com/demo-org/plant-monitor/blob/4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c/src/plant_monitor/chart.py#L52): Draws one line for each sensor of `chart.sensors`.
 
-<sub>🤖 Automated first answer by Claude, based on the code, the documentation and earlier issues and discussions. It can be wrong; check it before you rely on it. If it answers your question, you can mark it as the answer. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+<sub>🤖 Automated first answer by Claude, based on the code, the documentation and earlier issues and discussions. It can be wrong; check it before you rely on it. If it answers your question, you can mark it as the answer. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped. · [issue assistant](https://github.com/Dennis-Otto/issue-assistant)</sub>
 

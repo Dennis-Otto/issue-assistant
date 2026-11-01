@@ -1,0 +1,18 @@
+<!-- issue-assistant:discussion-answer lang=en type=question questions=1 engine=claude -->
+
+Thanks for your question, @alex-demo! I'm the issue assistant of this repository and wrote a first answer. The maintainers and the community read along and may add to it.
+
+Yes. Add both sensors to `chart.sensors`, and the chart draws a line for each, in the colour of its plant; since 1.3, a click on a name in the legend hides its line. With more than four lines, a second chart reads better, as #17 shows.
+
+### Information needed
+
+To answer more precisely, please add the following in a comment:
+
+- The version of the dashboard, under Settings → About: the legend needs 1.3 or newer.
+
+### Where to look
+
+- [`src/plant_monitor/chart.py`, line 52](https://github.com/demo-org/plant-monitor/blob/4f1c2b7d9e0a3c5b6d8e1f2a4b6c8d0e2f4a6b8c/src/plant_monitor/chart.py#L52): Draws one line for each sensor of `chart.sensors`.
+
+<sub>🤖 Automated first answer by Claude, based on the code, the documentation and earlier issues and discussions. It can be wrong; check it before you rely on it. If it answers your question, you can mark it as the answer. [How the assistant works](https://github.com/demo-org/plant-monitor/blob/HEAD/SUPPORT.md#what-happens-with-your-issue) · A 👍 or 👎 on this comment tells the maintainers whether it helped.</sub>
+
