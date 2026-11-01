@@ -625,7 +625,7 @@ KINDS = {
         "discussions. Its questions add the label `needs-info`. More than "
         "{open_links} links to issues and files fold into one line, and the footer "
         "links the notice to reporters and asks for a 👍 or 👎, which the summary of "
-        "the daily sweep counts.",
+        "the daily sweep counts, and ends with a link to the project.",
     ),
     "maintainers": (
         "A summary for the maintainers",
