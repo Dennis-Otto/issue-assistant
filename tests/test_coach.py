@@ -36,6 +36,8 @@ SET_UP = ("actions/checkout@", "step-security/harden-runner@")
 # The run of the CI names its commit; a person on their machine names HEAD.
 SHA = ('"$GITHUB_SHA"', '"$(git rev-parse HEAD)"')
 COMMAND = "python3 issue_assistant.py"
+# The part that every leg on a runner other than the one of the templates explains.
+OTHER_RUNNER = "other-runner"
 
 
 def explain_step(job):
@@ -47,6 +49,18 @@ def explain_step(job):
         if last["name"] == "Wait until Harden-Runner has removed Docker"
         else last
     )
+
+
+def names_of(job):
+    """The names that GitHub shows for the checks of a job, one for each leg of its
+    matrix; the first leg runs on the runner of the templates."""
+    legs = job.get("strategy", {}).get("matrix", {}).get("include")
+    return [leg["check"] for leg in legs] if legs else [job["name"]]
+
+
+def name_of(job):
+    """The name of a job, by which the explanations know it."""
+    return names_of(job)[0]
 
 
 def parts_of(job):
@@ -91,7 +105,7 @@ def test_every_job_of_the_action_test_ends_with_the_explanation_of_its_failure(k
     if parts_of(job):
         command += ' --parts "${parts[@]}"'
     assert step["run"].strip().endswith(command)
-    assert job["name"] in CATALOG
+    assert name_of(job) in CATALOG
 
 
 @pytest.mark.parametrize("key", [key for key in JOBS if parts_of(JOBS[key])])
@@ -111,7 +125,7 @@ def test_each_step_of_a_job_with_parts_belongs_to_one_part(key):
     for step in steps:
         assert step["if"].startswith("${{ !cancelled() && steps.")
     for part in parts_of(job):
-        assert part in CATALOG, f"{part} of {job['name']} has no explanation"
+        assert part in CATALOG, f"{part} of {name_of(job)} has no explanation"
 
 
 @pytest.mark.parametrize(
@@ -148,7 +162,7 @@ def test_the_explanation_of_a_part_shows_how_to_run_its_steps(key, part):
 def test_the_coach_explains_each_job_and_each_part_that_failed(key, parts, tmp_path):
     """The command of the step writes each explanation into the summary of the job
     and as its annotation, by whose title the report of the PR coach finds it."""
-    name = JOBS[key]["name"]
+    name = name_of(JOBS[key])
     summary = tmp_path / "summary.md"
     result = coach("explain", name, "--parts", *parts, summary=summary)
     assert result.returncode == 0, result.stderr
@@ -167,6 +181,29 @@ def test_the_coach_explains_each_job_and_each_part_that_failed(key, parts, tmp_p
         assert f"]({docs})" in written
 
 
+@pytest.mark.parametrize(
+    ("key", "name"),
+    [(key, name) for key in JOBS for name in names_of(JOBS[key])[1:]],
+)
+def test_each_leg_on_another_runner_explains_that_runner(key, name, tmp_path):
+    """Whatever failed in the leg, the coach adds what to look at on a runner other
+    than the one of the templates, under the name that GitHub shows for the leg, by
+    which the report of the PR coach finds its annotation."""
+    job = JOBS[key]
+    legs = job["strategy"]["matrix"]["include"]
+    (runner,) = [leg["runner"] for leg in legs if leg["check"] == name]
+    assert name == f"{name_of(job)} ({runner})"
+    assert parts_of(job)[OTHER_RUNNER] == []
+    assert (
+        f"${{{{ matrix.runner != '{legs[0]['runner']}' && '{OTHER_RUNNER}' || '' }}}}"
+    ) in explain_step(job)["env"]["FAILED"]
+    summary = tmp_path / "summary.md"
+    result = coach("explain", name, "--parts", OTHER_RUNNER, summary=summary)
+    assert result.returncode == 0, result.stderr
+    heading = f"PR coach: {CATALOG[OTHER_RUNNER]['title']} (in {name})"
+    assert f"### {heading}\n" in summary.read_text(encoding="utf-8")
+
+
 def test_every_check_is_explained_and_says_how_it_is_fixed(tmp_path):
     """Every required check and every step of scripts/check.sh has an explanation,
     and each explanation says how it fixes itself, or why no command can."""
@@ -178,7 +215,7 @@ def test_every_check_is_explained_and_says_how_it_is_fixed(tmp_path):
 
 def test_each_explanation_of_the_project_is_for_a_check_that_exists():
     """An explanation of a check that no job runs any more would never show."""
-    jobs = {job["name"] for job in JOBS.values()}
+    jobs = {name_of(job) for job in JOBS.values()}
     parts = {part for job in JOBS.values() for part in parts_of(job)}
     # The fuzzing is the blueprint's workflow, which explains its job by this name.
     fuzz = yaml.safe_load(
