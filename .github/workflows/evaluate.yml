@@ -228,7 +228,7 @@ jobs:
           gh api "repos/$GH_REPO/contents/$PAGE?ref=$ref" > "$RUNNER_TEMP/page.json"
           jq --raw-output .content "$RUNNER_TEMP/page.json" | base64 --decode > "$PAGE"
           cp "$PAGE" "$RUNNER_TEMP/before.md"
-          python3 issue_assistant.py accuracy-page --report "$RUNNER_TEMP/accuracy/report.md"
+          python3 issue_assistant.py accuracy-page --report "$RUNNER_TEMP/accuracy/report.md" --repository "$TARGET"
           if cmp --silent "$PAGE" "$RUNNER_TEMP/before.md"; then
             echo "The page already has these numbers of $TARGET." >> "$GITHUB_STEP_SUMMARY"
             exit 0

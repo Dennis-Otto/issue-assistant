@@ -442,13 +442,16 @@ it first; no bot starts it."""
 title = "The numbers of the accuracy page (Evaluate workflow)"
 problem = """The job without an AI of the Evaluate workflow couldn't bring the numbers of
 the report into the pull request: the log names the step. `accuracy-page` refuses a
-report whose head isn't what `evaluate` writes, or a page without its block of
-numbers; a token of the release app may have lost a permission, or a commit of the
+report whose head isn't what `evaluate` writes, one that names another repository than
+the run measured, one in which every analysis failed, such as with a wrong token or a
+blocked host, or a page without its block of numbers; a token of the release app may have lost a permission, or a commit of the
 branch may have come in between."""
 why = """A report that doesn't fit could carry text from the job with the AI into the
 website, so the job stops rather than publish it."""
 fix = """A commit in between goes away with a run of the failed job again. A refused
-report needs a look at the artifact `accuracy` of the run; when `render_evaluation`
+report needs a look at the artifact `accuracy` of the run: when every analysis failed,
+its lines and the log of the job replay name why, and the page keeps its older numbers
+until a run after the fix; when `render_evaluation`
 changed the head of a report, `REPORT` of `issue_assistant.py` follows it. The tests
 of the two run without an AI:"""
 commands = [

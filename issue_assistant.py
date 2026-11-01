@@ -10592,15 +10592,21 @@ def measurement_of(report_text: str) -> Measurement:
         raise AssistantError(
             f"That is no report of evaluate: {found['day']} is no day."
         ) from None
+    failed, replayed = int(found["failed"] or 0), int(found["replayed"])
+    if failed >= replayed:
+        raise AssistantError(
+            "That is no report of evaluate with numbers: no analysis gave an answer, "
+            f"as {failed} of the {replayed} failed."
+        )
     return Measurement(
         found["repository"],
         day,
         found["engine"],
         found["model"],
-        int(found["replayed"]),
+        replayed,
         int(found["read"]),
         rows,
-        int(found["failed"] or 0),
+        failed,
         found["cost"],
     )
 
@@ -10761,6 +10767,11 @@ SCRIPT_OPTIONS: dict[str, dict[str, dict[str, Any]]] = {
             "required": True,
             "help": "the Markdown file of the report of evaluate",
         },
+        "--repository": {
+            "required": True,
+            "help": "the repository that the run measured, as owner/name; a report "
+            "that names another one is refused",
+        },
     },
     "install": {
         "--ref": {"help": "commit hash of the release; by default the checkout's"},
@@ -10827,7 +10838,7 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "install":
             return install_command(root, arguments)
         if arguments.command == "accuracy-page":
-            return accuracy_page_command(root, arguments.report)
+            return accuracy_page_command(root, arguments.report, arguments.repository)
         repository = repository_of_run(needed=arguments.command not in OFFLINE_COMMANDS)
         if arguments.command == "check":
             return check_command(root, repository)
@@ -11013,7 +11024,7 @@ def evaluate_command(
     return 0
 
 
-def accuracy_page_command(root: Path, report_file: Path) -> int:
+def accuracy_page_command(root: Path, report_file: Path, repository: str) -> int:
     page = root / ACCURACY_PAGE
     try:
         report_text = report_file.read_text(encoding="utf-8")
@@ -11021,6 +11032,10 @@ def accuracy_page_command(root: Path, report_file: Path) -> int:
     except (OSError, ValueError) as error:
         raise AssistantError(f"accuracy-page can't read a file: {error}") from None
     found = measurement_of(report_text)
+    if found.repository != repository:
+        raise AssistantError(
+            f"This run measured {repository}, and the report names {found.repository}."
+        )
     page.write_text(page_with_numbers(before, found), encoding="utf-8")
     summary(
         f"Accuracy on {found.repository}",

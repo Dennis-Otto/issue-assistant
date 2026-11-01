@@ -91,12 +91,14 @@
       // The command line of Claude in .github/evaluate/, which only the Evaluate
       // workflow installs, when a maintainer runs it; the job analyze gets Claude Code
       // from its action. It comes out nearly every day, and a measurement can wait, so
-      // once a month is enough. Nothing in the releases changes with it, and a run by
-      // hand shows a version that fails.
+      // once a month is enough. No release ships it, so its commit is a chore: as
+      // fix(deps), the default for dependencies, each update would publish a release
+      // with nothing in it. The rules of the blueprint merge a minor or patch version;
+      // a major one waits for the maintainer, since no check runs this command line.
       matchDepNames: ["@anthropic-ai/claude-code"],
       groupName: "the command line of Claude for the Evaluate workflow",
       schedule: ["* * 1 * *"],
-      automerge: true,
+      semanticCommitType: "chore",
     },
   ],
 }

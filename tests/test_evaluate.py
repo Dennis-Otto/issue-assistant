@@ -849,6 +849,11 @@ def test_an_accuracy_section_without_failures_or_costs_says_neither():
     assert "never analyzed. Small numbers vary" in section
 
 
+def accuracy_page_arguments(report):
+    """The command line of the job publish for a report of REPOSITORY."""
+    return ["accuracy-page", "--report", str(report), "--repository", REPOSITORY]
+
+
 def test_the_report_of_every_engine_and_measure_fits_the_accuracy_page():
     """A change of the head of the report that REPORT doesn't follow fails here, not
     in the job publish, after the money of a run."""
@@ -976,11 +981,49 @@ def test_accuracy_page_writes_the_numbers_into_the_page_of_the_checkout(
     report = tmp_path / "report.md"
     report.write_text(report_of(), encoding="utf-8")
     code, _, written = run_main(
-        monkeypatch, tmp_path, root, None, "accuracy-page", "--report", str(report)
+        monkeypatch, tmp_path, root, None, *accuracy_page_arguments(report)
     )
     assert code == 0
     assert "### [owner/project]" in page.read_text(encoding="utf-8")
     assert "The numbers of 2026-10-17 are in docs/accuracy.md." in written
+
+
+def test_accuracy_page_refuses_the_report_of_another_repository(
+    monkeypatch, tmp_path, root, capsys
+):
+    """The name comes from the job with the AI: a tampered report must not put a link
+    to any repository on the website, nor the table of another one."""
+    (root / "docs").mkdir(exist_ok=True)
+    page = root / assistant.ACCURACY_PAGE
+    page.write_text(PAGE, encoding="utf-8")
+    report = tmp_path / "report.md"
+    report.write_text(
+        report_of().replace(f"on {REPOSITORY}\n", "on someone/else\n", 1),
+        encoding="utf-8",
+    )
+    code, _, _ = run_main(
+        monkeypatch, tmp_path, root, None, *accuracy_page_arguments(report)
+    )
+    assert code == 1
+    assert (
+        f"This run measured {REPOSITORY}, and the report names someone/else."
+        in capsys.readouterr().out
+    )
+    assert page.read_text(encoding="utf-8") == PAGE
+
+
+@pytest.mark.parametrize("failed", [3, 31])
+def test_a_report_without_one_answer_is_refused(failed):
+    """evaluate ends well when every analysis fails, such as with a wrong token: its
+    empty table must not replace the older numbers of the repository."""
+    text = report_of()
+    assert "1 of the 3 analyses failed" in text
+    with pytest.raises(assistant.AssistantError, match="no analysis gave an answer"):
+        assistant.measurement_of(
+            text.replace(
+                "1 of the 3 analyses failed", f"{failed} of the 3 analyses failed"
+            )
+        )
 
 
 def test_accuracy_page_needs_no_repository_of_the_run(monkeypatch, tmp_path, root):
@@ -994,7 +1037,7 @@ def test_accuracy_page_needs_no_repository_of_the_run(monkeypatch, tmp_path, roo
     for name in ("GH_REPO", "GITHUB_REPOSITORY", "ISSUE_ASSISTANT_ROOT"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.delenv("ISSUE_ASSISTANT_FIXTURE", raising=False)
-    assert assistant.main(["accuracy-page", "--report", str(report)]) == 0
+    assert assistant.main(accuracy_page_arguments(report)) == 0
 
 
 @pytest.mark.parametrize("missing", ["report", "page"])
@@ -1008,7 +1051,7 @@ def test_accuracy_page_says_which_file_it_cannot_read(
     if missing != "page":
         (root / assistant.ACCURACY_PAGE).write_text(PAGE, encoding="utf-8")
     code, _, _ = run_main(
-        monkeypatch, tmp_path, root, None, "accuracy-page", "--report", str(report)
+        monkeypatch, tmp_path, root, None, *accuracy_page_arguments(report)
     )
     assert code == 1
     assert "::error::accuracy-page can't read a file:" in capsys.readouterr().out
@@ -1022,7 +1065,7 @@ def test_accuracy_page_leaves_the_page_alone_when_it_refuses_the_report(
     page.write_text(PAGE, encoding="utf-8")
     report = tmp_path / "report.md"
     report.write_bytes(b"\xff not a text")
-    arguments = ("accuracy-page", "--report", str(report))
+    arguments = accuracy_page_arguments(report)
     assert run_main(monkeypatch, tmp_path, root, None, *arguments)[0] == 1
     report.write_text("# Something else\n", encoding="utf-8")
     assert run_main(monkeypatch, tmp_path, root, None, *arguments)[0] == 1
@@ -1110,7 +1153,17 @@ def test_the_command_line_of_the_evaluate_workflow_comes_from_its_lock_file():
         if name
     )
     renovate = (ROOT / ".github" / "renovate.json5").read_text(encoding="utf-8")
-    assert 'matchDepNames: ["@anthropic-ai/claude-code"]' in renovate
+    rule = renovate.split('matchDepNames: ["@anthropic-ai/claude-code"]')[1]
+    rule = rule.split("}")[0]
+    # An update is no release, as no release ships it, and a major one waits.
+    assert 'semanticCommitType: "chore"' in rule
+    assert "automerge" not in rule
+    # The dependency review allows what the lock file installs, by name alone.
+    review = (ROOT / ".github" / "dependency-review.yml").read_text(encoding="utf-8")
+    allowed = re.findall(r"(?m)^  - pkg:npm/%40(anthropic-ai/\S+)$", review)
+    assert sorted(allowed) == sorted(
+        name.removeprefix("node_modules/@") for name in packages if name
+    )
 
 
 def test_the_job_that_publishes_the_numbers_has_no_ai_and_no_secret_of_an_engine():
@@ -1130,7 +1183,12 @@ def test_the_job_that_publishes_the_numbers_has_no_ai_and_no_secret_of_an_engine
         "permission-pull-requests": "write",
     }
     write = step_named("publish", "Write the numbers into a pull request")["run"]
-    assert 'accuracy-page --report "$RUNNER_TEMP/accuracy/report.md"' in write
+    assert (
+        'accuracy-page --report "$RUNNER_TEMP/accuracy/report.md" '
+        '--repository "$TARGET"' in write
+    )
+    target = step_named("publish", "Write the numbers into a pull request")["env"]
+    assert target["TARGET"] == "${{ inputs.repository }}"
     # It runs nothing of the report: the script reads it as data.
     assert write.count("report.md") == 1
     assert steps_of("publish")[0]["with"]["egress-policy"] == "block"
@@ -1162,9 +1220,7 @@ def test_the_job_that_publishes_checks_out_all_that_its_command_reads(tmp_path):
         [
             sys.executable,
             "issue_assistant.py",
-            "accuracy-page",
-            "--report",
-            str(report),
+            *accuracy_page_arguments(report),
         ],
         cwd=folder,
         env={
