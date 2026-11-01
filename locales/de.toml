@@ -29,7 +29,7 @@ stopwords = [
 
 sample = "Die Karte zeigt nichts an, wenn ich einen Dart werfe und das ist komisch."
 
-# The texts of the comments, by the keys that issue_assistant.py uses.
+# The texts of the comments, by the keys that the package issue_assistant uses.
 [text]
 "thanks.default" = "Danke für dein Issue, @{author}!"
 "thanks.bug" = "Danke für deine Meldung, @{author}!"

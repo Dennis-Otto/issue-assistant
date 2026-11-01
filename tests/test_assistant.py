@@ -51,6 +51,7 @@ from support import (
     not_found,
     rate_limited,
     release_history,
+    replace_everywhere,
     run_main,
     server_error,
     stray_problems,
@@ -384,7 +385,7 @@ def test_a_catalog_takes_what_it_lacks_from_english(tmp_path, monkeypatch):
     assert example.texts["intro"] == locales["en"].texts["intro"]
     assert (example.address, example.date, example.months) == ("", "", ())
     assert example.stopwords == frozenset()
-    monkeypatch.setattr(assistant, "LOCALES", locales)
+    monkeypatch.setattr(assistant.languages, "LOCALES", locales)
     moment = datetime(2026, 10, 22, tzinfo=UTC)
     assert assistant.format_date(moment, "xx") == "2026-10-22"
 
@@ -9352,7 +9353,7 @@ def test_the_digest_lists_what_waits_on_whom(config, capsys):
 def test_a_list_of_the_digest_names_the_first_issues_and_counts_the_rest(
     monkeypatch, config
 ):
-    monkeypatch.setattr(assistant, "DIGEST_ITEMS", 2)
+    monkeypatch.setattr(assistant.digests, "DIGEST_ITEMS", 2)
     github = FakeGitHub(config)
     items = [
         assistant.Waiting(NOW - timedelta(days=number), number, 0, "fixed")
@@ -9519,7 +9520,7 @@ def test_the_corrections_are_those_of_the_maintainers(config):
 
 
 def test_the_quality_reads_the_events_of_the_latest_issues_alone(monkeypatch, config):
-    monkeypatch.setattr(assistant, "MAX_CORRECTED", 2)
+    replace_everywhere(monkeypatch, "MAX_CORRECTED", 2)
     github = quality_github(config)
     activity = assistant.Activity.read(github, NOW - assistant.FEEDBACK_PERIOD)
     table = assistant.quality(github, config, activity)
@@ -9722,7 +9723,7 @@ def test_a_bot_s_or_too_many_people_s_thumbs_down_cost_no_calls(config, monkeypa
     """A bot's 👎 is never looked up, and after MAX_DISLIKERS people the 👎 of
     anyone else counts for nothing, so that many accounts can't make each triage
     read more."""
-    monkeypatch.setattr(assistant, "MAX_DISLIKERS", 1)
+    monkeypatch.setattr(assistant.learning, "MAX_DISLIKERS", 1)
     github = learning_github(config)
     github.reaction_store[670].insert(
         0, {"content": "-1", "user": {"login": "helper[bot]", "type": "Bot"}}
@@ -9788,7 +9789,7 @@ def test_an_issue_learns_from_its_own_corrections_and_not_beyond_the_window(conf
 # The context is written into config.root, which is then a copy of the sample.
 @pytest.mark.usefixtures("root")
 def test_corrections_md_stays_short(monkeypatch, config):
-    monkeypatch.setattr(assistant, "MAX_LEARNED", 200)
+    monkeypatch.setattr(assistant.learning, "MAX_LEARNED", 200)
     github = learning_github(config)
     # A label's name stays as labels.md writes it, umlauts and all.
     ui = assistant.Label("area: Oberfläche", "bfdadc", "UI", "area")
@@ -9805,7 +9806,7 @@ def test_corrections_md_stays_short(monkeypatch, config):
         "\n(2 more issues left out.)\n",
     )
     # One line longer than the limit is still there.
-    monkeypatch.setattr(assistant, "MAX_LEARNED", 10)
+    monkeypatch.setattr(assistant.learning, "MAX_LEARNED", 10)
     assistant.write_context(github, 12, "triage", config)
     assert learned(config).endswith("\n```\n\n(3 more issues left out.)\n")
 
@@ -10338,7 +10339,7 @@ def test_the_quality_counts_what_became_of_the_candidates(config):
 def test_the_quality_counts_the_candidates_marked_last_alone(monkeypatch, config):
     offered = offering(config)
     github = candidates_github(offered)
-    monkeypatch.setattr(assistant, "MAX_CORRECTED", 2)
+    replace_everywhere(monkeypatch, "MAX_CORRECTED", 2)
     assert assistant.newcomer_outcomes(github, offered, activity_of(github)) == (
         "22: kept 1, removed 0, closed without a label 1, waiting 0, of the 2 marked "
         "last"
@@ -10708,7 +10709,7 @@ def test_a_morning_sweep_reads_the_comments_and_events_of_an_issue_once(
     """The digest lists the issues that wait for their reporters with what the
     sweep's own step just read: the token's requests per hour are few."""
     github = digest_github(config)
-    monkeypatch.setattr(assistant, "datetime", Frozen)
+    monkeypatch.setattr(assistant.cli, "datetime", Frozen)
     code, _, summary = run_main(
         monkeypatch,
         tmp_path,
@@ -10769,7 +10770,7 @@ def test_the_repository_comes_from_gh_repo_or_the_workflow(
         connected.append(repository)
         return FakeGitHub(config)
 
-    monkeypatch.setattr(assistant, "GitHub", connect)
+    monkeypatch.setattr(assistant.cli, "GitHub", connect)
     for gh_repo, workflow in (
         ("", "owner/from-the-workflow"),
         ("Some-Org/project.github.io", "owner/from-the-workflow"),
@@ -10980,10 +10981,9 @@ def test_a_preview_can_t_close_its_fence(monkeypatch, tmp_path, capsys):
     assert [token.tag for token in tokens if token.type == "heading_open"] == ["h3"]
 
 
-def test_the_script_runs_as_a_program(monkeypatch, capsys):
-    script = assistant.TOOL / "issue_assistant.py"
-    monkeypatch.setattr(sys, "argv", [str(script), "--help"])
+def test_the_package_runs_as_a_program(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["issue_assistant", "--help"])
     with pytest.raises(SystemExit) as stop:
-        runpy.run_path(str(script), run_name="__main__")
+        runpy.run_module("issue_assistant", run_name="__main__")
     assert stop.value.code == 0
     assert "sync-labels" in capsys.readouterr().out

@@ -124,4 +124,8 @@ runs:
         # CLI's telemetry would only knock at another one.
         GH_TELEMETRY: "false"
       # Every value reaches the script through the environment, never the script text.
-      run: python3 "$GITHUB_ACTION_PATH/issue_assistant.py" "$COMMAND"
+      # -P keeps the checkout of the repository out of the imports, where a json.py of a
+      # pull request would run otherwise, and -B leaves the folder of the action as its
+      # commit has it. A PYTHONPATH of the caller stays behind the tool's, and only when
+      # it is set: an empty entry would be the current folder again.
+      run: PYTHONPATH="$GITHUB_ACTION_PATH${PYTHONPATH:+:$PYTHONPATH}" python3 -P -B -m issue_assistant "$COMMAND"

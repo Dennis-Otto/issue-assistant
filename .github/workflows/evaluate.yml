@@ -96,7 +96,7 @@ jobs:
             exit 1
           fi
           mkdir -p "$RUNNER_TEMP/accuracy"
-          PATH="$RUNNER_TEMP/bin:$PATH" python3 issue_assistant.py evaluate \
+          PATH="$RUNNER_TEMP/bin:$PATH" python3 -m issue_assistant evaluate \
             --engine claude --issues "$ISSUES" --report "$RUNNER_TEMP/accuracy/report.md"
       - name: Keep the report for the job publish
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -144,7 +144,7 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: |
-            /issue_assistant.py
+            /issue_assistant/
             /locales/
             /docs/accuracy.md
             /.github/
@@ -228,7 +228,7 @@ jobs:
           gh api "repos/$GH_REPO/contents/$PAGE?ref=$ref" > "$RUNNER_TEMP/page.json"
           jq --raw-output .content "$RUNNER_TEMP/page.json" | base64 --decode > "$PAGE"
           cp "$PAGE" "$RUNNER_TEMP/before.md"
-          python3 issue_assistant.py accuracy-page --report "$RUNNER_TEMP/accuracy/report.md" --repository "$TARGET"
+          python3 -m issue_assistant accuracy-page --report "$RUNNER_TEMP/accuracy/report.md" --repository "$TARGET"
           if cmp --silent "$PAGE" "$RUNNER_TEMP/before.md"; then
             echo "The page already has these numbers of $TARGET." >> "$GITHUB_STEP_SUMMARY"
             exit 0

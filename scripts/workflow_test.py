@@ -66,7 +66,7 @@ WATCHED = (
     ".github/workflows/workflow-test.yml",
     "scripts/workflow_test.py",
     "action.yml",
-    "issue_assistant.py",
+    "issue_assistant/*",
     "version.txt",
     "prompts/*",
     "locales/*",

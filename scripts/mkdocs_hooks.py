@@ -37,7 +37,7 @@ What the code knows:
 
 - The comments on the page What reporters see, docs/comments.md: every comment that
   the assistant posts, in English and in German, made by the functions and with the
-  texts of issue_assistant.py of the commit that the website is built from, for the
+  texts of the package issue_assistant of the commit that the website is built from, for the
   demo project of the pictures. No file holds them.
 - The tables of the inputs and outputs of the action, from action.yml, on a page
   with the line <!-- action.yml: inputs --> or <!-- action.yml: outputs -->.
@@ -615,7 +615,7 @@ PORTUGUESE = {
     "missing": ["A versão do firmware do sensor."],
 }
 # Each comment of the page: its heading, and when the assistant posts it. The
-# fields in braces are the timing rules of issue_assistant.py, see timings().
+# fields in braces are the timing rules of the assistant, see timings().
 KINDS = {
     "analysis": (
         "The first analysis",
@@ -766,7 +766,7 @@ KINDS = {
 }
 # The part of a page that the comments replace; on GitHub, it says where they are.
 REGION = re.compile(
-    r"^<!-- comments of issue_assistant\.py -->$.*?^<!-- end of the comments -->$",
+    r"^<!-- comments of issue_assistant -->$.*?^<!-- end of the comments -->$",
     re.MULTILINE | re.DOTALL,
 )
 # The placeholder of a comment, ending in the code of its language, such as -zh.
@@ -824,15 +824,18 @@ class Example(NamedTuple):
 
 
 def assistant() -> ModuleType:
-    """issue_assistant.py of the commit that the website is built from."""
+    """The package issue_assistant of the commit that the website is built from."""
     module = sys.modules.get("issue_assistant")
     if module is None:
+        package = ROOT / "issue_assistant"
         spec = importlib.util.spec_from_file_location(
-            "issue_assistant", ROOT / "issue_assistant.py"
+            "issue_assistant",
+            package / "__init__.py",
+            submodule_search_locations=[str(package)],
         )
         assert spec and spec.loader
         module = importlib.util.module_from_spec(spec)
-        # Its dataclasses look up their module there.
+        # Its modules import each other, and its dataclasses look up their module, there.
         sys.modules["issue_assistant"] = module
         spec.loader.exec_module(module)
     return module
@@ -996,7 +999,7 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
 
 
 def demo_link(ia: ModuleType, item: dict[str, Any], config: Any, language: str) -> str:
-    """A reference as references() of issue_assistant.py makes it, with the files of
+    """A reference as references() of the assistant makes it, with the files of
     the demo project for those that git tracks."""
     found = ia.reference_link(item, set(DEMO_FILES), DEMO_SHA, language, config)
     if not found:
@@ -1019,7 +1022,7 @@ def first_analysis(ia: ModuleType, config: Any, language: str) -> str:
     words = WORDS[language]
     line = {"path": CHART, "line": 52}
     anchor = {"path": TROUBLESHOOTING, "anchor": ia.slug("The chart stays empty")}
-    # As check_findings() of issue_assistant.py lists them.
+    # As check_findings() of the assistant lists them.
     related = [
         f"#17: {words['related'][0]}",
         f"#9 ({ia.say(language, 'discussion')}): {words['related'][1]}",
@@ -1088,7 +1091,7 @@ def examples(**settings: Any) -> list[Example]:
 
 
 def timings(ia: ModuleType, lifecycle: Any = None) -> dict[str, Any]:
-    """The timing rules of issue_assistant.py, for the texts of KINDS: those of
+    """The timing rules of the assistant, for the texts of KINDS: those of
     `lifecycle`, or the defaults of [lifecycle] in config.toml."""
     lifecycle = lifecycle or ia.DEFAULT_LIFECYCLE
     follow_ups = lifecycle.max_follow_ups

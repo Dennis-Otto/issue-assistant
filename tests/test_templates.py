@@ -22,8 +22,9 @@ import pytest
 import yaml
 
 import issue_assistant as assistant
+from support import package_source
 
-ROOT = Path(assistant.__file__).parent
+ROOT = assistant.TOOL
 # The workflows that install writes into a repository: the triggers, the permissions
 # and the pin of a reusable workflow of this repository, which has the jobs.
 TEMPLATES = assistant.TEMPLATES / assistant.WORKFLOWS
@@ -67,7 +68,7 @@ TOOL_CHECKOUT = {
         f"/{path}\n"
         for path in (
             "action.yml",
-            "issue_assistant.py",
+            "issue_assistant/",
             "version.txt",
             "prompts/",
             "locales/",
@@ -572,14 +573,12 @@ def test_the_tool_checkout_holds_what_the_action_reads_and_nothing_more():
     only what the action runs: never the docs and tests of the issue assistant,
     whose texts would only mislead the engine."""
     checked_out = TOOL_CHECKOUT["sparse-checkout"].splitlines()
-    source = (ROOT / "issue_assistant.py").read_text(encoding="utf-8")
     read = {"/action.yml"} | {
-        f"/{path}" for path in re.findall(r"""TOOL / ["']([^"']+)["']""", source)
+        f"/{path}"
+        for path in re.findall(r"""TOOL / ["']([^"']+)["']""", package_source())
     }
     action = (ROOT / "action.yml").read_text(encoding="utf-8")
-    read |= {
-        f"/{path}" for path in re.findall(r"\$GITHUB_ACTION_PATH/(\S+?)\"", action)
-    }
+    read |= {f"/{path}" for path in re.findall(r" -m (\S+) ", action)}
     assert {path.rstrip("/") for path in checked_out} == read
     assert all((ROOT / path.strip("/")).exists() for path in checked_out)
 
@@ -809,7 +808,7 @@ def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
     ]
     # And context, which only reads, for a real issue among issues and discussions.
     (context,) = [step for step in job["steps"] if " context " in step.get("run", "")]
-    assert context["run"].startswith("python3 issue_assistant.py context --issue ")
+    assert context["run"].startswith("python3 -m issue_assistant context --issue ")
     assert context["env"]["GH_TOKEN"] == "${{ github.token }}"
     # A token that can only read, so that a write which a dry run let through fails.
     assert job["permissions"] == {
@@ -1204,7 +1203,7 @@ def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
     paths = triggers["push"]["paths"]
     for path in (
         "action.yml",
-        "issue_assistant.py",
+        "issue_assistant/**",
         "prompts/**",
         f"{assistant.WORKFLOWS}/{assistant.REUSABLE_PREFIX}issue-assistant.yml",
         f"templates/{assistant.FIREWALL}",
@@ -1372,7 +1371,10 @@ def test_untrusted_text_never_reaches_a_shell_script(path):
 
 def test_the_action_passes_every_input_through_the_environment():
     step = ACTION["runs"]["steps"][-1]
-    assert step["run"] == 'python3 "$GITHUB_ACTION_PATH/issue_assistant.py" "$COMMAND"'
+    assert step["run"] == (
+        'PYTHONPATH="$GITHUB_ACTION_PATH${PYTHONPATH:+:$PYTHONPATH}" '
+        'python3 -P -B -m issue_assistant "$COMMAND"'
+    )
     inputs = {f"${{{{ inputs.{name} }}}}" for name in ACTION["inputs"]}
     assert inputs <= set(step["env"].values())
     for name, output in ACTION["outputs"].items():
@@ -1423,7 +1425,7 @@ def test_the_action_checks_the_python_before_it_runs_the_script():
     assert guard["id"] == "python" and guard["shell"] == "bash"
     assert "continue-on-error" not in guard
     assert "if" not in script
-    assert "issue_assistant.py" not in guard["run"]
+    assert "issue_assistant" not in guard["run"]
     # It takes no input, so no value of an issue or a repository reaches its text.
     assert "${{" not in guard["run"] and "env" not in guard
 
@@ -1652,12 +1654,9 @@ def test_the_docs_install_the_command_lines_from_their_lock_files():
         text = path.read_text(encoding="utf-8")
         assert "engines/" in text and "npm ci" in text, name
     # The decision record tells the history of the input, the others its present.
-    for path in [
-        *list(pages.values())[:3],
-        ROOT / "action.yml",
-        ROOT / "issue_assistant.py",
-    ]:
+    for path in [*list(pages.values())[:3], ROOT / "action.yml"]:
         assert "engine-version" not in path.read_text(encoding="utf-8"), path.name
+    assert "engine-version" not in package_source()
     assert "ENGINE_VERSION" not in (ROOT / "action.yml").read_text(encoding="utf-8")
 
 
@@ -1994,7 +1993,7 @@ VENDORS = re.compile(r"Claude|Anthropic|OpenAI|Codex|Copilot|GPT|Gemini", re.IGN
 
 @pytest.mark.mutation_unsafe
 def test_only_the_engine_table_names_a_vendor():
-    source = (ROOT / "issue_assistant.py").read_text(encoding="utf-8")
+    source = package_source()
     table = re.search(r"^ENGINES = \{.*?\}$", source, re.MULTILINE | re.DOTALL)
     assert table and VENDORS.search(table[0])
     rest = re.sub(

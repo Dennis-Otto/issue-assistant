@@ -23,7 +23,7 @@ months = [
 # writes in the language of whose stopwords their words have the most, in
 # English when no other language has more, or fewer than two.
 # Each of the letters ё, ъ, ы and э, which Ukrainian lacks, counts as one as
-# well, as OWN_LETTERS of issue_assistant.py describes.
+# well, as OWN_LETTERS of issue_assistant/languages.py describes.
 stopwords = [
   "и", "что", "это", "как", "когда", "но", "или", "меня", "мой", "после", "если",
   "нет", "уже", "очень", "только", "можно", "будет", "есть", "его", "она", "мы",
@@ -34,7 +34,7 @@ stopwords = [
 # that the assistant guesses the language from it.
 sample = "Карточка ничего не показывает, когда я бросаю дротик, и это неправильно."
 
-# The texts of the comments, by the keys that issue_assistant.py uses.
+# The texts of the comments, by the keys that the package issue_assistant uses.
 [text]
 "thanks.default" = "Спасибо, что открыли этот issue, @{author}!"
 "thanks.bug" = "Спасибо за сообщение об ошибке, @{author}!"
@@ -162,7 +162,7 @@ locked = """\
   эту проблему или похожую, откройте, пожалуйста, новый issue и сошлитесь на этот."""
 "days.one" = "{count} день"
 # After 2, 3 and 4 and after the numbers that end in them, but not after 12, 13 and
-# 14, as FEW of issue_assistant.py describes.
+# 14, as FEW of issue_assistant/languages.py describes.
 "days.few" = "{count} дня"
 "days.other" = "{count} дней"
 line = "{file}, строка {line}"

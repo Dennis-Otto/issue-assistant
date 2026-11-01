@@ -21,7 +21,7 @@ In the root of your repository, these commands install the workflows of the late
 tag="$(gh release view --repo Dennis-Otto/issue-assistant --json tagName --jq .tagName)"
 dir="$(mktemp -d)"
 git clone --quiet --depth 1 --branch "$tag" https://github.com/Dennis-Otto/issue-assistant "$dir" &&
-  python3 "$dir/issue_assistant.py" install --setup
+  PYTHONPATH="$dir" python3 -P -m issue_assistant install --setup
 ```
 
 Then describe the project, clear one setting and try it on an issue, as [Set up a repository](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.md#set-up-a-repository) shows. [Requirements](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.md#requirements) lists what it needs, and the [FAQ](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/faq.md#what-does-it-cost) what it costs.

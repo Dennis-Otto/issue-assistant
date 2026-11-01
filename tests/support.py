@@ -32,6 +32,8 @@ schemas = importlib.util.module_from_spec(_spec)
 sys.modules[_spec.name] = schemas
 _spec.loader.exec_module(schemas)
 
+# The folder of the package, whose code package_source() reads.
+PACKAGE = Path(assistant.__file__).parent
 REPOSITORY = "owner/project"
 # The settings that the property tests and the fuzzers clean with: a repository, a
 # kind of issue and one site besides GitHub that links may lead to.
@@ -89,7 +91,7 @@ def at(days_ago: float = 0) -> str:
 
 class Frozen(datetime):
     """The clock of the tests, NOW, in place of the real one of main, which the
-    sweep reads: monkeypatch.setattr(assistant, "datetime", Frozen). Without it, a
+    sweep reads: monkeypatch.setattr(assistant.cli, "datetime", Frozen). Without it, a
     test of a sweep would change its result as the days pass."""
 
     @classmethod
@@ -1425,7 +1427,7 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
     for key, value in env.items():
         monkeypatch.setenv(key, value)
     if github is not None:
-        monkeypatch.setattr(assistant, "GitHub", lambda repository, dry_run: github)
+        monkeypatch.setattr(assistant.cli, "GitHub", lambda repository, dry_run: github)
     code = assistant.main(list(argv))
     text = outputs.read_text("utf-8") if outputs.exists() else ""
     return code, text, summary.read_text("utf-8") if summary.exists() else ""
@@ -1597,3 +1599,26 @@ ESCAPES = [
     ("[x](https://github.com/owner/project/blob/(a)/../../../../evil/repo)", set()),
     ("[x](https://github.com/owner/project/blob/&#46;&#46;/&#46;&#46;/e/r)", set()),
 ]
+
+
+def package_source() -> str:
+    """The code of the package as text, one module after the other. In mutmut's copy
+    each module holds every mutant beside its function, so a test that reads it gets
+    the marker mutation_unsafe, which tests/test_mutation_safety.py asks for."""
+    return "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted(PACKAGE.glob("*.py"))
+    )
+
+
+def replace_everywhere(monkeypatch: Any, name: str, value: Any) -> None:
+    """Replace a name in the package and in each of its modules that looks it up:
+    each holds what it imports under a name of its own, so a test of a path through
+    several of them replaces it in each."""
+    modules = [
+        module
+        for key, module in sys.modules.items()
+        if key.partition(".")[0] == assistant.__name__ and hasattr(module, name)
+    ]
+    assert modules, f"No module of the package has {name}."
+    for module in modules:
+        monkeypatch.setattr(module, name, value)

@@ -167,7 +167,7 @@ def test_the_calls_run_for_every_file_that_the_dry_runs_run_or_read():
     # files of the smoke test and this workflow with its script.
     for path in (
         "action.yml",
-        "issue_assistant.py",
+        "issue_assistant/cli.py",
         "version.txt",
         "prompts/triage.md",
         "locales/en.toml",
@@ -388,7 +388,7 @@ def test_the_files_of_a_pull_request_count_a_renamed_file_by_its_old_name_too(
     assert script.files_of("o/r", "12") is None
 
 
-@pytest.mark.parametrize("files", ["docs/faq.md\n", "issue_assistant.py\n"])
+@pytest.mark.parametrize("files", ["docs/faq.md\n", "issue_assistant/cli.py\n"])
 def test_changes_writes_its_decision_and_why(monkeypatch, tmp_path, capsys, files):
     monkeypatch.setattr(subprocess, "run", completed(files))
     output, summary = tmp_path / "output", tmp_path / "summary"
@@ -404,7 +404,7 @@ def test_changes_writes_its_decision_and_why(monkeypatch, tmp_path, capsys, file
     assert output.read_text("utf-8") == f"run={str(runs).lower()}\n"
     reason = capsys.readouterr().out
     assert summary.read_text("utf-8") == reason
-    assert ("issue_assistant.py" in reason) is runs
+    assert ("issue_assistant/cli.py" in reason) is runs
 
 
 def test_changes_runs_everything_outside_a_pull_request(monkeypatch, capsys):

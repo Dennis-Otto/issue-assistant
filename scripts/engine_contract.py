@@ -65,7 +65,10 @@ TOOL = f"./{assistant.CONTEXT}/action"
 # Besides the workflows with the step of an engine, the files whose change the check
 # runs for: what keeps the engines to reading, and the check itself.
 WATCHED = (
-    "issue_assistant.py",
+    *(
+        path.relative_to(ROOT).as_posix()
+        for path in sorted((ROOT / "issue_assistant").glob("*.py"))
+    ),
     "action.yml",
     "scripts/engine_contract.py",
     ".github/workflows/action-test.yml",

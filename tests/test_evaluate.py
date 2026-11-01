@@ -173,7 +173,7 @@ def test_closed_issues_come_a_page_at_a_time_up_to_their_limit(monkeypatch, conf
     next(pages)
     assert github.issue_pages["EVALUATED"] == 1
     assert len(list(pages)) == 249 and github.issue_pages["EVALUATED"] == 3
-    monkeypatch.setattr(assistant, "EVALUATION_PAGES", 2)
+    monkeypatch.setattr(assistant.github, "EVALUATION_PAGES", 2)
     assert len(list(github.closed_issues())) == 200
 
 
@@ -1140,7 +1140,7 @@ def test_the_ai_of_the_evaluate_workflow_runs_behind_the_firewall_and_writes_not
     assert [checkout.get("path") for checkout in checkouts] == [None, "target"]
     assert checkouts[1]["repository"] == "${{ inputs.repository }}"
     assert all(checkout["persist-credentials"] is False for checkout in checkouts)
-    assert "issue_assistant.py evaluate" in replay["run"]
+    assert "python3 -m issue_assistant evaluate" in replay["run"]
     assert '--report "$RUNNER_TEMP/accuracy/report.md"' in replay["run"]
     assert '--issues "$ISSUES"' in replay["run"]
 
@@ -1233,7 +1233,8 @@ def test_the_job_that_publishes_checks_out_all_that_its_command_reads(tmp_path):
     result = subprocess.run(
         [
             sys.executable,
-            "issue_assistant.py",
+            "-m",
+            "issue_assistant",
             *accuracy_page_arguments(report),
         ],
         cwd=folder,
@@ -1383,7 +1384,7 @@ def as_root(monkeypatch):
         commands.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr(assistant, "as_root", run)
+    monkeypatch.setattr(assistant.running, "as_root", run)
     monkeypatch.setattr(assistant.os, "geteuid", lambda: 1000, raising=False)
     return commands
 
@@ -1445,7 +1446,7 @@ def test_gemini_doesn_t_run_when_root_can_t_take_its_settings(
             command, 1, "", "sudo: a password is required"
         )
 
-    monkeypatch.setattr(assistant, "as_root", refuse)
+    monkeypatch.setattr(assistant.running, "as_root", refuse)
     run = FakeRun()
     monkeypatch.setattr(assistant.subprocess, "run", run)
     answer = assistant.local_engine(
@@ -1535,7 +1536,7 @@ def fake_claude(answers):
 def test_the_evaluate_command_writes_the_report_next_to_the_checkout(
     monkeypatch, tmp_path, root, config, github
 ):
-    monkeypatch.setattr(assistant, "datetime", Frozen)
+    monkeypatch.setattr(assistant.cli, "datetime", Frozen)
     monkeypatch.setattr(assistant.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(
         assistant.subprocess,
@@ -1584,7 +1585,7 @@ def test_the_evaluate_command_writes_the_report_next_to_the_checkout(
 def test_the_evaluate_command_takes_another_engine_model_and_report(
     monkeypatch, tmp_path, root, github, as_root
 ):
-    monkeypatch.setattr(assistant, "datetime", Frozen)
+    monkeypatch.setattr(assistant.cli, "datetime", Frozen)
     monkeypatch.setattr(assistant.shutil, "which", lambda name: f"/usr/bin/{name}")
     calls = []
     answer = json.dumps(make_answer())
@@ -1673,6 +1674,6 @@ def test_the_evaluate_command_writes_nothing_on_github(
         made.append(dry_run)
         raise assistant.AssistantError("stop here")
 
-    monkeypatch.setattr(assistant, "GitHub", connect)
+    monkeypatch.setattr(assistant.cli, "GitHub", connect)
     code, _, _ = run_main(monkeypatch, tmp_path, root, None, "evaluate")
     assert (code, made) == (1, [True])

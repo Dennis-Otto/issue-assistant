@@ -30,7 +30,7 @@ stopwords = [
 
 sample = "De kaart toont niets als ik een pijl gooi, en dat is niet goed."
 
-# The texts of the comments, by the keys that issue_assistant.py uses.
+# The texts of the comments, by the keys that the package issue_assistant uses.
 [text]
 "thanks.default" = "Bedankt voor het openen van dit issue, @{author}!"
 "thanks.bug" = "Bedankt voor je melding, @{author}!"

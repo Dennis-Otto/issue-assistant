@@ -22,7 +22,7 @@ REINSTALL = (
     'dir="$(mktemp -d)" && git clone --quiet --depth 1 --branch '
     f"v{assistant.VERSION_FILE.read_text('utf-8').strip()} "
     'https://github.com/Dennis-Otto/issue-assistant "$dir" && '
-    'python3 "$dir/issue_assistant.py" install'
+    'PYTHONPATH="$dir" python3 -P -m issue_assistant install'
 )
 
 
@@ -328,7 +328,7 @@ def test_install_and_check_read_the_templates_from_templates_alone(
     """This repository's own workflows and firewall policy are the blueprint's
     copies of an earlier release, so that a change of a template doesn't fail the
     required check of the issue assistant; install and check never read them."""
-    monkeypatch.setattr(assistant, "TOOL", tmp_path / "no-tool-folder")
+    monkeypatch.setattr(assistant.cli, "TOOL", tmp_path / "no-tool-folder")
     root = tmp_path / "project"
     shutil.copytree(SAMPLE, root)
     # With every workflow, the one of the discussions too.
@@ -739,8 +739,10 @@ def test_the_install_command_names_the_repository_in_the_chooser(
 ):
     package = tmp_path / "package"
     package.mkdir()
-    monkeypatch.setattr(assistant, "TOOL", package)
-    monkeypatch.setattr(assistant, "repository_of_remote", lambda root: "owner/remote")
+    monkeypatch.setattr(assistant.cli, "TOOL", package)
+    monkeypatch.setattr(
+        assistant.installation, "repository_of_remote", lambda root: "owner/remote"
+    )
     target = tmp_path / "target"
     target.mkdir()
     argv = ("install", "--ref", REF, "--version", "v1.2.3")
@@ -1246,7 +1248,7 @@ def test_setup_stops_when_github_fails(config):
 def test_the_install_command_sets_up_github(monkeypatch, tmp_path, capsys):
     package = tmp_path / "package"
     package.mkdir()
-    monkeypatch.setattr(assistant, "TOOL", package)
+    monkeypatch.setattr(assistant.cli, "TOOL", package)
     monkeypatch.setattr(assistant.shutil, "which", lambda name: f"/bin/{name}")
     # No terminal: gh can't ask for the secret, and install says how to set it.
     monkeypatch.setattr(sys, "stdin", io.StringIO())
@@ -2005,7 +2007,7 @@ def test_the_install_command_writes_into_the_workspace(monkeypatch, tmp_path, ca
     # commit and the tag are given.
     package = tmp_path / "package"
     package.mkdir()
-    monkeypatch.setattr(assistant, "TOOL", package)
+    monkeypatch.setattr(assistant.cli, "TOOL", package)
     target = tmp_path / "target"
     target.mkdir()
     code, _, _ = run_main(
@@ -2025,7 +2027,7 @@ def test_the_install_command_writes_into_the_workspace(monkeypatch, tmp_path, ca
     # What is left to do, with the command of the check of this checkout.
     assert out.splitlines()[-1] == (
         "next: describe the project in .github/issue-assistant/project.md, run "
-        f"python3 {package.as_posix()}/issue_assistant.py check, commit, push, and "
+        f"PYTHONPATH={package.as_posix()} python3 -P -m issue_assistant check, commit, push, and "
         "try it under Actions > Issue assistant > Run workflow"
     )
     assert "# v1.2.3" in (target / ".github/workflows/labels.yml").read_text("utf-8")
@@ -2057,7 +2059,7 @@ def test_the_install_command_writes_into_the_workspace(monkeypatch, tmp_path, ca
 def test_install_takes_the_release_of_its_checkout(monkeypatch, tmp_path, capsys):
     tool = tmp_path / "issue-assistant"
     commit, _ = release_checkout(tool)
-    monkeypatch.setattr(assistant, "TOOL", tool)
+    monkeypatch.setattr(assistant.cli, "TOOL", tool)
     target = tmp_path / "target"
     target.mkdir()
     code, _, _ = run_main(monkeypatch, tmp_path, target, None, "install")
@@ -2084,7 +2086,7 @@ def test_yaml_is_read_with_pyyaml(tmp_path):
 
 
 def test_the_tool_files_are_where_the_action_expects_them():
-    tool = Path(assistant.__file__).parent
+    tool = Path(assistant.__file__).parent.parent
     assert tool == assistant.TOOL
     # The rules of every task, and a prompt for each, which write_context reads.
     assert sorted(path.name for path in assistant.PROMPTS.iterdir()) == sorted(

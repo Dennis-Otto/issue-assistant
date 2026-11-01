@@ -32,7 +32,7 @@ stopwords = [
 # that the assistant guesses the language from it.
 sample = "Bir dart attığımda kart hiçbir şey göstermiyor ve bu doğru değil."
 
-# The texts of the comments, by the keys that issue_assistant.py uses.
+# The texts of the comments, by the keys that the package issue_assistant uses.
 [text]
 "thanks.default" = "Bu konuyu açtığınız için teşekkürler, @{author}!"
 "thanks.bug" = "Bildiriminiz için teşekkürler, @{author}!"

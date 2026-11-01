@@ -1,7 +1,7 @@
 """Render the pictures of the documentation in docs/images.
 
 pages.py builds the page of each picture, from the demo project and the texts of
-issue_assistant.py itself; this script takes the pictures of them in a browser.
+the package issue_assistant itself; this script takes the pictures of them in a browser.
 Each picture comes light and dark, for the theme of the reader, as WebP: the still
 ones lossless, as sharp as a PNG at less than a third of its size. The animation of
 the life of an issue also comes upright for phones, and each of the two as a still

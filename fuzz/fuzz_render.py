@@ -42,10 +42,12 @@ with atheris.instrument_imports():
 
 # The settings of the tests in this repository, whose files the references name.
 SETTINGS = dataclasses.replace(CONFIG, root=ROOT)
-FILES = ("README.md", "./docs/security.md", "issue_assistant.py")
+FILES = ("README.md", "./docs/security.md", "issue_assistant/cli.py")
 # The files that git tracks stay the same while the fuzzer runs: one call of git
 # instead of one for each input.
-assistant.tracked_files = functools.cache(assistant.tracked_files)
+assistant.answer.tracked_files = assistant.applying.tracked_files = functools.cache(
+    assistant.tracked_files
+)
 
 
 class Choices:

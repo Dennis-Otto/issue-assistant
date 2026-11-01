@@ -37,6 +37,7 @@ from support import (
     make_comment,
     make_follow_up,
     make_issue,
+    replace_everywhere,
 )
 
 REPORTER = "reporter"
@@ -328,7 +329,7 @@ class Lifecycle(RuleBasedStateMachine):
 @pytest.mark.hypothesis
 def test_the_lifecycle_keeps_its_promises(monkeypatch):
     # The follow-ups name no file, so the files of the checkout don't matter.
-    monkeypatch.setattr(assistant, "tracked_files", lambda root: set())
+    replace_everywhere(monkeypatch, "tracked_files", lambda root: set())
     run_state_machine_as_test(
         Lifecycle,
         settings=hypothesis.settings(

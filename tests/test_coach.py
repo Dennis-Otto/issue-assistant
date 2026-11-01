@@ -35,7 +35,7 @@ OUTCOME = re.compile(r"steps\.([a-z-]+)\.outcome == 'failure'")
 SET_UP = ("actions/checkout@", "step-security/harden-runner@")
 # The run of the CI names its commit; a person on their machine names HEAD.
 SHA = ('"$GITHUB_SHA"', '"$(git rev-parse HEAD)"')
-COMMAND = "python3 issue_assistant.py"
+COMMAND = "python3 -m issue_assistant"
 # The part that every leg on a runner other than the one of the templates explains.
 OTHER_RUNNER = "other-runner"
 

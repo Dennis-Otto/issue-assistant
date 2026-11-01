@@ -102,7 +102,7 @@ jobs:
           ISSUE_ASSISTANT_ROOT: ${{ runner.temp }}/sample
         run: |
           cp -r tests/sample "$ISSUE_ASSISTANT_ROOT"
-          python3 issue_assistant.py install --ref "$GITHUB_SHA" --version smoke-test
+          python3 -m issue_assistant install --ref "$GITHUB_SHA" --version smoke-test
           mkdir "$RUNNER_TEMP/no-pyyaml"
           echo 'raise ImportError' > "$RUNNER_TEMP/no-pyyaml/yaml.py"
       - name: Check the sample's set-up through the action
@@ -138,7 +138,7 @@ jobs:
         run: |
           cp -r . "$ISSUE_ASSISTANT_ROOT"
           rm "$ISSUE_ASSISTANT_ROOT/.github/egress-firewall.yaml"
-          python3 issue_assistant.py install --ref "$GITHUB_SHA" --version smoke-test
+          python3 -m issue_assistant install --ref "$GITHUB_SHA" --version smoke-test
       - name: Check this repository's set-up through the action
         id: own-check
         if: ${{ !cancelled() && steps.own-install.outcome == 'success' }}
@@ -230,7 +230,7 @@ jobs:
           GH_REPO: Dennis-Otto/homedarts-for-autodarts
           GH_TELEMETRY: "false"
         run: |
-          python3 issue_assistant.py context --issue 105 --mode triage
+          python3 -m issue_assistant context --issue 105 --mode triage
           for file in issue.md labels.md issues.jsonl discussions.jsonl corrections.md rules.md prompt.md schema.json; do
             if [[ ! -s ".issue-assistant/$file" ]]; then
               echo "::error::context wrote no .issue-assistant/$file"
