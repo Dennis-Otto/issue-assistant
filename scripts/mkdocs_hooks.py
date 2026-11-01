@@ -960,7 +960,9 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
         "reminder": reminder(ia, language),
         "closed-unanswered": ia.render_closed_unanswered(REPORTER, language),
         "reopened": ia.render_reopened(REPORTER, language),
-        "let-in": ia.render_let_in(REPORTER, language, datetime(2026, 11, 1, tzinfo=UTC)),
+        "let-in": ia.render_let_in(
+            REPORTER, language, datetime(2026, 11, 1, tzinfo=UTC)
+        ),
         "closed-duplicate": ia.render_closed_duplicate(23, language),
         "fixed": ia.render_fixed(43, "main", language),
         "released": ia.render_released(REPORTER, release, [43], language),

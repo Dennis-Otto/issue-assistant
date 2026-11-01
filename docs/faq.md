@@ -66,7 +66,7 @@ The `analyze` job sends the vendor of the engine, Anthropic for Claude, OpenAI f
 
 ## Can a reporter say no to the AI?
 
-Yes, where the issue form has the box *Automated analysis*, as the starter form of `install` does. A ticked box mutes the issue when it opens: no run of the AI starts on it, and its text stays out of what the AI reads for other issues, while labels, reminders and the closing with a release go on. `/assistant again` lets the AI in later, and a maintainer's command still starts it. [Saying no to the AI](features/opt-out.md) has the details, and how to add the box to your own forms.
+Yes, where the issue form has the box *Automated analysis*, as the starter forms of `install` do. A ticked box mutes the issue when it opens: no run of the AI starts on it, and its text stays out of what the AI reads for other issues, while labels, reminders and the closing with a release go on. `/assistant again` lets the AI in later, and a maintainer's command still starts it. [Saying no to the AI](features/opt-out.md) has the details, and how to add the box to your own forms.
 
 ## Does it work in private repositories?
 
@@ -90,7 +90,7 @@ The analysis starts with a warning. For a secret, such as a token, a key or a pa
 
 ## What if an issue reports a vulnerability?
 
-The comment only asks the reporter to report it privately, as the security policy of the repository describes, and to remove the details from the issue. It has no summary, no analysis, no questions and no duplicates, and the reason for its labels on the timeline is a fixed sentence instead of the AI's words.
+The comment only asks the reporter to report it privately, as the security policy of the repository describes, and to remove the details from the issue. It has no summary, no analysis, no questions and no duplicates, and the reason for its labels on the timeline is a fixed sentence instead of the AI's words. The [chooser](getting-started.md#what-install-writes) that `install` writes for a repository without issue forms offers the private report before anyone opens an issue.
 
 ## How do I turn it off?
 

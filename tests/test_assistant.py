@@ -1445,6 +1445,12 @@ def test_other_edits_of_a_ticked_box_mute_nothing(config, before, after, editor)
     assert "assistant-muted" not in github.labels_of(12)
 
 
+def test_a_box_written_into_an_old_text_mutes_it_as_an_edit_of_the_text(config):
+    github, plan = edited_box(config, BUG_BODY, BOX_TICKED)
+    assert plan.notes == [TICKED_NOTE, "Edit without a pending question."]
+    assert "assistant-muted" in github.labels_of(12)
+
+
 def test_a_click_that_unticks_the_box_answers_no_question(config):
     waiting = ("bug", "needs-info", "stale")
     github, plan = edited_box(config, BOX_TICKED, BOX_UNTICKED, labels=waiting)
