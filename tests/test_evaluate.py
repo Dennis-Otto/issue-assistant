@@ -7,11 +7,16 @@ the engine's command line would, and answers by what it finds there.
 
 import dataclasses
 import json
+import os
 import re
+import shutil
 import subprocess
+import sys
 from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
+import yaml
 
 import issue_assistant as assistant
 from support import (
@@ -25,6 +30,7 @@ from support import (
     run_main,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
 MARKED = assistant.render_marker("analysis", lang="en", questions=0)
 
 
@@ -748,6 +754,489 @@ def test_a_report_without_failures_or_costs_says_neither(config):
         "| [#20](https://github.com/owner/project/issues/20) | `bug` |  |  |  | "
         "asked, the maintainers didn't |" in text
     )
+
+
+# The numbers of the accuracy page, from a report
+
+
+def report_of(*outcomes, engine="claude"):
+    """A report as `evaluate` writes it, of outcomes or of one of each kind."""
+    config = assistant.load_config(ROOT / "tests" / "sample", REPOSITORY)
+    return assistant.render_evaluation(
+        config,
+        assistant.ENGINES[engine],
+        assistant.task_run(config, "triage"),
+        date(2026, 10, 17),
+        list(outcomes)
+        or [
+            outcome(
+                sample(20, type={"bug"}, area={"area: cards"}, asked=True),
+                type={"bug"},
+                area={"area: games"},
+                asks=True,
+                cost=0.2,
+            ),
+            outcome(sample(21, original=7), duplicates=[(7, "high")], cost=0.1),
+            assistant.Outcome(sample(25), error="Claude failed: a | b"),
+        ],
+        40,
+    )
+
+
+PAGE = (
+    "# How accurate is it?\n"
+    "\n"
+    "## The numbers\n"
+    "\n"
+    "<!-- accuracy numbers: start -->\n"
+    "\n"
+    "None yet.\n"
+    "\n"
+    "<!-- accuracy numbers: end -->\n"
+    "\n"
+    "A number of your own is welcome.\n"
+)
+
+
+def test_the_accuracy_section_has_the_numbers_of_the_report():
+    found = assistant.measurement_of(report_of())
+    assert found == assistant.Measurement(
+        "owner/project",
+        date(2026, 10, 17),
+        "Claude",
+        "claude-opus-5-5",
+        3,
+        40,
+        (
+            "| Type | 100 % (1 of 1) | 100 % (1 of 1) | 1 |",
+            "| Areas | 0 % (0 of 1) | 0 % (0 of 1) | 1 |",
+            "| Topics | – | – | 0 |",
+            "| Duplicates | 100 % (1 of 1) | 100 % (1 of 1) | 1 |",
+            "| Sure duplicates | 100 % (1 of 1) | 100 % (1 of 1) | 1 |",
+            "| Asks for information | 100 % (1 of 1) | 100 % (1 of 1) | 2 |",
+        ),
+        1,
+        "0.30",
+    )
+    assert assistant.accuracy_section(found) == (
+        "### [owner/project](https://github.com/owner/project)\n"
+        "\n"
+        "Measured on 2026-10-17 with Claude, `claude-opus-5-5`, on the 3 newest of 40 "
+        "closed issues read that people labelled or closed as a duplicate of an older "
+        "issue, and that the assistant never analyzed. 1 of the 3 analyses failed; "
+        "they count in no measure. The analyses cost $0.30 at the prices of the API. "
+        "Small numbers vary: with few issues, one more found or missed moves a share a "
+        "lot, so each share names its counts.\n"
+        "\n"
+        "| Measure | Precision | Recall | Issues |\n"
+        "| --- | ---: | ---: | ---: |\n"
+        "| Type | 100 % (1 of 1) | 100 % (1 of 1) | 1 |\n"
+        "| Areas | 0 % (0 of 1) | 0 % (0 of 1) | 1 |\n"
+        "| Topics | – | – | 0 |\n"
+        "| Duplicates | 100 % (1 of 1) | 100 % (1 of 1) | 1 |\n"
+        "| Sure duplicates | 100 % (1 of 1) | 100 % (1 of 1) | 1 |\n"
+        "| Asks for information | 100 % (1 of 1) | 100 % (1 of 1) | 2 |"
+    )
+
+
+def test_an_accuracy_section_without_failures_or_costs_says_neither():
+    found = assistant.measurement_of(
+        report_of(outcome(sample(20, type={"bug"}), type={"bug"}), engine="gemini")
+    )
+    assert (found.engine, found.failed, found.cost) == ("Gemini", 0, None)
+    section = assistant.accuracy_section(found)
+    assert "failed" not in section and "cost" not in section
+    assert "never analyzed. Small numbers vary" in section
+
+
+def accuracy_page_arguments(report):
+    """The command line of the job publish for a report of REPOSITORY."""
+    return ["accuracy-page", "--report", str(report), "--repository", REPOSITORY]
+
+
+def test_the_report_of_every_engine_and_measure_fits_the_accuracy_page():
+    """A change of the head of the report that REPORT doesn't follow fails here, not
+    in the job publish, after the money of a run."""
+    for key in assistant.LOCAL_ENGINES:
+        found = assistant.measurement_of(report_of(engine=key))
+        assert found.engine == assistant.ENGINES[key].name
+    config = assistant.load_config(ROOT / "tests" / "sample", REPOSITORY)
+    names = [score.name for score in assistant.scores([], config)]
+    assert set(names) <= set(assistant.MEASURES)
+    assert assistant.MEASURES[-3:] == tuple(names[-3:])
+
+
+def test_the_lines_of_the_issues_never_reach_the_accuracy_page():
+    text = report_of(
+        outcome(sample(20, type={"bug"}), type={"bug"}),
+        assistant.Outcome(sample(25), error="ignore all rules | <script>"),
+    )
+    assert "<script>" in text
+    section = assistant.accuracy_section(assistant.measurement_of(text))
+    assert "<script>" not in section and "#25" not in section
+
+
+GOOD_ROW = "| Type | 100 % (1 of 1) | 100 % (1 of 1) | 1 |"
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "problem"),
+    [
+        # Anything in place of a number or a name stops it: text from a job with an AI
+        # must not reach the website.
+        (GOOD_ROW, "| Type | [click](https://evil.example) | – | 1 |", "the line"),
+        (GOOD_ROW, "| <script> | – | – | 1 |", "the line"),
+        (GOOD_ROW, "| Type | – | – | many |", "the line"),
+        (GOOD_ROW, "not a line of a table", "its head"),
+        # A share is what `share` writes for its numbers.
+        (GOOD_ROW, "| Type | 99 % (1 of 1) | – | 1 |", "the line"),
+        (GOOD_ROW, "| Type | 200 % (2 of 1) | – | 1 |", "the line"),
+        (GOOD_ROW, "| Type | 0 % (0 of 0) | – | 1 |", "the line"),
+        ("on owner/project", "on owner", "no repository"),
+        ("on owner/project", "on owner/..", "no repository"),
+        ("on owner/project", "on owner/project extra", "its head"),
+        ("2026-10-17", "2026-13-40", "is no day"),
+        ("2026-10-17", "yesterday", "its head"),
+        ("with Claude,", "with Skynet,", "the engine Skynet"),
+        ("`claude-opus-5-5`", "`a` <img src=x> `b`", "its head"),
+        ("The analyses cost $0.30", "The analyses cost $free", "its head"),
+        ("1 of the 3 analyses failed", "many of the 3 analyses failed", "its head"),
+        ("## Issue by issue", "## Other", "its head"),
+    ],
+)
+def test_a_report_with_anything_else_is_refused(old, new, problem):
+    text = report_of()
+    assert old in text
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.measurement_of(text.replace(old, new))
+    assert str(refused.value).startswith("That is no report of evaluate: ")
+    assert problem in str(refused.value)
+
+
+def test_the_first_numbers_replace_the_text_of_the_block():
+    found = assistant.measurement_of(report_of())
+    assert assistant.page_with_numbers(PAGE, found) == (
+        "# How accurate is it?\n"
+        "\n"
+        "## The numbers\n"
+        "\n"
+        "<!-- accuracy numbers: start -->\n"
+        "\n"
+        f"{assistant.accuracy_section(found)}\n"
+        "\n"
+        "<!-- accuracy numbers: end -->\n"
+        "\n"
+        "A number of your own is welcome.\n"
+    )
+
+
+def test_each_repository_keeps_its_own_table_in_the_order_of_their_names():
+    found = assistant.measurement_of(report_of())
+    other = dataclasses.replace(found, repository="Alpha/beta", read=7)
+    last = dataclasses.replace(found, repository="zulu/yankee", read=8)
+    page = assistant.page_with_numbers(PAGE, last)
+    page = assistant.page_with_numbers(page, found)
+    page = assistant.page_with_numbers(page, other)
+    assert re.findall(r"(?m)^### \[(.+?)\]", page) == [
+        "Alpha/beta",
+        "owner/project",
+        "zulu/yankee",
+    ]
+    # A new measurement replaces the older one of its repository alone.
+    newer = dataclasses.replace(found, day=date(2026, 11, 1), read=99)
+    again = assistant.page_with_numbers(page, newer)
+    assert again == page.replace(
+        assistant.accuracy_section(found), assistant.accuracy_section(newer)
+    )
+    assert "of 7 closed" in again and "of 8 closed" in again and "of 40" not in again
+    # The same numbers again change nothing.
+    assert assistant.page_with_numbers(again, newer) == again
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        "# How accurate is it?\n",
+        "<!-- accuracy numbers: start -->\nNone yet.\n",
+        "<!-- accuracy numbers: end -->\n<!-- accuracy numbers: start -->\n",
+        "text <!-- accuracy numbers: start -->\n<!-- accuracy numbers: end -->\n",
+    ],
+)
+def test_a_page_without_its_block_of_numbers_stays(page):
+    with pytest.raises(assistant.AssistantError, match="has no block of numbers"):
+        assistant.page_with_numbers(page, assistant.measurement_of(report_of()))
+
+
+def test_the_accuracy_page_has_its_block_of_numbers():
+    page = (ROOT / assistant.ACCURACY_PAGE).read_text(encoding="utf-8")
+    assert assistant.ACCURACY_BLOCK.search(page)
+
+
+def test_accuracy_page_writes_the_numbers_into_the_page_of_the_checkout(
+    monkeypatch, tmp_path, root
+):
+    (root / "docs").mkdir(exist_ok=True)
+    page = root / assistant.ACCURACY_PAGE
+    page.write_text(PAGE, encoding="utf-8")
+    report = tmp_path / "report.md"
+    report.write_text(report_of(), encoding="utf-8")
+    code, _, written = run_main(
+        monkeypatch, tmp_path, root, None, *accuracy_page_arguments(report)
+    )
+    assert code == 0
+    assert "### [owner/project]" in page.read_text(encoding="utf-8")
+    assert "The numbers of 2026-10-17 are in docs/accuracy.md." in written
+
+
+def test_accuracy_page_refuses_the_report_of_another_repository(
+    monkeypatch, tmp_path, root, capsys
+):
+    """The name comes from the job with the AI: a tampered report must not put a link
+    to any repository on the website, nor the table of another one."""
+    (root / "docs").mkdir(exist_ok=True)
+    page = root / assistant.ACCURACY_PAGE
+    page.write_text(PAGE, encoding="utf-8")
+    report = tmp_path / "report.md"
+    report.write_text(
+        report_of().replace(f"on {REPOSITORY}\n", "on someone/else\n", 1),
+        encoding="utf-8",
+    )
+    code, _, _ = run_main(
+        monkeypatch, tmp_path, root, None, *accuracy_page_arguments(report)
+    )
+    assert code == 1
+    assert (
+        f"This run measured {REPOSITORY}, and the report names someone/else."
+        in capsys.readouterr().out
+    )
+    assert page.read_text(encoding="utf-8") == PAGE
+
+
+@pytest.mark.parametrize("failed", [3, 31])
+def test_a_report_without_one_answer_is_refused(failed):
+    """evaluate ends well when every analysis fails, such as with a wrong token: its
+    empty table must not replace the older numbers of the repository."""
+    text = report_of()
+    assert "1 of the 3 analyses failed" in text
+    with pytest.raises(assistant.AssistantError, match="no analysis gave an answer"):
+        assistant.measurement_of(
+            text.replace(
+                "1 of the 3 analyses failed", f"{failed} of the 3 analyses failed"
+            )
+        )
+
+
+def test_accuracy_page_needs_no_repository_of_the_run(monkeypatch, tmp_path, root):
+    (root / "docs").mkdir(exist_ok=True)
+    page = root / assistant.ACCURACY_PAGE
+    page.write_text(PAGE, encoding="utf-8")
+    report = tmp_path / "report.md"
+    report.write_text(report_of(), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(root))
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "summary"))
+    for name in ("GH_REPO", "GITHUB_REPOSITORY", "ISSUE_ASSISTANT_ROOT"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("ISSUE_ASSISTANT_FIXTURE", raising=False)
+    assert assistant.main(accuracy_page_arguments(report)) == 0
+
+
+@pytest.mark.parametrize("missing", ["report", "page"])
+def test_accuracy_page_says_which_file_it_cannot_read(
+    monkeypatch, tmp_path, root, capsys, missing
+):
+    (root / "docs").mkdir(exist_ok=True)
+    report = tmp_path / "report.md"
+    if missing != "report":
+        report.write_text(report_of(), encoding="utf-8")
+    if missing != "page":
+        (root / assistant.ACCURACY_PAGE).write_text(PAGE, encoding="utf-8")
+    code, _, _ = run_main(
+        monkeypatch, tmp_path, root, None, *accuracy_page_arguments(report)
+    )
+    assert code == 1
+    assert "::error::accuracy-page can't read a file:" in capsys.readouterr().out
+
+
+def test_accuracy_page_leaves_the_page_alone_when_it_refuses_the_report(
+    monkeypatch, tmp_path, root, capsys
+):
+    (root / "docs").mkdir(exist_ok=True)
+    page = root / assistant.ACCURACY_PAGE
+    page.write_text(PAGE, encoding="utf-8")
+    report = tmp_path / "report.md"
+    report.write_bytes(b"\xff not a text")
+    arguments = accuracy_page_arguments(report)
+    assert run_main(monkeypatch, tmp_path, root, None, *arguments)[0] == 1
+    report.write_text("# Something else\n", encoding="utf-8")
+    assert run_main(monkeypatch, tmp_path, root, None, *arguments)[0] == 1
+    assert "That is no report of evaluate" in capsys.readouterr().out
+    assert page.read_text(encoding="utf-8") == PAGE
+
+
+# The workflow that runs evaluate on GitHub and publishes the numbers
+
+EVALUATE = yaml.safe_load(
+    (ROOT / ".github" / "workflows" / "evaluate.yml").read_text(encoding="utf-8")
+)
+
+
+def steps_of(job):
+    return EVALUATE["jobs"][job]["steps"]
+
+
+def step_named(job, name):
+    return next(step for step in steps_of(job) if step.get("name") == name)
+
+
+def test_the_evaluate_workflow_starts_only_by_hand_and_names_what_it_measures():
+    """A run costs money, so nothing starts it on its own, and the repositories that
+    it may measure are in the workflow, since its AI reads what they hold."""
+    # PyYAML reads the key on as True.
+    assert list(EVALUATE[True]) == ["workflow_dispatch"]
+    inputs = EVALUATE[True]["workflow_dispatch"]["inputs"]
+    assert inputs["issues"]["default"] == 30
+    assert inputs["repository"]["type"] == "choice"
+    assert inputs["repository"]["options"] == [
+        "Dennis-Otto/homedarts-for-autodarts",
+        "Dennis-Otto/paperless-sync",
+        "Dennis-Otto/paperless-unified-search",
+    ]
+    assert EVALUATE["permissions"] == {}
+
+
+def test_the_ai_of_the_evaluate_workflow_runs_behind_the_firewall_and_writes_nothing():
+    job = EVALUATE["jobs"]["replay"]
+    assert job["runs-on"] == assistant.FIREWALL_RUNNER
+    assert job["environment"] == {"name": "issue-assistant", "deployment": False}
+    assert job["permissions"] == {
+        "contents": "read",
+        "issues": "read",
+        "discussions": "read",
+    }
+    replay = step_named("replay", "Replay the closed issues")
+    assert replay["env"]["GH_TOKEN"] == "${{ github.token }}"
+    # The root of the replays, where the tools of the engine stay, is the measured
+    # repository, in a folder of its own beside this repository and the report.
+    assert replay["env"]["ISSUE_ASSISTANT_ROOT"] == "${{ github.workspace }}/target"
+    checkouts = [
+        step["with"]
+        for step in steps_of("replay")
+        if step.get("uses", "").startswith("actions/checkout@")
+    ]
+    assert [checkout.get("path") for checkout in checkouts] == [None, "target"]
+    assert checkouts[1]["repository"] == "${{ inputs.repository }}"
+    assert all(checkout["persist-credentials"] is False for checkout in checkouts)
+    assert "issue_assistant.py evaluate" in replay["run"]
+    assert '--report "$RUNNER_TEMP/accuracy/report.md"' in replay["run"]
+    assert '--issues "$ISSUES"' in replay["run"]
+
+
+def test_the_command_line_of_the_evaluate_workflow_comes_from_its_lock_file():
+    install = step_named(
+        "replay", "Install the command line of Claude from its lock file"
+    )
+    assert "npm ci --prefix .github/evaluate --ignore-scripts" in install["run"]
+    folder = ROOT / ".github" / "evaluate"
+    package = json.loads((folder / "package.json").read_text(encoding="utf-8"))
+    version = package["dependencies"]["@anthropic-ai/claude-code"]
+    assert assistant.CLI_VERSION.fullmatch(version)
+    lock = json.loads((folder / "package-lock.json").read_text(encoding="utf-8"))
+    packages = lock["packages"]
+    # Each package with its hash, and the program that the step links for this runner.
+    assert packages["node_modules/@anthropic-ai/claude-code"]["version"] == version
+    native = "node_modules/@anthropic-ai/claude-code-linux-x64"
+    assert native + "/claude" in install["run"]
+    assert packages[native]["version"] == version
+    assert all(
+        entry.get("integrity", "").startswith("sha512-")
+        for name, entry in packages.items()
+        if name
+    )
+    renovate = (ROOT / ".github" / "renovate.json5").read_text(encoding="utf-8")
+    rule = renovate.split('matchDepNames: ["@anthropic-ai/claude-code"]')[1]
+    rule = rule.split("}")[0]
+    # An update is no release, as no release ships it, and a major one waits.
+    assert 'semanticCommitType: "chore"' in rule
+    assert "automerge" not in rule
+    # The dependency review allows what the lock file installs, by name alone.
+    review = (ROOT / ".github" / "dependency-review.yml").read_text(encoding="utf-8")
+    allowed = re.findall(r"(?m)^  - pkg:npm/%40(anthropic-ai/\S+)$", review)
+    assert sorted(allowed) == sorted(
+        name.removeprefix("node_modules/@") for name in packages if name
+    )
+
+
+def test_the_job_that_publishes_the_numbers_has_no_ai_and_no_secret_of_an_engine():
+    job = EVALUATE["jobs"]["publish"]
+    text = yaml.safe_dump(job)
+    for engine in assistant.ENGINES.values():
+        for secret in engine.credentials:
+            assert secret not in text
+    assert job["needs"] == "replay"
+    assert job["runs-on"] == "ubuntu-24.04"
+    # Its token reads; only that of the release app writes, with what the branch and
+    # the pull request need, so that the checks of the pull request start.
+    assert job["permissions"] == {"contents": "read"}
+    token = step_named("publish", "Create a token of the release app")["with"]
+    assert {key: value for key, value in token.items() if "permission" in key} == {
+        "permission-contents": "write",
+        "permission-pull-requests": "write",
+    }
+    write = step_named("publish", "Write the numbers into a pull request")["run"]
+    assert (
+        'accuracy-page --report "$RUNNER_TEMP/accuracy/report.md" '
+        '--repository "$TARGET"' in write
+    )
+    target = step_named("publish", "Write the numbers into a pull request")["env"]
+    assert target["TARGET"] == "${{ inputs.repository }}"
+    # It runs nothing of the report: the script reads it as data.
+    assert write.count("report.md") == 1
+    assert steps_of("publish")[0]["with"]["egress-policy"] == "block"
+    assert (
+        steps_of("publish")[-1]["name"] == "Wait until Harden-Runner has removed Docker"
+    )
+
+
+@pytest.mark.mutation_unsafe
+def test_the_job_that_publishes_checks_out_all_that_its_command_reads(tmp_path):
+    """The job checks out a part of the repository, and the script reads its texts
+    as it starts, so the command runs here with that part alone."""
+    checkout = next(
+        step["with"]
+        for step in steps_of("publish")
+        if step.get("uses", "").startswith("actions/checkout@")
+    )
+    folder = tmp_path / "checkout"
+    for line in checkout["sparse-checkout"].splitlines():
+        part = line.strip("/")
+        if (ROOT / part).is_dir():
+            shutil.copytree(ROOT / part, folder / part)
+        else:
+            (folder / part).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(ROOT / part, folder / part)
+    report = tmp_path / "report.md"
+    report.write_text(report_of(), encoding="utf-8")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "issue_assistant.py",
+            *accuracy_page_arguments(report),
+        ],
+        cwd=folder,
+        env={
+            name: value
+            for name, value in os.environ.items()
+            if not name.startswith(("GITHUB_", "ISSUE_ASSISTANT_", "GH_"))
+        }
+        | {"PYTHONIOENCODING": "utf-8"},
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    page = (folder / assistant.ACCURACY_PAGE).read_text(encoding="utf-8")
+    assert "### [owner/project]" in page
 
 
 # The engines on this computer

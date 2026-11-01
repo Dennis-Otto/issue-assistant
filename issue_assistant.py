@@ -9766,6 +9766,17 @@ SCORED_GROUPS = dict(
 LOCAL_ENGINES = tuple(
     key for key, engine in ENGINES.items() if engine.cli or engine.local
 )
+# The measures of a report, in its order, and the head of their table.
+MEASURES = (
+    *SCORED_GROUPS.values(),
+    "Duplicates",
+    "Sure duplicates",
+    "Asks for information",
+)
+MEASURES_HEAD = (
+    "| Measure | Precision | Recall | Issues |",
+    "| --- | ---: | ---: | ---: |",
+)
 
 
 @dataclass(frozen=True)
@@ -10164,7 +10175,7 @@ def scores(outcomes: list[Outcome], config: Config) -> list[Score]:
             )
         )
     originals = sum(outcome.sample.original is not None for outcome in answered)
-    for name, sure in (("Duplicates", False), ("Sure duplicates", True)):
+    for name, sure in ((MEASURES[-3], False), (MEASURES[-2], True)):
         named = [
             (outcome, number)
             for outcome in answered
@@ -10178,7 +10189,7 @@ def scores(outcomes: list[Outcome], config: Config) -> list[Score]:
         found.append(Score(name, originals, len(named), originals, right))
     found.append(
         Score(
-            "Asks for information",
+            MEASURES[-1],
             len(answered),
             sum(outcome.asks for outcome in answered),
             sum(outcome.sample.asked for outcome in answered),
@@ -10260,8 +10271,7 @@ def render_evaluation(
         "with the issues, discussions and releases of that moment, and compared its "
         "choices with what the maintainers decided.",
         "",
-        "| Measure | Precision | Recall | Issues |",
-        "| --- | ---: | ---: | ---: |",
+        *MEASURES_HEAD,
         *(
             f"| {score.name} | {share(score.right, score.chosen)} | "
             f"{share(score.right, score.actual)} | {score.issues} |"
@@ -10474,6 +10484,183 @@ def evaluate(
     ]
 
 
+# The numbers of the accuracy page, from a report of `evaluate`. The job publish of
+# .github/workflows/evaluate.yml takes a report that a job with an AI wrote into a job
+# that writes, so the report counts as untrusted: only what passes the checks below
+# reaches the page, which are numbers and the names of a measure, the engine, the model
+# and the repository. The lines of the issues stay in the report.
+ACCURACY_PAGE = PurePosixPath("docs/accuracy.md")
+ACCURACY_BLOCK = re.compile(
+    r"^<!-- accuracy numbers: start -->\n"
+    r"(?P<sections>.*?)"
+    r"^<!-- accuracy numbers: end -->$",
+    re.DOTALL | re.MULTILINE,
+)
+# What comes before the lines of the issues in a report, as render_evaluation writes
+# it. A number has at most nine digits, which int() always takes.
+REPORT = re.compile(
+    r"# How accurate the issue assistant is on (?P<repository>\S+)\n"
+    r"\n"
+    r"Measured on (?P<day>\d{4}-\d{2}-\d{2}) with (?P<engine>[A-Za-z]+), "
+    r"`(?P<model>[\w.:/@-]+)`, on the (?P<replayed>\d{1,9}) newest of "
+    r"(?P<read>\d{1,9}) closed issues read [^\n]*\n"
+    r"\n"
+    + "".join(rf"{re.escape(line)}\n" for line in MEASURES_HEAD)
+    + r"(?P<rows>(?:\|[^\n]*\n)+)"
+    r"\n"
+    r"\*Precision\*[^\n]*\n"
+    r"(?:\n(?P<failed>\d{1,9}) of the \d{1,9} analyses failed; they count in no "
+    r"measure\.\n)?"
+    r"(?:\nThe analyses cost \$(?P<cost>\d{1,9}\.\d\d) at the prices of the API\.\n)?"
+    r"\n## Issue by issue\n",
+    re.ASCII,
+)
+REPORT_ROW = re.compile(
+    r"\| (?P<measure>[^|]+) \| (?P<precision>[^|]+) \| (?P<recall>[^|]+) \| "
+    r"(?P<issues>\d{1,9}) \|",
+    re.ASCII,
+)
+REPORT_SHARE = re.compile(r"\d{1,3} % \((\d{1,9}) of (\d{1,9})\)", re.ASCII)
+
+
+@dataclass(frozen=True)
+class Measurement:
+    """The numbers of a report of `evaluate`, and what they were measured on."""
+
+    repository: str
+    day: date
+    engine: str
+    model: str
+    replayed: int
+    read: int
+    # The lines of the table of measures.
+    rows: tuple[str, ...]
+    # How many analyses failed, and what they cost in dollars, if the report says.
+    failed: int
+    cost: str | None
+
+
+def fits_share(cell: str) -> bool:
+    """Whether a cell of the table of measures is what `share` writes for its numbers,
+    with no more of the part than of the whole."""
+    if cell == share(0, 0):
+        return True
+    found = REPORT_SHARE.fullmatch(cell)
+    if found is None:
+        return False
+    part, whole = int(found[1]), int(found[2])
+    return part <= whole and cell == share(part, whole)
+
+
+def fits_row(line: str) -> bool:
+    """Whether a line of the table of measures has a measure and its numbers."""
+    row = REPORT_ROW.fullmatch(line)
+    return (
+        row is not None
+        and row["measure"] in MEASURES
+        and fits_share(row["precision"])
+        and fits_share(row["recall"])
+    )
+
+
+def measurement_of(report_text: str) -> Measurement:
+    """The numbers of a report of `evaluate`, or an error when anything about them
+    isn't what `evaluate` writes."""
+    found = REPORT.match(report_text)
+    if found is None:
+        raise AssistantError(
+            "That is no report of evaluate: its head doesn't have the form of one."
+        )
+    rows = tuple(found["rows"].splitlines())
+    bad = next((row for row in rows if not fits_row(row)), None)
+    if bad is not None:
+        raise AssistantError(
+            f"That is no report of evaluate: the line {bad!r} of its table has no "
+            "measure with its numbers."
+        )
+    if not REPOSITORY_NAME.fullmatch(found["repository"]):
+        raise AssistantError(
+            "That is no report of evaluate: it names no repository as owner/name."
+        )
+    if found["engine"] not in {engine.name for engine in ENGINES.values()}:
+        raise AssistantError(
+            f"That is no report of evaluate: it names the engine {found['engine']}."
+        )
+    try:
+        day = date.fromisoformat(found["day"])
+    except ValueError:
+        raise AssistantError(
+            f"That is no report of evaluate: {found['day']} is no day."
+        ) from None
+    failed, replayed = int(found["failed"] or 0), int(found["replayed"])
+    if failed >= replayed:
+        raise AssistantError(
+            "That is no report of evaluate with numbers: no analysis gave an answer, "
+            f"as {failed} of the {replayed} failed."
+        )
+    return Measurement(
+        found["repository"],
+        day,
+        found["engine"],
+        found["model"],
+        replayed,
+        int(found["read"]),
+        rows,
+        failed,
+        found["cost"],
+    )
+
+
+def accuracy_section(found: Measurement) -> str:
+    """The part of the accuracy page for one repository."""
+    failed = (
+        f" {found.failed} of the {found.replayed} analyses failed; they count in no "
+        "measure."
+        if found.failed
+        else ""
+    )
+    cost = (
+        f" The analyses cost ${found.cost} at the prices of the API."
+        if found.cost
+        else ""
+    )
+    return "\n".join(
+        (
+            f"### [{found.repository}](https://github.com/{found.repository})",
+            "",
+            f"Measured on {found.day.isoformat()} with {found.engine}, "
+            f"{code_span(found.model)}, on the {found.replayed} newest of {found.read} "
+            "closed issues read that people labelled or closed as a duplicate of an "
+            f"older issue, and that the assistant never analyzed.{failed}{cost} Small "
+            "numbers vary: with few issues, one more found or missed moves a share a "
+            "lot, so each share names its counts.",
+            "",
+            *MEASURES_HEAD,
+            *found.rows,
+        )
+    )
+
+
+def page_with_numbers(page: str, found: Measurement) -> str:
+    """The accuracy page with the numbers in its block: a part for each repository,
+    in the order of their names, whose newest numbers replace its older ones. The text
+    that stands there before the first numbers goes."""
+    block = ACCURACY_BLOCK.search(page)
+    if block is None:
+        raise AssistantError(
+            f"{ACCURACY_PAGE} has no block of numbers between the lines "
+            "<!-- accuracy numbers: start --> and <!-- accuracy numbers: end -->."
+        )
+    kept = {
+        section[len("### [") : section.index("]")]: section.strip()
+        for section in re.split(r"(?m)^(?=### \[)", block["sections"])[1:]
+    }
+    kept[found.repository] = accuracy_section(found)
+    sections = "\n\n".join(kept[name] for name in sorted(kept, key=str.casefold))
+    start, end = block.span("sections")
+    return f"{page[:start]}\n{sections}\n\n{page[end:]}"
+
+
 def event_comment(number: int) -> int | None:
     """The id of the comment on the issue whose event started this run; None for any
     other event, such as a run by hand, and outside of GitHub Actions.
@@ -10520,7 +10707,7 @@ def repository_of_run(*, needed: bool) -> str:
 
 
 # The commands of the script with their help, in the order of --help, and below the
-# options of evaluate and install. They are constants, which mutmut leaves alone: its
+# options of some of them. They are constants, which mutmut leaves alone: its
 # mutants change what the commands do, which the tests check, and not the texts of
 # the help, which no test needs to check.
 SCRIPT_COMMANDS = {
@@ -10544,13 +10731,15 @@ SCRIPT_COMMANDS = {
     "evaluate": "measure how often a first analysis chooses the labels, duplicates and "
     "questions of the maintainers, by replaying closed issues with the engine's "
     "command line on this computer",
+    "accuracy-page": "write the numbers of a report of evaluate into "
+    "docs/accuracy.md of the checkout",
     "install": "write the workflows and the starters into a repository",
 }
 # The commands of one task of the engine, which take --issue and --mode, by default
 # from ISSUE and MODE.
 TASK_COMMANDS = ("engine", "context", "analyze", "apply", "usage")
 # The commands that read only the checkout, so they run anywhere, also on a computer
-# without GH_REPO; the others, but install, call GitHub.
+# without GH_REPO; the others, but install and accuracy-page, call GitHub.
 OFFLINE_COMMANDS = ("check", "endpoints", "engine", "analyze", "usage")
 SCRIPT_OPTIONS: dict[str, dict[str, dict[str, Any]]] = {
     "evaluate": {
@@ -10570,6 +10759,18 @@ SCRIPT_OPTIONS: dict[str, dict[str, dict[str, Any]]] = {
             "type": Path,
             "help": "the Markdown file of the report, outside the checkout; by default "
             "NAME-accuracy.md next to it",
+        },
+    },
+    "accuracy-page": {
+        "--report": {
+            "type": Path,
+            "required": True,
+            "help": "the Markdown file of the report of evaluate",
+        },
+        "--repository": {
+            "required": True,
+            "help": "the repository that the run measured, as owner/name; a report "
+            "that names another one is refused",
         },
     },
     "install": {
@@ -10636,6 +10837,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if arguments.command == "install":
             return install_command(root, arguments)
+        if arguments.command == "accuracy-page":
+            return accuracy_page_command(root, arguments.report, arguments.repository)
         repository = repository_of_run(needed=arguments.command not in OFFLINE_COMMANDS)
         if arguments.command == "check":
             return check_command(root, repository)
@@ -10818,6 +11021,27 @@ def evaluate_command(
     finally:
         shutil.rmtree(work, ignore_errors=True)
     summary(f"Accuracy on {repository}", lines, False)
+    return 0
+
+
+def accuracy_page_command(root: Path, report_file: Path, repository: str) -> int:
+    page = root / ACCURACY_PAGE
+    try:
+        report_text = report_file.read_text(encoding="utf-8")
+        before = page.read_text(encoding="utf-8")
+    except (OSError, ValueError) as error:
+        raise AssistantError(f"accuracy-page can't read a file: {error}") from None
+    found = measurement_of(report_text)
+    if found.repository != repository:
+        raise AssistantError(
+            f"This run measured {repository}, and the report names {found.repository}."
+        )
+    page.write_text(page_with_numbers(before, found), encoding="utf-8")
+    summary(
+        f"Accuracy on {found.repository}",
+        [f"The numbers of {found.day.isoformat()} are in {ACCURACY_PAGE}."],
+        False,
+    )
     return 0
 
 
