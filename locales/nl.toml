@@ -144,6 +144,7 @@ reminder = """\
   Gesloten als duplicaat van #{number}, zoals {grace_days} geleden aangekondigd. Ga \
   daar verder; een 👍 op #{number} laat zien dat meer mensen getroffen zijn. Was dit \
   een vergissing, schrijf dan een reactie en de maintainers heropenen het."""
+"let-in" = "Bedankt, @{author}: de AI mag dit issue nu lezen, zoals je vroeg, en de analyse volgt. Je kunt dit één keer per issue vragen."
 reopened = """\
   Bedankt voor je antwoord, @{author}! Ik heb het issue heropend; de maintainers \
   kijken er opnieuw naar."""

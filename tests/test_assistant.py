@@ -465,6 +465,7 @@ def test_every_comment_is_written_in_every_language(config, language):
         "closed-duplicate": assistant.render_closed_duplicate(7, language, lifecycle),
         "duplicate": assistant.render_duplicate(7, "reporter", language, config),
         "reopened": assistant.render_reopened("reporter", language),
+        "let-in": assistant.render_let_in("reporter", language, NOW),
         "fixed": assistant.render_fixed(5, "main", language),
         "released": assistant.render_released("reporter", release, [5], language),
         "reopened-release": assistant.render_reopened_release("reporter", language),
@@ -1444,10 +1445,49 @@ def test_other_edits_of_a_ticked_box_mute_nothing(config, before, after, editor)
     assert "assistant-muted" not in github.labels_of(12)
 
 
+def test_a_click_that_unticks_the_box_answers_no_question(config):
+    waiting = ("bug", "needs-info", "stale")
+    github, plan = edited_box(config, BOX_TICKED, BOX_UNTICKED, labels=waiting)
+    assert (plan.mode, plan.notes) == (
+        "none",
+        ["Unticking the box alone starts nothing."],
+    )
+    assert github.labels_of(12) == set(waiting)
+
+
+def test_an_answer_saved_with_a_tick_counts_and_starts_no_follow_up(config):
+    github = FakeGitHub(
+        config, make_issue(labels=("bug", "needs-info"), body=BOX_UNTICKED)
+    )
+    github.comment_store[12] = [analysis(questions=1)]
+    changes = github.edit(12, "reporter", body=f"The log says this.\n\n{BOX_TICKED}")
+    payload = event("edited", github.issue(12), "reporter", changes=changes)
+    plan = assistant.handle_event(github, "issues", payload, config)
+    assert github.labels_of(12) == {"bug", "assistant-muted"}
+    assert plan.mode == "none"
+    assert plan.notes[0] == TICKED_NOTE
+    assert "The reporter answered." in plan.notes
+
+
+def test_an_answer_saved_with_an_untick_counts_as_an_answer(config):
+    github, plan = edited_box(
+        config,
+        BOX_TICKED,
+        f"The log says this.\n\n{BOX_UNTICKED}",
+        labels=("bug", "needs-info", "assistant-muted"),
+    )
+    assert github.labels_of(12) == {"bug", "assistant-muted"}
+    assert plan.mode == "none"
+    assert "The reporter answered." in plan.notes
+
+
 def test_a_click_that_unticks_the_box_lets_in_no_ai_by_itself(config):
     muted = ("bug", "needs-triage", "assistant-muted")
     github, plan = edited_box(config, BOX_TICKED, BOX_UNTICKED, labels=muted)
-    assert (plan.mode, plan.notes) == ("none", ["Edit without a pending question."])
+    assert (plan.mode, plan.notes) == (
+        "none",
+        ["Unticking the box alone starts nothing."],
+    )
     assert "assistant-muted" in github.labels_of(12)
     # The reporter's request does, as the form says.
     plan, reactions = command_event(
@@ -1475,10 +1515,64 @@ def test_the_reporter_s_again_lets_the_ai_in_after_the_box(config):
         ["New analysis on request."],
         ["eyes"],
     )
-    assert (plan.answers, plan.marks) == (None, {})
     assert "assistant-muted" not in github.labels_of(12)
     # The issue is one that the AI reads again, with the box still ticked.
     assert not assistant.opted_out(github.issue(12), config)
+    # A comment of the assistant keeps the record: the run counts, and it says so.
+    note = github.comment_store[12][-1]
+    assert assistant.kind_of(note) == "let-in"
+    assert assistant.runs_of(note) and "@reporter" in note["body"]
+
+
+def test_the_reporter_s_again_after_the_box_is_refused_a_second_time(config):
+    # Also when the first one posted no analysis: untick, tick, again gives no run.
+    github = muted_by_the_box(config)
+    command_event(config, github, "/assistant again", "reporter", "NONE")
+    github.add_labels(12, ["assistant-muted"])
+    plan, reactions = command_event(
+        config, github, "/assistant again", "reporter", "NONE", comment_id=6
+    )
+    assert (plan.mode, reactions) == ("none", ["confused"])
+    assert plan.notes == ["The reporter of #12 asked for a new analysis once already."]
+    assert "assistant-muted" in github.labels_of(12)
+    assert [assistant.kind_of(item) for item in github.comment_store[12]].count(
+        "let-in"
+    ) == 1
+
+
+def test_the_reporter_s_again_after_the_box_is_refused_after_the_analysis_it_got(
+    config,
+):
+    github = muted_by_the_box(config)
+    command_event(config, github, "/assistant again", "reporter", "NONE")
+    github.comment_store[12].append(analysis(1, days_ago=0))
+    plan, reactions = command_event(
+        config, github, "/assistant again", "reporter", "NONE", comment_id=6
+    )
+    assert (plan.mode, reactions) == ("none", ["confused"])
+    assert plan.notes == ["The reporter of #12 asked for a new analysis once already."]
+
+
+def test_the_reporter_s_agains_after_the_box_count_against_the_limit_of_the_day(config):
+    # Issues older than a day, whose opening no longer counts: each request does.
+    limits = dataclasses.replace(config, max_per_day=2, max_per_author_per_day=1)
+    labels = ("bug", "needs-triage", "assistant-muted")
+    numbers = (12, 13, 14)
+    github = FakeGitHub(
+        limits,
+        *(make_issue(n, labels=labels, body=BOX_TICKED, days_ago=3) for n in numbers),
+    )
+    modes = []
+    for number in numbers:
+        comment = make_comment(number * 10, "reporter", "/assistant again", 0, "NONE")
+        github.comment_store[number] = [comment]
+        payload = event("created", github.issue(number), "reporter", comment)
+        modes.append(
+            assistant.handle_event(github, "issue_comment", payload, limits).mode
+        )
+    assert modes == ["triage", "triage", "none"]
+    assert "assistant-muted" in github.labels_of(14)
+    assert len(github.comment_store[14]) == 1
 
 
 def test_the_reporter_s_again_after_the_box_counts_as_once_after_an_analysis(config):

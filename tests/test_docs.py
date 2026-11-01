@@ -1430,7 +1430,7 @@ def test_the_comments_page_shows_every_kind_of_comment(monkeypatch):
 
         monkeypatch.setattr(assistant, name, record)
     hooks.examples()
-    assert called == set(writers) and len(writers) == 13
+    assert called == set(writers) and len(writers) == 14
 
 
 def test_the_comments_page_examples_carry_their_marker_and_language():

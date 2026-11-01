@@ -319,6 +319,9 @@ PINNED = "pinned"
 # The kind of the marker of the issue that keeps the digest of the sweep; see
 # keep_digest_issue.
 DIGEST = "digest"
+# The marker of the comment with which a reporter's /assistant again ends the mute of
+# the box of the form on an issue without an analysis.
+LET_IN = "let-in"
 DIGEST_TITLE = "Triage digest"
 # The longest title of an issue that GitHub takes.
 MAX_TITLE = 256
@@ -3162,6 +3165,18 @@ def box_ticked(body: str | None, config: Config) -> bool:
     return TICKED_BOX.search(answer) is not None
 
 
+def without_box(body: str | None, config: Config) -> str:
+    """The text of an issue without the answer of the box of [forms] opt_out_field, to
+    tell a click on the box from an edit of the text. The answer is cut out at its last
+    place, as a form writes the box last."""
+    body = body or ""
+    answer = form_fields(body).get(config.opt_out_field)
+    if not answer:
+        return body
+    start, _, end = body.rpartition(answer)
+    return start + end
+
+
 def opted_out(issue: dict[str, Any], config: Config) -> bool:
     """Whether the AI stays out of the issue at its reporter's wish, also when it
     reads for another issue: the box is ticked and the issue still muted. Both ways
@@ -3364,21 +3379,27 @@ def handle_event(
         changes = payload.get("changes") or {}
         if "body" not in changes:
             return Plan(number, notes=["A new title alone answers nothing."])
+        by_reporter = login(payload.get("sender")) == author
+        before = changes["body"].get("from")
         # GitHub shows the box of the form as one that a click ticks in the issue.
-        if (
-            login(payload.get("sender")) == author
-            and box_ticked(text_of(issue), config)
-            and not box_ticked(changes["body"].get("from"), config)
+        clicked = by_reporter and box_ticked(text_of(issue), config) != box_ticked(
+            before, config
+        )
+        plan = Plan(number)
+        if clicked and box_ticked(text_of(issue), config):
+            plan = keep_out_the_ai(github, number, config)
+        if clicked and without_box(text_of(issue), config) == without_box(
+            before, config
         ):
-            return keep_out_the_ai(github, number, config)
-        if (
-            issue["state"] == "open"
-            and login(payload.get("sender")) == author
-            and current & {NEEDS_INFO, STALE}
-        ):
-            plan = answered(github, issue, config)
+            # A click answers no question, and unticking the box starts nothing.
+            plan.notes = plan.notes or ["Unticking the box alone starts nothing."]
+            return plan
+        if issue["state"] == "open" and by_reporter and current & {NEEDS_INFO, STALE}:
+            # A follow-up of an edit that also ticked the box stops at the mute here.
+            plan = answered(github, issue, config, plan)
             return limited(github, plan, issue, moment(issue["updated_at"]), config)
-        return Plan(number, notes=["Edit without a pending question."])
+        plan.notes.append("Edit without a pending question.")
+        return plan
     if name == "issue_comment" and action == "created":
         comment = payload["comment"]
         given = command_of(issue, comment)
@@ -3671,7 +3692,9 @@ def again(
     while it waits for the maintainer's triage and after an analysis: its marker
     records the run, within the limits of the day, so that a deleted comment gives
     no second one. A reporter who kept the AI out with the box of the form lets it in
-    this way, also without an analysis, and ends that mute with it, and no other.
+    this way, and ends that mute with it, and no other. Without an analysis, a comment
+    of the assistant keeps that record, as nothing else would count the run or the
+    request; see render_let_in.
     """
     number = issue["number"]
     plan = Plan(number, "triage", ["New analysis on request."])
@@ -3682,18 +3705,26 @@ def again(
                 f"has {NEEDS_TRIAGE}."
             )
         comments = github.comments(number)
-        analyses = [item for item in comments if kind_of(item) == "analysis"]
+        records = [item for item in comments if kind_of(item) in {"analysis", LET_IN}]
         own_mute = muted_by_reporter(github, issue, comments, config)
-        if not analyses and not own_mute:
+        if not records and not own_mute:
             return f"#{number} has no analysis that the reporter could ask again."
-        if any("again" in (marker(item) or ("", {}))[1] for item in analyses):
+        if any("again" in (marker(item) or ("", {}))[1] for item in records):
             return f"The reporter of #{number} asked for a new analysis once already."
-        if analyses:
-            plan.answers, plan.marks = analyses[-1], {"again": "1"}
-        allowed = within_limits if own_mute else limited
-        plan = allowed(github, plan, comment, created(comment), config)
+        # A comment that lets the AI in carries the mark from its start, so only
+        # analyses are left here.
+        if records:
+            plan.answers, plan.marks = records[-1], {"again": "1"}
+        at = created(comment)
+        if own_mute:
+            plan = within_limits(github, plan, comment, at, config, requested=True)
+        else:
+            plan = limited(github, plan, comment, at, config)
         if plan.mode == "none":
             return plan.notes[-1]
+        if not records:
+            language = issue_language(issue, comments)
+            github.comment(number, render_let_in(login(issue["user"]), language, at))
         if own_mute:
             github.remove_label(number, MUTED)
     if POSSIBLE_DUPLICATE in label_names(issue):
@@ -3798,6 +3829,8 @@ def within_limits(
     trigger: dict[str, Any],
     at: datetime,
     config: Config,
+    *,
+    requested: bool = False,
 ) -> Plan:
     """The plan, or none when its run of the AI would pass a limit of the day.
 
@@ -3822,7 +3855,11 @@ def within_limits(
     since = at - DAY
     # A new issue or discussion counts only those opened before it; a new analysis
     # that the reporter asked for counts every one of the day, as a follow-up does.
-    first = plan.mode in {"triage", "discussion-answer"} and plan.answers is None
+    first = (
+        plan.mode in {"triage", "discussion-answer"}
+        and plan.answers is None
+        and not requested
+    )
     opened = github.issues_since(since)
     if config.answer_categories:
         opened += [
@@ -5844,6 +5881,14 @@ def render_duplicate(number: int, author: str, language: str, config: Config) ->
         f"{say(language, 'duplicate.named', author=author, number=number)} "
         f"{say(language, 'duplicate.close', number=number, **periods)}\n{about}"
     )
+
+
+def render_let_in(author: str, language: str, at: datetime) -> str:
+    """The note that a reporter's /assistant again ended the mute of the box of the
+    form on an issue without an analysis. Its marker records the request and the run,
+    as the marker of the analysis does for any other new analysis."""
+    mark = render_marker(LET_IN, again=1, runs=int(at.timestamp()))
+    return f"{mark}\n{say(language, 'let-in', author=author)}\n"
 
 
 def render_reopened(author: str, language: str) -> str:

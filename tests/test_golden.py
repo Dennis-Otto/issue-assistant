@@ -220,8 +220,10 @@ def opened(config, author="reporter", association="NONE", **changes):
     return FakeGitHub(config, issue), "issues", event("opened", issue, author)
 
 
-def edited(config, editor="reporter", **changes):
-    github = FakeGitHub(config, make_issue(labels=("bug", "needs-info", "stale")))
+def edited(config, editor="reporter", before=BUG_BODY, **changes):
+    github = FakeGitHub(
+        config, make_issue(labels=("bug", "needs-info", "stale"), body=before)
+    )
     github.comment_store[12] = [analysis(questions=1)]
     found = github.edit(12, editor, **changes)
     payload = event("edited", github.issue(12), editor, changes=found)
@@ -293,7 +295,12 @@ EVENTS = {
     "opened": opened,
     "opened with the box ticked": lambda config: opened(config, body=BOX_TICKED),
     "opened with the box unticked": lambda config: opened(config, body=BOX_UNTICKED),
-    "box ticked by an edit": lambda config: edited(config, body=BOX_TICKED),
+    "box ticked by an edit": lambda config: edited(
+        config, before=BOX_UNTICKED, body=BOX_TICKED
+    ),
+    "box unticked by an edit": lambda config: edited(
+        config, before=BOX_TICKED, body=BOX_UNTICKED
+    ),
     "again of the reporter who ticked the box": again_after_the_box,
     "opened by a maintainer": lambda config: opened(config, "maintainer", "OWNER"),
     "opened by a bot": lambda config: opened(config, "renovate[bot]"),

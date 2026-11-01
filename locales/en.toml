@@ -141,6 +141,7 @@ reminder = """\
   Closed as a duplicate of #{number}, as announced {grace_days} ago. Please continue \
   there; a 👍 on #{number} shows that more people are affected. If this was a mistake, \
   write a comment and the maintainers will reopen it."""
+"let-in" = "Thanks, @{author}: the AI may read this issue now, as you asked, and its analysis follows. You can ask for this once per issue."
 reopened = """\
   Thanks for your answer, @{author}! I reopened the issue; the maintainers will take \
   another look."""

@@ -143,6 +143,7 @@ reminder = """\
   Zamknięte jako duplikat #{number}, jak zapowiedziano {grace_days} temu. Kontynuuj \
   proszę tam; 👍 przy #{number} pokazuje, że problem dotyczy większej liczby osób. \
   Jeśli to pomyłka, napisz komentarz, a opiekunowie otworzą je ponownie."""
+"let-in" = "Dziękuję, @{author}: AI może teraz przeczytać to zgłoszenie, tak jak prosisz, a jej analiza pojawi się wkrótce. O to można poprosić raz na zgłoszenie."
 reopened = """\
   Dzięki za odpowiedź, @{author}! Zgłoszenie zostało ponownie otwarte; opiekunowie \
   przyjrzą się mu jeszcze raz."""

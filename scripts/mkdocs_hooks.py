@@ -67,7 +67,7 @@ import sys
 import tempfile
 from collections.abc import Callable
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 from typing import Any, NamedTuple
@@ -707,6 +707,12 @@ KINDS = {
         "Reopened by an answer",
         "An answer of the reporter reopens an issue that closed for want of one.",
     ),
+    "let-in": (
+        "The AI let in after the box",
+        "A reporter who kept the AI out with the box of the form, and writes "
+        "`/assistant again` on an issue without an analysis, gets this note. Its "
+        "hidden marker records the one request of the issue and the run of the day.",
+    ),
     "closed-duplicate": (
         "Closed as a duplicate",
         "{duplicate_grace} days after the notice of a sure duplicate, without a comment or a 👎, "
@@ -954,6 +960,7 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
         "reminder": reminder(ia, language),
         "closed-unanswered": ia.render_closed_unanswered(REPORTER, language),
         "reopened": ia.render_reopened(REPORTER, language),
+        "let-in": ia.render_let_in(REPORTER, language, datetime(2026, 11, 1, tzinfo=UTC)),
         "closed-duplicate": ia.render_closed_duplicate(23, language),
         "fixed": ia.render_fixed(43, "main", language),
         "released": ia.render_released(REPORTER, release, [43], language),

@@ -1,0 +1,13 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "none",
+    "notes": [
+      "Unticking the box alone starts nothing."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [],
+  "requests": []
+}
