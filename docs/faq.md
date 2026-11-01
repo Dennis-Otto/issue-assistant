@@ -54,11 +54,15 @@ Yes, from yours: correct the issue, and the next analysis knows. Every first ana
 
 ## How do I know whether the assistant does well?
 
-Open the summary of the morning sweep on the first day of a month, or start the sweep by hand: it counts the labels of the AI that the maintainers kept and those they had to add, the time from a new issue to its analysis, what became of the duplicate notices and of the questions to reporters, and the 👍 and 👎 on the analyses, for the 30 days before. Every morning, it also lists what waits on the maintainers, on reporters and on a release.
+Open the summary of the morning sweep on the first day of a month, or start the sweep by hand: it counts the labels of the AI that the maintainers kept and those they had to add, the time from a new issue to its analysis, what became of the duplicate notices, of the questions to reporters and of the good first issue candidates, where `labels.toml` has them, and the 👍 and 👎 on the analyses, for the 30 days before. Every morning, it also lists what waits on the maintainers, on reporters and on a release.
 
 ## Where do I see what waits on me?
 
 In the summary of the morning sweep: under *Actions*, the workflow *Issue lifecycle*, its latest run of the schedule. It lists what waits on the maintainers, on reporters and on a release, by number and link. To have that in the Issues tab, set `[digest] issue = true` in `.github/issue-assistant/config.toml`: the sweep then [keeps it in one issue](features/digest.md#the-digest-as-an-issue), which you pin by hand and which it edits every morning without notifying anyone.
+
+## Can the assistant find good first issues?
+
+It finds candidates, and the label stays yours. Where `.github/labels.toml` has labels of the group `contribution`, as the starter's `good first issue` and `help wanted`, the first analysis also judges whether someone new to the project could take the issue: a confirmed, small, local change, never a security issue, a duplicate or an open design question. That changes no comment and no label. The digest of the morning sweep lists those that a maintainer has triaged, and you add the label to those you confirm. [Good first issue candidates](features/good-first-issues.md) has the rules and how to turn it on.
 
 ## Which data leaves GitHub?
 

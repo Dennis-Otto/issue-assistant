@@ -15,7 +15,7 @@ A repository sets up the issue assistant in three files of `.github/`, which `in
 name = "area: cards"
 color = "bfdadc"
 description = "Dashboard cards"          # at most 100 characters
-group = "area"                            # type, area, topic, priority, lifecycle, decision, release or dependabot
+group = "area"                            # type, area, topic, priority, lifecycle, decision, contribution, release or dependabot
 form_options = ["Live card", "Training card"]   # answers of the Area field that choose it
 owners = ["octocat"]                      # optional: assigned to its issues while nobody is
 

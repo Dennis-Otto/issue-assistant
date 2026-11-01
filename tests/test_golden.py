@@ -435,7 +435,30 @@ def with_digest_issue(root):
     )
 
 
+def with_labels_to_offer(root):
+    labels = root / ".github" / "labels.toml"
+    labels.write_text(
+        labels.read_text("utf-8")
+        + '\n[[label]]\nname = "good first issue"\ncolor = "7057ff"\n'
+        + 'description = "Good for newcomers"\ngroup = "contribution"\n',
+        "utf-8",
+    )
+
+
+def candidate(config):
+    """A triaged issue that its analysis marks as one for newcomers."""
+    github = FakeGitHub(config, make_issue(labels=("bug",), days_ago=6))
+    github.comment_store[12] = [analysis(days_ago=5, newcomer=1)]
+    return github
+
+
 ANSWER = json.dumps(make_answer(missing_information=["Which version do you run?"]))
+SUITED = json.dumps(
+    make_answer(
+        newcomer={"fit": True, "reason": "One sentence of the guide is wrong."},
+        references=[{"path": "docs/troubleshooting.md", "reason": "It says so."}],
+    )
+)
 DIGEST_ISSUE = "digest-issue.md.txt"
 SUMMARIES = {
     "event": (
@@ -448,6 +471,11 @@ SUMMARIES = {
         ["apply", "--issue", "12", "--mode", "triage"],
         {"RESULT": ANSWER, "ENGINE": "claude", "GITHUB_SHA": "abc"},
     ),
+    "apply-candidate": (
+        lambda config: FakeGitHub(config, make_issue()),
+        ["apply", "--issue", "12", "--mode", "triage"],
+        {"RESULT": SUITED, "ENGINE": "claude", "GITHUB_SHA": "abc"},
+    ),
     "apply-dry-run": (
         lambda config: FakeGitHub(config, make_issue(), dry_run=True),
         ["apply", "--issue", "12", "--mode", "triage"],
@@ -455,6 +483,7 @@ SUMMARIES = {
     ),
     "sweep": (lambda config: waiting_since(config, 16), ["sweep"], {}),
     "sweep-digest-issue": (lambda config: waiting_since(config, 16), ["sweep"], {}),
+    "sweep-candidates": (candidate, ["sweep"], {}),
     "sync-labels": (labels_to_change, ["sync-labels"], {}),
     "stopped-by-github": (
         stopped_by_github,
@@ -466,7 +495,12 @@ SUMMARIES = {
     "check": (lambda config: None, ["check"], {}),
 }
 # The cases that change the files of the repository, in a copy of their own.
-CHANGED_ROOTS = {"check": without_gitignore, "sweep-digest-issue": with_digest_issue}
+CHANGED_ROOTS = {
+    "apply-candidate": with_labels_to_offer,
+    "check": without_gitignore,
+    "sweep-candidates": with_labels_to_offer,
+    "sweep-digest-issue": with_digest_issue,
+}
 
 
 @pytest.mark.parametrize("case", SUMMARIES)

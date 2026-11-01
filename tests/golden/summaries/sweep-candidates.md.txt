@@ -1,0 +1,31 @@
+### Issue lifecycle
+
+- Feedback of the last 30 days: analyses 1, 👍 0, 👎 0; follow-ups 0, 👍 0, 👎 0.
+
+#### Maintainer digest
+
+**Waiting on the maintainers: 0**
+
+**Waiting on reporters: 0**
+
+**Fixed, waiting for a release: 0**
+
+**Good first issue candidates: 1**
+
+- [#12](https://github.com/owner/project/issues/12): analyzed 5 days ago
+
+The AI thinks that someone new to the project could take these; it sets no label. Add `good first issue` to those you confirm. A 😕 on the analysis takes one off this list.
+
+#### Assistant quality (last 30 days)
+
+| Number | Value |
+| --- | --- |
+| Analyses posted | 1, on 1 issues |
+| Median time from a new issue to its analysis | 24 h |
+| Labels of the AI kept for 14 days | 0 of 0 |
+| Labels that maintainers added within 7 days | 0 |
+| Duplicate notices | 0: closed 0, objected to 0, kept open otherwise 0, waiting 0 |
+| Questions to reporters | 0 issues: answered 0, closed without an answer 0, settled otherwise 0, waiting 0 |
+| Good first issue candidates | 1: kept 0, removed 0, closed without a label 0, waiting 1 |
+| Feedback on the analyses | 👍 0, 👎 0 |
+
