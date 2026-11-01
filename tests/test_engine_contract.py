@@ -125,7 +125,7 @@ def test_the_job_checks_the_engines_on_a_change_of_one_and_every_week():
     # No secret: the job reads GitHub with its own token, which can only read.
     assert job["permissions"] == {"contents": "read", "pull-requests": "read"}
     assert "secrets." not in json.dumps(job)
-    block, checkout = job["steps"][:2]
+    block, warm_up, checkout = job["steps"][:3]
     assert block["uses"].startswith("step-security/harden-runner@")
     # GitHub for the files of the actions and the schemas, npm for the command
     # lines, and Sigstore's root of trust, with which npm verifies the attestations
@@ -135,6 +135,7 @@ def test_the_job_checks_the_engines_on_a_change_of_one_and_every_week():
         "allowed-endpoints": "api.github.com:443 github.com:443 "
         "registry.npmjs.org:443 tuf-repo-cdn.sigstore.dev:443",
     }
+    assert warm_up["env"] == {"HOSTS": block["with"]["allowed-endpoints"]}
     assert checkout["with"] == {"persist-credentials": False}
     steps = {step.get("id"): step for step in job["steps"]}
     assert steps["changes"]["if"].endswith("github.event_name == 'pull_request' }}")

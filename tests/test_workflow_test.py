@@ -131,7 +131,7 @@ def test_the_gate_waits_for_every_call_and_is_the_required_check():
     assert check["env"]["RUN"] == "${{ github.run_id }}"
     assert check["env"]["CHANGES"] == "${{ needs.changes.result }}"
     assert check["env"]["WANTED"] == "${{ needs.changes.outputs.run }}"
-    explain = gate["steps"][-1]
+    explain = gate["steps"][-2]
     assert explain["if"] == "failure()"
     assert explain["env"] == {"CHECK": gate["name"]}
     settings = tomllib.loads(
@@ -247,7 +247,7 @@ def test_apply_takes_the_answer_of_the_smoke_test_in_place_of_the_engine_s():
         'echo "answer=$answer" >> "$GITHUB_OUTPUT"',
     ]
     steps = ISSUES["apply"]["steps"]
-    assert steps.index(step) == len(steps) - 2
+    assert steps.index(step) == len(steps) - 3
 
 
 def test_apply_accepts_the_answer_of_the_smoke_test_for_the_canary_s_issue(
