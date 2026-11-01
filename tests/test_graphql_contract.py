@@ -11,10 +11,10 @@ and the answer, worked out from the schema, holds only the fields that the docum
 asks for, so that the method reads no other.
 
 The Action test workflow checks the documents every week against the schema of that
-day, which GRAPHQL_SCHEMA names. Refresh the copy here with
+day, which GRAPHQL_SCHEMA names, and brings a new copy that still passes in a pull
+request of its own. Refresh the copy here with
 
-    curl -fsSL -o tests/github/schema.docs.graphql \\
-      https://docs.github.com/public/fpt/schema.docs.graphql
+    python3 scripts/github_schemas.py download tests/github
 """
 
 import ast
@@ -83,7 +83,7 @@ class GitHubOfTheSchema:
         if command[:3] != ["gh", "api", "graphql"]:
             assert command[2] in self.rest, f"unexpected call {command}"
             return answered(command, self.rest[command[2]])
-        assert command[3:] == ["--input", "-"] and input is not None
+        assert command[3:5] == ["--input", "-"] and input is not None
         request = json.loads(input)
         self.requests.append(request)
         document = parse(request["query"])

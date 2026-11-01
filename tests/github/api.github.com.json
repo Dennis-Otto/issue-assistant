@@ -1,0 +1,11026 @@
+{
+ "api_version": "2022-11-28",
+ "paths": {
+  "/": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/advisories": {
+   "get": {
+    "query": {
+     "affects": {},
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "cve_id": {
+      "type": "string"
+     },
+     "cwes": {},
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "ecosystem": {
+      "enum": [
+       "rubygems",
+       "npm",
+       "pip",
+       "maven",
+       "nuget",
+       "composer",
+       "go",
+       "rust",
+       "erlang",
+       "actions",
+       "pub",
+       "other",
+       "swift"
+      ],
+      "type": "string"
+     },
+     "epss_percentage": {
+      "type": "string"
+     },
+     "epss_percentile": {
+      "type": "string"
+     },
+     "ghsa_id": {
+      "type": "string"
+     },
+     "is_withdrawn": {
+      "type": "boolean"
+     },
+     "modified": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "published": {
+      "type": "string"
+     },
+     "severity": {
+      "enum": [
+       "unknown",
+       "low",
+       "medium",
+       "high",
+       "critical"
+      ],
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "updated",
+       "published",
+       "epss_percentage",
+       "epss_percentile"
+      ],
+      "type": "string"
+     },
+     "type": {
+      "enum": [
+       "reviewed",
+       "malware",
+       "unreviewed"
+      ],
+      "type": "string"
+     },
+     "updated": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/advisories/{ghsa_id}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/agents/automations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "type": {
+      "enum": [
+       "personal",
+       "shared"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/agents/repos/{owner}/{repo}/automations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "type": {
+      "enum": [
+       "personal",
+       "shared"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/agents/repos/{owner}/{repo}/automations/available-tools": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/agents/repos/{owner}/{repo}/automations/available-triggers": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/agents/repos/{owner}/{repo}/automations/{automation_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/agents/repos/{owner}/{repo}/automations/{automation_id}/tasks": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "is_archived": {
+      "type": "boolean"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "updated_at",
+       "created_at"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/agents/repos/{owner}/{repo}/pulls/{pull_number}/agent-merge": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "pull_number": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/agents/repos/{owner}/{repo}/tasks": {
+   "get": {
+    "query": {
+     "creator_id": {
+      "type": "array"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "is_archived": {
+      "type": "boolean"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "updated_at",
+       "created_at"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/agents/repos/{owner}/{repo}/tasks/{task_id}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/agents/tasks": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "is_archived": {
+      "type": "boolean"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "updated_at",
+       "created_at"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/agents/tasks/{task_id}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/app": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/app-manifests/{code}/conversions": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/app/hook/config": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/app/hook/deliveries": {
+   "get": {
+    "query": {
+     "cursor": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "status": {
+      "enum": [
+       "success",
+       "failure"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/app/hook/deliveries/{delivery_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "delivery_id": "integer"
+   }
+  },
+  "/app/hook/deliveries/{delivery_id}/attempts": {
+   "placeholders": {
+    "delivery_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/app/installation-requests": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/app/installations": {
+   "get": {
+    "query": {
+     "outdated": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/app/installations/{installation_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "installation_id": "integer"
+   }
+  },
+  "/app/installations/{installation_id}/access_tokens": {
+   "placeholders": {
+    "installation_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/app/installations/{installation_id}/suspended": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "installation_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/applications/{client_id}/grant": {
+   "delete": {
+    "query": {}
+   }
+  },
+  "/applications/{client_id}/token": {
+   "delete": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/applications/{client_id}/token/scoped": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/apps/{app_slug}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/assignments/{assignment_id}": {
+   "get": {
+    "deprecated": true,
+    "query": {}
+   },
+   "placeholders": {
+    "assignment_id": "integer"
+   }
+  },
+  "/assignments/{assignment_id}/accepted_assignments": {
+   "get": {
+    "deprecated": true,
+    "query": {}
+   },
+   "placeholders": {
+    "assignment_id": "integer"
+   }
+  },
+  "/assignments/{assignment_id}/grades": {
+   "get": {
+    "deprecated": true,
+    "query": {}
+   },
+   "placeholders": {
+    "assignment_id": "integer"
+   }
+  },
+  "/classrooms": {
+   "get": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/classrooms/{classroom_id}": {
+   "get": {
+    "deprecated": true,
+    "query": {}
+   },
+   "placeholders": {
+    "classroom_id": "integer"
+   }
+  },
+  "/classrooms/{classroom_id}/assignments": {
+   "get": {
+    "deprecated": true,
+    "query": {}
+   },
+   "placeholders": {
+    "classroom_id": "integer"
+   }
+  },
+  "/codes_of_conduct": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/codes_of_conduct/{key}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/credentials/revoke": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/emojis": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/actions/cache/retention-limit": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/actions/cache/storage-limit": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/actions/oidc/customization/properties/repo": {
+   "get": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/actions/oidc/customization/properties/repo/{custom_property_name}": {
+   "delete": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/code-security/configurations": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/code-security/configurations/defaults": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/code-security/configurations/{configuration_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "configuration_id": "integer"
+   }
+  },
+  "/enterprises/{enterprise}/code-security/configurations/{configuration_id}/attach": {
+   "placeholders": {
+    "configuration_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/code-security/configurations/{configuration_id}/defaults": {
+   "placeholders": {
+    "configuration_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/code-security/configurations/{configuration_id}/repositories": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "status": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "configuration_id": "integer"
+   }
+  },
+  "/enterprises/{enterprise}/copilot/metrics/reports/enterprise-1-day": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/enterprises/{enterprise}/copilot/metrics/reports/enterprise-28-day/latest": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/copilot/metrics/reports/repos-1-day": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/enterprises/{enterprise}/copilot/metrics/reports/user-teams-1-day": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/enterprises/{enterprise}/copilot/metrics/reports/users-1-day": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/enterprises/{enterprise}/copilot/metrics/reports/users-28-day/latest": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/copilot/policies/coding_agent": {
+   "put": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/copilot/policies/coding_agent/organizations": {
+   "delete": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/dependabot/alerts": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "assignee": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "classification": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "ecosystem": {
+      "type": "string"
+     },
+     "epss_percentage": {
+      "type": "string"
+     },
+     "has": {},
+     "package": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "relationship": {
+      "type": "string"
+     },
+     "scope": {
+      "enum": [
+       "development",
+       "runtime"
+      ],
+      "type": "string"
+     },
+     "severity": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "epss_percentage"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/enterprises/{enterprise}/dependabot/repository-access": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/enterprises/{enterprise}/dependabot/repository-access/default-level": {
+   "put": {
+    "query": {}
+   }
+  },
+  "/events": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/feeds": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/gists": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/gists/public": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/gists/starred": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/gists/{gist_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/gists/{gist_id}/comments": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/gists/{gist_id}/comments/{comment_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "comment_id": "integer"
+   }
+  },
+  "/gists/{gist_id}/commits": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/gists/{gist_id}/forks": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/gists/{gist_id}/star": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/gists/{gist_id}/{sha}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/gitignore/templates": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/gitignore/templates/{name}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/installation/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/installation/token": {
+   "delete": {
+    "query": {}
+   }
+  },
+  "/issues": {
+   "get": {
+    "query": {
+     "collab": {
+      "type": "boolean"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "filter": {
+      "enum": [
+       "assigned",
+       "created",
+       "mentioned",
+       "subscribed",
+       "repos",
+       "all"
+      ],
+      "type": "string"
+     },
+     "labels": {
+      "type": "string"
+     },
+     "orgs": {
+      "type": "boolean"
+     },
+     "owned": {
+      "type": "boolean"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "pulls": {
+      "type": "boolean"
+     },
+     "since": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "comments"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "closed",
+       "all"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/licenses": {
+   "get": {
+    "query": {
+     "featured": {
+      "type": "boolean"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/licenses/{license}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/markdown": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/markdown/raw": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/marketplace_listing/accounts/{account_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "account_id": "integer"
+   }
+  },
+  "/marketplace_listing/plans": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/marketplace_listing/plans/{plan_id}/accounts": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "plan_id": "integer"
+   }
+  },
+  "/marketplace_listing/stubbed/accounts/{account_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "account_id": "integer"
+   }
+  },
+  "/marketplace_listing/stubbed/plans": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/marketplace_listing/stubbed/plans/{plan_id}/accounts": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "plan_id": "integer"
+   }
+  },
+  "/meta": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/networks/{owner}/{repo}/events": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/notifications": {
+   "get": {
+    "query": {
+     "all": {
+      "type": "boolean"
+     },
+     "before": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "participating": {
+      "type": "boolean"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/notifications/threads/{thread_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "thread_id": "integer"
+   }
+  },
+  "/notifications/threads/{thread_id}/subscription": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "thread_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/octocat": {
+   "get": {
+    "query": {
+     "s": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/organizations": {
+   "get": {
+    "query": {
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/organizations/{org}/actions/cache/retention-limit": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/organizations/{org}/actions/cache/storage-limit": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/organizations/{org}/settings/billing/ai_credit/usage": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "integer"
+     },
+     "model": {
+      "type": "string"
+     },
+     "month": {
+      "type": "integer"
+     },
+     "product": {
+      "type": "string"
+     },
+     "user": {
+      "type": "string"
+     },
+     "year": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/organizations/{org}/settings/billing/budgets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "scope": {
+      "enum": [
+       "enterprise",
+       "organization",
+       "repository",
+       "cost_center",
+       "multi_user_customer",
+       "user"
+      ],
+      "type": "string"
+     },
+     "user": {
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/organizations/{org}/settings/billing/budgets/{budget_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/organizations/{org}/settings/billing/premium_request/usage": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "integer"
+     },
+     "model": {
+      "type": "string"
+     },
+     "month": {
+      "type": "integer"
+     },
+     "product": {
+      "type": "string"
+     },
+     "user": {
+      "type": "string"
+     },
+     "year": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/organizations/{org}/settings/billing/usage": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "integer"
+     },
+     "month": {
+      "type": "integer"
+     },
+     "year": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/organizations/{org}/settings/billing/usage/summary": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "integer"
+     },
+     "month": {
+      "type": "integer"
+     },
+     "product": {
+      "type": "string"
+     },
+     "repository": {
+      "type": "string"
+     },
+     "sku": {
+      "type": "string"
+     },
+     "year": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/cache/usage": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/cache/usage-by-repository": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners/images/custom": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners/images/custom/{image_definition_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "image_definition_id": "integer"
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners/images/custom/{image_definition_id}/versions": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "image_definition_id": "integer"
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners/images/custom/{image_definition_id}/versions/{version}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "image_definition_id": "integer"
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners/images/github-owned": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners/images/partner": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners/limits": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners/machine-sizes": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners/platforms": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/hosted-runners/{hosted_runner_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "hosted_runner_id": "integer"
+   }
+  },
+  "/orgs/{org}/actions/oidc/customization/properties/repo": {
+   "get": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/oidc/customization/properties/repo/{custom_property_name}": {
+   "delete": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/oidc/customization/sub": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions/artifact-and-log-retention": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions/fork-pr-contributor-approval": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions/fork-pr-workflows-private-repos": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions/selected-actions": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions/self-hosted-runners": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions/self-hosted-runners/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions/self-hosted-runners/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/permissions/workflow": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/policies": {
+   "get": {
+    "query": {
+     "has_parents": {
+      "type": "boolean"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/policies/{policy_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "policy_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runner-groups": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "visible_to_repository": {
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runner-groups/{runner_group_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "runner_group_id": "integer"
+   }
+  },
+  "/orgs/{org}/actions/runner-groups/{runner_group_id}/hosted-runners": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "runner_group_id": "integer"
+   }
+  },
+  "/orgs/{org}/actions/runner-groups/{runner_group_id}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "runner_group_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runner-groups/{runner_group_id}/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer",
+    "runner_group_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runner-groups/{runner_group_id}/runners": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "runner_group_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runner-groups/{runner_group_id}/runners/{runner_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "runner_group_id": "integer",
+    "runner_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runners": {
+   "get": {
+    "query": {
+     "name": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/actions/runners/deprecations/{version}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runners/downloads": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runners/generate-jitconfig": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runners/registration-token": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runners/remove-token": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runners/{runner_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "runner_id": "integer"
+   }
+  },
+  "/orgs/{org}/actions/runners/{runner_id}/labels": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "runner_id": "integer"
+   },
+   "post": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/runners/{runner_id}/labels/{name}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "runner_id": "integer"
+   }
+  },
+  "/orgs/{org}/actions/secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/actions/secrets/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/secrets/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/secrets/{secret_name}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/secrets/{secret_name}/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/variables": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/variables/{name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/variables/{name}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/actions/variables/{name}/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/agents/secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/agents/secrets/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/agents/secrets/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/agents/secrets/{secret_name}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/agents/secrets/{secret_name}/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/agents/variables": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/agents/variables/{name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/agents/variables/{name}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/agents/variables/{name}/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/artifacts/metadata/deployment-record": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/artifacts/metadata/deployment-record/cluster/{cluster}": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/artifacts/metadata/deployment-record/cluster/{cluster}/jobs": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/artifacts/metadata/deployment-record/cluster/{cluster}/jobs/{job_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "job_id": "integer"
+   }
+  },
+  "/orgs/{org}/artifacts/metadata/storage-record": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/artifacts/{subject_digest}/metadata/deployment-records": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/artifacts/{subject_digest}/metadata/storage-records": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "subject_digest": "multi-segment"
+   }
+  },
+  "/orgs/{org}/attestations/bulk-list": {
+   "post": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/attestations/delete-request": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/attestations/digest/{subject_digest}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "subject_digest": "multi-segment"
+   }
+  },
+  "/orgs/{org}/attestations/repositories": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "predicate_type": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/attestations/{attestation_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "attestation_id": "integer"
+   }
+  },
+  "/orgs/{org}/attestations/{subject_digest}": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "predicate_type": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "subject_digest": "multi-segment"
+   }
+  },
+  "/orgs/{org}/blocks": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/blocks/{username}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/campaigns": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "ends_at",
+       "published"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "closed"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/campaigns/{campaign_number}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "campaign_number": "integer"
+   }
+  },
+  "/orgs/{org}/code-scanning/ai-scan": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/code-scanning/alerts": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "assignees": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "severity": {
+      "enum": [
+       "critical",
+       "high",
+       "medium",
+       "low",
+       "warning",
+       "note",
+       "error"
+      ],
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "closed",
+       "dismissed",
+       "fixed"
+      ],
+      "type": "string"
+     },
+     "tool_guid": {
+      "type": "string"
+     },
+     "tool_name": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/code-security/configurations": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "target_type": {
+      "enum": [
+       "global",
+       "all"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/code-security/configurations/defaults": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/code-security/configurations/detach": {
+   "delete": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/code-security/configurations/{configuration_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "configuration_id": "integer"
+   }
+  },
+  "/orgs/{org}/code-security/configurations/{configuration_id}/attach": {
+   "placeholders": {
+    "configuration_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/code-security/configurations/{configuration_id}/defaults": {
+   "placeholders": {
+    "configuration_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/code-security/configurations/{configuration_id}/repositories": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "status": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "configuration_id": "integer"
+   }
+  },
+  "/orgs/{org}/codespaces": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/codespaces/access": {
+   "put": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/orgs/{org}/codespaces/access/selected_users": {
+   "delete": {
+    "deprecated": true,
+    "query": {}
+   },
+   "post": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/orgs/{org}/codespaces/secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/codespaces/secrets/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/codespaces/secrets/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/codespaces/secrets/{secret_name}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/codespaces/secrets/{secret_name}/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot-spaces": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot-spaces/{space_number}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "space_number": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot-spaces/{space_number}/collaborators": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "space_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot-spaces/{space_number}/collaborators/{actor_type}/{actor_identifier}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "space_number": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot-spaces/{space_number}/resources": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "space_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot-spaces/{space_number}/resources/{space_resource_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "space_number": "integer",
+    "space_resource_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/billing": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/billing/seats": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/copilot/billing/selected_teams": {
+   "delete": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/billing/selected_users": {
+   "delete": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/coding-agent/permissions": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/coding-agent/permissions/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/coding-agent/permissions/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/content_exclusion": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/metrics/reports/organization-1-day": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/copilot/metrics/reports/organization-28-day/latest": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/metrics/reports/repos-1-day": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/copilot/metrics/reports/user-teams-1-day": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/copilot/metrics/reports/users-1-day": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/copilot/metrics/reports/users-28-day/latest": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/dependabot/alerts": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "artifact_registry": {
+      "type": "string"
+     },
+     "artifact_registry_url": {
+      "type": "string"
+     },
+     "assignee": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "classification": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "ecosystem": {
+      "type": "string"
+     },
+     "epss_percentage": {
+      "type": "string"
+     },
+     "has": {},
+     "package": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "relationship": {
+      "type": "string"
+     },
+     "runtime_risk": {
+      "type": "string"
+     },
+     "scope": {
+      "enum": [
+       "development",
+       "runtime"
+      ],
+      "type": "string"
+     },
+     "severity": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "epss_percentage"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/dependabot/repository-access": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/dependabot/repository-access/default-level": {
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/dependabot/secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/dependabot/secrets/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/dependabot/secrets/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/dependabot/secrets/{secret_name}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/dependabot/secrets/{secret_name}/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/docker/conflicts": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/events": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/failed_invitations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/hooks": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/hooks/{hook_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "hook_id": "integer"
+   }
+  },
+  "/orgs/{org}/hooks/{hook_id}/config": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "hook_id": "integer"
+   }
+  },
+  "/orgs/{org}/hooks/{hook_id}/deliveries": {
+   "get": {
+    "query": {
+     "cursor": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "status": {
+      "enum": [
+       "success",
+       "failure"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "hook_id": "integer"
+   }
+  },
+  "/orgs/{org}/hooks/{hook_id}/deliveries/{delivery_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "delivery_id": "integer",
+    "hook_id": "integer"
+   }
+  },
+  "/orgs/{org}/hooks/{hook_id}/deliveries/{delivery_id}/attempts": {
+   "placeholders": {
+    "delivery_id": "integer",
+    "hook_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/hooks/{hook_id}/pings": {
+   "placeholders": {
+    "hook_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/insights/api/route-stats/{actor_type}/{actor_id}": {
+   "get": {
+    "query": {
+     "api_route_substring": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "max_timestamp": {
+      "type": "string"
+     },
+     "min_timestamp": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "type": "array"
+     }
+    }
+   },
+   "placeholders": {
+    "actor_id": "integer"
+   }
+  },
+  "/orgs/{org}/insights/api/subject-stats": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "max_timestamp": {
+      "type": "string"
+     },
+     "min_timestamp": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "type": "array"
+     },
+     "subject_name_substring": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/insights/api/summary-stats": {
+   "get": {
+    "query": {
+     "max_timestamp": {
+      "type": "string"
+     },
+     "min_timestamp": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/insights/api/summary-stats/users/{user_id}": {
+   "get": {
+    "query": {
+     "max_timestamp": {
+      "type": "string"
+     },
+     "min_timestamp": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/insights/api/summary-stats/{actor_type}/{actor_id}": {
+   "get": {
+    "query": {
+     "max_timestamp": {
+      "type": "string"
+     },
+     "min_timestamp": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "actor_id": "integer"
+   }
+  },
+  "/orgs/{org}/insights/api/time-stats": {
+   "get": {
+    "query": {
+     "max_timestamp": {
+      "type": "string"
+     },
+     "min_timestamp": {
+      "type": "string"
+     },
+     "timestamp_increment": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/insights/api/time-stats/users/{user_id}": {
+   "get": {
+    "query": {
+     "max_timestamp": {
+      "type": "string"
+     },
+     "min_timestamp": {
+      "type": "string"
+     },
+     "timestamp_increment": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/insights/api/time-stats/{actor_type}/{actor_id}": {
+   "get": {
+    "query": {
+     "max_timestamp": {
+      "type": "string"
+     },
+     "min_timestamp": {
+      "type": "string"
+     },
+     "timestamp_increment": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "actor_id": "integer"
+   }
+  },
+  "/orgs/{org}/insights/api/user-stats/{user_id}": {
+   "get": {
+    "query": {
+     "actor_name_substring": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "max_timestamp": {
+      "type": "string"
+     },
+     "min_timestamp": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "type": "array"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/installation": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/installations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/interaction-limits": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/interaction-limits/pulls/creation-cap": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/invitations": {
+   "get": {
+    "query": {
+     "invitation_source": {
+      "enum": [
+       "all",
+       "member",
+       "scim"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "role": {
+      "enum": [
+       "all",
+       "admin",
+       "direct_member",
+       "billing_manager",
+       "hiring_manager"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/invitations/{invitation_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "invitation_id": "integer"
+   }
+  },
+  "/orgs/{org}/invitations/{invitation_id}/teams": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "invitation_id": "integer"
+   }
+  },
+  "/orgs/{org}/issue-fields": {
+   "get": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/issue-fields/{issue_field_id}": {
+   "delete": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_field_id": "integer"
+   }
+  },
+  "/orgs/{org}/issue-types": {
+   "get": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/issue-types/{issue_type_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_type_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/issues": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "filter": {
+      "enum": [
+       "assigned",
+       "created",
+       "mentioned",
+       "subscribed",
+       "repos",
+       "all"
+      ],
+      "type": "string"
+     },
+     "labels": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "comments"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "closed",
+       "all"
+      ],
+      "type": "string"
+     },
+     "type": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/members": {
+   "get": {
+    "query": {
+     "filter": {
+      "enum": [
+       "2fa_disabled",
+       "2fa_insecure",
+       "all"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "role": {
+      "enum": [
+       "all",
+       "admin",
+       "member"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/members/{username}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/members/{username}/codespaces": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/members/{username}/codespaces/{codespace_name}": {
+   "delete": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/members/{username}/codespaces/{codespace_name}/stop": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/members/{username}/copilot": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/memberships/{username}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/migrations": {
+   "get": {
+    "query": {
+     "exclude": {
+      "type": "array"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/migrations/{migration_id}": {
+   "get": {
+    "query": {
+     "exclude": {
+      "type": "array"
+     }
+    }
+   },
+   "placeholders": {
+    "migration_id": "integer"
+   }
+  },
+  "/orgs/{org}/migrations/{migration_id}/archive": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "migration_id": "integer"
+   }
+  },
+  "/orgs/{org}/migrations/{migration_id}/repos/{repo_name}/lock": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "migration_id": "integer"
+   }
+  },
+  "/orgs/{org}/migrations/{migration_id}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "migration_id": "integer"
+   }
+  },
+  "/orgs/{org}/organization-roles": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/organization-roles/teams/{team_slug}": {
+   "delete": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/organization-roles/teams/{team_slug}/{role_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "role_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/organization-roles/users/{username}": {
+   "delete": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/organization-roles/users/{username}/{role_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "role_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/organization-roles/{role_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "role_id": "integer"
+   }
+  },
+  "/orgs/{org}/organization-roles/{role_id}/teams": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "role_id": "integer"
+   }
+  },
+  "/orgs/{org}/organization-roles/{role_id}/users": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "role_id": "integer"
+   }
+  },
+  "/orgs/{org}/outside_collaborators": {
+   "get": {
+    "query": {
+     "filter": {
+      "enum": [
+       "2fa_disabled",
+       "2fa_insecure",
+       "all"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/outside_collaborators/{username}": {
+   "delete": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/packages": {
+   "get": {
+    "query": {
+     "package_type": {
+      "enum": [
+       "npm",
+       "maven",
+       "rubygems",
+       "docker",
+       "nuget",
+       "container"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "visibility": {
+      "enum": [
+       "public",
+       "private",
+       "internal"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/packages/{package_type}/{package_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/packages/{package_type}/{package_name}/restore": {
+   "post": {
+    "query": {
+     "token": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/packages/{package_type}/{package_name}/versions": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "state": {
+      "enum": [
+       "active",
+       "deleted"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/packages/{package_type}/{package_name}/versions/{package_version_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "package_version_id": "integer"
+   }
+  },
+  "/orgs/{org}/packages/{package_type}/{package_name}/versions/{package_version_id}/restore": {
+   "placeholders": {
+    "package_version_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/personal-access-token-requests": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "last_used_after": {
+      "type": "string"
+     },
+     "last_used_before": {
+      "type": "string"
+     },
+     "owner": {
+      "type": "array"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "permission": {
+      "type": "string"
+     },
+     "repository": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created_at"
+      ],
+      "type": "string"
+     },
+     "token_id": {
+      "type": "array"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/personal-access-token-requests/{pat_request_id}": {
+   "placeholders": {
+    "pat_request_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/personal-access-token-requests/{pat_request_id}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "pat_request_id": "integer"
+   }
+  },
+  "/orgs/{org}/personal-access-tokens": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "last_used_after": {
+      "type": "string"
+     },
+     "last_used_before": {
+      "type": "string"
+     },
+     "owner": {
+      "type": "array"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "permission": {
+      "type": "string"
+     },
+     "repository": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created_at"
+      ],
+      "type": "string"
+     },
+     "token_id": {
+      "type": "array"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/personal-access-tokens/{pat_id}": {
+   "placeholders": {
+    "pat_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/personal-access-tokens/{pat_id}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "pat_id": "integer"
+   }
+  },
+  "/orgs/{org}/private-registries": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/private-registries/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/private-registries/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/projectsV2": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/projectsV2/{project_number}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "project_number": "integer"
+   }
+  },
+  "/orgs/{org}/projectsV2/{project_number}/drafts": {
+   "placeholders": {
+    "project_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/projectsV2/{project_number}/fields": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "project_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/projectsV2/{project_number}/fields/{field_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "field_id": "integer",
+    "project_number": "integer"
+   }
+  },
+  "/orgs/{org}/projectsV2/{project_number}/items": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "fields": {},
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "project_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/projectsV2/{project_number}/items/{item_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {
+     "fields": {}
+    }
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "item_id": "integer",
+    "project_number": "integer"
+   }
+  },
+  "/orgs/{org}/projectsV2/{project_number}/views": {
+   "placeholders": {
+    "project_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/projectsV2/{project_number}/views/{view_number}/items": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "fields": {},
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "project_number": "integer",
+    "view_number": "integer"
+   }
+  },
+  "/orgs/{org}/properties/installations": {
+   "get": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/properties/installations/schema": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/properties/installations/values": {
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/properties/installations/values/{property_name}": {
+   "delete": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/properties/schema": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/properties/schema/{custom_property_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/properties/values": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "repository_query": {
+      "type": "string"
+     }
+    }
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/public_members": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/public_members/{username}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/repos": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "pushed",
+       "full_name"
+      ],
+      "type": "string"
+     },
+     "type": {
+      "enum": [
+       "all",
+       "public",
+       "private",
+       "forks",
+       "sources",
+       "member"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/rulesets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "targets": {
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/rulesets/rule-suites": {
+   "get": {
+    "query": {
+     "actor_name": {
+      "type": "string"
+     },
+     "evaluate_status": {
+      "enum": [
+       "all",
+       "active",
+       "evaluate"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "ref": {
+      "type": "string"
+     },
+     "repository_name": {
+      "type": "string"
+     },
+     "rule_suite_result": {
+      "enum": [
+       "pass",
+       "fail",
+       "bypass",
+       "all"
+      ],
+      "type": "string"
+     },
+     "time_period": {
+      "enum": [
+       "hour",
+       "day",
+       "week",
+       "month"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/rulesets/rule-suites/{rule_suite_id}": {
+   "get": {
+    "query": {
+     "include_metadata": {
+      "type": "boolean"
+     }
+    }
+   },
+   "placeholders": {
+    "rule_suite_id": "integer"
+   }
+  },
+  "/orgs/{org}/rulesets/{ruleset_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "ruleset_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/rulesets/{ruleset_id}/history": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "ruleset_id": "integer"
+   }
+  },
+  "/orgs/{org}/rulesets/{ruleset_id}/history/{version_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "ruleset_id": "integer",
+    "version_id": "integer"
+   }
+  },
+  "/orgs/{org}/secret-scanning/alerts": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "assignee": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "exclude_providers": {
+      "type": "string"
+     },
+     "exclude_secret_types": {
+      "type": "string"
+     },
+     "hide_secret": {
+      "type": "boolean"
+     },
+     "included_metadata": {
+      "type": "string"
+     },
+     "is_bypassed": {
+      "type": "boolean"
+     },
+     "is_multi_repo": {
+      "type": "boolean"
+     },
+     "is_publicly_leaked": {
+      "type": "boolean"
+     },
+     "owner_email_hash": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "providers": {
+      "type": "string"
+     },
+     "resolution": {
+      "type": "string"
+     },
+     "secret_type": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "resolved"
+      ],
+      "type": "string"
+     },
+     "validity": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/secret-scanning/custom-patterns": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "push_protection": {
+      "enum": [
+       "enabled",
+       "disabled"
+      ],
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "name"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "published",
+       "unpublished"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/secret-scanning/custom-patterns/{pattern_id}": {
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "pattern_id": "integer"
+   }
+  },
+  "/orgs/{org}/secret-scanning/pattern-configurations": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/security-advisories": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "published"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "triage",
+       "draft",
+       "published",
+       "closed"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/security-managers": {
+   "get": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/orgs/{org}/security-managers/teams/{team_slug}": {
+   "delete": {
+    "deprecated": true,
+    "query": {}
+   },
+   "put": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/orgs/{org}/settings/immutable-releases": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/settings/immutable-releases/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/settings/immutable-releases/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/settings/network-configurations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/settings/network-configurations/{network_configuration_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/settings/network-settings/{network_settings_id}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/teams": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "team_type": {
+      "enum": [
+       "all",
+       "enterprise",
+       "organization"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/teams/{team_slug}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/teams/{team_slug}/invitations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/teams/{team_slug}/members": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "role": {
+      "enum": [
+       "member",
+       "maintainer",
+       "all"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/teams/{team_slug}/memberships/{username}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/teams/{team_slug}/repos": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/teams/{team_slug}/teams": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/orgs/{org}/{security_product}/{enablement}": {
+   "post": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/rate_limit": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/artifacts": {
+   "get": {
+    "query": {
+     "name": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/artifacts/{artifact_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "artifact_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/{archive_format}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "artifact_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/cache/retention-limit": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/cache/storage-limit": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/cache/usage": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/caches": {
+   "delete": {
+    "query": {
+     "key": {
+      "type": "string"
+     },
+     "ref": {
+      "type": "string"
+     }
+    }
+   },
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "key": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "ref": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created_at",
+       "last_accessed_at",
+       "size_in_bytes"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/caches/{cache_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "cache_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/concurrency_groups": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/concurrency_groups/{concurrency_group_name}": {
+   "get": {
+    "query": {
+     "ahead_of_job": {
+      "type": "integer"
+     },
+     "ahead_of_run": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/jobs/{job_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "job_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/jobs/{job_id}/logs": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "job_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/jobs/{job_id}/rerun": {
+   "placeholders": {
+    "job_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/jobs/{job_id}/steps/{step_number}/logs": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "job_id": "integer",
+    "step_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/oidc/customization/sub": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/organization-secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/organization-variables": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/permissions": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/permissions/access": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/permissions/artifact-and-log-retention": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/permissions/fork-pr-contributor-approval": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/permissions/fork-pr-workflows-private-repos": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/permissions/selected-actions": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/permissions/workflow": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/policies": {
+   "get": {
+    "query": {
+     "has_parents": {
+      "type": "boolean"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/policies/{policy_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "policy_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runners": {
+   "get": {
+    "query": {
+     "name": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runners/deprecations/{version}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runners/downloads": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runners/generate-jitconfig": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runners/registration-token": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runners/remove-token": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runners/{runner_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "runner_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runners/{runner_id}/labels": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "runner_id": "integer"
+   },
+   "post": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runners/{runner_id}/labels/{name}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "runner_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs": {
+   "get": {
+    "query": {
+     "actor": {
+      "type": "string"
+     },
+     "branch": {
+      "type": "string"
+     },
+     "check_suite_id": {
+      "type": "integer"
+     },
+     "created": {
+      "type": "string"
+     },
+     "event": {
+      "type": "string"
+     },
+     "exclude_pull_requests": {
+      "type": "boolean"
+     },
+     "head_sha": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "status": {
+      "enum": [
+       "completed",
+       "action_required",
+       "cancelled",
+       "failure",
+       "neutral",
+       "skipped",
+       "stale",
+       "success",
+       "timed_out",
+       "in_progress",
+       "queued",
+       "requested",
+       "waiting",
+       "pending"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {
+     "exclude_pull_requests": {
+      "type": "boolean"
+     }
+    }
+   },
+   "placeholders": {
+    "run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/approvals": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/approve": {
+   "placeholders": {
+    "run_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/artifacts": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}": {
+   "get": {
+    "query": {
+     "exclude_pull_requests": {
+      "type": "boolean"
+     }
+    }
+   },
+   "placeholders": {
+    "attempt_number": "integer",
+    "run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/jobs": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "attempt_number": "integer",
+    "run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/logs": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "attempt_number": "integer",
+    "run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/cancel": {
+   "placeholders": {
+    "run_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/concurrency_groups": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/deployment_protection_rule": {
+   "placeholders": {
+    "run_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/force-cancel": {
+   "placeholders": {
+    "run_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/jobs": {
+   "get": {
+    "query": {
+     "filter": {
+      "enum": [
+       "latest",
+       "all"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/logs": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/pending_deployments": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "run_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/rerun": {
+   "placeholders": {
+    "run_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs": {
+   "placeholders": {
+    "run_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/runs/{run_id}/timing": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/actions/secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/secrets/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/secrets/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/variables": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/variables/{name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/workflows": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/workflows/{workflow_id}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/workflows/{workflow_id}/disable": {
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/workflows/{workflow_id}/enable": {
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs": {
+   "get": {
+    "query": {
+     "actor": {
+      "type": "string"
+     },
+     "branch": {
+      "type": "string"
+     },
+     "check_suite_id": {
+      "type": "integer"
+     },
+     "created": {
+      "type": "string"
+     },
+     "event": {
+      "type": "string"
+     },
+     "exclude_pull_requests": {
+      "type": "boolean"
+     },
+     "head_sha": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "status": {
+      "enum": [
+       "completed",
+       "action_required",
+       "cancelled",
+       "failure",
+       "neutral",
+       "skipped",
+       "stale",
+       "success",
+       "timed_out",
+       "in_progress",
+       "queued",
+       "requested",
+       "waiting",
+       "pending"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/actions/workflows/{workflow_id}/timing": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/activity": {
+   "get": {
+    "query": {
+     "activity_type": {
+      "enum": [
+       "push",
+       "force_push",
+       "branch_creation",
+       "branch_deletion",
+       "pr_merge",
+       "merge_queue_merge"
+      ],
+      "type": "string"
+     },
+     "actor": {
+      "type": "string"
+     },
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "ref": {
+      "type": "string"
+     },
+     "time_period": {
+      "enum": [
+       "day",
+       "week",
+       "month",
+       "quarter",
+       "year"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/agents/organization-secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/agents/organization-variables": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/agents/secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/agents/secrets/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/agents/secrets/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/agents/variables": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/agents/variables/{name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/assignees": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/assignees/{assignee}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/attestations": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/attestations/{subject_digest}": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "predicate_type": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "subject_digest": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/autolinks": {
+   "get": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/autolinks/{autolink_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "autolink_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/automated-security-fixes": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/branches": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "protected": {
+      "type": "boolean"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/protection": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/protection/enforce_admins": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/protection/required_pull_request_reviews": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/protection/required_signatures": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks/contexts": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   },
+   "post": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/protection/restrictions": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/protection/restrictions/apps": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   },
+   "post": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/protection/restrictions/teams": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   },
+   "post": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/protection/restrictions/users": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   },
+   "post": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/branches/{branch}/rename": {
+   "placeholders": {
+    "branch": "multi-segment"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/check-runs": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/check-runs/{check_run_id}": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "check_run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/check-runs/{check_run_id}/annotations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "check_run_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/check-runs/{check_run_id}/rerequest": {
+   "placeholders": {
+    "check_run_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/check-suites": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/check-suites/preferences": {
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/check-suites/{check_suite_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "check_suite_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/check-suites/{check_suite_id}/check-runs": {
+   "get": {
+    "query": {
+     "check_name": {
+      "type": "string"
+     },
+     "filter": {
+      "enum": [
+       "latest",
+       "all"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "status": {
+      "enum": [
+       "queued",
+       "in_progress",
+       "completed"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "check_suite_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/check-suites/{check_suite_id}/rerequest": {
+   "placeholders": {
+    "check_suite_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-quality/findings": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "dismissed"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/code-quality/findings/{finding_number}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "finding_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/code-quality/setup": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/ai-scan": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/alerts": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "assignees": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "pr": {
+      "type": "integer"
+     },
+     "ref": {
+      "type": "string"
+     },
+     "severity": {
+      "enum": [
+       "critical",
+       "high",
+       "medium",
+       "low",
+       "warning",
+       "note",
+       "error"
+      ],
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "closed",
+       "dismissed",
+       "fixed"
+      ],
+      "type": "string"
+     },
+     "tool_guid": {
+      "type": "string"
+     },
+     "tool_name": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/alerts/{alert_number}": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "alert_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/alerts/{alert_number}/autofix": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "alert_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/alerts/{alert_number}/autofix/commits": {
+   "placeholders": {
+    "alert_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/alerts/{alert_number}/instances": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "pr": {
+      "type": "integer"
+     },
+     "ref": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "alert_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/analyses": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "pr": {
+      "type": "integer"
+     },
+     "ref": {
+      "type": "string"
+     },
+     "sarif_id": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created"
+      ],
+      "type": "string"
+     },
+     "tool_guid": {
+      "type": "string"
+     },
+     "tool_name": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/analyses/{analysis_id}": {
+   "delete": {
+    "query": {
+     "confirm_delete": {
+      "type": "string"
+     }
+    }
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "analysis_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/codeql/databases": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/codeql/databases/{language}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/codeql/variant-analyses": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/codeql/variant-analyses/{codeql_variant_analysis_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "codeql_variant_analysis_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/codeql/variant-analyses/{codeql_variant_analysis_id}/repos/{repo_owner}/{repo_name}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "codeql_variant_analysis_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/default-setup": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/sarifs": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-scanning/sarifs/{sarif_id}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/code-security-configuration": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/codeowners/errors": {
+   "get": {
+    "query": {
+     "ref": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/codespaces": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/codespaces/devcontainers": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/codespaces/machines": {
+   "get": {
+    "query": {
+     "client_ip": {
+      "type": "string"
+     },
+     "location": {
+      "type": "string"
+     },
+     "ref": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/codespaces/new": {
+   "get": {
+    "query": {
+     "client_ip": {
+      "type": "string"
+     },
+     "ref": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/codespaces/permissions_check": {
+   "get": {
+    "query": {
+     "devcontainer_path": {
+      "type": "string"
+     },
+     "ref": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/codespaces/secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/codespaces/secrets/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/codespaces/secrets/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/collaborators": {
+   "get": {
+    "query": {
+     "affiliation": {
+      "enum": [
+       "outside",
+       "direct",
+       "all"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "permission": {
+      "enum": [
+       "pull",
+       "triage",
+       "triage_plus",
+       "push",
+       "maintain",
+       "admin"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/collaborators/{username}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/collaborators/{username}/permission": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/comments": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/comments/{comment_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "comment_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/comments/{comment_id}/reactions": {
+   "get": {
+    "query": {
+     "content": {
+      "enum": [
+       "+1",
+       "-1",
+       "laugh",
+       "confused",
+       "heart",
+       "hooray",
+       "rocket",
+       "eyes"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "comment_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/comments/{comment_id}/reactions/{reaction_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "comment_id": "integer",
+    "reaction_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/commits": {
+   "get": {
+    "query": {
+     "author": {
+      "type": "string"
+     },
+     "committer": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "path": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sha": {
+      "type": "string"
+     },
+     "since": {
+      "type": "string"
+     },
+     "until": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/commits/{commit_sha}/branches-where-head": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "commit_sha": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/commits/{commit_sha}/comments": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "commit_sha": "multi-segment"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/commits/{commit_sha}/pulls": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "commit_sha": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/commits/{ref}": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "ref": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/commits/{ref}/check-runs": {
+   "get": {
+    "query": {
+     "app_id": {
+      "type": "integer"
+     },
+     "check_name": {
+      "type": "string"
+     },
+     "filter": {
+      "enum": [
+       "latest",
+       "all"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "status": {
+      "enum": [
+       "queued",
+       "in_progress",
+       "completed"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "ref": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/commits/{ref}/check-suites": {
+   "get": {
+    "query": {
+     "app_id": {
+      "type": "integer"
+     },
+     "check_name": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "ref": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/commits/{ref}/status": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "ref": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/commits/{ref}/statuses": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "ref": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/community/profile": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/compare/{basehead}": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "basehead": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/contents/{path}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {
+     "ref": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "path": "multi-segment"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/contributors": {
+   "get": {
+    "query": {
+     "anon": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/copilot/cloud-agent/configuration": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/dependabot/alerts": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "assignee": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "classification": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "ecosystem": {
+      "type": "string"
+     },
+     "epss_percentage": {
+      "type": "string"
+     },
+     "has": {},
+     "manifest": {
+      "type": "string"
+     },
+     "package": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "relationship": {
+      "type": "string"
+     },
+     "scope": {
+      "enum": [
+       "development",
+       "runtime"
+      ],
+      "type": "string"
+     },
+     "severity": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "epss_percentage"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/dependabot/alerts/{alert_number}": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "alert_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/dependabot/secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/dependabot/secrets/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/dependabot/secrets/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/dependency-graph/compare/{basehead}": {
+   "get": {
+    "query": {
+     "name": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/dependency-graph/sbom": {
+   "get": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/dependency-graph/sbom/fetch-report/{sbom_uuid}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/dependency-graph/sbom/generate-report": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/dependency-graph/snapshots": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/deployments": {
+   "get": {
+    "query": {
+     "environment": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "ref": {
+      "type": "string"
+     },
+     "sha": {
+      "type": "string"
+     },
+     "task": {
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/deployments/{deployment_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "deployment_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/deployments/{deployment_id}/statuses": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "deployment_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/deployments/{deployment_id}/statuses/{status_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "deployment_id": "integer",
+    "status_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/dispatches": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/environments": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies/{branch_policy_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "branch_policy_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules": {
+   "get": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules/apps": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules/{protection_rule_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "protection_rule_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}/secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}/secrets/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}/secrets/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}/variables": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/environments/{environment_name}/variables/{name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/events": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/forks": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "newest",
+       "oldest",
+       "stargazers",
+       "watchers"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/git/blobs": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/git/blobs/{file_sha}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/git/commits": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/git/commits/{commit_sha}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "commit_sha": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/git/matching-refs/{ref}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "ref": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/git/ref/{ref}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "ref": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/git/refs": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/git/refs/{ref}": {
+   "delete": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "ref": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/git/tags": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/git/tags/{tag_sha}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/git/trees": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/git/trees/{tree_sha}": {
+   "get": {
+    "query": {
+     "recursive": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "tree_sha": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/hash-algorithm": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/hooks": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/hooks/{hook_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "hook_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/hooks/{hook_id}/config": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "hook_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/hooks/{hook_id}/deliveries": {
+   "get": {
+    "query": {
+     "cursor": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "status": {
+      "enum": [
+       "success",
+       "failure"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "hook_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/hooks/{hook_id}/deliveries/{delivery_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "delivery_id": "integer",
+    "hook_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/hooks/{hook_id}/deliveries/{delivery_id}/attempts": {
+   "placeholders": {
+    "delivery_id": "integer",
+    "hook_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/hooks/{hook_id}/pings": {
+   "placeholders": {
+    "hook_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/hooks/{hook_id}/tests": {
+   "placeholders": {
+    "hook_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/immutable-releases": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/import": {
+   "delete": {
+    "deprecated": true,
+    "query": {}
+   },
+   "get": {
+    "deprecated": true,
+    "query": {}
+   },
+   "patch": {
+    "deprecated": true,
+    "query": {}
+   },
+   "put": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/import/authors": {
+   "get": {
+    "deprecated": true,
+    "query": {
+     "since": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/import/authors/{author_id}": {
+   "patch": {
+    "deprecated": true,
+    "query": {}
+   },
+   "placeholders": {
+    "author_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/import/large_files": {
+   "get": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/import/lfs": {
+   "patch": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/installation": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/interaction-limits": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/interaction-limits/pulls/bypass-list": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/interaction-limits/pulls/creation-cap": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/invitations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/invitations/{invitation_id}": {
+   "delete": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "invitation_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issue-types": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues": {
+   "get": {
+    "query": {
+     "assignee": {
+      "type": "string"
+     },
+     "creator": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "issue_field_values": {
+      "type": "string"
+     },
+     "labels": {
+      "type": "string"
+     },
+     "mentioned": {
+      "type": "string"
+     },
+     "milestone": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "comments"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "closed",
+       "all"
+      ],
+      "type": "string"
+     },
+     "type": {
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/comments": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/issues/comments/{comment_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "comment_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/comments/{comment_id}/pin": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "comment_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/comments/{comment_id}/reactions": {
+   "get": {
+    "query": {
+     "content": {
+      "enum": [
+       "+1",
+       "-1",
+       "laugh",
+       "confused",
+       "heart",
+       "hooray",
+       "rocket",
+       "eyes"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "comment_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/comments/{comment_id}/reactions/{reaction_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "comment_id": "integer",
+    "reaction_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/events": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/issues/events/{event_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "event_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/artifacts": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "type": {
+      "enum": [
+       "generic",
+       "link",
+       "plan",
+       "embedded_html"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/artifacts/{artifact_number}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "artifact_number": "integer",
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/assignees": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/assignees/{assignee}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/comments": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by/{issue_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_id": "integer",
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocking": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/events": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/issue-field-values": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   },
+   "post": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/issue-field-values/{issue_field_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_field_id": "integer",
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/labels": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   },
+   "post": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/labels/{name}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/lock": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/parent": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/reactions": {
+   "get": {
+    "query": {
+     "content": {
+      "enum": [
+       "+1",
+       "-1",
+       "laugh",
+       "confused",
+       "heart",
+       "hooray",
+       "rocket",
+       "eyes"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_number": "integer",
+    "reaction_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/relates_to": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/relates_to/{issue_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_id": "integer",
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/sub_issue": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/sub_issues": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority": {
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/suggestions": {
+   "get": {
+    "query": {
+     "action": {
+      "enum": [
+       "set_type",
+       "add_label",
+       "add_field",
+       "add_assignee",
+       "close_issue"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "state": {
+      "enum": [
+       "pending",
+       "applied",
+       "approved",
+       "dismissed",
+       "replaced",
+       "invalidated",
+       "all"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/suggestions/{suggestion_id}/approve": {
+   "placeholders": {
+    "issue_number": "integer",
+    "suggestion_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/suggestions/{suggestion_id}/dismiss": {
+   "placeholders": {
+    "issue_number": "integer",
+    "suggestion_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/issues/{issue_number}/timeline": {
+   "get": {
+    "query": {
+     "exclude": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "issue_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/keys": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/keys/{key_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "key_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/labels": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/labels/{name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/languages": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/license": {
+   "get": {
+    "query": {
+     "ref": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/merge-upstream": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/merges": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/milestones": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "due_on",
+       "completeness"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "closed",
+       "all"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/milestones/{milestone_number}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "milestone_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/milestones/{milestone_number}/labels": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "milestone_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/notifications": {
+   "get": {
+    "query": {
+     "all": {
+      "type": "boolean"
+     },
+     "before": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "participating": {
+      "type": "boolean"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pages": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pages/builds": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pages/builds/latest": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pages/builds/{build_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "build_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/pages/deployments": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pages/deployments/{pages_deployment_id}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pages/deployments/{pages_deployment_id}/cancel": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pages/health": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/private-vulnerability-reporting": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/properties/values": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls": {
+   "get": {
+    "query": {
+     "base": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "head": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "popularity",
+       "long-running"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "closed",
+       "all"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/comments": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "created_at"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/comments/{comment_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "comment_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions": {
+   "get": {
+    "query": {
+     "content": {
+      "enum": [
+       "+1",
+       "-1",
+       "laugh",
+       "confused",
+       "heart",
+       "hooray",
+       "rocket",
+       "eyes"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "comment_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions/{reaction_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "comment_id": "integer",
+    "reaction_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "pull_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/codespaces": {
+   "placeholders": {
+    "pull_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/comments": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "pull_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/comments/{comment_id}/replies": {
+   "placeholders": {
+    "comment_id": "integer",
+    "pull_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/commits": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "pull_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/files": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "pull_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/merge": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "pull_number": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/merge-async": {
+   "placeholders": {
+    "pull_number": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/merge-async/{uuid}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "pull_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "pull_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers/rerequest": {
+   "placeholders": {
+    "pull_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/reviews": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "pull_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "pull_number": "integer",
+    "review_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}/comments": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "pull_number": "integer",
+    "review_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}/dismissals": {
+   "placeholders": {
+    "pull_number": "integer",
+    "review_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}/events": {
+   "placeholders": {
+    "pull_number": "integer",
+    "review_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/update-branch": {
+   "placeholders": {
+    "pull_number": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/readme": {
+   "get": {
+    "query": {
+     "ref": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/readme/{dir}": {
+   "get": {
+    "query": {
+     "ref": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "dir": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/releases": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/releases/assets/{asset_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "asset_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/releases/generate-notes": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/releases/latest": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/releases/tags/{tag}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "tag": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/releases/{release_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "release_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/releases/{release_id}/assets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "release_id": "integer"
+   },
+   "post": {
+    "query": {
+     "label": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/releases/{release_id}/reactions": {
+   "get": {
+    "query": {
+     "content": {
+      "enum": [
+       "+1",
+       "laugh",
+       "heart",
+       "hooray",
+       "rocket",
+       "eyes"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "release_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/releases/{release_id}/reactions/{reaction_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "reaction_id": "integer",
+    "release_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/rules/branches/{branch}": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "branch": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/rulesets": {
+   "get": {
+    "query": {
+     "includes_parents": {
+      "type": "boolean"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "targets": {
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/rulesets/rule-suites": {
+   "get": {
+    "query": {
+     "actor_name": {
+      "type": "string"
+     },
+     "evaluate_status": {
+      "enum": [
+       "all",
+       "active",
+       "evaluate"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "ref": {
+      "type": "string"
+     },
+     "rule_suite_result": {
+      "enum": [
+       "pass",
+       "fail",
+       "bypass",
+       "all"
+      ],
+      "type": "string"
+     },
+     "time_period": {
+      "enum": [
+       "hour",
+       "day",
+       "week",
+       "month"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/rulesets/rule-suites/{rule_suite_id}": {
+   "get": {
+    "query": {
+     "include_metadata": {
+      "type": "boolean"
+     }
+    }
+   },
+   "placeholders": {
+    "rule_suite_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/rulesets/{ruleset_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {
+     "includes_parents": {
+      "type": "boolean"
+     }
+    }
+   },
+   "placeholders": {
+    "ruleset_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/rulesets/{ruleset_id}/history": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "ruleset_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/rulesets/{ruleset_id}/history/{version_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "ruleset_id": "integer",
+    "version_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/secret-scanning/alerts": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "assignee": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "exclude_providers": {
+      "type": "string"
+     },
+     "exclude_secret_types": {
+      "type": "string"
+     },
+     "hide_secret": {
+      "type": "boolean"
+     },
+     "included_metadata": {
+      "type": "string"
+     },
+     "is_bypassed": {
+      "type": "boolean"
+     },
+     "is_multi_repo": {
+      "type": "boolean"
+     },
+     "is_publicly_leaked": {
+      "type": "boolean"
+     },
+     "owner_email_hash": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "providers": {
+      "type": "string"
+     },
+     "resolution": {
+      "type": "string"
+     },
+     "secret_type": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "resolved"
+      ],
+      "type": "string"
+     },
+     "validity": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}": {
+   "get": {
+    "query": {
+     "hide_secret": {
+      "type": "boolean"
+     }
+    }
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "alert_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}/locations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "alert_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/secret-scanning/custom-patterns": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "push_protection": {
+      "enum": [
+       "enabled",
+       "disabled"
+      ],
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "name"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "published",
+       "unpublished"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/secret-scanning/custom-patterns/{pattern_id}": {
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "pattern_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/secret-scanning/push-protection-bypasses": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/secret-scanning/scan-history": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/security-advisories": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "published"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "triage",
+       "draft",
+       "published",
+       "closed"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/security-advisories/reports": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/security-advisories/{ghsa_id}": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/security-advisories/{ghsa_id}/comments": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/security-advisories/{ghsa_id}/comments/{comment_id}": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "comment_id": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/security-advisories/{ghsa_id}/cve": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/security-advisories/{ghsa_id}/forks": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/stacks": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "pull_request": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/stacks/{stack_number}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "stack_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/stacks/{stack_number}/add": {
+   "placeholders": {
+    "stack_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/stacks/{stack_number}/unstack": {
+   "placeholders": {
+    "stack_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/stargazers": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/stargazers/count": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/stargazers/history": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/stats/code_frequency": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/stats/commit_activity": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/stats/contributors": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/stats/participation": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/stats/punch_card": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/statuses/{sha}": {
+   "placeholders": {
+    "sha": "multi-segment"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/subscribers": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/subscription": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/tags": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/tarball/{ref}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "ref": "multi-segment"
+   }
+  },
+  "/repos/{owner}/{repo}/teams": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/topics": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/traffic/clones": {
+   "get": {
+    "query": {
+     "per": {
+      "enum": [
+       "day",
+       "week"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/traffic/popular/paths": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/traffic/popular/referrers": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/traffic/views": {
+   "get": {
+    "query": {
+     "per": {
+      "enum": [
+       "day",
+       "week"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/repos/{owner}/{repo}/transfer": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/vulnerability-alerts": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/repos/{owner}/{repo}/zipball/{ref}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "ref": "multi-segment"
+   }
+  },
+  "/repos/{template_owner}/{template_repo}/generate": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/repositories": {
+   "get": {
+    "query": {
+     "since": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/search/code": {
+   "get": {
+    "query": {
+     "order": {
+      "deprecated": true,
+      "enum": [
+       "desc",
+       "asc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     },
+     "sort": {
+      "deprecated": true,
+      "enum": [
+       "indexed"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/search/commits": {
+   "get": {
+    "query": {
+     "order": {
+      "enum": [
+       "desc",
+       "asc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "author-date",
+       "committer-date"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/search/issues": {
+   "get": {
+    "query": {
+     "advanced_search": {
+      "type": "string"
+     },
+     "order": {
+      "enum": [
+       "desc",
+       "asc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     },
+     "search_type": {
+      "enum": [
+       "semantic",
+       "hybrid"
+      ],
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "comments",
+       "reactions",
+       "reactions-+1",
+       "reactions--1",
+       "reactions-smile",
+       "reactions-thinking_face",
+       "reactions-heart",
+       "reactions-tada",
+       "interactions",
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/search/labels": {
+   "get": {
+    "query": {
+     "order": {
+      "enum": [
+       "desc",
+       "asc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     },
+     "repository_id": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/search/repositories": {
+   "get": {
+    "query": {
+     "order": {
+      "enum": [
+       "desc",
+       "asc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "stars",
+       "forks",
+       "help-wanted-issues",
+       "updated"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/search/topics": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/search/users": {
+   "get": {
+    "query": {
+     "order": {
+      "enum": [
+       "desc",
+       "asc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "followers",
+       "repositories",
+       "joined"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/teams/{team_id}": {
+   "delete": {
+    "deprecated": true,
+    "query": {}
+   },
+   "get": {
+    "deprecated": true,
+    "query": {}
+   },
+   "patch": {
+    "deprecated": true,
+    "query": {}
+   },
+   "placeholders": {
+    "team_id": "integer"
+   }
+  },
+  "/teams/{team_id}/invitations": {
+   "get": {
+    "deprecated": true,
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "team_id": "integer"
+   }
+  },
+  "/teams/{team_id}/members": {
+   "get": {
+    "deprecated": true,
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "role": {
+      "enum": [
+       "member",
+       "maintainer",
+       "all"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "team_id": "integer"
+   }
+  },
+  "/teams/{team_id}/members/{username}": {
+   "delete": {
+    "deprecated": true,
+    "query": {}
+   },
+   "get": {
+    "deprecated": true,
+    "query": {}
+   },
+   "placeholders": {
+    "team_id": "integer"
+   },
+   "put": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/teams/{team_id}/memberships/{username}": {
+   "delete": {
+    "deprecated": true,
+    "query": {}
+   },
+   "get": {
+    "deprecated": true,
+    "query": {}
+   },
+   "placeholders": {
+    "team_id": "integer"
+   },
+   "put": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/teams/{team_id}/repos": {
+   "get": {
+    "deprecated": true,
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "team_id": "integer"
+   }
+  },
+  "/teams/{team_id}/repos/{owner}/{repo}": {
+   "delete": {
+    "deprecated": true,
+    "query": {}
+   },
+   "get": {
+    "deprecated": true,
+    "query": {}
+   },
+   "placeholders": {
+    "team_id": "integer"
+   },
+   "put": {
+    "deprecated": true,
+    "query": {}
+   }
+  },
+  "/teams/{team_id}/teams": {
+   "get": {
+    "deprecated": true,
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "team_id": "integer"
+   }
+  },
+  "/user": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/user/blocks": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/blocks/{username}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/user/codespaces": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "repository_id": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/secrets": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/codespaces/secrets/public-key": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/secrets/{secret_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/secrets/{secret_name}/repositories": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/secrets/{secret_name}/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/{codespace_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/{codespace_name}/exports": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/{codespace_name}/exports/{export_id}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/{codespace_name}/machines": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/{codespace_name}/publish": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/{codespace_name}/start": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/codespaces/{codespace_name}/stop": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/docker/conflicts": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/user/email/visibility": {
+   "patch": {
+    "query": {}
+   }
+  },
+  "/user/emails": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/followers": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/following": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/following/{username}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/user/gpg_keys": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/gpg_keys/{gpg_key_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "gpg_key_id": "integer"
+   }
+  },
+  "/user/installations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/installations/{installation_id}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "installation_id": "integer"
+   }
+  },
+  "/user/installations/{installation_id}/repositories/{repository_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "installation_id": "integer",
+    "repository_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/user/interaction-limits": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/user/issues": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "filter": {
+      "enum": [
+       "assigned",
+       "created",
+       "mentioned",
+       "subscribed",
+       "repos",
+       "all"
+      ],
+      "type": "string"
+     },
+     "labels": {
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "comments"
+      ],
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "open",
+       "closed",
+       "all"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/user/keys": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/keys/{key_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "key_id": "integer"
+   }
+  },
+  "/user/marketplace_purchases": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/marketplace_purchases/stubbed": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/memberships/orgs": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "state": {
+      "enum": [
+       "active",
+       "pending"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/user/memberships/orgs/{org}": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
+  "/user/migrations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/migrations/{migration_id}": {
+   "get": {
+    "query": {
+     "exclude": {
+      "type": "array"
+     }
+    }
+   },
+   "placeholders": {
+    "migration_id": "integer"
+   }
+  },
+  "/user/migrations/{migration_id}/archive": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "migration_id": "integer"
+   }
+  },
+  "/user/migrations/{migration_id}/repos/{repo_name}/lock": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "migration_id": "integer"
+   }
+  },
+  "/user/migrations/{migration_id}/repositories": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "migration_id": "integer"
+   }
+  },
+  "/user/orgs": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/packages": {
+   "get": {
+    "query": {
+     "package_type": {
+      "enum": [
+       "npm",
+       "maven",
+       "rubygems",
+       "docker",
+       "nuget",
+       "container"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "visibility": {
+      "enum": [
+       "public",
+       "private",
+       "internal"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/user/packages/{package_type}/{package_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   }
+  },
+  "/user/packages/{package_type}/{package_name}/restore": {
+   "post": {
+    "query": {
+     "token": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/user/packages/{package_type}/{package_name}/versions": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "state": {
+      "enum": [
+       "active",
+       "deleted"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/user/packages/{package_type}/{package_name}/versions/{package_version_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "package_version_id": "integer"
+   }
+  },
+  "/user/packages/{package_type}/{package_name}/versions/{package_version_id}/restore": {
+   "placeholders": {
+    "package_version_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/public_emails": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/repos": {
+   "get": {
+    "query": {
+     "affiliation": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "pushed",
+       "full_name"
+      ],
+      "type": "string"
+     },
+     "type": {
+      "enum": [
+       "all",
+       "owner",
+       "public",
+       "private",
+       "member"
+      ],
+      "type": "string"
+     },
+     "visibility": {
+      "enum": [
+       "all",
+       "public",
+       "private"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/repository_invitations": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/repository_invitations/{invitation_id}": {
+   "delete": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "invitation_id": "integer"
+   }
+  },
+  "/user/social_accounts": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/ssh_signing_keys": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/ssh_signing_keys/{ssh_signing_key_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "ssh_signing_key_id": "integer"
+   }
+  },
+  "/user/starred": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/user/starred/{owner}/{repo}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/user/subscriptions": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/teams": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/user/{account_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "account_id": "integer"
+   }
+  },
+  "/user/{user_id}/projectsV2/{project_number}/drafts": {
+   "placeholders": {
+    "project_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/users": {
+   "get": {
+    "query": {
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{user_id}/projectsV2/{project_number}/views": {
+   "placeholders": {
+    "project_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/users/{username}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/users/{username}/attestations/bulk-list": {
+   "post": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/attestations/delete-request": {
+   "post": {
+    "query": {}
+   }
+  },
+  "/users/{username}/attestations/digest/{subject_digest}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "subject_digest": "multi-segment"
+   }
+  },
+  "/users/{username}/attestations/{attestation_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "attestation_id": "integer"
+   }
+  },
+  "/users/{username}/attestations/{subject_digest}": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "predicate_type": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "subject_digest": "multi-segment"
+   }
+  },
+  "/users/{username}/copilot-spaces": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/users/{username}/copilot-spaces/{space_number}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "space_number": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/users/{username}/copilot-spaces/{space_number}/collaborators": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "space_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/users/{username}/copilot-spaces/{space_number}/collaborators/{actor_type}/{actor_identifier}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "space_number": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/users/{username}/copilot-spaces/{space_number}/resources": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "space_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/users/{username}/copilot-spaces/{space_number}/resources/{space_resource_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "space_number": "integer",
+    "space_resource_id": "integer"
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/users/{username}/docker/conflicts": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/users/{username}/events": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/events/orgs/{org}": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/events/public": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/followers": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/following": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/following/{target_user}": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/users/{username}/gists": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "since": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/users/{username}/gpg_keys": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/hovercard": {
+   "get": {
+    "query": {
+     "subject_id": {
+      "type": "string"
+     },
+     "subject_type": {
+      "enum": [
+       "organization",
+       "repository",
+       "issue",
+       "pull_request"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/users/{username}/installation": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/users/{username}/keys": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/orgs": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/packages": {
+   "get": {
+    "query": {
+     "package_type": {
+      "enum": [
+       "npm",
+       "maven",
+       "rubygems",
+       "docker",
+       "nuget",
+       "container"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "visibility": {
+      "enum": [
+       "public",
+       "private",
+       "internal"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/users/{username}/packages/{package_type}/{package_name}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   }
+  },
+  "/users/{username}/packages/{package_type}/{package_name}/restore": {
+   "post": {
+    "query": {
+     "token": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/users/{username}/packages/{package_type}/{package_name}/versions": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "package_version_id": "integer"
+   }
+  },
+  "/users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}/restore": {
+   "placeholders": {
+    "package_version_id": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/users/{username}/projectsV2": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/users/{username}/projectsV2/{project_number}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "project_number": "integer"
+   }
+  },
+  "/users/{username}/projectsV2/{project_number}/fields": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "project_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/users/{username}/projectsV2/{project_number}/fields/{field_id}": {
+   "get": {
+    "query": {}
+   },
+   "placeholders": {
+    "field_id": "integer",
+    "project_number": "integer"
+   }
+  },
+  "/users/{username}/projectsV2/{project_number}/items": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "fields": {},
+     "per_page": {
+      "type": "integer"
+     },
+     "q": {
+      "type": "string"
+     }
+    }
+   },
+   "placeholders": {
+    "project_number": "integer"
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/users/{username}/projectsV2/{project_number}/items/{item_id}": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {
+     "fields": {}
+    }
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "item_id": "integer",
+    "project_number": "integer"
+   }
+  },
+  "/users/{username}/projectsV2/{project_number}/views/{view_number}/items": {
+   "get": {
+    "query": {
+     "after": {
+      "type": "string"
+     },
+     "before": {
+      "type": "string"
+     },
+     "fields": {},
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   },
+   "placeholders": {
+    "project_number": "integer",
+    "view_number": "integer"
+   }
+  },
+  "/users/{username}/received_events": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/received_events/public": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/repos": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated",
+       "pushed",
+       "full_name"
+      ],
+      "type": "string"
+     },
+     "type": {
+      "enum": [
+       "all",
+       "owner",
+       "member"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/users/{username}/settings/billing/ai_credit/usage": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "integer"
+     },
+     "model": {
+      "type": "string"
+     },
+     "month": {
+      "type": "integer"
+     },
+     "product": {
+      "type": "string"
+     },
+     "year": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/settings/billing/premium_request/usage": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "integer"
+     },
+     "model": {
+      "type": "string"
+     },
+     "month": {
+      "type": "integer"
+     },
+     "product": {
+      "type": "string"
+     },
+     "year": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/settings/billing/usage": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "integer"
+     },
+     "month": {
+      "type": "integer"
+     },
+     "year": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/settings/billing/usage/summary": {
+   "get": {
+    "query": {
+     "day": {
+      "type": "integer"
+     },
+     "month": {
+      "type": "integer"
+     },
+     "product": {
+      "type": "string"
+     },
+     "repository": {
+      "type": "string"
+     },
+     "sku": {
+      "type": "string"
+     },
+     "year": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/social_accounts": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/ssh_signing_keys": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/users/{username}/starred": {
+   "get": {
+    "query": {
+     "direction": {
+      "enum": [
+       "asc",
+       "desc"
+      ],
+      "type": "string"
+     },
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     },
+     "sort": {
+      "enum": [
+       "created",
+       "updated"
+      ],
+      "type": "string"
+     }
+    }
+   }
+  },
+  "/users/{username}/subscriptions": {
+   "get": {
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/versions": {
+   "get": {
+    "query": {}
+   }
+  },
+  "/zen": {
+   "get": {
+    "query": {}
+   }
+  }
+ }
+}
