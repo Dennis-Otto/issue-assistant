@@ -66,3 +66,17 @@ allow-dependencies-licenses:
   - pkg:npm/%40github/copilot-linuxmusl-x64
   - pkg:npm/%40github/copilot-win32-arm64
   - pkg:npm/%40github/copilot-win32-x64
+  # The command line of Claude and its build for each system, under Anthropic's own
+  # terms ("SEE LICENSE IN README.md"), which no release ships either: build-release
+  # leaves .github out, and only the Evaluate workflow installs them, from
+  # .github/evaluate/, when a maintainer runs it. tests/test_evaluate.py keeps this
+  # list equal to that lock file.
+  - pkg:npm/%40anthropic-ai/claude-code
+  - pkg:npm/%40anthropic-ai/claude-code-darwin-arm64
+  - pkg:npm/%40anthropic-ai/claude-code-darwin-x64
+  - pkg:npm/%40anthropic-ai/claude-code-linux-arm64
+  - pkg:npm/%40anthropic-ai/claude-code-linux-arm64-musl
+  - pkg:npm/%40anthropic-ai/claude-code-linux-x64
+  - pkg:npm/%40anthropic-ai/claude-code-linux-x64-musl
+  - pkg:npm/%40anthropic-ai/claude-code-win32-arm64
+  - pkg:npm/%40anthropic-ai/claude-code-win32-x64

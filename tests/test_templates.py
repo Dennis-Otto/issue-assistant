@@ -752,7 +752,13 @@ def test_the_ai_runs_only_where_the_block_holds(tmp_path, name, answers, code, p
 HARDEN_RUNNER_FIXED = (2, 22, 3)
 # The blueprint brings its own workflows with their pins, and renders none of these.
 PROJECT_WORKFLOWS = [
-    OWN / name for name in ("action-test.yml", "canary.yml", "workflow-test.yml")
+    OWN / name
+    for name in (
+        "action-test.yml",
+        "canary.yml",
+        "evaluate.yml",
+        "workflow-test.yml",
+    )
 ] + sorted(OWN.glob("reusable-*.yml"))
 
 
