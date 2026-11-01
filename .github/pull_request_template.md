@@ -14,7 +14,9 @@
 - [ ] Prompts and comment texts name no AI vendor.
 =======
 - [ ] Every commit is signed as well (`git commit -S`), with a key that GitHub verifies; the sign-off alone is no signature.
+
 >>>>>>> after updating
+
 - [ ] No tokens, keys or personal data are included.
 
 ## Test plan
