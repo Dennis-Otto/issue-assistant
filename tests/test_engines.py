@@ -343,7 +343,7 @@ def as_root(monkeypatch):
         commands.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr(assistant, "as_root", run)
+    monkeypatch.setattr(assistant.running, "as_root", run)
     return commands
 
 
@@ -506,7 +506,7 @@ def test_gemini_doesn_t_run_when_root_can_t_take_its_settings(
         refusal = "sudo: a password is required\n"
         return subprocess.CompletedProcess(command, 1, "", refusal)
 
-    monkeypatch.setattr(assistant, "as_root", refuse)
+    monkeypatch.setattr(assistant.running, "as_root", refuse)
     run = FakeRun(INSTALLED)
     monkeypatch.setattr(assistant.subprocess, "run", run)
     with pytest.raises(assistant.AssistantError) as refused:

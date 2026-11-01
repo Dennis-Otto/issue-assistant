@@ -516,7 +516,7 @@ def test_each_job_summary_reads_as_its_golden_file(
         path = tmp_path / "event.json"
         path.write_text(json.dumps(event("opened", github.issue(12))), "utf-8")
         env = {**env, "GITHUB_EVENT_PATH": str(path)}
-    monkeypatch.setattr(assistant, "datetime", Frozen)
+    monkeypatch.setattr(assistant.cli, "datetime", Frozen)
     _, _, summary = run_main(monkeypatch, tmp_path, sample_root, github, *argv, **env)
     assert_golden(f"summaries/{case}.md.txt", summary)
 
@@ -525,7 +525,7 @@ def test_the_digest_issue_reads_as_its_golden_file(monkeypatch, tmp_path, root, 
     """What a sweep, here one with the quality, writes into the issue of the digest."""
     with_digest_issue(root)
     github = waiting_since(config, 16)
-    monkeypatch.setattr(assistant, "datetime", Frozen)
+    monkeypatch.setattr(assistant.cli, "datetime", Frozen)
     run_main(monkeypatch, tmp_path, root, github, "sweep")
     (issue,) = [item for item in github.store.values() if assistant.is_digest(item)]
     assert_golden(DIGEST_ISSUE, issue["body"])

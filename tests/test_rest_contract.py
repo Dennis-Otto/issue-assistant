@@ -27,10 +27,17 @@ import pytest
 import yaml
 
 import issue_assistant as assistant
-from support import CONFIG, REPOSITORY, FakeGitHub, fake_gh, make_issue, schemas
+from support import (
+    CONFIG,
+    REPOSITORY,
+    FakeGitHub,
+    fake_gh,
+    make_issue,
+    package_source,
+    schemas,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPT = ROOT / "issue_assistant.py"
 WORKFLOW = ROOT / ".github" / "workflows" / "action-test.yml"
 # The methods that send a request, by the path that their callers name.
 SENDERS = {"rest", "_remembered", "_gh"}
@@ -334,7 +341,7 @@ def problems_in(source: str) -> list[str]:
 
 @pytest.mark.mutation_unsafe
 def test_every_rest_request_of_the_script_is_in_github_s_description():
-    source = SCRIPT.read_text(encoding="utf-8")
+    source = package_source()
     assert problems_in(source) == []
     requests = {request for _, _, request in requests_in(source)}
     # The reading finds each kind of call, also those that build their path in steps.
@@ -479,7 +486,7 @@ def test_every_kind_of_call_asks_for_the_version_of_the_api(
 def test_every_call_of_gh_api_goes_through_the_one_method_that_adds_the_version():
     commands = [
         node.elts
-        for node in ast.walk(ast.parse(SCRIPT.read_text(encoding="utf-8")))
+        for node in ast.walk(ast.parse(package_source()))
         if isinstance(node, ast.List)
         and node.elts
         and isinstance(node.elts[0], ast.Constant)

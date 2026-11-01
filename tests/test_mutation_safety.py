@@ -1,12 +1,12 @@
-"""The tests that read the script as text carry the marker mutation_unsafe.
+"""The tests that read the package as text carry the marker mutation_unsafe.
 
 The Mutation workflow runs the tests in mutmut's copy of the repository, mutants/,
-with `-m "not mutation_unsafe"`. There issue_assistant.py holds every mutant of a
-function beside it, as a function of its own with each changed string and number.
-A test that reads the script as text sees them all, whichever mutant runs: it can't
-notice a mutant, and it fails without any, which stops the whole weekly run before
-it measures anything. Such a test gets the marker, and the checks of behaviour that
-it made move into a test of their own, which the mutants run against.
+with `-m "not mutation_unsafe"`. There each module of issue_assistant/ holds every
+mutant of a function beside it, as a function of its own with each changed string
+and number. A test that reads a module as text sees them all, whichever mutant runs:
+it can't notice a mutant, and it fails without any, which stops the whole weekly run
+before it measures anything. Such a test gets the marker, and the checks of behaviour
+that it made move into a test of their own, which the mutants run against.
 
 This guard finds each such test with `ast`, following the helpers, fixtures and
 constants of the test's own module (not those of conftest.py or support.py), so
@@ -22,19 +22,21 @@ from pathlib import Path
 import pytest
 
 TESTS = Path(__file__).resolve().parent
-SCRIPT = "issue_assistant.py"
+PACKAGE = "issue_assistant"
 MARKER = "mutation_unsafe"
-# The calls that read the file whose path they are called on or are given.
-READS = {"read_text", "read_bytes", "open"}
-# The functions of inspect that read the source of what they are given.
-SOURCE_OF = {"getsource", "getsourcelines", "findsource"}
+# The calls that read the file whose path they are called on or are given, or list
+# the modules of the folder.
+READS = {"read_text", "read_bytes", "open", "glob", "rglob", "iterdir"}
+# The functions of inspect that read the source of what they are given, and that of
+# tests/support.py that reads the whole package.
+SOURCE_OF = {"getsource", "getsourcelines", "findsource", "package_source"}
 
 Function = ast.FunctionDef | ast.AsyncFunctionDef
 
 
 @dataclass(frozen=True)
 class Reader:
-    """A test that reads the script as text without the marker."""
+    """A test that reads the package as text without the marker."""
 
     path: str
     line: int
@@ -60,11 +62,11 @@ def assigned(node: ast.AST) -> Iterator[tuple[str, ast.expr]]:
 
 @dataclass
 class Scope:
-    """What names the script, and what reads it as text, in a module or a function."""
+    """What names the package, and what reads it as text, in a module or a function."""
 
     # The names under which the module imports issue_assistant.
     modules: frozenset[str]
-    # The names whose value is the path of the script, as SCRIPT = ROOT / "..." is.
+    # The names whose value is a path in the package, as PACKAGE = ROOT / "..." is.
     paths: set[str]
     # The names whose value is its text, as SOURCE = SCRIPT.read_text() is.
     texts: set[str]
@@ -76,7 +78,7 @@ class Scope:
             for node in ast.walk(tree)
             if isinstance(node, ast.Import)
             for alias in node.names
-            if alias.name == "issue_assistant"
+            if alias.name == PACKAGE
         )
         scope = cls(modules, set(), set())
         scope.bind(tree.body)
@@ -93,26 +95,38 @@ class Scope:
             for name, value in assigned(node):
                 if self.reads(value):
                     self.texts.add(name)
-                elif self.names_the_script(value):
+                elif self.names_the_package(value):
                     self.paths.add(name)
 
-    def names_the_script(self, node: ast.AST) -> bool:
+    def names_the_package(self, node: ast.AST) -> bool:
         if isinstance(node, ast.Constant):
-            return isinstance(node.value, str) and node.value.endswith(SCRIPT)
+            return node.value == PACKAGE or (
+                isinstance(node.value, str)
+                and node.value.startswith(f"{PACKAGE}/")
+                and node.value.endswith(".py")
+            )
         if isinstance(node, ast.Name):
             return node.id in self.paths
         if isinstance(node, ast.Attribute):
-            # The folder of the script, whose other files mutmut doesn't change.
-            if node.attr in {"parent", "parents"}:
+            # The folders around the package, whose files mutmut doesn't change: the
+            # parent of a module is the package, and that of a folder or parents[1] isn't.
+            if node.attr == "parents":
                 return False
+            if node.attr == "parent":
+                return not isinstance(
+                    node.value, ast.Attribute
+                ) and self.names_the_package(node.value)
             if node.attr == "__file__":
-                return (
-                    isinstance(node.value, ast.Name) and node.value.id in self.modules
-                )
-        return any(self.names_the_script(child) for child in ast.iter_child_nodes(node))
+                base = node.value
+                while isinstance(base, ast.Attribute):
+                    base = base.value
+                return isinstance(base, ast.Name) and base.id in self.modules
+        return any(
+            self.names_the_package(child) for child in ast.iter_child_nodes(node)
+        )
 
     def reads(self, node: ast.AST) -> bool:
-        """Whether an expression or a statement reads the script as text."""
+        """Whether an expression or a statement reads the package as text."""
         return any(self.read(part) for part in ast.walk(node))
 
     def read(self, node: ast.AST) -> bool:
@@ -121,7 +135,7 @@ class Scope:
         if not isinstance(node, ast.Call):
             return False
         function = node.func
-        given = any(self.names_the_script(argument) for argument in node.args)
+        given = any(self.names_the_package(argument) for argument in node.args)
         if isinstance(function, ast.Name):
             return function.id in SOURCE_OF or (function.id == "open" and given)
         if isinstance(function, ast.Attribute):
@@ -130,7 +144,7 @@ class Scope:
                     function.value.id == "inspect"
                 )
             return function.attr in READS and (
-                given or self.names_the_script(function.value)
+                given or self.names_the_package(function.value)
             )
         return False
 
@@ -168,7 +182,7 @@ def functions_of(tree: ast.Module) -> Iterator[tuple[Function, bool]]:
 
 
 def unmarked_readers(source: str, path: str) -> list[Reader]:
-    """The tests of a module that read the script as text but lack the marker.
+    """The tests of a module that read the package as text but lack the marker.
 
     A test reads it when it reads it itself, or calls a helper or takes a fixture of
     its module that does, or uses a constant of its module that holds its text.
@@ -218,8 +232,9 @@ def unmarked_in(folder: Path) -> list[Reader]:
 
 def explanation(readers: list[Reader]) -> str:
     return (
-        f"These tests read {SCRIPT} as text: {', '.join(map(str, readers))}. In "
-        "mutmut's copy the script holds every mutant beside its function, so such a "
+        f"These tests read the package {PACKAGE} as text: "
+        f"{', '.join(map(str, readers))}. In "
+        "mutmut's copy each module holds every mutant beside its function, so such a "
         "test fails there without any mutant and stops the weekly Mutation run. Mark "
         f"each with @pytest.mark.{MARKER}, which the run leaves out, and move the "
         "checks of behaviour that it makes into a test of its own (CONTRIBUTING.md, "
@@ -227,39 +242,50 @@ def explanation(readers: list[Reader]) -> str:
     )
 
 
-def test_every_test_that_reads_the_script_as_text_is_marked():
+def test_every_test_that_reads_the_package_as_text_is_marked():
     readers = unmarked_in(TESTS)
     assert not readers, explanation(readers)
 
 
 IMPORT = "import issue_assistant as assistant\n"
 
-# Tests that read the script as text, each as the module test_new.py.
+# Tests that read the package as text, each as the module test_new.py.
 READERS = {
     "the text from its path": (
-        'def test_a():\n    (ROOT / "issue_assistant.py").read_text()\n'
+        'def test_a():\n    (ROOT / "issue_assistant" / "cli.py").read_text()\n'
     ),
     "the text from __file__": (
         "def test_a():\n    Path(assistant.__file__).read_text(encoding='utf-8')\n"
     ),
     "the bytes": "def test_a():\n    Path(assistant.__file__).read_bytes()\n",
-    "open()": 'def test_a():\n    open(ROOT / "issue_assistant.py").read()\n',
+    "open()": 'def test_a():\n    open(ROOT / "issue_assistant" / "cli.py").read()\n',
     "open() in with": (
         "def test_a():\n    with open(assistant.__file__) as file:\n        file.read()\n"
     ),
-    "Path.open()": 'def test_a():\n    (TOOL / "issue_assistant.py").open().read()\n',
+    "Path.open()": 'def test_a():\n    (TOOL / "issue_assistant/cli.py").open().read()\n',
     "a name of the test for its path": (
-        'def test_a():\n    script = ROOT / "issue_assistant.py"\n    script.read_text()\n'
+        'def test_a():\n    module = ROOT / "issue_assistant/cli.py"\n    module.read_text()\n'
     ),
     "a name of the module for its path": (
-        'SCRIPT = ROOT / "issue_assistant.py"\ndef test_a():\n    SCRIPT.read_text()\n'
+        'FOLDER = ROOT / "issue_assistant"\ndef test_a():\n    (FOLDER / "cli.py").read_text()\n'
+    ),
+    "the file of a module": "def test_a():\n    Path(assistant.cli.__file__).read_text()\n",
+    "the modules of its folder": (
+        'def test_a():\n    for module in (ROOT / "issue_assistant").glob("*.py"):\n'
+        "        module.read_text()\n"
+    ),
+    "the folder of __file__": (
+        "def test_a():\n    list(Path(assistant.__file__).parent.iterdir())\n"
+    ),
+    "the helper of tests/support.py": (
+        "def test_a():\n    assert 'x' in package_source()\n"
     ),
     "the source of a function": (
         "def test_a():\n    inspect.getsource(assistant.main)\n"
     ),
     "getsource, imported": "def test_a():\n    getsource(assistant.main)\n",
     "a constant with its text": (
-        'SOURCE = (ROOT / "issue_assistant.py").read_text()\n'
+        'SOURCE = (ROOT / "issue_assistant" / "cli.py").read_text()\n'
         "def test_a():\n    assert 'x' in SOURCE\n"
     ),
     "a helper of a helper": (
@@ -301,21 +327,22 @@ SAFE = {
         "@pytest.mark.mutation_unsafe\nclass TestA:\n"
         "    def test_a(self):\n        Path(assistant.__file__).read_text()\n"
     ),
-    "another file next to the script": (
-        "def test_a():\n    (Path(assistant.__file__).parent / 'action.yml').read_text()\n"
+    "another file next to the package": (
+        "def test_a():\n    (Path(assistant.__file__).parents[1] / 'action.yml').read_text()\n"
     ),
-    "another file through the folder of the script": (
-        "ROOT = Path(assistant.__file__).parent\n"
+    "another file through the folder of the package": (
+        "ROOT = Path(assistant.__file__).parent.parent\n"
         "def test_a():\n    (ROOT / 'action.yml').read_text()\n"
     ),
+    "another folder": 'def test_a():\n    (ROOT / "tests").glob("*.py")\n',
     "the file of another module": (
         "def test_a():\n    Path(other.__file__).read_text()\n"
     ),
-    "the name of the script in a text": (
-        "def test_a():\n    assert run('python3 issue_assistant.py check')\n"
+    "the name of the package in a text": (
+        "def test_a():\n    assert run('python3 -m issue_assistant check')\n"
     ),
-    "the script as a program": (
-        "def test_a():\n    runpy.run_path(str(TOOL / 'issue_assistant.py'))\n"
+    "the package as a program": (
+        "def test_a():\n    runpy.run_module('issue_assistant', run_name='__main__')\n"
     ),
     "a helper that reads, which no test calls": (
         "def text():\n    return Path(assistant.__file__).read_text()\n"
@@ -328,7 +355,7 @@ SAFE = {
 
 
 @pytest.mark.parametrize("name", READERS)
-def test_the_guard_finds_a_test_that_reads_the_script(name):
+def test_the_guard_finds_a_test_that_reads_the_package(name):
     module = IMPORT + READERS[name]
     line = next(
         number

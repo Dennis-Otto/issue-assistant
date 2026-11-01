@@ -19,6 +19,7 @@ import pytest
 import yaml
 
 import issue_assistant as assistant
+from support import replace_everywhere
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGES = ROOT / "docs" / "images"
@@ -249,7 +250,7 @@ def test_a_changed_text_of_the_assistant_leaves_its_picture_behind(monkeypatch):
 def test_a_changed_cleaning_leaves_the_pictures_of_steered_answers_behind(
     monkeypatch,
 ):
-    monkeypatch.setattr(assistant, "sanitize", lambda text, *_: text)
+    replace_everywhere(monkeypatch, "sanitize", lambda text, *_: text)
     assert stale_pictures() == ["cleaning", "steered"]
 
 
@@ -716,7 +717,7 @@ def test_the_readme_says_what_why_and_how_before_the_animation():
     # tag, and without a tag the clone fails.
     assert 'dir="$(mktemp -d)"' in commands and "/tmp/" not in commands
     assert re.search(
-        r'git clone [^\n]* "\$dir" &&\n\s+python3 "\$dir/issue_assistant\.py" '
+        r'git clone [^\n]* "\$dir" &&\n\s+PYTHONPATH="\$dir" python3 -P -m issue_assistant '
         r"install --setup\n\Z",
         commands,
     )
@@ -1531,11 +1532,11 @@ def test_the_languages_page_lists_every_catalog_with_its_address_and_its_day():
 
 def test_the_hook_loads_the_assistant_of_the_commit_it_builds(monkeypatch):
     # MkDocs runs the hook without the import of the tests: it loads
-    # issue_assistant.py itself, under the name that its dataclasses look up.
+    # the package itself, under the name that its modules and dataclasses look up.
     monkeypatch.delitem(sys.modules, "issue_assistant")
     loaded = hooks.assistant()
     assert loaded is not assistant and sys.modules["issue_assistant"] is loaded
-    assert Path(loaded.__file__) == hooks.ROOT / "issue_assistant.py"
+    assert Path(loaded.__file__) == hooks.ROOT / "issue_assistant" / "__init__.py"
     assert loaded.TEXT == assistant.TEXT
     # And loads it once.
     assert hooks.assistant() is loaded
