@@ -1,0 +1,15 @@
+flowchart TB
+  accTitle: The layers of the package
+  accDescr: The package issue_assistant from the command line at the top to the ground: the command line in cli.py imports what runs the engine, evaluates and sets up a repository; those import the events, commands and sweeps; those the context, the comments, the application of an answer and the digest; those what reads an issue and an answer; those the settings, the languages, the engines and the client of GitHub; and those the ground of paths, constants, patterns, values and errors. A module imports only from below, and from those before it in its own layer.
+  cli(["`**cli**<br>the command line`"])
+  top["`**running**, **evaluation**, **accuracy**<br>**labels**, **code_scanning**, **actionlint**<br>**setup_check**, **installation**`"]
+  handling["`**commands**, **events**, **sweeps**<br>what an event or a morning starts`"]
+  writing["`**context**, **comments**, **applying**<br>**learning**, **digests**<br>what the engine reads, what the assistant writes`"]
+  reading["`**issues**, **cleaning**, **answer**<br>what an issue says, what an answer may say`"]
+  base["`**languages**, **engines**, **settings**<br>**fixture**, **github**`"]
+  ground[("**paths**, **constants**, **patterns**<br>**values**, **errors**")]
+  cli --> top --> handling --> writing --> reading --> base --> ground
+  classDef code fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class cli,top,handling,writing,reading,base code
+  class ground safe

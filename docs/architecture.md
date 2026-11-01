@@ -2,14 +2,14 @@
 
 [← README](https://github.com/Dennis-Otto/issue-assistant) · [Security design](security.md) · [Roadmap](roadmap.md)
 
-The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assistant.py` with the Python 3.12 of GitHub's runners and the standard library alone; the script talks to GitHub through the GitHub CLI. Four workflows in the repository that it looks after call the action, and one step of one job runs the AI engine.
+The issue assistant is a composite GitHub Action. `action.yml` runs the package `issue_assistant/` with the Python 3.12 of GitHub's runners and the standard library alone; the package talks to GitHub through the GitHub CLI. Four workflows in the repository that it looks after call the action, and one step of one job runs the AI engine.
 
 ## Components
 
 | Component | Files | What it does |
 | --- | --- | --- |
-| The action | `action.yml` | Passes every input through the environment to `issue_assistant.py` and runs one command of it |
-| Commands | `main()` in `issue_assistant.py`, which hands each command of `SCRIPT_COMMANDS` to a function of its own | `event`, `engine`, `context`, `analyze`, `usage`, `apply`, `sweep`, `sync-labels`, `findings`, `check`, `install`, `evaluate`, which replays closed issues as they were with the class `Then`, a view of GitHub at a moment, and `accuracy-page`, which takes the numbers of its report onto the website; [the reference](reference.md#commands) names what each does |
+| The action | `action.yml` | Passes every input through the environment to the package `issue_assistant` and runs one command of it |
+| Commands | `main()` in `issue_assistant/cli.py`, which hands each command of `SCRIPT_COMMANDS` to a function of its own | `event`, `engine`, `context`, `analyze`, `usage`, `apply`, `sweep`, `sync-labels`, `findings`, `check`, `install`, `evaluate`, which replays closed issues as they were with the class `Then`, a view of GitHub at a moment, and `accuracy-page`, which takes the numbers of its report onto the website; [the reference](reference.md#commands) names what each does |
 | GitHub client | the class `GitHub` | Every read and write through `gh api`, each with the version of GitHub's API that the tests check it against; in a dry run it only records what it would write |
 | Settings | `load_config`, `load_labels`, `load_findings` | Read `.github/issue-assistant/config.toml`, `.github/labels.toml` and `.github/findings.toml` of the repository |
 | Events | `handle_event`, `limited`, `within_limits` | Labels and owners from the issue forms, and the next task of the engine: `triage`, `follow-up`, `maintainer-reply`, `release-reply` or `maintainer-question`, never on a muted issue but on a maintainer's command, and within the [limits of the AI runs](features/limits.md) for the tasks that people who don't maintain the repository start |
@@ -23,6 +23,10 @@ The issue assistant is a composite GitHub Action. `action.yml` runs `issue_assis
 | Findings | `watch_findings` | Dismiss the findings of code scanning that `findings.toml` accepts and fail while others are open |
 | Fixture | `read_fixture`, `GitHub.use_fixture` | An issue and its comments from a JSON file in place of GitHub's, for [the canary](architecture/dry-runs.md#the-canary) and for trying a prompt; `context` and `apply` then write nothing |
 | Set-up | `install`, `set_up_github`, `check` | Write the four workflows, the one of the discussions where `config.toml` names categories, the firewall policy and the starter files of `templates/` into a repository, add the notice to reporters and actionlint's ignored `queue` where they are missing, with `--setup` also create the environment `issue-assistant` and have gh ask for the engine's secret, and check that the set-up still fits the templates; only `check` needs nothing but the checkout, and both name its files with slashes on every system |
+
+## The modules of the package
+
+The code is the package `issue_assistant/`, in layers: each module imports only from those before it. [The modules of the package](architecture/modules.md) has the map, with what each holds.
 
 ## The workflows of a repository
 
@@ -94,5 +98,6 @@ Each of these has a page of its own:
 
 - [How a change of a template reaches the repositories](architecture/templates.md)
 - [How the assistant is tested](architecture/testing.md)
+- [The modules of the package](architecture/modules.md)
 - [The canary and the Workflow test](architecture/dry-runs.md)
 - [Failures and hard texts](architecture/failures.md)
