@@ -56,6 +56,10 @@ Yes, from yours: correct the issue, and the next analysis knows. Every first ana
 
 Open the summary of the morning sweep on the first day of a month, or start the sweep by hand: it counts the labels of the AI that the maintainers kept and those they had to add, the time from a new issue to its analysis, what became of the duplicate notices and of the questions to reporters, and the 👍 and 👎 on the analyses, for the 30 days before. Every morning, it also lists what waits on the maintainers, on reporters and on a release.
 
+## Where do I see what waits on me?
+
+In the summary of the morning sweep: under *Actions*, the workflow *Issue lifecycle*, its latest run of the schedule. It lists what waits on the maintainers, on reporters and on a release, by number and link. To have that in the Issues tab, set `[digest] issue = true` in `.github/issue-assistant/config.toml`: the sweep then [keeps it in one issue](features/digest.md#the-digest-as-an-issue), which you pin by hand and which it edits every morning without notifying anyone.
+
 ## Which data leaves GitHub?
 
 The `analyze` job sends the vendor of the engine, Anthropic for Claude, OpenAI for Codex, Google for Gemini and GitHub for Copilot, what the AI reads: the issue and its comments, at most 20,000 characters of each text, short excerpts of the other issues and of the discussions, the labels, `.github/issue-assistant/project.md` and the files of the default branch that the AI opens. The engine runs with its telemetry and error reports turned off. What the vendor may do with the data follows your agreement with it: for Claude, the terms of your API account or of your subscription, and the privacy settings of that account. Google may use what reaches the free tier of the Gemini API to improve its products, so a private repository is better served by its paid tier. The jobs without AI tell StepSecurity, the maker of Harden-Runner, the repository, the run and the hosts that their steps reach, as the [security design](security.md#residual-risks) says. The action keeps no database and no service of its own, and the notice in `SUPPORT.md` tells reporters which AI reads their issue.

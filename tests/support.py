@@ -498,6 +498,12 @@ def has_keys(data, required, optional=()):
     return data
 
 
+def issue_author(issue):
+    """The author of an issue of the fake as GitHub's GraphQL gives it."""
+    name = issue["user"]["login"]
+    return author_node("bot" if name == BOT_USER["login"] else name)
+
+
 def as_graphql(issue):
     """An issue of the fake as GitHub's GraphQL gives it. Its `closer`, if it has
     one, is that of its last closing: {"number": 31} for a pull request, {} for a
@@ -512,6 +518,7 @@ def as_graphql(issue):
         "stateReason": (issue["state_reason"] or "").upper() or None,
         "createdAt": issue["created_at"],
         "closedAt": issue["closed_at"],
+        "author": issue_author(issue),
         "labels": {"nodes": [{"name": label["name"]} for label in issue["labels"]]},
         "comments": {"totalCount": issue["comments"]},
         "closedByPullRequestsReferences": {"nodes": issue.get("fixes", [])},
@@ -731,6 +738,10 @@ class FakeGitHub(assistant.GitHub):
                         "labels" not in query
                         or query["labels"][0] in assistant.label_names(issue)
                     )
+                    and (
+                        "creator" not in query
+                        or query["creator"][0] == issue["user"]["login"]
+                    )
                     and changed_since(issue, query)
                 ]
                 return paged(
@@ -782,6 +793,18 @@ class FakeGitHub(assistant.GitHub):
                 inside = (match[1], tag) in self.contained
                 return {"status": "ahead" if inside else "diverged"}
         if method == "POST":
+            if route == "issues":
+                has_keys(data, {"title", "body", "labels"})
+                number = max(self.store, default=99) + 1
+                self.store[number] = make_issue(
+                    number,
+                    title=data["title"],
+                    body=data["body"],
+                    labels=data["labels"],
+                    created_at=self.time(),
+                    updated_at=self.time(),
+                ) | {"user": deepcopy(BOT_USER)}
+                return deepcopy(self.store[number])
             if match := re.fullmatch(r"issues/(\d+)/comments", route):
                 has_keys(data, {"body"})
                 comment = make_comment(1000 + len(self.calls), "bot", data["body"], 0)
@@ -863,7 +886,11 @@ class FakeGitHub(assistant.GitHub):
             return None
         if method == "PATCH":
             if match := re.fullmatch(r"issues/(\d+)", route):
-                has_keys(data, (), {"state", "state_reason", "milestone", "labels"})
+                has_keys(
+                    data,
+                    (),
+                    {"state", "state_reason", "milestone", "labels", "title", "body"},
+                )
                 assert data, "a change of an issue changes something"
                 assert data.get("state", "open") in {"open", "closed"}, data
                 assert data.get("state_reason", "completed") in {
@@ -873,7 +900,7 @@ class FakeGitHub(assistant.GitHub):
                     "duplicate",
                 }, data
                 issue = self._issue(int(match[1]))
-                issue.update(data)
+                issue.update(data, updated_at=self.time())
                 if data.get("state") == "closed":
                     issue["closed_at"] = self.time()
                 if data.get("state") == "open":

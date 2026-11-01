@@ -65,6 +65,8 @@ The group `lifecycle` needs the seven labels that the assistant sets: `needs-tri
 | `[lifecycle] exempt_assignees` | boolean | `false` | Whether issues assigned to someone are exempt as well | It is `true` or `false` |
 | `[lifecycle] exempt_upvotes` | integer | `0` | Issues with at least this many 👍 are exempt as well; `0` exempts none for their 👍 | 0 to 3650 |
 | `[lifecycle] lock_closed_after_days` | integer | `0` | The sweep locks issues closed for more than this many days as resolved, with one line that points to a new issue, at most 25 in a sweep; `0` locks none | 0, or at least `reopen_after_release_days` and up to 3650 |
+| `[digest] issue` | boolean | `false` | Whether the morning sweep also keeps [its digest](features/digest.md#the-digest-as-an-issue) in one issue, which it opens and then edits without notifying anyone | It is `true` or `false` |
+| `[digest] title` | string | `"Triage digest"` | The title of that issue; the sweep sets it anew when it differs | One line of 1 to 256 characters |
 
 ## findings.toml
 

@@ -311,6 +311,15 @@ ORIGINAL = re.compile(r"(?:of[ \t]+)?(?:#|GH-)?(\d{1,10})(?![\w-])", re.I)
 # The label of an issue on which the assistant starts no AI run of its own; the
 # commands mute and unmute set and remove it, and a maintainer can too.
 MUTED = "assistant-muted"
+# The label of an issue that stays: with the default exempt_labels, the sweep leaves
+# it alone. The issue of the digest has it, and a maintainer can give it to others.
+PINNED = "pinned"
+# The kind of the marker of the issue that keeps the digest of the sweep; see
+# keep_digest_issue.
+DIGEST = "digest"
+DIGEST_TITLE = "Triage digest"
+# The longest title of an issue that GitHub takes.
+MAX_TITLE = 256
 # The reactions on a command: handled, or refused with the reason in the run.
 HANDLED = "eyes"
 REFUSED = "confused"
@@ -1242,6 +1251,10 @@ class Config:
     # The language that the maintainers read, the code of a catalog in locales/: a
     # comment in another one folds a summary for them in it. See maintainers.
     maintainer_language: str = "en"
+    # Whether the morning sweep also keeps its digest in one issue, and the title of
+    # that issue; see keep_digest_issue.
+    digest_issue: bool = False
+    digest_title: str = DIGEST_TITLE
     # What `check` reports of labels.toml and config.toml beyond its own checks: the
     # values that the assistant can't use and the keys that it doesn't know.
     problems: tuple[str, ...] = ()
@@ -1340,6 +1353,10 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
         "exempt_assignees": Key("lifecycle.exempt_assignees", bool),
         "exempt_upvotes": Key("lifecycle.exempt_upvotes", int),
         "lock_closed_after_days": Key("lifecycle.lock_closed_after_days", int),
+    },
+    "digest": {
+        "issue": Key("digest_issue", bool),
+        "title": Key("digest_title", str),
     },
 }
 # The keys of a [[label]] of labels.toml with their types; the first four are needed.
@@ -1984,6 +2001,7 @@ class GitHub:
                           nodes {
                             number title body state stateReason(enableDuplicate: true)
                             createdAt closedAt
+                            author { __typename login }
                             labels(first: 20) { nodes { name } }
                             comments { totalCount }
                             closedByPullRequestsReferences(first: 5, includeClosedPrs: true) {
@@ -2130,6 +2148,13 @@ class GitHub:
             f"issues?state=all&since={stamp(since)}&per_page=100", pages=True
         )
         return [item for item in items if "pull_request" not in item]
+
+    def issues_of_the_assistant(self) -> list[dict[str, Any]]:
+        """Every issue that the assistant's account opened, also a closed one."""
+        items: list[dict[str, Any]] = self.rest(
+            f"issues?state=all&creator={quote(BOT, safe='')}&per_page=100", pages=True
+        )
+        return items
 
     def comments_since(self, since: datetime) -> list[dict[str, Any]]:
         """The comments on issues and pull requests written or changed at or after
@@ -2501,6 +2526,37 @@ class GitHub:
             f"edit comment {comment_id}",
             lambda: self.rest(
                 f"issues/comments/{comment_id}", method="PATCH", data={"body": body}
+            ),
+        )
+
+    def create_issue(self, title: str, body: str, labels: list[str]) -> int:
+        """Open an issue of the assistant; its number, 0 in a dry run, which opens
+        none."""
+        if self.dry_run:
+            self.previews.append(body)
+        number = 0
+
+        def create() -> None:
+            nonlocal number
+            opened = self.rest(
+                "issues",
+                method="POST",
+                data={"title": title, "body": body, "labels": labels},
+            )
+            number = opened["number"]
+
+        self._write("open the digest issue", create)
+        return number
+
+    def edit_issue(self, number: int, title: str, body: str) -> None:
+        """Change the title and the text of an issue of the assistant; an edit
+        notifies nobody."""
+        self._write(
+            f"edit #{number}",
+            lambda: self.rest(
+                f"issues/{number}",
+                method="PATCH",
+                data={"title": title, "body": body},
             ),
         )
 
@@ -2883,6 +2939,7 @@ def as_rest(
         "number": node["number"],
         "title": node["title"],
         "body": node["body"],
+        "user": actor(node["author"]),
         "state": node["state"].lower(),
         "state_reason": (node["stateReason"] or "").lower() or None,
         "labels": (node["labels"] or {"nodes": []})["nodes"],
@@ -3040,6 +3097,12 @@ def marker(comment: dict[str, Any]) -> tuple[str, dict[str, str]] | None:
 def kind_of(comment: dict[str, Any]) -> str | None:
     found = marker(comment)
     return found[0] if found else None
+
+
+def is_digest(issue: dict[str, Any]) -> bool:
+    """Whether the issue is the one that keeps the digest of the sweep: the assistant
+    opened it, with its marker, so that nobody else can make an issue pass for it."""
+    return kind_of(issue) == DIGEST
 
 
 def render_marker(kind: str, **attributes: object) -> str:
@@ -3222,6 +3285,11 @@ class Plan:
     marks: dict[str, str] = field(default_factory=dict)
 
 
+# What an event on the issue of the digest does: comments and commands there start
+# nothing, and the AI never reads it.
+DIGEST_NOTE = "The issue of the digest: nothing to do."
+
+
 def handle_event(
     github: GitHub, name: str, payload: dict[str, Any], config: Config
 ) -> Plan:
@@ -3233,6 +3301,8 @@ def handle_event(
         issue = github.issue(number)
         if "pull_request" in issue:
             raise AssistantError(f"#{number} is a pull request, not an issue.")
+        if is_digest(issue):
+            return Plan(number, notes=[DIGEST_NOTE])
         mode = inputs.get("mode") or "triage"
         if mode not in MODES:
             raise AssistantError(f"Unknown mode {mode}.")
@@ -3244,6 +3314,8 @@ def handle_event(
     number = issue["number"]
     if "pull_request" in issue or is_bot(payload.get("sender")):
         return Plan(number, notes=["Pull request or bot: nothing to do."])
+    if is_digest(issue):
+        return Plan(number, notes=[DIGEST_NOTE])
     action = payload.get("action")
     current = label_names(issue)
     author = login(issue.get("user"))
@@ -3495,16 +3567,36 @@ def carry_out(
     return Plan(number, "maintainer-question", ["A maintainer asked a question."])
 
 
-def muted_label(config: Config) -> Label:
-    """The label of muted issues, as labels.toml defines it or else as the starter
-    does."""
+def defined_label(config: Config, starter: Label) -> Label:
+    """A label that the assistant creates when it needs it, as labels.toml defines
+    it or else as `starter` does."""
     return next(
-        (label for label in config.labels if label.name == MUTED),
+        (label for label in config.labels if label.name == starter.name), starter
+    )
+
+
+def muted_label(config: Config) -> Label:
+    """The label of muted issues."""
+    return defined_label(
+        config,
         Label(
             MUTED,
             "ededed",
             "The assistant starts no AI run on this issue; /assistant unmute ends it",
             "decision",
+        ),
+    )
+
+
+def pinned_label(config: Config) -> Label:
+    """The label that exempts the issue of the digest from the lifecycle."""
+    return defined_label(
+        config,
+        Label(
+            PINNED,
+            "ededed",
+            "Stays open: the sweep never reminds, closes or locks this issue",
+            "lifecycle",
         ),
     )
 
@@ -4029,7 +4121,11 @@ def related_issues(
             # The issues above are the context; the search only adds to them.
             command("warning", f"The search for older issues failed: {error}")
     found.pop(issue["number"], None)
-    return [found[number] for number in sorted(found, reverse=True)]
+    return [
+        found[number]
+        for number in sorted(found, reverse=True)
+        if not is_digest(found[number])
+    ]
 
 
 def render_other_issue(
@@ -4341,7 +4437,11 @@ def write_siblings(
                     "analysis reads none of its issues.",
                 )
                 continue
-            found += [(repository, item) for item in other.search_issues(terms)]
+            found += [
+                (repository, item)
+                for item in other.search_issues(terms)
+                if not is_digest(item)
+            ]
         except GitHubError as error:
             command("warning", f"The search in {repository} failed: {error}")
     for repository, item in found:
@@ -6538,6 +6638,19 @@ TRIAGE_WAIT = timedelta(days=3)
 # The issues that each list of the digest names at most, the longest waiting first.
 DIGEST_ITEMS = 20
 
+# A section of the summary that GitHub failed; see part.
+NOT_MADE = "Not made: GitHub failed."
+
+# The text of the issue of the digest above its sections; see digest_body.
+DIGEST_INTRO = (
+    "What waits on whom, from the morning sweep. The sweep writes this text anew "
+    "every morning, which notifies nobody, so a change here doesn't last. "
+    "`[digest] issue` in `.github/issue-assistant/config.toml` turns it off."
+)
+
+# The numbers of the quality in the text of the issue of the digest, up to their day.
+HELD_QUALITY = re.compile(r"^#### Assistant quality .*?^Counted on \S+$", re.M | re.S)
+
 # The groups of the labels that the AI chooses, whose corrections the quality counts.
 CHOSEN_GROUPS = ("type", "area", "topic", "priority")
 
@@ -7298,8 +7411,93 @@ def part(title: str, make: Callable[[], str]) -> str:
         text = make()
     except GitHubError as error:
         command("warning", f"{title}: {error}")
-        text = "Not made: GitHub failed."
+        text = NOT_MADE
     return f"#### {title}\n\n{text}"
+
+
+def digest_issue(github: GitHub, activity: Activity) -> dict[str, Any] | None:
+    """The one issue of the digest, also a closed one, by its marker; the first, if
+    another workflow with the same token ever opened a second. The sweep edits it
+    every morning, so the activity has it without a request, unless the sweeps paused
+    for longer than it reads."""
+    found = [issue for issue in activity.issues.values() if is_digest(issue)] or [
+        issue for issue in github.issues_of_the_assistant() if is_digest(issue)
+    ]
+    return min(found, key=lambda issue: issue["number"], default=None)
+
+
+def digest_body(
+    github: GitHub, parts: list[str], line: str, previous: str, now: datetime
+) -> str:
+    """The text of the issue of the digest: the sections of the summary and the line
+    of its feedback, numbers, links and days alone, and the day that it was written.
+
+    The quality comes once a month, so that of the last time stays, with its day,
+    until the next one. The links are relative because GitHub shows a link with the
+    whole address as a mention on the issue that it leads to: every reporter would
+    see this issue on theirs, and again whenever theirs comes back into a list.
+    """
+    day = day_of(now).isoformat()
+    quality = next((section for section in parts[1:] if NOT_MADE not in section), "")
+    if quality:
+        quality += f"\n\nCounted on {day}."
+    elif held := HELD_QUALITY.search(previous.replace("\r\n", "\n")):
+        quality = held[0]
+    sections = (
+        f"{render_marker(DIGEST)}\n{DIGEST_INTRO}",
+        parts[0],
+        quality,
+        line,
+        f"Updated on {day}.",
+    )
+    return "\n\n".join(filter(None, sections)).replace(
+        f"https://github.com/{github.repository}/", "../"
+    )
+
+
+def keep_digest_issue(
+    github: GitHub,
+    config: Config,
+    activity: Activity,
+    parts: list[str],
+    line: str,
+    now: datetime,
+) -> str:
+    """Keep the digest in one issue, as [digest] issue asks: open it when it is
+    missing and edit it after that, which notifies nobody, and say so with a link for
+    the summary. A sweep that GitHub stopped after the opening finds it the next
+    morning. It stays as a maintainer left it: closed, or with other labels; the
+    event job and the AI know it by its marker.
+    """
+    if NOT_MADE in parts[0]:
+        # Yesterday's lists say more than a text that says that there are none.
+        return "Digest issue not updated: GitHub failed."
+    issue = digest_issue(github, activity)
+    if issue is None:
+        known = {label["name"].casefold() for label in github.labels()}
+        labels = (muted_label(config), pinned_label(config))
+        for label in labels:
+            if label.name.casefold() not in known:
+                github.create_label(label)
+        number = github.create_issue(
+            config.digest_title,
+            digest_body(github, parts, line, "", now),
+            [label.name for label in labels],
+        )
+        named = issue_link(github, number) if number else "a new issue"
+        return (
+            f"Digest issue: opened {named}. Pin it by hand, with Pin issue in the "
+            "sidebar of the issue."
+        )
+    number = issue["number"]
+    named = issue_link(github, number)
+    previous = text_of(issue)
+    body = digest_body(github, parts, line, previous, now)
+    if body == previous and issue["title"] == config.digest_title:
+        return f"Digest issue: {named} is current."
+    github.edit_issue(number, config.digest_title, body)
+    closed = "" if issue["state"] == "open" else " It stays closed until you reopen it."
+    return f"Digest issue: updated {named}.{closed}"
 
 
 def report(
@@ -7308,7 +7506,8 @@ def report(
     """The line of the feedback and the sections of the summary of the sweep: the
     maintainer digest, and the quality numbers once a month. Numbers and links
     alone, no text of an issue: the summary is for the maintainers, but anyone who
-    can read the repository can open it.
+    can read the repository can open it. So can they the issue of the digest, where
+    [digest] issue asks for one.
     """
     if event not in FEEDBACK_EVENTS:
         return [], ""
@@ -7331,7 +7530,16 @@ def report(
                 partial(quality, github, config, activity),
             )
         )
-    return [feedback(activity)], "\n\n".join(parts)
+    lines = [feedback(activity)]
+    if config.digest_issue:
+        try:
+            lines.append(
+                keep_digest_issue(github, config, activity, parts, lines[0], now)
+            )
+        except GitHubError as error:
+            command("warning", f"The issue of the digest: {error}")
+            lines.append("Digest issue not updated: GitHub failed.")
+    return lines, "\n\n".join(parts)
 
 
 def sweep_labeled(
@@ -8289,6 +8497,18 @@ def check_workflows(config: Config) -> list[str]:
     return problems
 
 
+def digest_problems(config: Config) -> list[str]:
+    """What GitHub would refuse as the title of the issue of the digest, which only
+    the morning sweep would find out."""
+    title = config.digest_title
+    if title.strip() and len(title) <= MAX_TITLE and len(title.splitlines()) == 1:
+        return []
+    return [
+        f"{SETTINGS / 'config.toml'}: [digest] title must be one line of 1 to "
+        f"{MAX_TITLE} characters"
+    ]
+
+
 def check_config(config: Config) -> list[str]:
     problems = []
     if config.engine not in ENGINES:
@@ -8300,6 +8520,7 @@ def check_config(config: Config) -> list[str]:
         if not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", host):
             problems.append(f"{SETTINGS / 'config.toml'}: {host} is no host name")
     problems += related_problems(config)
+    problems += digest_problems(config)
     problems += [
         f"{SETTINGS / 'config.toml'}: [discussions] answer_categories names "
         f"{name!r} {problem}"

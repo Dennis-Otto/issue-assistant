@@ -19,7 +19,7 @@ The action runs `issue_assistant.py` with one command:
 | `analyze` | analyze | for Gemini or Copilot: installs the engine's command line at the version that the workflow pins and runs it on the task, with only its tools that read and the engine's secret alone, and outputs its answer |
 | `usage` | analyze | writes the turns, time, cost and tokens of Claude's run into the summary of the job, numbers only, and a warning when the run stopped at its turns or its dollars |
 | `apply` | apply | checks the AI's answer and posts it, on the issue or the discussion |
-| `sweep` | lifecycle | reminds, closes unanswered issues and duplicates, marks fixed issues and closes them with the release |
+| `sweep` | lifecycle | reminds, closes unanswered issues and duplicates, marks fixed issues and closes them with the release; the morning's writes the digest into its summary and, where `[digest] issue` asks for it, into one issue |
 | `sync-labels` | labels | creates and updates the labels, renames those that the repository has in another case, updates one that another workflow created a moment before, such as the settings bot of the blueprint, and warns of owners whom GitHub can't assign and of issue types that the repository lacks |
 | `findings` | findings | dismisses the accepted findings of code scanning and fails while others are open; needs no other settings |
 | `check` | your CI | checks labels, issue forms, workflows, firewall, settings, the description of the project and the notice to reporters, and names every key it doesn't know; with `ISSUE_ASSISTANT_AI_RUNNER` in its environment, the runner of the AI too |
