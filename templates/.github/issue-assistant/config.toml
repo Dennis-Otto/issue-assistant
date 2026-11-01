@@ -64,6 +64,10 @@ hosts = []
 # answers that choose none.
 area_field = "Area"
 unmapped_options = ["Other"]
+# The box of the issue forms with which a reporter keeps the AI out of their issue:
+# a ticked box mutes the issue when it opens, and all that runs without AI goes on.
+# A form without a field of this name offers no such choice.
+opt_out_field = "Automated analysis"
 
 [transparency]
 # Files that tell reporters which AI reads their issue; the check command makes sure

@@ -151,6 +151,7 @@ reminder = """\
   poursuivre là-bas\u00A0; un 👍 sur #{number} montre que d'autres personnes sont \
   concernées. S'il s'agit d'une erreur, écrivez un commentaire et les mainteneurs le \
   rouvriront."""
+"let-in" = "Merci, @{author} : l'IA peut maintenant lire cette issue, comme vous l'avez demandé, et son analyse va suivre. Vous pouvez le demander une fois par issue."
 reopened = """\
   Merci pour votre réponse, @{author}\u00A0! J'ai rouvert le ticket\u00A0; les \
   mainteneurs vont y jeter un nouveau coup d'œil."""

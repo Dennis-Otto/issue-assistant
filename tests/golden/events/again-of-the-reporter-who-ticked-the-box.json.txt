@@ -1,0 +1,37 @@
+{
+  "plan": {
+    "issue": 12,
+    "mode": "triage",
+    "notes": [
+      "New analysis on request."
+    ],
+    "answers": null,
+    "marks": {}
+  },
+  "writes": [
+    "comment on #12",
+    "remove assistant-muted from #12",
+    "react with eyes to comment 5"
+  ],
+  "requests": [
+    [
+      "POST",
+      "issues/12/comments",
+      {
+        "body": "<!-- issue-assistant:let-in again=1 runs=1791374400 -->\nThanks, @reporter: the AI may read this issue now, as you asked, and its analysis follows. You can ask for this once per issue.\n"
+      }
+    ],
+    [
+      "DELETE",
+      "issues/12/labels/assistant-muted",
+      null
+    ],
+    [
+      "POST",
+      "issues/comments/5/reactions",
+      {
+        "content": "eyes"
+      }
+    ]
+  ]
+}

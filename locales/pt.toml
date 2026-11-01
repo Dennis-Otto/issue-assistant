@@ -140,6 +140,7 @@ reminder = """\
   Fechada como duplicata de #{number}, como anunciado há {grace_days}. Continue por \
   lá; um 👍 em #{number} mostra que mais pessoas são afetadas. Se isso foi um engano, \
   escreva um comentário e os mantenedores vão reabri-la."""
+"let-in" = "Obrigado, @{author}: a IA já pode ler esta issue, como você pediu, e a análise vem a seguir. Você pode pedir isso uma vez por issue."
 reopened = """\
   Obrigado pela resposta, @{author}! Reabri a issue; os mantenedores vão dar outra \
   olhada."""

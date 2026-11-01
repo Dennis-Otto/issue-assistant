@@ -1,6 +1,6 @@
 flowchart TB
   accTitle: Which task an event of an issue gives the AI
-  accDescr: An event of a bot, on a pull request, or a new issue that a maintainer opened gives the AI no task. Otherwise, a new issue, or the command /assistant again, gives it triage. An answer of the reporter to the assistant's questions gives it follow-up, at most twice and only while no maintainer joined the conversation since the questions. A comment of a maintainer on a reporter's issue that waits for nobody gives it maintainer-reply. A comment of the reporter within 30 days after a release closed the issue gives it release-reply. A maintainer's command /assistant ask gives it maintainer-question. Any other event, such as a comment of someone else, gives it no task. On an issue with the label assistant-muted, only a command of a maintainer starts a task. A task runs only while the AI is on and its secret is set; otherwise no analysis comes, and labels, reminders and closing go on.
+  accDescr: An event of a bot, on a pull request, or a new issue that a maintainer opened gives the AI no task. Otherwise, a new issue, or the command /assistant again, gives it triage. An answer of the reporter to the assistant's questions gives it follow-up, at most twice and only while no maintainer joined the conversation since the questions. A comment of a maintainer on a reporter's issue that waits for nobody gives it maintainer-reply. A comment of the reporter within 30 days after a release closed the issue gives it release-reply. A maintainer's command /assistant ask gives it maintainer-question. Any other event, such as a comment of someone else, gives it no task. A ticked box of the issue form adds the label assistant-muted to the new issue. On an issue with that label, only a command of a maintainer, or the reporter's /assistant again after the box, starts a task. A task runs only while the AI is on and its secret is set; otherwise no analysis comes, and labels, reminders and closing go on.
   start(["an event of an issue"]) --> who{"a bot, a pull<br>request, or a<br>maintainer's<br>new issue?"}
   who -- "yes" --> none["no task"]
   who -- "no" --> what{"what<br>happened?"}
@@ -10,7 +10,7 @@ flowchart TB
   what --> persists["`**release-reply**<br>the reporter<br>wrote within<br>30 days after<br>a release<br>closed it`"]
   what --> question["`**maintainer-question**<br>a maintainer<br>asked with<br>/assistant ask`"]
   what -- "anything else" --> none
-  triage & followup & reply & persists & question --> muted{"muted, and<br>no command of<br>a maintainer?"}
+  triage & followup & reply & persists & question --> muted{"muted, also by the<br>box of the form,<br>and no command of a<br>maintainer or again of<br>the reporter after the box?"}
   muted -- "yes" --> none
   muted -- "no" --> on{"the AI on,<br>and its<br>secret set?"}
   on -- "yes" --> analyze["`**analyze**<br>the AI reads<br>and answers`"]

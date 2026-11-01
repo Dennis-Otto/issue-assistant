@@ -1,10 +1,10 @@
 flowchart TB
   accTitle: What a command on an issue does
-  accDescr: A comment whose first line starts with /assistant is a command when a maintainer or the reporter of the issue wrote it; from anyone else, it is an ordinary comment. A maintainer may give every command. The reporter may give not-duplicate, and again once, while the issue has needs-triage, after its first analysis, while it isn't muted and within the limits of the day. A command that is carried out gets the reaction eyes: again starts a new analysis and ask an answer of the AI; duplicate, not-duplicate, waiting, mute and unmute set labels and post a notice without the AI. A command that is refused gets the reaction confused, and the summary of the run says why. A command answers, asks and objects to nothing.
+  accDescr: A comment whose first line starts with /assistant is a command when a maintainer or the reporter of the issue wrote it; from anyone else, it is an ordinary comment. A maintainer may give every command. The reporter may give not-duplicate, and again once, while the issue has needs-triage and within the limits of the day: after its first analysis while it isn't muted, or to end the mute of the box of the issue form. A command that is carried out gets the reaction eyes: again starts a new analysis and ask an answer of the AI; duplicate, not-duplicate, waiting, mute and unmute set labels and post a notice without the AI. A command that is refused gets the reaction confused, and the summary of the run says why. A command answers, asks and objects to nothing.
   comment(["a comment whose first<br>line starts with<br>/assistant"]) --> who{"who wrote it?"}
   who -- "anyone else" --> ordinary["an ordinary<br>comment"]
   who -- "a maintainer" --> every["every command"]
-  who -- "the reporter" --> reporter["not-duplicate; again<br>once, with needs-triage,<br>after the analysis,<br>unmuted, within the<br>limits of the day"]
+  who -- "the reporter" --> reporter["not-duplicate; again<br>once, with needs-triage,<br>within the limits of<br>the day: after the analysis,<br>unmuted, or to end the<br>mute of the form's box"]
   every & reporter --> carried{"carried out?"}
   carried -- "yes" --> eyes["reaction eyes"]
   carried -- "no" --> confused["reaction confused;<br>the summary of the<br>run says why"]

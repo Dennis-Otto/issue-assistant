@@ -31,6 +31,7 @@ def test_the_settings_are_read_with_defaults(config, root):
     assert config.engine == "claude" and config.model == ""
     assert config.hosts == {"www.home-assistant.io", "docs.autodarts.io"}
     assert config.area_field == "Area" and config.unmapped_options == ("Other",)
+    assert config.opt_out_field == "Automated analysis"
     assert config.notices == ("SUPPORT.md",)
     assert config.asking_kinds() == {"bug", "question", "documentation"}
     assert config.blob == "https://github.com/owner/project/blob"
@@ -131,12 +132,14 @@ LABEL = (
         (
             CONFIG,
             '[links]\nhosts = "docs.example.com"\n\n[forms]\narea_field = 3\n'
-            'unmapped_options = ["Other", 1]\n\n[transparency]\nfiles = "SUPPORT.md"\n'
+            'unmapped_options = ["Other", 1]\nopt_out_field = 3\n\n'
+            '[transparency]\nfiles = "SUPPORT.md"\n'
             'credit = "no"\n\n[releases]\nclose_with_release = "no"\n',
             [
                 f"{CONFIG}: [links] hosts must be a list of strings",
                 f"{CONFIG}: [forms] area_field must be a string",
                 f"{CONFIG}: [forms] unmapped_options must be a list of strings",
+                f"{CONFIG}: [forms] opt_out_field must be a string",
                 f"{CONFIG}: [transparency] files must be a list of strings",
                 f"{CONFIG}: [transparency] credit must be true or false",
                 f"{CONFIG}: [releases] close_with_release must be true or false",
@@ -787,6 +790,29 @@ def test_the_starter_forms_choose_the_starter_area_labels(kind, label):
     assert "AI issue assistant" in intro and "SUPPORT.md" in intro
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        path
+        for path in sorted((assistant.TEMPLATES / assistant.FORMS).glob("*.yml"))
+        if path.stem != "config"
+    ],
+    ids=lambda path: path.stem,
+)
+def test_each_starter_form_offers_the_box_unticked_with_a_link_to_the_notice(path):
+    form = assistant.load_yaml(path)
+    (box,) = [
+        item
+        for item in form["body"]
+        if (item.get("attributes") or {}).get("label") == assistant.Config.opt_out_field
+    ]
+    assert box["type"] == "checkboxes"
+    assert form["body"][-1] is box
+    (option,) = box["attributes"]["options"]
+    assert "AI" in option["label"] and not option.get("required")
+    assert assistant.NOTICE_ANCHOR in box["attributes"]["description"]
+
+
 def test_install_tells_reporters_what_happens_with_their_issue(tmp_path, root):
     # Without SUPPORT.md, install writes one.
     assistant.install(tmp_path, REF, "v1.0.0")
@@ -1362,6 +1388,50 @@ def test_form_problems_are_found(config, root):
         ".github/labels.toml: the form option 'Live card' belongs to area: cards, area: more",
         ".github/labels.toml: no label has the form option 'Online'",
         ".github/labels.toml: area: games names the option 'X01 game', which no form has",
+    ]
+
+
+FORM = ".github/ISSUE_TEMPLATE/bug_report.yml"
+BOX_FIELD = "the field 'Automated analysis' of [forms] opt_out_field"
+
+
+@pytest.mark.parametrize(
+    ("field", "problem"),
+    [
+        (
+            "  - type: checkboxes\n    attributes:\n      label: Automated analysis\n"
+            "      options:\n        - label: No AI\n",
+            None,
+        ),
+        (
+            "  - type: textarea\n    attributes:\n      label: Automated analysis\n",
+            f"{FORM}: {BOX_FIELD} must be checkboxes with one box",
+        ),
+        (
+            "  - type: checkboxes\n    attributes:\n      label: Automated analysis\n"
+            "      options:\n        - label: No AI\n        - label: No bots\n",
+            f"{FORM}: {BOX_FIELD} must be checkboxes with one box",
+        ),
+        (
+            "  - type: checkboxes\n    attributes:\n      label: Automated analysis\n"
+            "      options:\n        - label: No AI\n          required: true\n",
+            f"{FORM}: {BOX_FIELD} must not be required, or every reporter would opt out",
+        ),
+    ],
+)
+def test_check_validates_the_box_of_the_forms(config, root, field, problem):
+    form = root / FORM
+    form.write_text(form.read_text("utf-8") + field, encoding="utf-8")
+    assert assistant.check_forms(config) == ([problem] if problem else [])
+
+
+def test_check_names_a_box_of_its_own_name_that_no_form_has(config):
+    # The default name without a box: this repository offers no opt-out.
+    assert assistant.check_forms(config) == []
+    named = dataclasses.replace(config, opt_out_field="No AI")
+    assert assistant.check_forms(named) == [
+        ".github/issue-assistant/config.toml: [forms] opt_out_field names 'No AI', "
+        "which no form has"
     ]
 
 

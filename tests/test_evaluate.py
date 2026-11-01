@@ -20,6 +20,7 @@ import yaml
 
 import issue_assistant as assistant
 from support import (
+    BOX_TICKED,
     REPOSITORY,
     FakeGitHub,
     Frozen,
@@ -280,6 +281,19 @@ def test_an_issue_whose_only_label_came_with_its_form_is_no_sample(config):
     github = FakeGitHub(config, issue)
     github.event_store = {30: [labeled("bug", 8, "reporter")]}
     assert assistant.choose_samples(github, config, 1) == ([], 1)
+
+
+def test_an_issue_whose_reporter_keeps_the_ai_out_is_no_sample(config):
+    issue = closed(30, 8, labels=("bug", "assistant-muted"), body=BOX_TICKED)
+    github = FakeGitHub(config, issue)
+    github.event_store = {30: [labeled("bug", 7)]}
+    assert assistant.choose_samples(github, config, 1) == ([], 1)
+    # After a /assistant unmute, a maintainer lets the AI read it.
+    issue = closed(30, 8, labels=("bug",), body=BOX_TICKED)
+    github = FakeGitHub(config, issue)
+    github.event_store = {30: [labeled("bug", 7)]}
+    (sample,), _ = assistant.choose_samples(github, config, 1)
+    assert sample.issue["number"] == 30
 
 
 def test_the_labels_then_undo_each_change_after_the_moment():

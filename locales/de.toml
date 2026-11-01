@@ -146,6 +146,7 @@ reminder = """\
   Als Duplikat von #{number} geschlossen, wie vor {grace_days} angekündigt. Bitte mach \
   dort weiter; ein 👍 bei #{number} zeigt, dass mehr Leute betroffen sind. Falls das \
   ein Irrtum war, schreib einen Kommentar, dann öffnen die Maintainer es wieder."""
+"let-in" = "Danke, @{author}: Die KI darf dieses Issue jetzt lesen, wie du es wolltest, und ihre Analyse folgt. Das geht einmal pro Issue."
 reopened = """\
   Danke für deine Antwort, @{author}! Ich habe das Issue wieder geöffnet; die \
   Maintainer sehen es sich erneut an."""
