@@ -1,0 +1,22 @@
+flowchart TB
+  accTitle: How an issue becomes a good first issue
+  accDescr: Where labels.toml has labels of the group contribution, the AI says in its first analysis whether someone new to the project could take the issue, with its reason. The script keeps that only with a file that exists among the references, nothing missing, no duplicate and no security report, and records it in the hidden marker of the analysis, so the comment reads the same and no label changes. Once a maintainer has opened or triaged the issue, the digest of the morning names it as a candidate, for 30 days from the analysis at most. The maintainer decides. Adding the label good first issue settles it, GitHub then lists the issue for newcomers, and the quality counts it as kept. A confused reaction on the analysis, or removing the label again, takes it off the list, and the quality counts it as removed.
+  ai["`**The first analysis**<br>the AI answers whether a newcomer could take it, and why`"] --> checks{"a file that exists, nothing missing, no duplicate, no security report?"}
+  checks -- "no" --> none["no mark"]
+  checks -- "yes" --> mark["newcomer=1 in the hidden marker: the comment reads the same, no label changes"]
+  mark --> triaged{"has a maintainer opened or triaged the issue?"}
+  triaged -- "not yet" --> waits["not listed; the mark counts for 30 days from the analysis"]
+  triaged -- "yes" --> digest["`**Good first issue candidates**<br>a link in the digest of the morning`"]
+  digest --> decides{"the maintainer decides"}
+  decides -- "adds good first issue" --> kept["GitHub lists it for newcomers; the quality counts it as kept"]
+  decides -- "a confused reaction on the analysis,<br>or removes the label again" --> removed["off the list; the quality counts it as removed"]
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class checks,triaged,decides question
+  class none,mark,waits job
+  class ai ai
+  class digest person
+  class kept,removed safe

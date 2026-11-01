@@ -10,6 +10,9 @@
 #              that has none, and never changes one
 #   lifecycle  set and removed by the assistant's rules; all seven are required
 #   decision   set by the maintainer only
+#   contribution  what a maintainer offers to newcomers: only a maintainer sets it,
+#              from the candidates that the digest of the sweep names; without
+#              labels of this group, the AI isn't asked for candidates
 #   release    set on pull requests, for the release notes
 #   dependabot set by Dependabot on its pull requests
 #
@@ -141,3 +144,18 @@ name = "assistant-muted"
 color = "ededed"
 description = "The assistant starts no AI run on this issue; /assistant unmute ends it"
 group = "decision"
+
+# What you offer to contributors. GitHub lists an issue with good first issue on the
+# contribute page of the repository and in its search for newcomers. The AI never
+# sets these labels.
+[[label]]
+name = "good first issue"
+color = "7057ff"
+description = "Good for newcomers"
+group = "contribution"
+
+[[label]]
+name = "help wanted"
+color = "008672"
+description = "Extra attention is needed"
+group = "contribution"

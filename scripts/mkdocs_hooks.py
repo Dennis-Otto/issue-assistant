@@ -1249,6 +1249,7 @@ FEATURES = (
     "features/limits.md",
     "features/cost.md",
     "features/digest.md",
+    "features/good-first-issues.md",
     "features/github-failures.md",
 )
 FORMER_PAGES: dict[str, tuple[str, ...]] = {
