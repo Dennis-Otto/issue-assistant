@@ -27,6 +27,9 @@ JOBS = yaml.safe_load(
     (ROOT / ".github" / "workflows" / "action-test.yml").read_text(encoding="utf-8")
 )["jobs"]
 EXPLAIN = "Explain the failure"
+# The steps of Harden-Runner that belong to no part: right after it, and at the end.
+WARM_UP = "Wait until Harden-Runner lets the hosts through"
+WAIT_FOR_DOCKER = "Wait until Harden-Runner has removed Docker"
 # A line of the variable FAILED of that step: the outcomes of the steps of a part,
 # then the part that the coach explains when one of them failed.
 PART = re.compile(r"\$\{\{ (.+) && '([a-z-]+)' \|\| '' \}\}")
@@ -44,11 +47,7 @@ def explain_step(job):
     """The last step of the job, but for the wait that a job without sudo ends with:
     the explanation has to run before it, while the job still counts as failed."""
     *steps, last = job["steps"]
-    return (
-        steps[-1]
-        if last["name"] == "Wait until Harden-Runner has removed Docker"
-        else last
-    )
+    return steps[-1] if last["name"] == WAIT_FOR_DOCKER else last
 
 
 def names_of(job):
@@ -116,8 +115,9 @@ def test_each_step_of_a_job_with_parts_belongs_to_one_part(key):
     job = JOBS[key]
     steps = [
         step
-        for step in job["steps"][:-1]
+        for step in job["steps"]
         if not step.get("uses", "").startswith(SET_UP)
+        and step["name"] not in (EXPLAIN, WARM_UP, WAIT_FOR_DOCKER)
     ]
     ids = [step.get("id") for step in steps]
     named = [step for part in parts_of(job).values() for step in part]
@@ -225,14 +225,14 @@ def test_each_explanation_of_the_project_is_for_a_check_that_exists():
     queue = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "canary.yml").read_text(encoding="utf-8")
     )["jobs"]["queue"]
-    assert queue["steps"][-1]["env"] == {"CHECK": queue["name"]}
+    assert explain_step(queue)["env"] == {"CHECK": queue["name"]}
     # The Workflow test explains its gate, the check that main requires.
     gate = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "workflow-test.yml").read_text(
             encoding="utf-8"
         )
     )["jobs"]["gate"]
-    assert gate["steps"][-1]["env"] == {"CHECK": gate["name"]}
+    assert explain_step(gate)["env"] == {"CHECK": gate["name"]}
     # The Evaluate workflow explains each of its jobs by its name.
     evaluate = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "evaluate.yml").read_text(encoding="utf-8")

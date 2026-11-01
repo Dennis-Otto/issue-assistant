@@ -476,7 +476,7 @@ GUARD = {
 
 def guard_step():
     """The guard of the labels' job; every other job has the same."""
-    return load(reusable("labels.yml"))["jobs"]["sync"]["steps"][1]
+    return step_named(load(reusable("labels.yml"))["jobs"]["sync"], GUARD["name"])
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -646,21 +646,22 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     analyze = jobs["analyze"]
     assert analyze["runs-on"] == AI_RUNNER
     assert analyze["needs"] == "event"
-    block, holds, *rest = analyze["steps"]
+    block, holds, warm, *rest = analyze["steps"]
     action, _, ref = block["uses"].partition("@")
     assert action == HARDEN_RUNNER and assistant.SHA.fullmatch(ref)
-    assert block["if"] == holds["if"] == ON_ANOTHER_RUNNER
+    assert block["if"] == holds["if"] == warm["if"] == ON_ANOTHER_RUNNER
     # The engines need sudo, to install what isolates them.
     assert block["with"] == {
         "egress-policy": "block",
         "allowed-endpoints": "${{ needs.event.outputs.endpoints }}",
     }
     assert holds["name"] == "Make sure that the block holds"
+    assert warm["name"] == WARM_UP
     for step in rest:
         assert assistant.RUNNER_VARIABLE not in str(step.get("if", "")), step
         assert not step.get("uses", "").startswith(HARDEN_RUNNER), step
     event = jobs["event"]
-    assert event["steps"][-1] == {
+    assert event["steps"][-2] == {
         "name": "Name the hosts of the firewall policy for the AI's runner",
         "id": "endpoints",
         "if": ON_ANOTHER_RUNNER,
@@ -778,6 +779,229 @@ def test_harden_runner_is_a_version_that_lets_the_allowed_hosts_through(path):
     assert pins and all(pins), uses
     for pin in pins:
         assert tuple(int(part) for part in pin.groups()) >= HARDEN_RUNNER_FIXED, uses
+
+
+WAIT_FOR_DOCKER = "Wait until Harden-Runner has removed Docker"
+WARM_UP = "Wait until Harden-Runner lets the hosts through"
+# The jobs that block with the hosts of the firewall policy, as the AI does on the
+# runner of ISSUE_ASSISTANT_AI_RUNNER.
+WITH_THE_FIREWALL_POLICY = {
+    ("action-test.yml", "fallback"),
+    ("reusable-discussion-assistant.yml", "analyze"),
+    ("reusable-issue-assistant.yml", "analyze"),
+}
+HARDENED_JOBS = [
+    (path.name, name, job, step)
+    for path in PROJECT_WORKFLOWS
+    for name, job in load(path)["jobs"].items()
+    for step in job.get("steps", [])
+    if step.get("uses", "").startswith(f"{HARDEN_RUNNER}@")
+]
+
+
+def hardened_job_id(item):
+    return f"{item[0]}-{item[1]}"
+
+
+def step_named(job, name):
+    (step,) = [step for step in job["steps"] if step.get("name") == name]
+    return step
+
+
+def test_the_jobs_behind_harden_runner_are_found():
+    found = {(workflow, name) for workflow, name, _, _ in HARDENED_JOBS}
+    # Those that every repository runs, and those of the tests here.
+    assert {
+        ("reusable-findings.yml", "findings"),
+        ("reusable-issue-assistant.yml", "event"),
+        ("reusable-issue-assistant.yml", "apply"),
+        ("reusable-discussion-assistant.yml", "event"),
+        ("reusable-discussion-assistant.yml", "apply"),
+        ("reusable-issue-lifecycle.yml", "sweep"),
+        ("reusable-labels.yml", "sync"),
+        ("action-test.yml", "egress"),
+        ("canary.yml", "start"),
+        ("canary.yml", "queue"),
+        ("workflow-test.yml", "changes"),
+        ("workflow-test.yml", "gate"),
+    } <= found
+    assert found >= WITH_THE_FIREWALL_POLICY
+
+
+@pytest.mark.parametrize("item", HARDENED_JOBS, ids=hardened_job_id)
+def test_every_job_without_docker_waits_until_harden_runner_has_removed_it(item):
+    """Harden-Runner removes Docker with apt-get in the background, and a job that
+    ends before it finishes hangs in "Cleaning up orphan processes" until its timeout,
+    which a short job of a reusable workflow would reach in every repository."""
+    workflow, name, job, block = item
+    names = [step.get("name") for step in job["steps"]]
+    if not block["with"].get("disable-sudo-and-containers"):
+        assert WAIT_FOR_DOCKER not in names, (workflow, name)
+        return
+    wait = step_named(job, WAIT_FOR_DOCKER)
+    assert wait["if"] == "always()", (workflow, name)
+    # It ends the job: the explanation of a failure runs before it, since it needs the
+    # checkout and takes a moment that the removal may use.
+    assert job["steps"][-1] is wait, (workflow, name)
+
+
+@pytest.mark.parametrize("item", HARDENED_JOBS, ids=hardened_job_id)
+def test_every_job_that_blocks_waits_until_harden_runner_lets_its_hosts_through(item):
+    """An address that the runner asked for past Harden-Runner stays in the cache of
+    systemd-resolved for up to a minute, and Harden-Runner blocks it until then, so
+    the first step that needs a host would fail, and the job could hang at its end:
+    https://github.com/step-security/harden-runner/issues/708"""
+    workflow, name, job, block = item
+    names = [step.get("name") for step in job["steps"]]
+    if block["with"]["egress-policy"] != "block":
+        assert WARM_UP not in names, (workflow, name)
+        return
+    warm = step_named(job, WARM_UP)
+    index = job["steps"].index(warm)
+    if (workflow, name) in WITH_THE_FIREWALL_POLICY:
+        # After the step that makes sure of the block, since a request that gets
+        # through before it holds says nothing. Only GitHub's hosts: the runner asked
+        # for no other, and the policy names hosts of engines that this repository may
+        # not use, and one that answers only on port 80, each of which would stop the
+        # AI for two minutes.
+        assert index == job["steps"].index(block) + 2, name
+        assert warm["env"] == {"HOSTS": " ".join(GITHUB_HOSTS)}, name
+    else:
+        # Before every step that could need a host, and for just the hosts that the
+        # job allows, by the same words, so that they can't drift apart.
+        assert index == job["steps"].index(block) + 1, (workflow, name)
+        assert warm["env"] == {"HOSTS": block["with"]["allowed-endpoints"]}, name
+    # It runs just where the block does.
+    assert warm.get("if") == block.get("if"), (workflow, name)
+    # Two minutes, and a last try of 5 s for each host, of a job of 5 minutes.
+    assert warm["timeout-minutes"] == 4, (workflow, name)
+
+
+def test_the_wait_for_docker_and_the_warm_up_are_one_script_each():
+    """So that a fix reaches every job, those of the reusable workflows above all."""
+    for step_name in (WAIT_FOR_DOCKER, WARM_UP):
+        scripts = {
+            step["run"]
+            for _, _, job, _ in HARDENED_JOBS
+            for step in job["steps"]
+            if step.get("name") == step_name
+        }
+        assert len(scripts) == 1, step_name
+
+
+def test_the_firewall_policy_allows_the_hosts_of_the_warm_up():
+    """A host that the job doesn't allow would hold it up for two minutes."""
+    endpoints = assistant.firewall_endpoints(assistant.TEMPLATES).split()
+    assert set(GITHUB_HOSTS) <= set(endpoints)
+
+
+def stand_ins(tmp_path, **scripts):
+    """A PATH with a script for each command, and the file that lists their calls."""
+    folder = tmp_path / "bin"
+    folder.mkdir()
+    calls = tmp_path / "calls"
+    calls.touch()
+    for command, script in scripts.items():
+        path = folder / command
+        path.write_text(
+            f'#!/bin/sh\necho "{command} $*" >> "{calls.as_posix()}"\n{script}\n',
+            encoding="utf-8",
+            newline="\n",
+        )
+        path.chmod(0o755)
+    return f"{folder}{os.pathsep}{os.environ['PATH']}", calls
+
+
+def count_up(counter):
+    """The lines of a stand-in that count its calls in the file `counter`, in `$n`."""
+    counter.write_text("0", encoding="utf-8")
+    path = counter.as_posix()
+    return f'n=$(( $(cat "{path}") + 1 ))\necho "$n" > "{path}"'
+
+
+@pytest.mark.parametrize(("busy", "sleeps"), [(0, 0), (3, 3), (200, 120)])
+def test_the_wait_for_docker_ends_once_apt_get_is_done_or_after_two_minutes(
+    tmp_path, busy, sleeps
+):
+    # pgrep finds apt-get the first times it is asked.
+    path, calls = stand_ins(
+        tmp_path,
+        pgrep=f'{count_up(tmp_path / "count")}\n[ "$n" -le {busy} ]',
+        sleep="",
+    )
+    result, _ = run_step(
+        step_named(JOBS["event"], WAIT_FOR_DOCKER), tmp_path, PATH=path
+    )
+    assert result.returncode == 0, result.stderr
+    asked = calls.read_text(encoding="utf-8").splitlines()
+    assert asked.count("sleep 1") == sleeps
+    assert set(asked) <= {"pgrep -x apt-get|dpkg", "sleep 1"}
+    assert ("::warning::Harden-Runner still removes Docker" in result.stdout) == (
+        busy > 120
+    )
+
+
+def warm_up(tmp_path, blocked):
+    """The warm-up, where curl fails the first `blocked` times that it is asked, and
+    each look at the clock takes 3 s; with what it printed, and the calls."""
+    clock = tmp_path / "clock"
+    clock.write_text("1000", encoding="utf-8")
+    path, calls = stand_ins(
+        tmp_path,
+        curl=f'{count_up(tmp_path / "tries")}\n[ "$n" -gt {blocked} ]',
+        date=(
+            f'now=$(cat "{clock.as_posix()}")\n'
+            f'echo "$((now + 3))" > "{clock.as_posix()}"\n'
+            'echo "$now"'
+        ),
+        sleep="",
+    )
+    result, _ = run_step(
+        step_named(JOBS["event"], WARM_UP),
+        tmp_path,
+        PATH=path,
+        HOSTS="api.github.com:443 *.actions.githubusercontent.com:443 github.com:443",
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout, calls.read_text(encoding="utf-8").splitlines()
+
+
+PROBE = "curl --silent --head --connect-timeout 3 --max-time 5 --output /dev/null "
+
+
+def test_the_warm_up_asks_each_host_once_when_harden_runner_lets_it_through(tmp_path):
+    output, calls = warm_up(tmp_path, 0)
+    # The wildcard names no host to ask.
+    assert [call for call in calls if call.startswith("curl")] == [
+        f"{PROBE}https://api.github.com/",
+        f"{PROBE}https://github.com/",
+    ]
+    assert not any(call.startswith("sleep") for call in calls)
+    assert "::warning::" not in output
+
+
+def test_the_warm_up_asks_again_until_harden_runner_lets_the_host_through(tmp_path):
+    output, calls = warm_up(tmp_path, 3)
+    assert calls.count(f"{PROBE}https://api.github.com/") == 4
+    assert calls.count(f"{PROBE}https://github.com/") == 1
+    assert calls.count("sleep 3") == 3
+    assert output.count("Harden-Runner still blocks api.github.com") == 3
+    assert "::warning::" not in output
+
+
+def test_the_warm_up_warns_after_two_minutes_and_leaves_the_failure_to_the_step(
+    tmp_path,
+):
+    # A host that doesn't answer may be one that this run doesn't need.
+    output, calls = warm_up(tmp_path, 10_000)
+    # At most 40 tries of 3 s for the first host, and then one for each other host.
+    assert calls.count(f"{PROBE}https://api.github.com/") == 40
+    assert calls.count(f"{PROBE}https://github.com/") == 1
+    assert calls.count("sleep 3") == 39
+    for host in ("api.github.com", "github.com"):
+        assert (
+            f"::warning::Harden-Runner still blocks {host} after two minutes" in output
+        )
 
 
 def test_the_action_runs_in_ci_behind_the_block_of_the_templates():
@@ -1216,8 +1440,9 @@ def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
 
 
 def start_script():
-    (script,) = [s["run"] for s in CANARY["jobs"]["start"]["steps"] if "run" in s]
-    return script
+    return step_named(
+        CANARY["jobs"]["start"], "Start the canary and wait for its result"
+    )["run"]
 
 
 # The GitHub CLI of the job start, as a shell function: it notes its arguments and
@@ -1901,7 +2126,7 @@ def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_co
         "issues": "write",
         "pull-requests": "read",
     }
-    _, guard, checkout, tool, step = job["steps"]
+    _, _, guard, checkout, tool, step, _ = job["steps"]
     assert guard["name"] == GUARD["name"]
     # The default branch: no ref of the pull request, no credentials left behind.
     assert checkout["with"] == {"persist-credentials": False}
@@ -1934,7 +2159,7 @@ def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
     # Only code scanning of the default branch of this repository, never of a fork.
     assert "head_repository.full_name == github.repository" in condition
     assert "head_branch == github.event.repository.default_branch" in condition
-    _, guard, checkout, tool, step = job["steps"]
+    _, _, guard, checkout, tool, step, _ = job["steps"]
     assert guard["name"] == GUARD["name"]
     assert checkout["with"] == {"persist-credentials": False}
     assert tool["with"] == TOOL_CHECKOUT and step["uses"] == TOOL
