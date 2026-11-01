@@ -1,3 +1,0 @@
-### Features
-
-- `install` gives a repository without issue forms a feature request form and an issue chooser, next to the bug report form. The chooser turns blank issues off and sends questions to the discussions where `[discussions] answer_categories` names a category, vulnerabilities to private reporting and everything else to `SUPPORT.md`, with links that name the repository itself. A repository that has forms gets nothing new. `check` asks for the repository when `install` couldn't find it, and names a chooser that is no valid YAML, which GitHub ignores without a word. In Discussions, the answer to a feature request now links the feature request form where the repository has it.
