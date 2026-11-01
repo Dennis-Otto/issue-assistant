@@ -8361,7 +8361,8 @@ def check_forms(config: Config) -> list[str]:
             if CHOOSER_REPOSITORY in str(form):
                 problems.append(
                     f"{where}: replace {CHOOSER_REPOSITORY} in its links with the "
-                    "owner and name of the repository"
+                    "owner and name of the repository; install does it where the "
+                    "remote origin names the repository"
                 )
             continue
         if not isinstance(form, dict):
@@ -9019,6 +9020,21 @@ def chooser(config: Config) -> str:
     return re.sub("|".join(values), lambda found: values[found[0]], "".join(kept))
 
 
+def name_repository_in_chooser(root: Path, repository: str) -> list[str]:
+    """The links of a chooser that was written before the repository was known, now
+    with its name: the check asks for it, and only install, which knows it, can do it
+    without a person."""
+    placeholder = CHOOSER_REPOSITORY.encode()
+    done = []
+    for path in sorted((root / FORMS).glob("config.y*ml")) if repository else ():
+        content = path.read_bytes()
+        if placeholder in content:
+            path.write_bytes(content.replace(placeholder, repository.encode()))
+            where = path.relative_to(root).as_posix()
+            done.append(f"named {repository} in the links of {where}")
+    return done
+
+
 def add_forms(root: Path, repository: str, *, starter_labels: bool) -> list[str]:
     """The forms of the starters and their chooser, for a repository without issue
     forms or templates.
@@ -9030,17 +9046,18 @@ def add_forms(root: Path, repository: str, *, starter_labels: bool) -> list[str]
     and one that the repository has stays. Its links need `repository`.
     """
     forms = root / FORMS
+    done = name_repository_in_chooser(root, repository)
     if forms.is_dir() and any(
         path.is_file() and path.stem != "config" for path in forms.iterdir()
     ):
-        return []
+        return done
     if not starter_labels:
         return [
+            *done,
             f"wrote no issue forms for your own {LABELS_FILE}; the starters in "
-            f"{(TEMPLATES / FORMS).as_posix()} need its labels and areas there"
+            f"{(TEMPLATES / FORMS).as_posix()} need its labels and areas there",
         ]
     forms.mkdir(parents=True, exist_ok=True)
-    done = []
     for form in FORM_STARTERS.values():
         shutil.copyfile(TEMPLATES / form, root / form)
         done.append(f"wrote {form}; adapt it")
@@ -9051,7 +9068,8 @@ def add_forms(root: Path, repository: str, *, starter_labels: bool) -> list[str]
             f"wrote {CHOOSER}; adapt it, and turn on what its links need on GitHub"
             if repository
             else f"wrote {CHOOSER}; replace {CHOOSER_REPOSITORY} in its links with the "
-            "repository, which neither GH_REPO nor the remote origin names"
+            "repository, which neither GH_REPO nor the remote origin names, or run "
+            "install again once the remote does"
         )
     return done
 
@@ -9211,6 +9229,14 @@ def repository_of_remote(root: Path) -> str:
     found = GITHUB_REMOTE.fullmatch(git_says(root, "remote", "get-url", "origin") or "")
     name = found["name"] if found else ""
     return name if REPOSITORY_NAME.fullmatch(name) else ""
+
+
+def repository_to_name(root: Path) -> str:
+    """The repository that install names in the links of the chooser: GH_REPO, or else
+    GITHUB_REPOSITORY, or else the remote origin. Nothing here calls GitHub, so a value
+    of another form, such as HOST/OWNER/REPO, which gh takes, doesn't stop install."""
+    name = os.environ.get("GH_REPO") or os.environ.get("GITHUB_REPOSITORY", "")
+    return name if REPOSITORY_NAME.fullmatch(name) else repository_of_remote(root)
 
 
 def repository_of_checkout(root: Path) -> str:
@@ -10755,8 +10781,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def install_command(root: Path, arguments: argparse.Namespace) -> int:
     ref, version = release_of(TOOL, arguments.ref, arguments.version)
-    repository = repository_of_run(needed=False) or repository_of_remote(root)
-    for line in install(root, ref, version, repository):
+    for line in install(root, ref, version, repository_to_name(root)):
         print(line)
     if arguments.setup:
         if shutil.which("gh") is None:

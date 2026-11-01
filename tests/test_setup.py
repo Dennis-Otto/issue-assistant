@@ -634,7 +634,8 @@ def test_check_asks_for_the_repository_in_the_links_of_the_chooser(tmp_path):
     done = assistant.install(tmp_path, REF, "v1.0.0")
     assert (
         "wrote .github/ISSUE_TEMPLATE/config.yml; replace OWNER/NAME in its links with "
-        "the repository, which neither GH_REPO nor the remote origin names"
+        "the repository, which neither GH_REPO nor the remote origin names, or run "
+        "install again once the remote does"
     ) in done
     chooser = tmp_path / assistant.CHOOSER
     text = chooser.read_text("utf-8")
@@ -643,10 +644,50 @@ def test_check_asks_for_the_repository_in_the_links_of_the_chooser(tmp_path):
     config = assistant.load_config(tmp_path, REPOSITORY, lenient=True)
     assert assistant.check_forms(config) == [
         ".github/ISSUE_TEMPLATE/config.yml: replace OWNER/NAME in its links with the "
-        "owner and name of the repository"
+        "owner and name of the repository; install does it where the remote origin "
+        "names the repository"
     ]
     chooser.write_text(text.replace("OWNER/NAME", REPOSITORY), encoding="utf-8")
     assert assistant.check_forms(config) == []
+
+
+@pytest.mark.parametrize("name", ["config.yml", "config.yaml"])
+def test_install_again_names_the_repository_in_the_chooser(tmp_path, name):
+    # The forms are there by then, and the chooser would keep its placeholder forever.
+    assistant.install(tmp_path, REF, "v1.0.0")
+    chooser = tmp_path / assistant.CHOOSER
+    chooser = chooser.rename(chooser.with_name(name))
+    # What the maintainer wrote around it stays, byte by byte.
+    before = chooser.read_bytes().replace(b"\n", b"\r\n")
+    chooser.write_bytes(before)
+    done = assistant.install(tmp_path, REF, "v1.0.0")
+    assert not any(line.startswith("named") for line in done)
+    assert chooser.read_bytes() == before
+    done = assistant.install(tmp_path, REF, "v1.0.0", REPOSITORY)
+    where = f".github/ISSUE_TEMPLATE/{name}"
+    assert f"named {REPOSITORY} in the links of {where}" in done
+    assert chooser.read_bytes() == before.replace(b"OWNER/NAME", REPOSITORY.encode())
+    config = assistant.load_config(tmp_path, REPOSITORY, lenient=True)
+    assert assistant.check_forms(config) == []
+    # Once it is named, there is nothing left to do.
+    done = assistant.install(tmp_path, REF, "v1.0.0", REPOSITORY)
+    assert not any(line.startswith("named") for line in done)
+
+
+def test_install_names_the_repository_in_a_chooser_without_forms(tmp_path):
+    # Own labels hold back the forms, and the chooser still gets its name.
+    labels = tmp_path / ".github/labels.toml"
+    labels.parent.mkdir(parents=True)
+    labels.write_text('[[label]]\nname = "defect"\ncolor = "d73a4a"\n', "utf-8")
+    chooser = tmp_path / assistant.CHOOSER
+    chooser.parent.mkdir(parents=True)
+    chooser.write_text("url: https://github.com/OWNER/NAME/issues\n", "utf-8")
+    done = assistant.install(tmp_path, REF, "v1.0.0", REPOSITORY)
+    named = f"named {REPOSITORY} in the links of .github/ISSUE_TEMPLATE/config.yml"
+    assert named in done
+    assert any(line.startswith("wrote no issue forms") for line in done)
+    text = chooser.read_text("utf-8")
+    assert text == f"url: https://github.com/{REPOSITORY}/issues\n"
 
 
 def test_a_chooser_that_is_no_yaml_is_named(config, root):
@@ -684,8 +725,10 @@ def test_install_reads_the_repository_of_the_remote(tmp_path, remote, repository
         ({"GH_REPO": "", "GITHUB_REPOSITORY": ""}, "owner/remote"),
         ({"GH_REPO": "owner/given"}, "owner/given"),
         ({"GH_REPO": "", "GITHUB_REPOSITORY": "owner/run"}, "owner/run"),
+        # gh takes [HOST/]OWNER/REPO, and install without --setup calls no GitHub.
+        ({"GH_REPO": "github.com/owner/given"}, "owner/remote"),
     ],
-    ids=["remote", "GH_REPO", "GITHUB_REPOSITORY"],
+    ids=["remote", "GH_REPO", "GITHUB_REPOSITORY", "GH_REPO with a host"],
 )
 def test_the_install_command_names_the_repository_in_the_chooser(
     monkeypatch, tmp_path, capsys, env, named
