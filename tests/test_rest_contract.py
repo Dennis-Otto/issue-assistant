@@ -539,7 +539,9 @@ PULLS = f"{OWN}/pulls?state=open&head=owner%3Abot%2Fgithub-schemas&per_page=100"
 
 
 def test_copies_that_are_current_open_no_pull_request(monkeypatch, tmp_path, folder):
-    number, calls = refreshed(monkeypatch, tmp_path, folder, ok({"sha": "base"}))
+    number, calls = refreshed(
+        monkeypatch, tmp_path, folder, ok({"sha": "base"}), ok([])
+    )
     assert number is None
     assert [call[0][0] for call in calls][1:3] == [
         f"{OWN}/git/ref/heads/main",
@@ -568,6 +570,25 @@ def test_copies_that_are_current_open_no_pull_request(monkeypatch, tmp_path, fol
     ]
     assert calls[3][1] == {"content": "type Query\n", "encoding": "utf-8"}
     assert calls[4][1] == {"content": "{}\n", "encoding": "utf-8"}
+
+
+def test_copies_that_main_already_has_close_the_open_pull_request(
+    monkeypatch, tmp_path, folder
+):
+    number, calls = refreshed(
+        monkeypatch,
+        tmp_path,
+        folder,
+        ok({"sha": "base"}),
+        ok([{"number": 41}]),
+        ok({}),
+        {"stdout": ""},
+    )
+    assert number is None
+    assert writes(calls)[1:] == [
+        (f"{OWN}/pulls/41", "PATCH", {"state": "closed"}),
+        (f"{OWN}/git/refs/heads/bot/github-schemas", "DELETE", None),
+    ]
 
 
 def test_new_copies_open_the_pull_request(monkeypatch, tmp_path, folder):
@@ -713,7 +734,9 @@ def test_the_job_gets_the_number_of_the_pull_request(monkeypatch, tmp_path, fold
 def test_the_job_has_nothing_to_merge_when_the_copies_are_current(
     monkeypatch, tmp_path, folder
 ):
-    fake_gh(monkeypatch, tmp_path, ok({"id": 7}), *READ_MAIN, ok({"sha": "base"}))
+    fake_gh(
+        monkeypatch, tmp_path, ok({"id": 7}), *READ_MAIN, ok({"sha": "base"}), ok([])
+    )
     assert in_a_run(monkeypatch, tmp_path, "refresh", str(folder)) == 0
     assert read(tmp_path / "output") == ""
     assert "current" in read(tmp_path / "summary")
@@ -722,7 +745,9 @@ def test_the_job_has_nothing_to_merge_when_the_copies_are_current(
 def test_the_job_writes_nowhere_without_the_files_of_the_runner(
     monkeypatch, tmp_path, folder
 ):
-    fake_gh(monkeypatch, tmp_path, ok({"id": 7}), *READ_MAIN, ok({"sha": "base"}))
+    fake_gh(
+        monkeypatch, tmp_path, ok({"id": 7}), *READ_MAIN, ok({"sha": "base"}), ok([])
+    )
     monkeypatch.setenv("GH_REPO", REPOSITORY)
     monkeypatch.setenv("APP_SLUG", "app")
     monkeypatch.setenv("RUN_URL", "https://run")
@@ -828,12 +853,21 @@ def test_only_copies_that_passed_reach_the_pull_request():
     job = jobs()["schema-refresh"]
     # A condition without a status function needs the job before to have passed.
     assert job["needs"] == "schema"
-    assert "needs.schema.outputs.changed == 'true'" in job["if"]
+    # Also without a change: a pull request that main has overtaken closes there.
+    assert job["if"] == "github.ref_name == github.event.repository.default_branch"
     for word in ("always", "failure", "cancelled"):
         assert word not in job["if"]
     assert job["environment"] == {"name": "release", "deployment": False}
     assert job["permissions"] == {"contents": "read"}
     assert job["concurrency"]["cancel-in-progress"] is False
+    # The token can merge and change workflows: no later step may lift the block, and
+    # a short job without sudo hangs at its end unless it waits for Harden-Runner.
+    block = job["steps"][0]["with"]
+    assert block["egress-policy"] == "block"
+    assert block["disable-sudo-and-containers"] is True
+    wait = job["steps"][-1]
+    assert wait["name"] == "Wait until Harden-Runner has removed Docker"
+    assert wait["if"] == "always()"
 
 
 def test_the_token_of_the_pull_request_can_do_only_what_it_needs():
@@ -842,8 +876,9 @@ def test_the_token_of_the_pull_request_can_do_only_what_it_needs():
     assert {key for key in token if key.startswith("permission-")} == {
         "permission-contents",
         "permission-pull-requests",
+        "permission-workflows",
     }
-    refresh = step(job, "Open or update the one pull request")
+    refresh = step(job, "Open, update or close the one pull request")
     assert refresh["run"].startswith("python3 scripts/github_schemas.py refresh ")
     merge = step(job, "Let the pull request merge itself")
     assert merge["if"] == "steps.refresh.outputs.number != ''"

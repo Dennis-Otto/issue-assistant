@@ -39,7 +39,14 @@ COMMAND = "python3 issue_assistant.py"
 
 
 def explain_step(job):
-    return job["steps"][-1]
+    """The last step of the job, but for the wait that a job without sudo ends with:
+    the explanation has to run before it, while the job still counts as failed."""
+    *steps, last = job["steps"]
+    return (
+        steps[-1]
+        if last["name"] == "Wait until Harden-Runner has removed Docker"
+        else last
+    )
 
 
 def parts_of(job):

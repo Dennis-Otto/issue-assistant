@@ -376,14 +376,12 @@ jobs:
   # GitHub changes its API without a release of the action. The tests check the
   # GraphQL documents and the REST requests of the script against the copies of
   # GitHub's schema and description in tests/github/; here, every week, they meet what
-  # GitHub publishes that day. Copies that are behind but still pass go to the next job.
+  # GitHub publishes that day. Copies that still pass go to the next job.
   schema:
     name: GraphQL and REST against GitHub's current schemas
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    outputs:
-      changed: ${{ steps.compare.outputs.changed }}
     steps:
       - name: Record the network traffic of the job
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -409,16 +407,13 @@ jobs:
         run: python -m pytest -p no:cacheprovider tests/test_graphql_contract.py tests/test_rest_contract.py
       # Also when a request fails: the changes show what GitHub changed.
       - name: Compare them with the copies in tests/github/
-        id: compare
         if: ${{ !cancelled() && steps.download.outcome == 'success' }}
         run: |
-          changed=false
           for file in schema.docs.graphql api.github.com.json; do
             if cmp --silent "$RUNNER_TEMP/github/$file" "tests/github/$file"; then
               echo "The copy of \`$file\` in tests/github/ is current." >> "$GITHUB_STEP_SUMMARY"
               continue
             fi
-            changed=true
             echo "::notice::GitHub has changed $file since the copy in tests/github/."
             {
               echo "GitHub has changed \`$file\` since the copy in tests/github/:"
@@ -428,9 +423,7 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           done
-          echo "changed=$changed" >> "$GITHUB_OUTPUT"
       - name: Keep them for the pull request
-        if: steps.compare.outputs.changed == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: github-schemas
@@ -446,11 +439,12 @@ jobs:
 
   # The copies of the job before, which passed the contract tests, in the one pull
   # request from bot/github-schemas: the release app's, since a pull request of the
-  # job's token starts no check. It merges itself once its checks pass.
+  # job's token starts no check. It merges itself once its checks pass, and closes
+  # when main already has these copies, which is why the job also runs without a change.
   schema-refresh:
     name: the copies of GitHub's schemas in a pull request
     needs: schema
-    if: needs.schema.outputs.changed == 'true' && github.ref_name == github.event.repository.default_branch
+    if: github.ref_name == github.event.repository.default_branch
     concurrency:
       group: ${{ github.workflow }}-schema-refresh
       cancel-in-progress: false
@@ -470,6 +464,7 @@ jobs:
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
+          disable-sudo-and-containers: true
           allowed-endpoints: >-
             api.github.com:443
             github.com:443
@@ -526,10 +521,14 @@ jobs:
         with:
           client-id: ${{ vars.RELEASE_AUTOMATION_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_AUTOMATION_PRIVATE_KEY }}
-          # Only what the branch, the pull request and its merge need.
+          # What the branch, the pull request and its merge need. Workflows because the
+          # branch of an open pull request moves from a commit on an older main to one
+          # on the newest, and GitHub refuses that move without workflows when main
+          # changed a workflow in between. The commit itself holds only the two copies.
           permission-contents: write
           permission-pull-requests: write
-      - name: Open or update the one pull request
+          permission-workflows: write
+      - name: Open, update or close the one pull request
         id: refresh
         if: steps.app.outputs.token != ''
         env:
@@ -551,3 +550,13 @@ jobs:
         env:
           CHECK: the copies of GitHub's schemas in a pull request
         run: python3 .github/blueprint.py coach explain "$CHECK"
+      - name: Wait until Harden-Runner has removed Docker
+        # Harden-Runner removes Docker with apt-get in the background; a job that ends
+        # before it finishes hangs in "Cleaning up orphan processes" until its timeout.
+        if: always()
+        run: |
+          for _ in {1..120}; do
+            pgrep -x 'apt-get|dpkg' >/dev/null || exit 0
+            sleep 1
+          done
+          echo "::warning::Harden-Runner still removes Docker after two minutes; the job may hang until its timeout."

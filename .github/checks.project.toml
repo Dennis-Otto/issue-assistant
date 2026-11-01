@@ -249,7 +249,8 @@ failure into the required check."""
 title = "The pull request with the copies of GitHub's schemas"
 problem = """The contract tests passed against GitHub's schema and description of today,
 but the job couldn't bring the copies in `tests/github/` to the one pull request from
-`bot/github-schemas`, or couldn't turn on its automatic merge: GitHub refused a request
+`bot/github-schemas`, couldn't turn on its automatic merge, or couldn't close that pull
+request when `main` already has the copies: GitHub refused a request
 or the token of the release app, as the log names it."""
 why = """The copies stay behind what GitHub publishes, so the required check of every
 pull request checks the requests against an older description. Nothing breaks until the

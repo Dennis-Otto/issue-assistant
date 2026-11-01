@@ -14,8 +14,9 @@ parameter or an endpoint that GitHub deprecates fails before a release:
 `download` writes both as GitHub publishes them today into a folder. `refresh` brings
 the two files of such a folder to the default branch: with one pull request from the
 branch bot/github-schemas, whose one commit sits on the newest commit of the default
-branch, and none when the copies are current. The job schema of the Action test runs
-it, once the contract tests have passed against the files of that folder.
+branch, and none when the copies are current, which also closes one still open. The
+job schema of the Action test runs it, once the contract tests have passed against the
+files of that folder.
 
     python3 scripts/github_schemas.py download tests/github
     GH_REPO=owner/name APP_SLUG=app RUN_URL=https://... \\
@@ -228,11 +229,33 @@ def download(folder: Path) -> None:
     (folder / DESCRIPTION).write_bytes(as_text(reduce(full)).encode("utf-8"))
 
 
+def open_pulls(github: assistant.GitHub) -> list[dict[str, Any]]:
+    """The open pull requests from the branch of the bot, of this repository alone: a
+    fork may have a branch of this name."""
+    head = quote(f"{github.owner}:{BRANCH}", safe="")
+    pulls: list[dict[str, Any]] = github.rest(
+        f"pulls?state=open&head={head}&per_page=100"
+    )
+    return pulls
+
+
+def close_refresh(github: assistant.GitHub) -> None:
+    """Close a pull request that the default branch has overtaken, such as when a
+    person merged the copies by hand, with its branch: its automatic merge is still on.
+    """
+    pulls = open_pulls(github)
+    for pull in pulls:
+        github.rest(f"pulls/{pull['number']}", method="PATCH", data={"state": "closed"})
+    if pulls:
+        github.rest(f"git/refs/heads/{BRANCH}", method="DELETE")
+
+
 def refresh(
     github: assistant.GitHub, folder: Path, sign_off: str, run_url: str
 ) -> int | None:
     """The one pull request with the files of the folder, opened or brought up to
-    date; None when the copies on the default branch already are the same."""
+    date; None when the copies on the default branch already are the same, and then
+    no such pull request stays open."""
     main = github.default_branch()
     head = github.rest(f"git/ref/heads/{main}")["object"]["sha"]
     base = github.rest(f"git/commits/{head}")["tree"]["sha"]
@@ -256,6 +279,7 @@ def refresh(
         "git/trees", method="POST", data={"base_tree": base, "tree": entries}
     )["sha"]
     if tree == base:
+        close_refresh(github)
         return None
     # The commit goes through GitHub's API: GitHub signs it, as the release app's, and
     # it starts the checks. It always sits on the newest commit, which main requires.
@@ -287,9 +311,7 @@ def refresh(
                 method="PATCH",
                 data={"sha": commit, "force": True},
             )
-    # Pull requests from this repository alone: a fork may have a branch of this name.
-    head_filter = quote(f"{github.owner}:{BRANCH}", safe="")
-    pulls = github.rest(f"pulls?state=open&head={head_filter}&per_page=100")
+    pulls = open_pulls(github)
     if pulls:
         number: int = pulls[0]["number"]
         return number
