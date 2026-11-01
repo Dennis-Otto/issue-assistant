@@ -7995,9 +7995,9 @@ def test_graphql_errors_raise(monkeypatch, tmp_path):
         github.graphql("query", {})
     assert caught.value.types == {"INVALID"} and not caught.value.missing()
     assert github.graphql("query", {}) == {"ok": True}
-    assert github.rest("issues/1", method="DELETE") is None
+    assert github.rest("issues/1/labels/bug", method="DELETE") is None
     assert calls[-1] == (
-        ["gh", "api", f"repos/{REPOSITORY}/issues/1", "--method", "DELETE"],
+        ["gh", "api", f"repos/{REPOSITORY}/issues/1/labels/bug", "--method", "DELETE"],
         None,
     )
 
