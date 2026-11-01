@@ -65,21 +65,48 @@ from .paths import (
     VERSION_FILE,
     WORKFLOWS,
 )
+from .constants import (
+    ACTION,
+    BOT,
+    DIGEST,
+    DISCUSSION_MODES,
+    DUPLICATE,
+    EFFORTS,
+    EVALUATED,
+    FIREWALL_RUNNER,
+    FIXED,
+    HANDLED,
+    INVALID,
+    LET_IN,
+    LIFECYCLE,
+    LOGIN,
+    MAX_ASSIGNEES,
+    MAX_NUMBER,
+    MAX_RELATED,
+    MAX_TEXT,
+    MODES,
+    MOST_EVALUATED,
+    MUTED,
+    NEEDS_INFO,
+    NEEDS_TRIAGE,
+    NO_PRIORITY,
+    PINNED,
+    POSSIBLE_DUPLICATE,
+    REFUSED,
+    REPOSITORY_NAME,
+    RUNNER_VARIABLE,
+    STALE,
+    WONTFIX,
+)
 from .paths import *  # noqa: F403
+from .constants import *  # noqa: F403
 
 # The section that tells reporters what happens with their issue, which install adds
 # to each file of [transparency] that doesn't name the engine yet, in English or, for
 # a file such as SUPPORT.de.md, in German.
 NOTICE = PurePosixPath("SUPPORT-notice.md")
 NOTICE_DE = PurePosixPath("SUPPORT-notice.de.md")
-# The runner of the job analyze, in the reusable workflow of issue-assistant.yml.
-FIREWALL_RUNNER = "ubuntu-24.04-firewall"
-# That runner is a technical preview of GitHub. The repository's variable of this
-# name may choose another runner for the AI, should GitHub rename or end it: one of
-# GitHub's runners of Ubuntu with a fixed version, such as ubuntu-24.04, where
-# Harden-Runner blocks every host but those of the firewall policy for the job
-# analyze alone; decision 0019 says why.
-RUNNER_VARIABLE = "ISSUE_ASSISTANT_AI_RUNNER"
+
 HARDENED_RUNNER = re.compile(r"ubuntu-[0-9]{2}\.[0-9]{2}")
 # The firewall allows the hosts of its policy and GitHub's own, whatever the port;
 # Harden-Runner allows a host with its port: HTTPS, and HTTP, over which the
@@ -104,7 +131,7 @@ RELEASE_TAGS = "v[0-9]*.[0-9]*.[0-9]*"
 
 # The reasons GitHub accepts for dismissing a code scanning alert.
 DISMISS_REASONS = ("false positive", "won't fix", "used in tests")
-ACTION = "Dennis-Otto/issue-assistant"
+
 # Where a reader of a comment finds the tool that wrote it; see invitation.
 PROJECT = f"https://github.com/{ACTION}"
 REUSABLE_PREFIX = "reusable-"
@@ -116,9 +143,7 @@ ACTION_PIN = re.compile(
 )
 # A checkout of a release, from which install writes the templates of that release.
 CLONE = f"git clone --depth 1 --branch vX.Y.Z https://github.com/{ACTION}"
-# A repository as owner/name, in the characters GitHub allows; "." and ".." are no
-# names.
-REPOSITORY_NAME = re.compile(r"[\w-]+/(?!\.\.?\Z)[\w.-]+", re.ASCII)
+
 # A remote of a checkout on GitHub, over HTTPS or SSH.
 GITHUB_REMOTE = re.compile(
     r"(?:https://(?:[^/@]+@)?github\.com/|(?:ssh://)?git@github\.com[:/])"
@@ -131,7 +156,6 @@ GITHUB_REMOTE = re.compile(
 API_VERSION = "2022-11-28"
 API_VERSION_HEADER = f"X-GitHub-Api-Version: {API_VERSION}"
 
-BOT = "github-actions[bot]"
 MAINTAINERS = {"OWNER", "MEMBER", "COLLABORATOR"}
 
 # The periods of the lifecycle are in Lifecycle, which [lifecycle] in config.toml
@@ -185,11 +209,7 @@ TURN_DIVISORS = {
 MIN_TASK_TURNS = 4
 # The tasks that only judge one comment, yes or no; light_model runs them.
 LIGHT = ("maintainer-reply", "release-reply")
-# The levels of thinking that the engine takes as effort; empty keeps its default.
-EFFORTS = ("low", "medium", "high", "xhigh", "max")
-# GitHub keeps at most this many characters of the text of an issue or a comment;
-# the assistant reads no more of any text.
-MAX_TEXT = 65_536
+
 # The most of one text, the issue's or a comment's, that the engine reads in
 # issue.md; a longer one is cut off with a note.
 MAX_RENDERED_TEXT = 20_000
@@ -214,37 +234,12 @@ SEARCH_ERRORS = 3
 SEARCH_WORD = 40
 # The excerpt of each other issue in issues.jsonl; issues/<number>.md has its text.
 EXCERPT = 400
-# What `evaluate` replays: by default the 50 closed issues opened last that people
-# labelled or closed as a duplicate, at most 200, found among the 1,000 closed issues
-# opened last, a page of a hundred at a time.
-EVALUATED = 50
-MOST_EVALUATED = 200
+
 EVALUATION_PAGES = 10
 # The moment that it replays: a minute after the issue was opened, when it had the
 # labels of its form and the analysis would have started.
 OPENING = timedelta(minutes=1)
-# A first analysis also searches the issues of the related repositories of
-# [related], at most this many, for the reports that belong in one of them; see
-# siblings and write_siblings.
-MAX_RELATED = 5
 
-NEEDS_TRIAGE = "needs-triage"
-NEEDS_INFO = "needs-info"
-STALE = "stale"
-POSSIBLE_DUPLICATE = "possible-duplicate"
-DUPLICATE = "duplicate"
-INVALID = "invalid"
-WONTFIX = "wontfix"
-FIXED = "fixed-in-next-release"
-LIFECYCLE = (
-    NEEDS_TRIAGE,
-    NEEDS_INFO,
-    STALE,
-    POSSIBLE_DUPLICATE,
-    DUPLICATE,
-    INVALID,
-    FIXED,
-)
 GROUPS = (
     "type",
     "area",
@@ -256,29 +251,13 @@ GROUPS = (
     "release",
     "dependabot",
 )
-# What the AI answers for the priority of an issue whose priority it can't judge.
-NO_PRIORITY = "none"
-# The most people that GitHub assigns to one issue.
-MAX_ASSIGNEES = 10
-# A GitHub login: at most 39 letters, digits and single hyphens between them.
-LOGIN = re.compile(r"(?=[\w-]{1,39}\Z)[A-Za-z0-9](?:-?[A-Za-z0-9])*", re.ASCII)
+
 # The longest label name that GitHub takes.
 MAX_LABEL_NAME = 50
 # project.md tells the AI what the project is, before every task: not the starter's
 # placeholder, and at least this many characters.
 MIN_PROJECT = 80
 
-MODES = (
-    "triage",
-    "follow-up",
-    "maintainer-reply",
-    "release-reply",
-    "maintainer-question",
-    "discussion-answer",
-)
-# The tasks about a discussion rather than an issue, which DISCUSSION_WORKFLOW
-# starts.
-DISCUSSION_MODES = ("discussion-answer",)
 # The tasks that reporters start, which the limits of the AI runs apply to; a
 # maintainer starts the others.
 LIMITED = {"triage", "follow-up", "release-reply", "discussion-answer"}
@@ -296,24 +275,10 @@ COMMANDS = ("again", "duplicate", "not-duplicate", "waiting", "mute", "unmute", 
 REPORTER_COMMANDS = ("again", "not-duplicate")
 # The original that /assistant duplicate names: #12, GH-12 or 12, also after "of".
 ORIGINAL = re.compile(r"(?:of[ \t]+)?(?:#|GH-)?(\d{1,10})(?![\w-])", re.I)
-# The label of an issue on which the assistant starts no AI run of its own; the
-# commands mute and unmute set and remove it, and a maintainer can too.
-MUTED = "assistant-muted"
-# The label of an issue that stays: with the default exempt_labels, the sweep leaves
-# it alone. The issue of the digest has it, and a maintainer can give it to others.
-PINNED = "pinned"
-# The kind of the marker of the issue that keeps the digest of the sweep; see
-# keep_digest_issue.
-DIGEST = "digest"
-# The marker of the comment with which a reporter's /assistant again ends the mute of
-# the box of the form on an issue without an analysis.
-LET_IN = "let-in"
+
 DIGEST_TITLE = "Triage digest"
 # The longest title of an issue that GitHub takes.
 MAX_TITLE = 256
-# The reactions on a command: handled, or refused with the reason in the run.
-HANDLED = "eyes"
-REFUSED = "confused"
 
 MARKER = re.compile(r"<!-- issue-assistant:([a-z-]+)((?: [a-z]+=[\w.+/-]+)*) -->")
 # Control characters other than tab and line break, which no comment needs: Python
@@ -5965,9 +5930,6 @@ def other_issue(github: GitHub, number: int, current: int) -> dict[str, Any] | N
 # How many of the issue numbers that the engine's texts name are looked up, each
 # with a request or two, so that those that exist stay links.
 MAX_NAMED = 10
-# The largest number that GitHub's GraphQL API takes, an Int of 32 bits; no issue
-# has a larger one.
-MAX_NUMBER = 2**31 - 1
 
 
 def named_numbers(
