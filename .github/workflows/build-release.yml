@@ -175,10 +175,8 @@ jobs:
     needs: project-assets
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # The signing key of a Nextcloud app belongs to this environment.
-    environment:
-      name: release
-      deployment: false
+    # No environment and no secret but the token of the job, so that no action of
+    # the build can reach the private key of the release app.
     permissions:
       attestations: write
       contents: write
