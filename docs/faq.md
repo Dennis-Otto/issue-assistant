@@ -86,7 +86,7 @@ The analysis starts with a warning. For a secret, such as a token, a key or a pa
 
 ## What if an issue reports a vulnerability?
 
-The comment only asks the reporter to report it privately, as the security policy of the repository describes, and to remove the details from the issue. It has no summary, no analysis, no questions and no duplicates, and the reason for its labels on the timeline is a fixed sentence instead of the AI's words.
+The comment only asks the reporter to report it privately, as the security policy of the repository describes, and to remove the details from the issue. It has no summary, no analysis, no questions and no duplicates, and the reason for its labels on the timeline is a fixed sentence instead of the AI's words. The [chooser](getting-started.md#what-install-writes) that `install` writes for a repository without issue forms offers the private report before anyone opens an issue.
 
 ## How do I turn it off?
 

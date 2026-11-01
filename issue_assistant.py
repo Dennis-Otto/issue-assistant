@@ -71,10 +71,16 @@ STARTERS = (
     SETTINGS / "config.toml",
     FINDINGS_FILE,
 )
-# The issue forms and templates of a repository, and the form that install writes
-# into a repository that has none.
+# The issue forms and templates of a repository, the forms that install writes into
+# a repository that has none, by the kind of issue that each opens, and the chooser
+# that it writes with them, which holds this name until someone names the repository.
 FORMS = PurePosixPath(".github/ISSUE_TEMPLATE")
-FORM_STARTER = FORMS / "bug_report.yml"
+FORM_STARTERS = {
+    "bug": FORMS / "bug_report.yml",
+    "feature": FORMS / "feature_request.yml",
+}
+CHOOSER = FORMS / "config.yml"
+CHOOSER_REPOSITORY = "OWNER/NAME"
 # The section that tells reporters what happens with their issue, which install adds
 # to each file of [transparency] that doesn't name the engine yet, in English or, for
 # a file such as SUPPORT.de.md, in German.
@@ -146,6 +152,11 @@ CLONE = f"git clone --depth 1 --branch vX.Y.Z https://github.com/{ACTION}"
 # A repository as owner/name, in the characters GitHub allows; "." and ".." are no
 # names.
 REPOSITORY_NAME = re.compile(r"[\w-]+/(?!\.\.?\Z)[\w.-]+", re.ASCII)
+# A remote of a checkout on GitHub, over HTTPS or SSH.
+GITHUB_REMOTE = re.compile(
+    r"(?:https://(?:[^/@]+@)?github\.com/|(?:ssh://)?git@github\.com[:/])"
+    r"(?P<name>\S+?)(?:\.git)?/?"
+)
 
 BOT = "github-actions[bot]"
 MAINTAINERS = {"OWNER", "MEMBER", "COLLABORATOR"}
@@ -5635,11 +5646,13 @@ def render_answer(
 
 
 def issue_form(config: Config, kind: str) -> str:
-    """Where someone opens the issue that a discussion suggests: the bug report form
-    of the starter for a bug, where the repository has it, else the list of forms."""
+    """Where someone opens the issue that a discussion suggests: the form of the
+    starter for a bug or a feature, where the repository has it, else the list of
+    forms."""
     new = f"https://github.com/{config.repository}/issues/new"
-    if kind == "bug" and (config.root / FORM_STARTER).is_file():
-        return f"{new}?template={FORM_STARTER.name}"
+    form = FORM_STARTERS[kind]
+    if (config.root / form).is_file():
+        return f"{new}?template={form.name}"
     return f"{new}/choose"
 
 
@@ -8338,13 +8351,18 @@ def check_forms(config: Config) -> list[str]:
     defined = {label.name for label in config.labels}
     options: list[str] = []
     for path in sorted((config.root / FORMS).glob("*.y*ml")):
-        if path.stem == "config":
-            continue
         where = path.relative_to(config.root).as_posix()
         try:
             form = load_yaml(path, where)
         except SettingsError as error:
             problems += error.problems
+            continue
+        if path.stem == "config":
+            if CHOOSER_REPOSITORY in str(form):
+                problems.append(
+                    f"{where}: replace {CHOOSER_REPOSITORY} in its links with the "
+                    "owner and name of the repository"
+                )
             continue
         if not isinstance(form, dict):
             problems.append(f"{where} is no issue form")
@@ -8978,12 +8996,38 @@ def add_to_actionlint(root: Path) -> list[str]:
 # The files of a set-up
 
 
-def add_form(root: Path, *, starter_labels: bool) -> list[str]:
-    """A bug report form for a repository without issue forms or templates.
+def chooser(config: Config) -> str:
+    """The chooser of the templates for the repository of `config`.
 
-    Its label bug and the answers of its field Area are those of the starter labels,
-    so install writes it only together with them; labels of the repository's own
-    may not map them, and a form overrides the templates of its owner's .github.
+    A question goes to the first category whose discussions get a first answer, as
+    someone with a question needs one place to ask it. Without such a category, or
+    without a notice to reporters, it has no link there.
+    """
+    category = config.answer_categories[0] if config.answer_categories else ""
+    values = {
+        CHOOSER_REPOSITORY: config.repository,
+        # GitHub's slug of a category, such as q-a for Q&A.
+        "CATEGORY": re.sub(r"\W+", "-", category.lower()).strip("-"),
+        "NOTICE_LINK": notice_link(config) or "",
+    }
+    template = (TEMPLATES / CHOOSER).read_text(encoding="utf-8")
+    kept = [
+        part
+        for part in re.split(r"(?m)^(?=  - name: )", template)
+        if all(value or name not in part for name, value in values.items())
+    ]
+    return re.sub("|".join(values), lambda found: values[found[0]], "".join(kept))
+
+
+def add_forms(root: Path, repository: str, *, starter_labels: bool) -> list[str]:
+    """The forms of the starters and their chooser, for a repository without issue
+    forms or templates.
+
+    The labels of the forms and the answers of their field Area are those of the
+    starter labels, so install writes them only together with them; labels of the
+    repository's own may not map them, and a form overrides the templates of its
+    owner's .github. The chooser turns blank issues off, so it comes only with forms,
+    and one that the repository has stays. Its links need `repository`.
     """
     forms = root / FORMS
     if forms.is_dir() and any(
@@ -8992,12 +9036,24 @@ def add_form(root: Path, *, starter_labels: bool) -> list[str]:
         return []
     if not starter_labels:
         return [
-            f"wrote no issue form for your own {LABELS_FILE}; the starter "
-            f"{(TEMPLATES / FORM_STARTER).as_posix()} needs its labels and areas there"
+            f"wrote no issue forms for your own {LABELS_FILE}; the starters in "
+            f"{(TEMPLATES / FORMS).as_posix()} need its labels and areas there"
         ]
     forms.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(TEMPLATES / FORM_STARTER, root / FORM_STARTER)
-    return [f"wrote {FORM_STARTER}; adapt it"]
+    done = []
+    for form in FORM_STARTERS.values():
+        shutil.copyfile(TEMPLATES / form, root / form)
+        done.append(f"wrote {form}; adapt it")
+    if not any(forms.glob("config.y*ml")):
+        config = load_config(root, repository or CHOOSER_REPOSITORY, lenient=True)
+        (root / CHOOSER).write_text(chooser(config), encoding="utf-8", newline="\n")
+        done.append(
+            f"wrote {CHOOSER}; adapt it, and turn on what its links need on GitHub"
+            if repository
+            else f"wrote {CHOOSER}; replace {CHOOSER_REPOSITORY} in its links with the "
+            "repository, which neither GH_REPO nor the remote origin names"
+        )
+    return done
 
 
 def notice(config: Config, engine: Engine, language: str) -> str:
@@ -9082,16 +9138,17 @@ def pinned(template: str, ref: str, version: str) -> str:
     return ACTION_PIN.sub(lambda pin: f"{pin['uses']}@{ref} # {version}", template)
 
 
-def install(root: Path, ref: str, version: str) -> list[str]:
+def install(root: Path, ref: str, version: str, repository: str = "") -> list[str]:
     """Write the workflows and the firewall policy of the templates into a repository.
 
     The workflow of the discussions only when config.toml names categories whose
     discussions get a first answer, as the starter does, or when it is there
     already. The starters are only written when they are missing: labels,
-    project.md, config.toml, findings.toml, and, with the starter labels, a bug
-    report form in a repository without issue forms. The notice to reporters, the entry of .gitignore and what actionlint
-    needs are added where they are missing, so that running it again changes
-    nothing but the workflows.
+    project.md, config.toml, findings.toml, and, with the starter labels, the forms of
+    a bug report and a feature request with their chooser, whose links name
+    `repository`, in a repository without issue forms. The notice to reporters, the
+    entry of .gitignore and what actionlint needs are added where they are missing,
+    so that running it again changes nothing but the workflows.
     """
     if not SHA.fullmatch(ref):
         raise AssistantError("Give the commit hash of the issue assistant's release.")
@@ -9123,7 +9180,6 @@ def install(root: Path, ref: str, version: str) -> list[str]:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(TEMPLATES / starter, target)
             done.append(f"wrote {starter}; adapt it")
-    done += add_form(root, starter_labels=starter_labels)
     # Once the starters are there: the settings say whether discussions get answers.
     if (root / WORKFLOWS / DISCUSSION_WORKFLOW).is_file() or load_config(
         root, "", lenient=True
@@ -9137,10 +9193,24 @@ def install(root: Path, ref: str, version: str) -> list[str]:
             "\n".join([*lines, entry]) + "\n", encoding="utf-8", newline="\n"
         )
         done.append(f"added {entry} to .gitignore")
-    return done + add_to_actionlint(root) + add_notices(root)
+    # Last, as the chooser links the notice.
+    return [
+        *done,
+        *add_to_actionlint(root),
+        *add_notices(root),
+        *add_forms(root, repository, starter_labels=starter_labels),
+    ]
 
 
 # Setting up GitHub
+
+
+def repository_of_remote(root: Path) -> str:
+    """The repository on GitHub that the remote origin of the checkout in `root`
+    names, as install finds it without gh; nothing for another host or no remote."""
+    found = GITHUB_REMOTE.fullmatch(git_says(root, "remote", "get-url", "origin") or "")
+    name = found["name"] if found else ""
+    return name if REPOSITORY_NAME.fullmatch(name) else ""
 
 
 def repository_of_checkout(root: Path) -> str:
@@ -10685,7 +10755,8 @@ def main(argv: list[str] | None = None) -> int:
 
 def install_command(root: Path, arguments: argparse.Namespace) -> int:
     ref, version = release_of(TOOL, arguments.ref, arguments.version)
-    for line in install(root, ref, version):
+    repository = repository_of_run(needed=False) or repository_of_remote(root)
+    for line in install(root, ref, version, repository):
         print(line)
     if arguments.setup:
         if shutil.which("gh") is None:

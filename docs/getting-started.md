@@ -65,10 +65,18 @@ On Windows, run the commands in Git Bash; Python's launcher `py` takes the place
 | `.github/labels.toml` | when missing | define the labels: the seven lifecycle labels are required; kinds, areas, topics and, if you add them, priorities are what the AI chooses from |
 | `.github/issue-assistant/config.toml` | when missing | choose the engine, the hosts that links may lead to, the field of the issue forms that chooses an area, the categories of the discussions that get a first answer, and the files that tell reporters which AI reads their issue |
 | `.github/findings.toml` | when missing | accept findings of code scanning that can't or shouldn't be fixed, each with its reason |
-| `.github/ISSUE_TEMPLATE/bug_report.yml` | together with the starter `labels.toml`, when the repository has no issue forms or templates | adapt the answers of the field *Area*, whose `form_options` in `labels.toml` choose an area label |
+| `.github/ISSUE_TEMPLATE/bug_report.yml`, `feature_request.yml` | together with the starter `labels.toml`, when the repository has no issue forms or templates | adapt the answers of the field *Area*, whose `form_options` in `labels.toml` choose an area label |
+| `.github/ISSUE_TEMPLATE/config.yml` | with these forms, when it is missing | turn on what its links need in the settings of the repository: Discussions, for the first category of `[discussions] answer_categories`, and private vulnerability reporting; remove a link that you don't want |
 | `SUPPORT.md`, or the files of `[transparency]` | when they don't name the engine | the section *What happens with your issue*, which the footer of every analysis and follow-up links, tells reporters which AI reads their issue, in German for a file such as `SUPPORT.de.md` |
 | `.github/actionlint.yaml` | when it exists | nothing: it ignores the `queue` of `issue-assistant.yml`, which actionlint 1.7.12 doesn't know yet |
 | `.gitignore` | when the entry is missing | nothing: `/.issue-assistant/` keeps the context of the AI out of commits |
+
+The chooser is what GitHub shows on *New issue*. It turns blank issues off, so that every issue starts from a form, and its links take the rest to where it belongs: the first category of `answer_categories`, a link that it leaves out when none is named, private vulnerability reporting, and the first file of `[transparency]`. `install` takes the owner and the name in these links from `GH_REPO`, from `GITHUB_REPOSITORY` or from the remote `origin`; without any of them, it writes `OWNER/NAME`, and the check asks you to replace it.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/where-the-chooser-of-new-issues-leads.dark.svg">
+  <img src="images/diagrams/where-the-chooser-of-new-issues-leads.svg" alt="Where the chooser of new issues leads: On New issue, GitHub shows the chooser that install writes for a repository without forms, with blank issues turned off. A bug report and a feature request each open a form, whose answers choose the labels before the first analysis. A question goes to the discussions, a vulnerability to a private report, and the link of the support says what happens with an issue">
+</picture>
 
 GitHub ignores the case of label names, so the Labels workflow renames a label that the repository has in another case, such as `Bug` for `bug`, instead of creating a second one. A YAML file that `install` can't edit without changing the rest, such as a list in braces, it leaves as it is and names what to add.
 

@@ -1848,6 +1848,32 @@ def test_the_area_labels_of_pull_requests_exist_and_match_files():
             assert any((ROOT / path).is_file() for path in found), pattern
 
 
+def test_the_starter_forms_are_what_github_reads():
+    # GitHub shows an invalid form as a plain text box, and says so only to those who
+    # open the file in the repository.
+    for form in assistant.FORM_STARTERS.values():
+        starter = load(assistant.TEMPLATES / form)
+        assert {"name", "description", "body"} <= set(starter)
+        ids = [item["id"] for item in starter["body"] if "id" in item]
+        assert len(ids) == len(set(ids)) and ids
+        assert any(
+            item.get("validations", {}).get("required") for item in starter["body"]
+        )
+
+
+def test_the_starter_chooser_is_what_github_reads():
+    # GitHub reads only these keys, and only with a whole URL: no link of its own
+    # repository can be relative, so install writes the owner and the name.
+    chooser = load(assistant.TEMPLATES / assistant.CHOOSER)
+    assert set(chooser) == {"blank_issues_enabled", "contact_links"}
+    assert chooser["blank_issues_enabled"] is False
+    for link in chooser["contact_links"]:
+        assert set(link) == {"name", "url", "about"}
+    (asks, reports, *_) = chooser["contact_links"]
+    assert asks["url"].startswith("https://github.com/OWNER/NAME/discussions/")
+    assert reports["url"] == "https://github.com/OWNER/NAME/security/advisories/new"
+
+
 def test_a_change_of_what_install_writes_is_labeled_setup():
     # install writes the workflows, the firewall policy and the starter files that a
     # repository lacks, all from templates/; action.yml runs the script. This
@@ -1857,7 +1883,8 @@ def test_a_change_of_what_install_writes_is_labeled_setup():
         *(assistant.WORKFLOWS / name for name in NAMES),
         assistant.FIREWALL,
         *assistant.STARTERS,
-        assistant.FORM_STARTER,
+        *assistant.FORM_STARTERS.values(),
+        assistant.CHOOSER,
         assistant.NOTICE,
         assistant.NOTICE_DE,
     ]

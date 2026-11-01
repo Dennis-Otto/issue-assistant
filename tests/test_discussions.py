@@ -415,9 +415,18 @@ def test_a_bug_or_a_feature_request_gets_the_form_of_an_issue(answering, kind, f
     assert f"please [open an issue]({form}), so that the maintainers can" in body
 
 
-def test_a_repository_without_the_bug_form_lists_the_forms(answering, tmp_path):
+@pytest.mark.parametrize(
+    ("kind", "name"), [("bug", "bug_report.yml"), ("feature", "feature_request.yml")]
+)
+def test_only_a_repository_with_the_form_of_the_kind_links_it(
+    answering, tmp_path, kind, name
+):
     config = dataclasses.replace(answering, root=tmp_path)
-    assert assistant.issue_form(config, "bug") == f"{WEB}/issues/new/choose"
+    assert assistant.issue_form(config, kind) == f"{WEB}/issues/new/choose"
+    form = tmp_path / assistant.FORMS / name
+    form.parent.mkdir(parents=True)
+    form.write_text(f"name: {kind}\n", encoding="utf-8")
+    assert assistant.issue_form(config, kind) == f"{WEB}/issues/new?template={name}"
 
 
 def test_spam_gets_no_answer(answering):

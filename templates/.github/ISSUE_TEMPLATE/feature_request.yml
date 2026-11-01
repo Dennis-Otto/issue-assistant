@@ -1,0 +1,54 @@
+# A starter of the issue assistant: https://github.com/Dennis-Otto/issue-assistant
+# Each answer of the field Area chooses the label whose form_options in
+# .github/labels.toml name it; "Other" chooses none, as unmapped_options in
+# .github/issue-assistant/config.toml says. Add the parts of your project to both.
+name: Feature request
+description: Suggest an idea or an improvement.
+labels:
+  - enhancement
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest an improvement. Within a few minutes, an AI issue assistant posts a first analysis; the maintainers read every issue as well. SUPPORT.md in this repository says what happens with your issue.
+
+        **Never post** tokens, keys, passwords or other personal data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: What do you want to do, and what keeps you from it today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What do you propose?
+      description: How it should work for someone who uses it.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installation, configuration or update
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What else you considered or use today, and why it isn't enough.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing issues and did not find this request.
+          required: true
+        - label: I removed tokens, keys and personal data from everything I posted.
+          required: true

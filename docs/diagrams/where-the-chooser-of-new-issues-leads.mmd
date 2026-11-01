@@ -1,0 +1,28 @@
+flowchart TB
+  accTitle: Where the chooser of new issues leads
+  accDescr: On New issue, GitHub shows the chooser that install writes for a repository without forms, with blank issues turned off. A bug report and a feature request each open a form, whose answers choose the labels before the first analysis. A question goes to the discussions, a vulnerability to a private report, and the link of the support says what happens with an issue
+  new(["`**New issue**<br>on GitHub`"]) --> chooser["the chooser, config.yml,<br>with blank issues turned off"]
+  chooser --> forms
+  chooser --> links
+  subgraph forms ["an issue, from a form"]
+    direction TB
+    bug["Bug report,<br>bug_report.yml"]
+    feature["Feature request,<br>feature_request.yml"]
+    bug ~~~ feature
+  end
+  subgraph links ["no issue, from a link"]
+    direction TB
+    question["Question: the first category<br>of answer_categories<br>in the discussions"]
+    vulnerability["Security vulnerability:<br>a private report"]
+    support["Support: SUPPORT.md"]
+    question ~~~ vulnerability ~~~ support
+  end
+  forms --> analysis(["`labels from the form,<br>then the **first analysis**`"])
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class new trigger
+  class chooser job
+  class bug,feature,question,vulnerability,support person
+  class analysis safe
