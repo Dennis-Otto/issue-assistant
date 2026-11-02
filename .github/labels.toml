@@ -9,6 +9,7 @@
 #   topic      cross-cutting topics the assistant may add
 #   lifecycle  set and removed by the issue assistant's rules
 #   decision   set by the maintainer only
+#   contribution set by the maintainer; the assistant's digest names candidates
 #   release    set by the pull request title check and the release bot
 #
 # ask = false keeps the assistant from asking reporters of that kind for information.
@@ -150,22 +151,24 @@ description = "This will not be worked on"
 group = "decision"
 
 [[label]]
-name = "help wanted"
-color = "008672"
-description = "Extra attention is needed"
+name = "assistant-muted"
+color = "ededed"
+description = "The assistant starts no AI run on this issue; /assistant unmute ends it"
 group = "decision"
+
+# Contribution: the assistant's digest suggests the first of these labels
 
 [[label]]
 name = "good first issue"
 color = "7057ff"
 description = "Good for newcomers"
-group = "decision"
+group = "contribution"
 
 [[label]]
-name = "assistant-muted"
-color = "ededed"
-description = "The assistant starts no AI run on this issue; /assistant unmute ends it"
-group = "decision"
+name = "help wanted"
+color = "008672"
+description = "Extra attention is needed"
+group = "contribution"
 
 # Release: set from the title of a pull request, and by the release bot
 
