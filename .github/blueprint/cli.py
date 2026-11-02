@@ -116,6 +116,7 @@ from blueprint.settings import (
 )
 from blueprint.site_check import annotation as site_annotation
 from blueprint.site_check import check as check_site
+from blueprint.site_check import map_rule
 from blueprint.update import SOURCE, Outdated, update_pull_request
 from blueprint.vex import openvex
 
@@ -866,14 +867,16 @@ def locks_command(arguments: argparse.Namespace, root: Path) -> int:
 
 def site_check_command(arguments: argparse.Namespace, root: Path) -> int:
     """What the website that MkDocs built promises, one broken promise on each line,
-    and in the CI also as annotations; with --output, the further languages and the
-    path of the address for the steps that follow."""
+    and in the CI also as annotations; with --output, the further languages, the
+    path of the address and the rule that checks the links of its map for the steps
+    that follow."""
     folder = Path(arguments.site).as_posix().rstrip("/") or "."
     site = check_site(root / arguments.site, root, arguments.docs)
     if arguments.output:
         with Path(arguments.output).open("a", encoding="utf-8") as file:
             file.write(f"languages={' '.join(site.further)}\n")
             file.write(f"root={site.root}\n")
+            file.write(f"map={map_rule(site, root / arguments.site)}\n")
     if not site.findings:
         languages = " ".join((site.default, *site.further)).strip() or "one language"
         print(f"The website in {folder} keeps what its hooks promise ({languages}).")
@@ -891,7 +894,10 @@ def site_check_command(arguments: argparse.Namespace, root: Path) -> int:
         "with what the hooks write, and report it to the blueprint if its hooks "
         "need to change. A page that loads more than it may at once names what it "
         "loads the most: a picture that is too large, or Mermaid, which a "
-        "```mermaid block loads and the pictures of scripts/diagrams.sh don't. A "
+        "```mermaid block loads and the pictures of scripts/diagrams.sh don't. "
+        "llms.txt, the map of the website that the hooks write from its menu, leads "
+        "to the pages that the menu lists; a file of the project's own in its place "
+        "follows https://llmstxt.org/ and links the pages of the website. A "
         "page that lacks a picture of its Markdown, or has an empty paragraph where "
         "one was, lost it in the build: build the website with the lock of its "
         "tools, .github/docs-requirements.txt (stacks/docs/requirements-docs.txt in "
@@ -1816,8 +1822,8 @@ def add_pages_parsers(
         "site-check",
         help="what the website that MkDocs built promises: a sitemap in every folder "
         "of pages, the 404 page in the default language, one canonical address and "
-        "full addresses of the other languages on every page, and every picture of "
-        "the Markdown of a page on it",
+        "full addresses of the other languages on every page, every picture of "
+        "the Markdown of a page on it, and a map of the website, llms.txt",
     )
     site_check_parser.add_argument(
         "site", help="the folder that MkDocs built the website into, such as site"
@@ -1830,7 +1836,8 @@ def add_pages_parsers(
     site_check_parser.add_argument(
         "--output",
         help="the file of the outputs of the step, $GITHUB_OUTPUT: the further "
-        "languages and the path of the address",
+        "languages, the path of the address, and the rule of lychee for the links of "
+        "llms.txt",
     )
 
 

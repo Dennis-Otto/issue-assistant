@@ -169,6 +169,21 @@ export function changedPages(digest, before) {
   return { pages, reason: "" };
 }
 
+/** The text of the file of accepted violations, or the empty text for a repository
+ * without one. The read alone says whether the file exists, so that the file can't
+ * change between a look at it and the read, and the write of the baseline later on
+ * follows no such look. */
+export async function readAccepted(file) {
+  try {
+    return await readFile(file, "utf-8");
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return "";
+    }
+    throw error;
+  }
+}
+
 /** What a file of accepted violations says, or an error with what is wrong in it. */
 export function parseAccepted(text) {
   let data;
@@ -600,7 +615,7 @@ export async function main(argv, root = ".") {
     return 2;
   }
   const acceptedFile = path.join(root, ACCEPTED);
-  const acceptedText = existsSync(acceptedFile) ? await readFile(acceptedFile, "utf-8") : "";
+  const acceptedText = await readAccepted(acceptedFile);
   let accepted;
   try {
     accepted = parseAccepted(acceptedText);
