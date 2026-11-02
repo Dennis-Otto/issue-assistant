@@ -206,8 +206,10 @@ ENGINES = {
             command="copilot",
             # The tools that read files, the only ones the model gets, without the
             # built-in MCP server of GitHub, the temporary folder, questions,
-            # updates and remote control. Its output is JSON events, which hold
-            # the model's text as it is; its text for people renders Markdown,
+            # updates and the sync of the session to the history of the account;
+            # remote control takes a command or a flag of its own to start, and
+            # since 1.0.103 no flag turns it off. Its output is JSON events, which
+            # hold the model's text as it is; its text for people renders Markdown,
             # which would drop the backslashes of the JSON of the answer.
             arguments=(
                 "--available-tools",
@@ -218,7 +220,7 @@ ENGINES = {
                 "--disallow-temp-dir",
                 "--no-ask-user",
                 "--no-auto-update",
-                "--no-remote",
+                "--sync-session=off",
                 "--no-color",
                 "--stream",
                 "off",
