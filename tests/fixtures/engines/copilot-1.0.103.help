@@ -46,9 +46,10 @@ Options:
           asking questions)
       --no-color
           Disable all color output
-      --no-remote
-          Disable remote control of your session from GitHub web and
-          mobile
+      --sync-session[=<on|off>]
+          Enable or disable read-only account history sync for this
+          run only (omitted: use configured/default behavior).
+          Without a value, enables sync; does not enable incoming control. [possible values: on, off]
 
 Examples:
   # Start interactive mode

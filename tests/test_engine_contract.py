@@ -38,7 +38,7 @@ _spec.loader.exec_module(contract)
 
 FIXTURES = Path(__file__).parent / "fixtures" / "engines"
 GEMINI_HELP = (FIXTURES / "gemini-0.64.0.help").read_text(encoding="utf-8")
-COPILOT_HELP = (FIXTURES / "copilot-1.0.97.help").read_text(encoding="utf-8")
+COPILOT_HELP = (FIXTURES / "copilot-1.0.103.help").read_text(encoding="utf-8")
 CODEX_HELP = (FIXTURES / "codex-exec-0.162.1.help").read_text(encoding="utf-8")
 ACTION_TEST = yaml.safe_load(
     (ROOT / ".github" / "workflows" / "action-test.yml").read_text(encoding="utf-8")
@@ -550,10 +550,11 @@ def test_a_value_that_a_flag_no_longer_takes_fails():
         "[possible values: on, off]", "[possible values: on]"
     )
     flags = contract.passed_flags(command_line("copilot"))
-    (problem,) = contract.flag_problems(
-        "copilot", flags, contract.help_options(changed)
-    )
-    assert problem == "copilot takes no off for --stream, only on"
+    problems = contract.flag_problems("copilot", flags, contract.help_options(changed))
+    assert problems == [
+        "copilot takes no off for --stream, only on",
+        "copilot takes no off for --sync-session, only on",
+    ]
 
 
 # ---------------------------------------------------------------- the settings
@@ -832,7 +833,7 @@ def test_check_cli_checks_every_effort_and_no_settings_of_copilot(
         "run_cli",
         lambda *arguments: completed(stderr=printed, code=1),
     )
-    pin = contract.Pin("copilot", "@github/copilot", "1.0.97")
+    pin = contract.Pin("copilot", "@github/copilot", "1.0.103")
     checked, problems = contract.check_cli(pin, tmp_path)
     assert problems == []
     assert checked == (
@@ -847,7 +848,7 @@ def test_check_cli_checks_every_effort_and_no_settings_of_copilot(
     )
     _, (problem,) = contract.check_cli(pin, tmp_path / "again")
     assert problem == (
-        "@github/copilot@1.0.97 takes no max, xhigh for --reasoning-effort, only "
+        "@github/copilot@1.0.103 takes no max, xhigh for --reasoning-effort, only "
         "high, low, medium, minimal, none"
     )
     # A problem of the lock file comes first.

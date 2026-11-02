@@ -149,9 +149,10 @@ The build fails when a link or an anchor leads nowhere, a page is missing from t
 navigation of `mkdocs.yml`, MkDocs warns about a page, or a page shows a picture
 from `main` of the repository that git doesn't track. After the build, lychee
 checks every link and anchor of the built pages, also those written in HTML, such as
-`<a href="…">` in a card, and `blueprint.py site-check` what the hooks of the website
-promise, such as a sitemap in every folder of pages and the 404 page in the default
-language, that no page loads more than 1,200 KB at once, as it names a page that
+`<a href="…">` in a card, and the links of `llms.txt`, the map of the website for AI
+assistants, and `blueprint.py site-check` what the hooks of the website promise, such
+as a sitemap in every folder of pages, the 404 page in the default language and that
+map, that no page loads more than 1,200 KB at once, as it names a page that
 does with what it loads the most, and that every page shows each picture of its
 Markdown, the parts of the README included, with no empty paragraph where a plugin
 took one out; `scripts/check-site.sh` adds the checks of the project. axe-core opens
@@ -170,7 +171,10 @@ slow network more than a few seconds to load. A reader with a screen reader, the
 keyboard alone or a larger contrast can't use what axe-core finds: text too faint to
 read, a link told apart by its color alone, a control without a name."""
 fix = """Fix what the log of the check names: the page and the link that leads nowhere,
-or the file of the website that breaks a promise of its hooks. A picture that a page
+or the file of the website that breaks a promise of its hooks. The hooks write
+`llms.txt` from the menu of `mkdocs.yml`, with the pages that it lists; a file of your
+own in its place, `docs/llms.txt`, starts with a title, holds lists of links alone in
+its sections and links pages that the website has, no decision record. A picture that a page
 shows from `main`, which the website serves from the checkout, needs its file
 committed with `git add`, or its address corrected. A page that loads too
 much shows a smaller picture, or the pictures of a diagram in place of its ```mermaid

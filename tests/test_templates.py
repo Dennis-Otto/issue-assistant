@@ -328,6 +328,7 @@ def cli_reads_only(engine, step):
         assert command.count("--allow-tool") == 1
         assert "--disable-builtin-mcps" in command
         assert "--disallow-temp-dir" in command
+        assert "--sync-session=off" in command
         assert "--deny-tool" not in command
 
 

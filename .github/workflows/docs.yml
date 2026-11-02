@@ -13,7 +13,8 @@ name: Docs
 # hash-pinned ones of .github/docs-requirements.txt, which the blueprint keeps
 # current, and the files that Material downloads for the website stay in a cache for a
 # week. After the build, lychee checks every link and anchor of the pages that were
-# built, blueprint.py site-check what the hooks of the website promise, and axe-core
+# built and the links of llms.txt, the map of the website for AI assistants,
+# blueprint.py site-check what the hooks of the website promise, and axe-core
 # the pages in the light and the dark scheme for what WCAG 2.2 A and AA ask, with the
 # locked tools of .github/a11y/: on a pull request those that differ from main, by the
 # digest that main keeps in the cache, and on main and every week every page. A serious
@@ -118,7 +119,7 @@ jobs:
             fi
             echo "::notice::GitHub Pages doesn't publish from GitHub Actions here yet; the website waits for a run on main after it does."
           fi
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         if: steps.site.outputs.build == 'true'
         timeout-minutes: 5
         with:
@@ -128,7 +129,7 @@ jobs:
       # package. Its cache keeps only the wheels that it built from source, under a
       # key of the lock file: pre-built ones download faster than a cache restores
       # them.
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         if: steps.site.outputs.build == 'true'
         timeout-minutes: 5
         with:
@@ -217,6 +218,19 @@ jobs:
           workingDirectory: site
           args: --offline --include-fragments --root-dir ${{ runner.temp }}/address --no-progress '**/*.html'
           output: ${{ runner.temp }}/website-links.md
+      # llms.txt links the pages by their full addresses, which lychee leaves out with
+      # --offline, so reading the file alone would check none of them: the rule of
+      # blueprint.py site-check leads the addresses of the website to the files of
+      # site/. A website at the root of an address has no rule, as other websites have
+      # addresses there too, which its site-check tells apart.
+      - name: Check the links of the map of the website
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.promises.outputs.map != '' }}
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        timeout-minutes: 5
+        with:
+          workingDirectory: site
+          args: --offline --no-progress --remap '${{ steps.promises.outputs.map }}' llms.txt
+          output: ${{ runner.temp }}/website-map-links.md
       # The checks of this project alone on its website, such as those of its
       # robots.txt, in scripts/check-site.sh, which gets the folder of the website.
       # The blueprint never writes that file, so it stays the project's own.
