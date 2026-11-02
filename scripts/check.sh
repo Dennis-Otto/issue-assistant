@@ -335,12 +335,29 @@ if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
   report="$(mktemp)"
   junit=("--junitxml=$report" -o junit_family=xunit1)
 fi
+# On a Linux runner, the temporary folders of the tests live in memory when at least
+# 4 GB are free there: tests that make many folders and start many processes take less
+# time than on the disk of the runner. Not in a job in a container, whose /dev/shm has
+# 64 MB, not on the machine of a contributor, and not where a TMPDIR is set already. A
+# project whose tests write more than that names a folder on the disk with --basetemp
+# in the addopts of pytest in pyproject.toml, which is its own file. Only for the tests:
+# what a later step writes stays on the disk.
+memory=""
+if [[ "${GITHUB_ACTIONS:-}" == true && -z "${TMPDIR:-}" && "$(uname -s)" == Linux ]]; then
+  memory="$(df -k --output=avail /dev/shm 2>/dev/null | tail -n 1 || true)"
+fi
+if ((${memory:-0} >= 4194304)); then
+  export TMPDIR=/dev/shm
+fi
 status=0
 if python -c 'import pytest, pytest_cov, xdist' 2>/dev/null; then
   python -m pytest -n logical --maxprocesses="${PYTEST_XDIST_AUTO_NUM_WORKERS:-8}" \
     ${junit[@]+"${junit[@]}"} --cov --cov-report= --cov-fail-under=0 || status=$?
 else
   coverage run -m pytest ${junit[@]+"${junit[@]}"} || status=$?
+fi
+if ((${memory:-0} >= 4194304)); then
+  unset TMPDIR
 fi
 if ((status != 0)); then
   if [[ -n "$report" ]]; then
@@ -414,6 +431,12 @@ else
       # build, with the Python and blueprint.py of the step Pages in one column.
       if [[ -n "${python:-}" && -f "${tool:-}" ]] && ! "$python" "$tool" site-check "$site"; then
         echo "The website breaks what its hooks promise; the lines above name each file."
+        exit 1
+      fi
+      # The checks of this project alone on its website, as the check docs runs them
+      # after the build, here with the folder of this build.
+      if [[ -f scripts/check-site.sh ]] && ! bash scripts/check-site.sh "$site"; then
+        echo "The website fails the checks of this project in scripts/check-site.sh; the lines above say which."
         exit 1
       fi
     )
