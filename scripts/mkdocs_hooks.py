@@ -1245,6 +1245,7 @@ FEATURES = (
     "features/related-repositories.md",
     "features/discussions.md",
     "features/slash-commands.md",
+    "features/runs-by-hand.md",
     "features/fix-to-release.md",
     "features/what-the-ai-reads.md",
     "features/opt-out.md",

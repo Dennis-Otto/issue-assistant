@@ -87,6 +87,7 @@ nav:
       - Related repositories: features/related-repositories.md
       - Questions in Discussions: features/discussions.md
       - Slash commands: features/slash-commands.md
+      - Runs by hand: features/runs-by-hand.md
       - From the fix to the release: features/fix-to-release.md
       - What the AI reads: features/what-the-ai-reads.md
       - Saying no to the AI: features/opt-out.md

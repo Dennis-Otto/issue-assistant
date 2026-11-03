@@ -5,13 +5,16 @@ name: Issue assistant
 # reaches a repository as a move of that pin, without running install again.
 # https://github.com/Dennis-Otto/issue-assistant
 #
-# event    no AI: labels, the /assistant commands of a comment and the next task
+# event    no AI: labels, the /assistant commands of a comment and the next task;
+#          for a run by hand, the role of the person who started it, and the
+#          override of the one-comment rule that only a maintainer may give
 # analyze  the AI engine of .github/issue-assistant/config.toml reads the checkout and
 #          a context folder and answers with JSON; read-only token, read-only tools,
 #          egress-firewall runner (the caller's .github/egress-firewall.yaml), or the
 #          runner of the caller's variable ISSUE_ASSISTANT_AI_RUNNER with the same
 #          hosts behind Harden-Runner
-# apply    no AI: checks the engine's answer and is the only job that writes
+# apply    no AI: checks the engine's answer and is the only job that writes;
+#          it checks an override again before it posts a second comment
 #
 # event and apply block every host but GitHub's with Harden-Runner. A called
 # workflow runs in the caller's repository: its event, its variables, its

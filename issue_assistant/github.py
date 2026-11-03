@@ -33,6 +33,16 @@ SEARCHED = 30
 
 EVALUATION_PAGES = 10
 
+# The roles of a repository from the highest down, each with its right in the
+# permissions of a collaborator, which a custom role or a team grants as well.
+ROLE_RIGHTS = (
+    ("admin", "admin"),
+    ("maintain", "maintain"),
+    ("write", "push"),
+    ("triage", "triage"),
+    ("read", "pull"),
+)
+
 
 class GitHub:
     """`gh api` calls for one repository; in a dry run, writes are only reported."""
@@ -218,6 +228,28 @@ class GitHub:
         found = self.rest(f"collaborators/{quote(user, safe='')}/permission")
         permission: str = found.get("permission") or "none"
         return permission in {"admin", "write"}
+
+    def role(self, user: str) -> str:
+        """The highest role of the user in the repository: admin, maintain, write,
+        triage or read, also through a team or a custom role that builds on one,
+        and none for an account that GitHub doesn't know, such as the bot of an app.
+        """
+        try:
+            found = self.rest(f"collaborators/{quote(user, safe='')}/permission")
+        except GitHubError as error:
+            if not error.missing():
+                raise
+            return "none"
+        rights = (found.get("user") or {}).get("permissions") or {}
+        for role, right in ROLE_RIGHTS:
+            if rights.get(right):
+                return role
+        # Without the rights, the name of the role, or else GitHub's permission,
+        # which names maintain as write and triage as read.
+        named = found.get("role_name")
+        if named in dict(ROLE_RIGHTS):
+            return str(named)
+        return str(found.get("permission") or "none")
 
     def open_issues(self, label: str) -> list[dict[str, Any]]:
         items = self.rest(

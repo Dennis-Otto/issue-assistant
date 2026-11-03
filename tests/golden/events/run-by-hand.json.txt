@@ -3,7 +3,7 @@
     "issue": 12,
     "mode": "follow-up",
     "notes": [
-      "Started by hand: follow-up."
+      "Started by hand by @owner: follow-up."
     ],
     "answers": null,
     "marks": {}

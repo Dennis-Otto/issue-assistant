@@ -126,7 +126,7 @@ What the assistant does on its own, so that an answer never makes matters worse:
 
     ---
 
-    An analysis is not posted on an issue that was closed or locked in the meantime, and a task that already has its comment gets no second one, unless a maintainer runs it by hand.
+    An analysis is not posted on an issue that was closed or locked in the meantime, and a task that already has its comment gets no second one, unless a maintainer [runs it by hand](features/runs-by-hand.md) with the override.
 
 </div>
 

@@ -503,8 +503,8 @@ def apply_answer(
     engine: str = DEFAULT_ENGINE,
     comment_id: int | None = None,
 ) -> list[str]:
-    """Check the engine's answer and post it; `repeat` allows another analysis by
-    hand. A reply task acts on the comment `comment_id`, which its context judged."""
+    """Check the engine's answer and post it; `repeat` allows another analysis: the
+    override of a run by hand, /assistant again, or a run by hand of the discussions. A reply task acts on the comment `comment_id`, which its context judged."""
     engine = engine_named(engine)
     answer = parse_answer(mode, raw, config)
     if mode in DISCUSSION_MODES:
@@ -643,6 +643,16 @@ def acted_on(
     return comments, judged
 
 
+def has_its_answer(comments: list[dict[str, Any]], judged: dict[str, Any]) -> bool:
+    """Whether the assistant answered the maintainer's question `judged` already."""
+    question = str(judged["id"])
+    return any(
+        (marker(item) or ("", {}))[1].get("to") == question
+        for item in comments
+        if kind_of(item) == "answer"
+    )
+
+
 def apply_maintainer_reply(
     github: GitHub,
     issue: dict[str, Any],
@@ -682,18 +692,14 @@ def apply_maintainer_question(
     repeat: bool = False,
 ) -> list[str]:
     """Post the answer to the question of a maintainer's /assistant ask, once,
-    checked and cleaned as every text of the engine; a run by hand answers again."""
+    checked and cleaned as every text of the engine; a run by hand with a
+    maintainer's override answers again."""
     number = issue["number"]
     found = acted_on(github, issue, "maintainer-question", comment_id)
     if isinstance(found, str):
         return [found]
     comments, judged = found
-    question = str(judged["id"])
-    if not repeat and any(
-        (marker(item) or ("", {}))[1].get("to") == question
-        for item in comments
-        if kind_of(item) == "answer"
-    ):
+    if not repeat and has_its_answer(comments, judged):
         return [f"The question on #{number} has its answer already; nothing posted."]
     numbers = named_numbers(
         github,

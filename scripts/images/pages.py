@@ -308,7 +308,11 @@ def content(root: Path, config: assistant.Config) -> dict[str, Any]:
     github = support.FakeGitHub(config, *issues(), dry_run=True)
     with tempfile.TemporaryDirectory() as folder:
         event = Path(folder) / "event.json"
-        event.write_text(json.dumps({"inputs": {"issue": str(NUMBER)}}), "utf-8")
+        # The maintainer starts the run, whose role the job event checks.
+        github.permission_store[MAINTAINER] = ("admin", "admin")
+        sender = {"login": MAINTAINER, "type": "User"}
+        dispatch = {"inputs": {"issue": str(NUMBER)}, "sender": sender}
+        event.write_text(json.dumps(dispatch), "utf-8")
         _, found["event"] = run(
             root,
             github,
@@ -316,6 +320,7 @@ def content(root: Path, config: assistant.Config) -> dict[str, Any]:
             DRY_RUN="true",
             GITHUB_EVENT_NAME="workflow_dispatch",
             GITHUB_EVENT_PATH=str(event),
+            GITHUB_TRIGGERING_ACTOR=MAINTAINER,
         )
     _, found["apply"] = run(
         root,

@@ -9,6 +9,7 @@
 | `golden/` | What the assistant writes, word for word: comments, contexts, plans and job summaries |
 | `test_golden.py` | The tests that compare those texts with their golden files |
 | `test_assistant.py` | The events, the sweeps, the answers of the AI and the commands of the script |
+| `test_by_hand.py` | A run by hand: who may start one, the override of the one-comment rule and the instruction that steers it |
 | `test_discussions.py` | The first answers in Discussions: the event, the limits, the context, the checks of the answer and the set-up |
 | `test_graphql_contract.py` | Every GraphQL document against the copy of GitHub's schema in `github/` |
 | `test_rest_contract.py` | Every REST request against the copy of GitHub's OpenAPI description in `github/`, the version that every call asks for, and `scripts/github_schemas.py`, which keeps the copies current |

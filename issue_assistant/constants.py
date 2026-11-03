@@ -75,6 +75,16 @@ MODES = (
 # starts.
 DISCUSSION_MODES = ("discussion-answer",)
 
+# A run by hand of issue-assistant.yml: the roles in the repository, as GitHub names
+# them, of those who may start one, and of those who may let it answer again past
+# the one-comment rule, which costs the tokens of another run; the tasks that write
+# to the reporter, which keep to that rule and which an instruction of the person
+# who starts the run steers; and the most characters of that instruction.
+STARTING_ROLES = frozenset({"admin", "maintain", "write"})
+OVERRIDING_ROLES = frozenset({"admin", "maintain"})
+STEERED = ("triage", "follow-up")
+MAX_INSTRUCTION = 500
+
 # The label of an issue on which the assistant starts no AI run of its own; the
 # commands mute and unmute set and remove it, and a maintainer can too.
 MUTED = "assistant-muted"
