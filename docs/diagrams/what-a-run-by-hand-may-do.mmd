@@ -1,12 +1,12 @@
 flowchart TB
   accTitle: What a run by hand may do
-  accDescr: A run by hand of issue-assistant.yml, from the Actions tab, gh workflow run or the REST API, names an issue, a task, an optional instruction and the override. The job event asks GitHub for the role of the person who started the run, or who ran it again. Without write access, the run fails before anything is written and before the AI. With override, only the roles admin and maintain may go on, and the summary of the run records the override; the AI then answers again, even where its task already has its comment. Without override, a triage or follow-up that already has its comment stops without the AI, and every other run goes on to the AI, which reads the instruction after its task. The job apply checks the role again and the answer as always, and the assistant's bot posts the comment.
+  accDescr: A run by hand of issue-assistant.yml, from the Actions tab, gh workflow run or the REST API, names an issue, a task, an optional instruction and the override. The job event asks GitHub for the role of the person who started the run, or who ran it again. Without write access, the run fails before anything is written and before the AI. With override, only the roles admin and maintain may go on, and the summary of the run records the override; the AI then answers again, even where its task already has its comment. Without override, a run whose task would post nothing stops without the AI: a triage, follow-up or answer to a maintainer's question that already has its comment, or a follow-up that is not due, as after a maintainer joined the conversation; every other run goes on to the AI, which reads the instruction after its task. The job apply checks the role again and the answer as always, and the assistant's bot posts the comment.
   start(["a run by hand: issue,<br>task, instruction,<br>override"]) --> role{"role of the person<br>who started it?"}
   role -- "read, triage or none" --> refused["the run fails:<br>nothing written,<br>no AI"]
   role -- "write, maintain<br>or admin" --> override{"override?"}
   override -- "yes, but only write" --> refused
   override -- "yes, admin<br>or maintain" --> logged["the summary records<br>the override"]
-  override -- "no" --> answered{"its triage or follow-up<br>already answered?"}
+  override -- "no" --> answered{"already answered,<br>or no follow-up due?"}
   answered -- "yes" --> once["no AI run: the<br>assistant answers once"]
   answered -- "no" --> ai["`**the AI** answers,<br>with the instruction<br>after its task`"]
   logged --> ai

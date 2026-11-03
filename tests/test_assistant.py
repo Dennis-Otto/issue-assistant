@@ -925,10 +925,16 @@ def test_other_comments_after_the_release_change_nothing(config, case):
 
 def test_a_run_by_hand_starts_the_chosen_task(config):
     github = FakeGitHub(config, make_issue(labels=("bug",)))
+    # The reporter answered the questions of the analysis: a follow-up is due.
+    github.comment_store[12] = [
+        analysis(questions=1, days_ago=1),
+        make_comment(2, "reporter", "Here it is", 0),
+    ]
     payload = {"inputs": {"issue": "12", "mode": "follow-up"}, "sender": OWNER}
     plan = assistant.handle_event(github, "workflow_dispatch", payload, config)
     assert (plan.issue, plan.mode) == (12, "follow-up")
     assert "area: cards" in github.labels_of(12)
+    github.comment_store[12] = []
     payload = {"inputs": {"issue": "12"}, "sender": OWNER}
     plan = assistant.handle_event(github, "workflow_dispatch", payload, config)
     assert plan.mode == "triage"

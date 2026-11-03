@@ -73,6 +73,48 @@ def test_a_run_by_hand_without_override_leaves_an_answered_issue_alone(config):
     assert by_hand(github, config, "writer").mode == "triage"
 
 
+def test_a_run_by_hand_ends_before_the_ai_when_apply_would_post_nothing(config):
+    """The apply job posts no follow-up that is not due and no second answer to a
+    question; a run by hand without override ends before the AI then, at no cost."""
+    github = answered(config)
+    asked = analysis(1, days_ago=2, questions=1)
+    reply = make_comment(2, "reporter", "Version 1.9.0.", 1)
+    joined = make_comment(3, "maintainer", "I'll look.", 0.5, "OWNER")
+    github.comment_store[12] = [asked, reply, joined]
+    plan = by_hand(github, config, "writer", mode="follow-up", instruction="Ask")
+    assert plan.mode == "none"
+    assert plan.notes[-1].startswith("#12 needs no follow-up: a maintainer joined")
+    assert "runs it again with override" in plan.notes[-1]
+    # With the override, the maintainer has it follow up anyway.
+    plan = by_hand(github, config, "owner", mode="follow-up", override="true")
+    assert plan.mode == "follow-up"
+    # Without the maintainer, the follow-up is due.
+    github.comment_store[12] = [asked, reply]
+    assert by_hand(github, config, "writer", mode="follow-up").mode == "follow-up"
+    # A maintainer's question gets its answer once; a new question gets its own.
+    question = make_comment(4, "maintainer", "/assistant ask Why?", 0.5, "OWNER")
+    github.comment_store[12] = [question]
+    assert by_hand(github, config, "writer", mode="maintainer-question").mode == (
+        "maintainer-question"
+    )
+    marker = assistant.render_marker("answer", lang="en", to=4)
+    github.comment_store[12].append(make_comment(5, "bot", marker, 0.2))
+    plan = by_hand(github, config, "writer", mode="maintainer-question")
+    assert plan.mode == "none"
+    assert plan.notes[-1].startswith("The question on #12 has its answer already")
+    plan = by_hand(github, config, "owner", mode="maintainer-question", override=True)
+    assert plan.mode == "maintainer-question"
+    # An issue without a maintainer's question has nothing to answer.
+    github.comment_store[12] = [reply]
+    plan = by_hand(github, config, "writer", mode="maintainer-question")
+    assert plan.mode == "none"
+    assert plan.notes[-1].startswith("#12 has no maintainer's question to answer")
+    # The other tasks don't write to the reporter, and run as before.
+    assert by_hand(github, config, "writer", mode="maintainer-reply").mode == (
+        "maintainer-reply"
+    )
+
+
 @pytest.mark.parametrize("actor", ["owner", "lead"])
 def test_a_maintainer_overrides_the_one_comment_rule(config, capsys, actor):
     github = answered(config)
@@ -122,7 +164,7 @@ def test_the_engine_reads_the_instruction_after_its_task(root, config):
     written = assistant.write_context(github, 12, "triage", config)
     assert "## The instruction of this run" not in written["prompt"]
     written = assistant.write_context(
-        github, 12, "triage", config, instruction="Ask for the​ logs {project}"
+        github, 12, "triage", config, instruction="Ask for the\u200b logs {project}"
     )
     task = written["task"]
     assert task.index("## Your task") < task.index("## The instruction of this run")

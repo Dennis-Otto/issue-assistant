@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .applying import assign_owners, earlier_post
+from .applying import acted_on, assign_owners, earlier_post, has_its_answer
 from .commands import (
     Plan,
     add_form_labels,
@@ -33,6 +33,7 @@ from .github import GitHub
 from .issues import (
     box_ticked,
     command_of,
+    follow_up_due,
     form_labels,
     is_bot,
     is_digest,
@@ -180,17 +181,45 @@ def issue_by_hand(
         )
         command("notice", overridden)
         return Plan(number, mode, [*notes, overridden])
-    if (
-        mode in STEERED
-        and earlier_post(github, issue, mode, github.comments(number)) is not None
-    ):
+    reason = nothing_to_post(github, issue, mode, config)
+    if reason:
         notes.append(
-            f"#{number} already has its {mode}, and the assistant answers once: "
-            "no AI run. To have it answer again, a maintainer runs it again with "
-            "override."
+            f"{reason}, and the assistant answers once: no AI run. To have it "
+            "answer anyway, a maintainer runs it again with override."
         )
         return Plan(number, notes=notes)
     return Plan(number, mode, notes)
+
+
+def nothing_to_post(
+    github: GitHub, issue: dict[str, Any], mode: str, config: Config
+) -> str:
+    """Why the apply job would post nothing for a run by hand without override, so
+    that the run ends before the AI; empty when it may answer. The apply job checks
+    the same again, as the conversation can change while the AI runs."""
+    number = issue["number"]
+    if mode == "maintainer-question":
+        found = acted_on(github, issue, mode, None)
+        if isinstance(found, str):
+            return f"#{number} has no maintainer's question to answer"
+        if has_its_answer(*found):
+            return f"The question on #{number} has its answer already"
+        return ""
+    if mode not in STEERED:
+        return ""
+    comments = github.comments(number)
+    if earlier_post(github, issue, mode, comments) is not None:
+        return f"#{number} already has its {mode}"
+    author = login(issue.get("user"))
+    if (
+        mode == "follow-up"
+        and follow_up_due(comments, author, config.lifecycle.max_follow_ups) is None
+    ):
+        return (
+            f"#{number} needs no follow-up: a maintainer joined the conversation, "
+            "the assistant asked no questions, or it followed up as often as it may"
+        )
+    return ""
 
 
 def may_answer_again(github: GitHub, inputs: dict[str, Any], actor: str) -> bool:
