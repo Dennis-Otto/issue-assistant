@@ -652,8 +652,11 @@ jobs:
     if: vars.PUBLISH_TO == 'nextcloud-appstore'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # The token of the App Store is the one secret of this environment, which only main
+    # may use: the job reaches neither the key that signs the app nor that of the
+    # release app.
     environment:
-      name: release
+      name: appstore
       deployment: false
     permissions:
       contents: read
@@ -705,7 +708,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$APPSTORE_TOKEN" ]]; then
-            echo "::error::The secret APPSTORE_TOKEN of the environment release is missing."
+            echo "::error::The secret APPSTORE_TOKEN of the environment appstore is missing."
             exit 1
           fi
           app_id="$(python3 -c 'import xml.etree.ElementTree as t; print(t.parse("appinfo/info.xml").getroot().findtext("id"))')"
