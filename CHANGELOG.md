@@ -6,10 +6,9 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## [1.10.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.9.1...v1.10.0) (2026-11-03)
 
-
 ### Features
 
-* the maintainer can let the assistant answer an issue again ([#266](https://github.com/Dennis-Otto/issue-assistant/issues/266)) ([fb5e910](https://github.com/Dennis-Otto/issue-assistant/commit/fb5e910a5bcbd2df7a5672d5608ade59c792aa7c))
+- A run of the issue assistant by hand takes an instruction now, such as "ask for the logs", which the AI follows in its first analysis or follow-up within its rules, and the box *override*, with which a maintainer has the assistant answer an issue again past its one comment, when the extra run is worth its cost. Without the override, a run by hand on a task that already has its comment, or on a follow-up that is not due, ends before the AI and costs nothing; until now, every run by hand answered again. The workflow checks who started the run, also through the REST API or a run again: write access starts it, and only the roles `admin` and `maintain` override, and the summary of the run names every override. Install the templates of this release to get the new inputs; [Runs by hand](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/runs-by-hand.md) shows them.
 
 ## [1.9.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.9.0...v1.9.1) (2026-11-03)
 
