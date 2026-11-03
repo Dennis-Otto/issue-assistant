@@ -30,7 +30,7 @@ from .digests import report
 from .engines import ENGINES
 from .errors import AssistantError, GitHubError, SettingsError, SweepIncomplete
 from .evaluation import LOCAL_ENGINES, evaluate, evaluated_config, local_engine
-from .events import handle_event
+from .events import handle_event, instruction_of, may_answer_again
 from .fixture import FIXTURE_VARIABLE, read_fixture
 from .github import GitHub
 from .installation import (
@@ -54,7 +54,7 @@ from .running import (
 from .settings import Config, load_config, task_run
 from .setup_check import check, firewall_endpoints, runner_problems, runner_trade_off
 from .sweeps import sweep
-from .values import command
+from .values import command, login
 
 
 def event_comment(number: int) -> int | None:
@@ -68,14 +68,43 @@ def event_comment(number: int) -> int | None:
     return identifier if isinstance(identifier, int) else None
 
 
+def run_event() -> dict[str, Any]:
+    """The event that started this run; empty outside of GitHub Actions."""
+    path = os.environ.get("GITHUB_EVENT_PATH")
+    found: dict[str, Any] = json.loads(Path(path).read_text("utf-8")) if path else {}
+    return found
+
+
 def event_payload(number: int) -> dict[str, Any]:
     """The event that started this run when it is one of the issue; else empty."""
-    path = os.environ.get("GITHUB_EVENT_PATH")
-    payload = json.loads(Path(path).read_text("utf-8")) if path else {}
+    payload = run_event()
     if (payload.get("issue") or {}).get("number") != number:
         return {}
-    found: dict[str, Any] = payload
-    return found
+    return payload
+
+
+def inputs_by_hand(number: int) -> dict[str, Any]:
+    """The inputs of a run by hand of issue-assistant.yml on the issue; empty for
+    every other event, a run by hand of another issue among them."""
+    if os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
+        return {}
+    inputs: dict[str, Any] = run_event().get("inputs") or {}
+    # As the job event reads it, which a number such as 042 passes too.
+    given = str(inputs.get("issue", "")).strip()
+    return inputs if given.isdecimal() and int(given) == number else {}
+
+
+def overrider_of(github: GitHub, number: int) -> str:
+    """Who let this run answer the issue again past the one-comment rule: the person
+    who started a run by hand of it with override, or who ran it again, checked once
+    more before anything is written; empty for every other run."""
+    inputs = inputs_by_hand(number)
+    if not inputs:
+        return ""
+    actor = os.environ.get("GITHUB_TRIGGERING_ACTOR") or login(
+        run_event().get("sender")
+    )
+    return actor if may_answer_again(github, inputs, actor) else ""
 
 
 def asked_again(number: int) -> bool:
@@ -485,6 +514,7 @@ def issue_command(
             arguments.mode,
             config,
             event_comment(arguments.issue),
+            instruction_of(inputs_by_hand(arguments.issue), arguments.mode),
         )
         output("prompt", written["prompt"])
         output("task", written["task"])
@@ -505,7 +535,9 @@ def issue_command(
 def event_command(run: CommandRun, github: GitHub, config: Config) -> int:
     name = os.environ["GITHUB_EVENT_NAME"]
     payload = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text("utf-8"))
-    plan = handle_event(github, name, payload, config)
+    # The person who started the run, or who ran it again; else its sender.
+    actor = os.environ.get("GITHUB_TRIGGERING_ACTOR") or None
+    plan = handle_event(github, name, payload, config, actor)
     output("issue", str(plan.issue or ""))
     output("mode", plan.mode)
     run.title = f"Issue assistant: #{plan.issue}, next task {plan.mode}"
@@ -517,6 +549,11 @@ def apply_command(
     run: CommandRun, github: GitHub, config: Config, arguments: argparse.Namespace
 ) -> int:
     run.title = f"Issue assistant: {arguments.mode} of #{arguments.issue}"
+    by_hand = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+    # A run by hand of the discussions answers again, as one of an issue does only
+    # with override.
+    discussion = arguments.mode in DISCUSSION_MODES
+    overrider = "" if discussion else overrider_of(github, arguments.issue)
     done = apply_answer(
         github,
         arguments.mode,
@@ -524,11 +561,14 @@ def apply_command(
         os.environ.get("RESULT", ""),
         config,
         os.environ.get("GITHUB_SHA", "HEAD"),
-        repeat=os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+        repeat=bool(overrider)
+        or (by_hand and discussion)
         or asked_again(arguments.issue),
         engine=os.environ.get("ENGINE", ""),
         comment_id=event_comment(arguments.issue),
     )
+    if overrider:
+        done.insert(0, f"Override of the one-comment rule by @{overrider}.")
     summary(run.title, done + github.writes, run.dry_run, github.previews)
     return 0
 

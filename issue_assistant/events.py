@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .applying import assign_owners
+from .applying import assign_owners, earlier_post
 from .commands import (
     Plan,
     add_form_labels,
@@ -16,13 +16,17 @@ from .commands import (
     within_limits,
 )
 from .constants import (
+    MAX_INSTRUCTION,
     MODES,
     MUTED,
     NEEDS_INFO,
     NEEDS_TRIAGE,
+    OVERRIDING_ROLES,
     POSSIBLE_DUPLICATE,
     REFUSED,
     STALE,
+    STARTING_ROLES,
+    STEERED,
 )
 from .errors import AssistantError
 from .github import GitHub
@@ -38,7 +42,7 @@ from .issues import (
     without_box,
 )
 from .settings import Config, answers_category, label_names
-from .values import created, login, moment
+from .values import command, created, login, moment
 
 # What an event on the issue of the digest does: comments and commands there start
 # nothing, and the AI never reads it.
@@ -46,23 +50,21 @@ DIGEST_NOTE = "The issue of the digest: nothing to do."
 
 
 def handle_event(
-    github: GitHub, name: str, payload: dict[str, Any], config: Config
+    github: GitHub,
+    name: str,
+    payload: dict[str, Any],
+    config: Config,
+    actor: str | None = None,
 ) -> Plan:
+    """What the event starts. `actor` is the person who started the run, or who
+    ran it again; without one, the sender of the event."""
     if name == "workflow_dispatch":
         inputs = payload.get("inputs") or {}
         if "discussion" in inputs:
             return discussion_by_hand(github, int(inputs["discussion"]))
-        number = int(inputs["issue"])
-        issue = github.issue(number)
-        if "pull_request" in issue:
-            raise AssistantError(f"#{number} is a pull request, not an issue.")
-        if is_digest(issue):
-            return Plan(number, notes=[DIGEST_NOTE])
-        mode = inputs.get("mode") or "triage"
-        if mode not in MODES:
-            raise AssistantError(f"Unknown mode {mode}.")
-        add_form_labels(github, issue, config)
-        return Plan(number, mode, [f"Started by hand: {mode}."])
+        if actor is None:
+            actor = login(payload.get("sender"))
+        return issue_by_hand(github, inputs, actor, config)
     if name == "discussion":
         return handle_discussion(github, payload, config)
     issue = payload["issue"]
@@ -142,6 +144,98 @@ def keep_out_the_ai(github: GitHub, number: int, config: Config) -> Plan:
             "/assistant unmute ends it."
         ],
     )
+
+
+def issue_by_hand(
+    github: GitHub, inputs: dict[str, Any], actor: str, config: Config
+) -> Plan:
+    """A run by hand of issue-assistant.yml on one issue, with its task, an optional
+    instruction of the person who starts it, and the override of the one-comment rule.
+
+    GitHub lets everyone with write access start it, and an app with the right to
+    run workflows too: the role of the person is checked again here, before the AI
+    runs, and the override is theirs only when they maintain the repository. A task
+    that writes to the reporter and already has its comment runs again only with the
+    override; the summary of the run records each one.
+    """
+    number = int(inputs["issue"])
+    override = may_answer_again(github, inputs, actor)
+    issue = github.issue(number)
+    if "pull_request" in issue:
+        raise AssistantError(f"#{number} is a pull request, not an issue.")
+    if is_digest(issue):
+        return Plan(number, notes=[DIGEST_NOTE])
+    mode = inputs.get("mode") or "triage"
+    if mode not in MODES:
+        raise AssistantError(f"Unknown mode {mode}.")
+    instruction = instruction_of(inputs, mode)
+    add_form_labels(github, issue, config)
+    notes = [f"Started by hand by @{actor}: {mode}."]
+    if instruction:
+        notes.append(f"The instruction of @{actor}: {instruction}")
+    if override:
+        overridden = (
+            f"Override of the one-comment rule by @{actor}: the assistant may "
+            f"answer #{number} again."
+        )
+        command("notice", overridden)
+        return Plan(number, mode, [*notes, overridden])
+    if (
+        mode in STEERED
+        and earlier_post(github, issue, mode, github.comments(number)) is not None
+    ):
+        notes.append(
+            f"#{number} already has its {mode}, and the assistant answers once: "
+            "no AI run. To have it answer again, a maintainer runs it again with "
+            "override."
+        )
+        return Plan(number, notes=notes)
+    return Plan(number, mode, notes)
+
+
+def may_answer_again(github: GitHub, inputs: dict[str, Any], actor: str) -> bool:
+    """Whether a run by hand overrides the one-comment rule; an error when its person
+    may not start it, with write access, or not override it, as a maintainer."""
+    role = github.role(actor) if actor else "none"
+    if role not in STARTING_ROLES:
+        raise AssistantError(
+            f"Only someone with write access may start the issue assistant by hand; "
+            f"@{actor or 'nobody'} has the role {role} in the repository."
+        )
+    if not ticked(inputs.get("override")):
+        return False
+    if role not in OVERRIDING_ROLES:
+        raise AssistantError(
+            "Only a maintainer, with the role admin or maintain, may let the "
+            f"assistant answer again past the one-comment rule; @{actor} has the "
+            f"role {role}. Run it again without override."
+        )
+    return True
+
+
+def instruction_of(inputs: dict[str, Any], mode: str) -> str:
+    """The instruction of a run by hand, on one line, such as "ask for the logs";
+    an error for one that is too long or for a task that it can't steer."""
+    instruction = " ".join(str(inputs.get("instruction") or "").split())
+    if not instruction:
+        return ""
+    if mode not in STEERED:
+        raise AssistantError(
+            f"An instruction steers only a task that writes to the reporter, "
+            f"{' or '.join(STEERED)}, not {mode}."
+        )
+    if len(instruction) > MAX_INSTRUCTION:
+        raise AssistantError(
+            f"The instruction has {len(instruction)} characters; it may have at "
+            f"most {MAX_INSTRUCTION}."
+        )
+    return instruction
+
+
+def ticked(value: object) -> bool:
+    """Whether a boolean input of a run by hand is on: true from the form, or "true"
+    from the REST API, which passes every input as a string."""
+    return value is True or str(value).strip().casefold() == "true"
 
 
 def discussion_by_hand(github: GitHub, number: int) -> Plan:

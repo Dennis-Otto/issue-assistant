@@ -1953,6 +1953,13 @@ def test_the_manual_run_offers_every_task_and_starts_as_a_dry_run():
         mode for mode in assistant.MODES if mode not in assistant.DISCUSSION_MODES
     ]
     assert inputs["dry_run"]["default"] is True
+    # An instruction and the override of the one-comment rule, which a run by hand
+    # leaves out unless someone gives them.
+    assert list(inputs) == ["issue", "mode", "instruction", "override", "dry_run"]
+    assert inputs["instruction"]["type"] == "string"
+    assert inputs["instruction"]["default"] == ""
+    assert inputs["override"]["type"] == "boolean"
+    assert inputs["override"]["default"] is False
     # The discussions have one task, for the number of a discussion.
     inputs = DISCUSSIONS[True]["workflow_dispatch"]["inputs"]
     assert list(inputs) == ["discussion", "dry_run"]

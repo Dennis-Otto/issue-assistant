@@ -288,6 +288,7 @@ def released(config):
 def by_hand(config):
     github = FakeGitHub(config, make_issue(labels=("bug",)))
     payload = {"inputs": {"issue": "12", "mode": "follow-up"}}
+    payload["sender"] = {"login": "owner", "type": "User"}
     return github, "workflow_dispatch", payload
 
 

@@ -925,11 +925,11 @@ def test_other_comments_after_the_release_change_nothing(config, case):
 
 def test_a_run_by_hand_starts_the_chosen_task(config):
     github = FakeGitHub(config, make_issue(labels=("bug",)))
-    payload = {"inputs": {"issue": "12", "mode": "follow-up"}}
+    payload = {"inputs": {"issue": "12", "mode": "follow-up"}, "sender": OWNER}
     plan = assistant.handle_event(github, "workflow_dispatch", payload, config)
     assert (plan.issue, plan.mode) == (12, "follow-up")
     assert "area: cards" in github.labels_of(12)
-    payload = {"inputs": {"issue": "12"}}
+    payload = {"inputs": {"issue": "12"}, "sender": OWNER}
     plan = assistant.handle_event(github, "workflow_dispatch", payload, config)
     assert plan.mode == "triage"
 
@@ -945,7 +945,7 @@ def test_a_run_by_hand_refuses_pull_requests_and_unknown_tasks(config, case):
         assistant.handle_event(
             github,
             "workflow_dispatch",
-            {"inputs": {"issue": "12", "mode": mode}},
+            {"inputs": {"issue": "12", "mode": mode}, "sender": OWNER},
             config,
         )
 
@@ -1992,7 +1992,10 @@ def test_maintainers_are_never_limited(config):
     )
     assert plan.mode == "maintainer-reply"
     plan = assistant.handle_event(
-        github, "workflow_dispatch", {"inputs": {"issue": "12"}}, config
+        github,
+        "workflow_dispatch",
+        {"inputs": {"issue": "12"}, "sender": OWNER},
+        config,
     )
     assert plan.mode == "triage"
     # A maintainer who answers the questions of an analysis that they started.
@@ -10638,7 +10641,10 @@ def test_the_event_job_leaves_the_digest_issue_alone(config):
             event("created", issue, "owner", said(7, "/assistant again")),
         ),
         ("issue_comment", event("created", issue, "owner", said(8, "/assistant mute"))),
-        ("workflow_dispatch", {"inputs": {"issue": "12", "mode": "triage"}}),
+        (
+            "workflow_dispatch",
+            {"inputs": {"issue": "12", "mode": "triage"}, "sender": OWNER},
+        ),
     ):
         plan = assistant.handle_event(github, name, payload, config)
         assert plan.mode == "none", (name, payload)
