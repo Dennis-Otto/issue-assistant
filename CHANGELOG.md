@@ -4,6 +4,13 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.10.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.9.1...v1.10.0) (2026-11-03)
+
+
+### Features
+
+* the maintainer can let the assistant answer an issue again ([#266](https://github.com/Dennis-Otto/issue-assistant/issues/266)) ([fb5e910](https://github.com/Dennis-Otto/issue-assistant/commit/fb5e910a5bcbd2df7a5672d5608ade59c792aa7c))
+
 ## [1.9.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.9.0...v1.9.1) (2026-11-03)
 
 ### Bug fixes
