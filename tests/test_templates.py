@@ -1536,6 +1536,24 @@ def test_the_github_cli_sends_no_telemetry():
     assert step["env"]["GH_TELEMETRY"] == "false"
 
 
+def screenshot_checkout(path, job_name, step):
+    # The screenshot bot of the blueprint renders the newest commit of the branch that
+    # started it, which a workflow run starts on the default branch; its job with the
+    # token of the release app checks out the commit that it rendered only after a step
+    # has checked that main has it (decision 0118 of the blueprint).
+    if path.name != "screenshot-bot.yml":
+        return False
+    if step["with"]["ref"] == "${{ github.ref }}":
+        return True
+    names = [other.get("name") for other in load(path)["jobs"][job_name]["steps"]]
+    check = "Check that main has the commit that the job render names"
+    return (
+        step["with"]["ref"] == "${{ needs.render.outputs.sha }}"
+        and check in names
+        and names.index(check) < load(path)["jobs"][job_name]["steps"].index(step)
+    )
+
+
 @pytest.mark.parametrize("path", WORKFLOWS, ids=workflow_id)
 def test_actions_are_pinned_and_checkouts_keep_no_credentials(path):
     # Workflows that issues, comments or other workflows start run the default branch;
@@ -1561,9 +1579,11 @@ def test_actions_are_pinned_and_checkouts_keep_no_credentials(path):
             # The jobs of a reusable workflow run for the events of the templates;
             # their only other checkout is the issue assistant of their workflow.
             if privileged or path.name.startswith(assistant.REUSABLE_PREFIX):
-                assert "ref" not in step["with"] or step["with"] == TOOL_CHECKOUT, (
-                    "issue events must run the default branch"
-                )
+                assert (
+                    "ref" not in step["with"]
+                    or step["with"] == TOOL_CHECKOUT
+                    or screenshot_checkout(path, job_name, step)
+                ), "issue events must run the default branch"
     for job_name, job in load(path)["jobs"].items():
         # A called workflow of another repository, at a commit too.
         if "uses" in job and not job["uses"].startswith("./"):
