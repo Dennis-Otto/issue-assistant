@@ -166,6 +166,23 @@
     "query": {}
    }
   },
+  "/agents/repos/{owner}/{repo}/automations/{automation_id}/revisions": {
+   "get": {
+    "query": {
+     "cursor": {
+      "type": "string"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "/agents/repos/{owner}/{repo}/automations/{automation_id}/revisions/{revision_id}": {
+   "get": {
+    "query": {}
+   }
+  },
   "/agents/repos/{owner}/{repo}/automations/{automation_id}/tasks": {
    "get": {
     "query": {
@@ -1147,6 +1164,9 @@
      },
      "before": {
       "type": "string"
+     },
+     "is_done": {
+      "type": "boolean"
      },
      "page": {
       "type": "integer"
@@ -4459,6 +4479,17 @@
     "query": {}
    }
   },
+  "/orgs/{org}/teams/{team_slug}/copilot/customizations": {
+   "delete": {
+    "query": {}
+   },
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
   "/orgs/{org}/teams/{team_slug}/invitations": {
    "get": {
     "query": {
@@ -6203,7 +6234,7 @@
       "enum": [
        "pull",
        "triage",
-       "triage_plus",
+       "moderate",
        "push",
        "maintain",
        "admin"
@@ -7940,6 +7971,9 @@
      },
      "before": {
       "type": "string"
+     },
+     "is_done": {
+      "type": "boolean"
      },
      "page": {
       "type": "integer"
