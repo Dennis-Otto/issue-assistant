@@ -299,7 +299,7 @@ def test_gh_prints_what_the_github_cli_printed(monkeypatch):
         return subprocess.CompletedProcess(arguments, 0, "out", "")
 
     monkeypatch.setattr(subprocess, "run", run)
-    assert script.gh("api", "repos/o/r") == "out"
+    assert script.gh("repos/o/r") == "out"
     assert seen == [["gh", "api", "repos/o/r", *VERSION]]
 
 
@@ -310,7 +310,7 @@ def test_the_script_asks_for_the_version_of_the_api_that_the_assistant_asks_for(
 
 def test_gh_warns_when_the_github_cli_fails(monkeypatch, capsys):
     monkeypatch.setattr(subprocess, "run", completed(code=1, stderr="HTTP 403\n"))
-    assert script.gh("api", "repos/o/r") is None
+    assert script.gh("repos/o/r") is None
     assert capsys.readouterr().out == "::warning::gh api repos/o/r failed: HTTP 403\n"
 
 

@@ -1200,9 +1200,7 @@ def test_changes_tells_whether_the_check_runs(
         lambda arguments: asked.append(arguments) or completed(files),
     )
     assert contract.changes_command() == 0
-    assert asked == [
-        ["api", "--paginate", "repos/o/r/pulls/7/files", "--jq", ".[].filename"]
-    ]
+    assert asked == [["--paginate", "repos/o/r/pulls/7/files", "--jq", ".[].filename"]]
     assert output.read_text(encoding="utf-8") == f"engines={runs}\n"
     said = capsys.readouterr().out
     assert said.endswith("so the check runs.\n" if runs == "true" else "running.\n")

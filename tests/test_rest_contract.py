@@ -524,13 +524,16 @@ def gh_commands(source: str) -> list[list[ast.expr]]:
 
 
 def ends_with_the_version(words: list[ast.expr]) -> bool:
-    """Whether the words end with --header and the constant API_VERSION_HEADER."""
-    if len(words) < 3:
+    """Whether the words are a call of `gh api`, with "api" written out, that ends
+    with --header and the constant API_VERSION_HEADER."""
+    if len(words) < 4:
         return False
-    flag, value = words[-2:]
+    command, flag, value = words[1], *words[-2:]
     name = value.attr if isinstance(value, ast.Attribute) else getattr(value, "id", "")
     return (
-        isinstance(flag, ast.Constant)
+        isinstance(command, ast.Constant)
+        and command.value == "api"
+        and isinstance(flag, ast.Constant)
         and flag.value == "--header"
         and name == "API_VERSION_HEADER"
     )
@@ -540,7 +543,9 @@ def ends_with_the_version(words: list[ast.expr]) -> bool:
     ("source", "asks"),
     [
         ('run(["gh", "api", path, "--header", API_VERSION_HEADER])', True),
-        ('run(("gh", *words, "--header", assistant.API_VERSION_HEADER))', True),
+        ('run(("gh", "api", *words, "--header", assistant.API_VERSION_HEADER))', True),
+        ('run(("gh", *words, "--header", assistant.API_VERSION_HEADER))', False),
+        ('run(["gh", "release", path, "--header", API_VERSION_HEADER])', False),
         ('run(["gh", "api", path])', False),
         ('run(["gh", "api", "--header", API_VERSION_HEADER, path])', False),
         ('run(["gh", "api", "--header", "X-GitHub-Api-Version: 2022-11-28"])', False),
