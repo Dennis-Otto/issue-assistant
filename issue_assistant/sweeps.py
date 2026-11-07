@@ -70,8 +70,10 @@ CLOSING_KEYWORD = re.compile(
 # GitHub links the issue also where the words before the keyword say the opposite,
 # as in "This doesn't close #12" or "Partly fixes #12": a negation or a part among
 # the last DENIAL_WORDS words of the clause before it, which a mark such as a comma
-# ends, within the DENIAL_REACH characters before the keyword.
+# ends, within the DENIAL_REACH characters before the keyword. A negation that the
+# next word makes an emphasis, as in "Not only fixes #12", doesn't deny it.
 DENIAL = re.compile(r"not|never|cannot|partially|partly|\w+n['’]t", re.IGNORECASE)
+EMPHASIS = re.compile(r"only|just|merely|simply", re.IGNORECASE)
 CLAUSE_END = re.compile(r"[.,;:!?()\[\]\n]")
 CLAUSE_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?")
 DENIAL_WORDS = 4
@@ -197,7 +199,10 @@ def denies_closing(text: str, repository: str, number: int) -> bool:
         start = match.start()
         clause = CLAUSE_END.split(text[max(0, start - DENIAL_REACH) : start])[-1]
         words = CLAUSE_WORD.findall(clause)[-DENIAL_WORDS:]
-        if any(DENIAL.fullmatch(word) for word in words):
+        if any(
+            DENIAL.fullmatch(word) and not EMPHASIS.fullmatch(after)
+            for word, after in zip(words, [*words, ""][1:], strict=True)
+        ):
             return True
     return False
 
@@ -221,11 +226,14 @@ def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> li
             # hour; the read of an open one decides. A pull request whose words
             # deny the fix only refers to the issue, which stays as it is.
             number = reference["number"]
-            if (
-                not github.owns(reference)
-                or reference["state"] == "CLOSED"
-                or denies_closing(pull["body"], github.repository, number)
-            ):
+            if not github.owns(reference) or reference["state"] == "CLOSED":
+                continue
+            if denies_closing(pull["body"], github.repository, number):
+                command(
+                    "notice",
+                    f"#{number}: #{pull['number']} names it after words against"
+                    " the fix; it stays open.",
+                )
                 continue
             done += isolate(
                 f"#{number}",

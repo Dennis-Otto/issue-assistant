@@ -7515,7 +7515,7 @@ DENIED = "Refs #13. This doesn't close #13: a test of the cause still waits."
     ids=["only a reference", "a denied keyword"],
 )
 def test_a_release_closes_only_the_issue_that_a_pull_request_closes(
-    config, body, linked
+    config, capsys, body, linked
 ):
     """One release ships two pull requests: #40 says `Fixes #12`, and #41 only
     refers to #13, which GitHub lists among the issues that #41 closes when its
@@ -7526,6 +7526,9 @@ def test_a_release_closes_only_the_issue_that_a_pull_request_closes(
     assert assistant.mark_fixed(github, NOW) == [
         "#12: fixed by #40; closes with the next release."
     ]
+    # The log says why a listed fix left the issue alone.
+    note = "#13: #41 names it after words against the fix; it stays open."
+    assert (f"::notice::{note}" in capsys.readouterr().out) is bool(linked)
     github.release_store = [make_release()]
     github.contained = {(f"{pull:040x}", "v1.10.0") for pull in (40, 41)}
     assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
@@ -7563,6 +7566,11 @@ def test_a_pull_request_that_denies_the_fix_is_neither_awaited_nor_named(config)
         ("Doesn't close someone/else#12. Fixes #12", False),
         ("Not a breaking change, fixes #12", False),
         ("Not a refactor but also fixes #12", False),
+        # A negation as an emphasis doesn't deny the fix.
+        ("Not only fixes #12, but also speeds up the sweep.", False),
+        ("This not only closes #12 but also #13", False),
+        ("Doesn't just fix #12", False),
+        ("Not just a test: not fixes #12", True),
         ("not" + " " * 77 + "fixes #12", True),
         ("not" + " " * 78 + "fixes #12", False),
         # No closing keyword of GitHub: it links nothing.
