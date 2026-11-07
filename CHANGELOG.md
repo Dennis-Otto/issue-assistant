@@ -4,6 +4,14 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.10.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.0...v1.10.1) (2026-11-07)
+
+
+### Bug fixes
+
+* a release closes only the issues that its pull requests close ([#279](https://github.com/Dennis-Otto/issue-assistant/issues/279)) ([e6ce41b](https://github.com/Dennis-Otto/issue-assistant/commit/e6ce41bbe5900d06ec6f5ca506956473d098af0f))
+* the maintainer scripts and project workflows ask for the API version too ([#280](https://github.com/Dennis-Otto/issue-assistant/issues/280)) ([8ff3adc](https://github.com/Dennis-Otto/issue-assistant/commit/8ff3adcec76233c2240b85a9da2c3023cbfc6601))
+
 ## [1.10.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.9.1...v1.10.0) (2026-11-03)
 
 ### Features
