@@ -92,23 +92,28 @@ EXIT_CODE = re.compile(r"Process completed with exit code \d+\.")
 
 TITLE = "### The reusable workflows as dry runs"
 
+# The version of GitHub's REST API that every call asks for, that of the issue
+# assistant: the job's sparse checkout holds this script alone, so it keeps a copy of
+# API_VERSION_HEADER of issue_assistant/github.py, which tests/test_workflow_test.py
+# keeps equal.
+API_VERSION_HEADER = "X-GitHub-Api-Version: 2022-11-28"
+
 Job = Mapping[str, Any]
 Annotation = Mapping[str, Any]
 
 
 def gh(*arguments: str) -> str | None:
-    """What the GitHub CLI printed; None when it failed, after a warning."""
+    """What the GitHub CLI printed; None when it failed, after a warning. Every call
+    is a call of `gh api` that asks for the version of the API."""
     result = subprocess.run(
-        ["gh", *arguments],
+        ["gh", "api", *arguments, "--header", API_VERSION_HEADER],
         capture_output=True,
         text=True,
         encoding="utf-8",
         check=False,
     )
     if result.returncode != 0:
-        print(
-            f"::warning::gh {arguments[0]} {arguments[1]} failed: {result.stderr.strip()}"
-        )
+        print(f"::warning::gh api {arguments[0]} failed: {result.stderr.strip()}")
         return None
     return result.stdout
 
@@ -149,7 +154,6 @@ def decide(
 def files_of(repository: str, number: str) -> list[str] | None:
     """The files of the pull request, a renamed one by its old name too."""
     printed = gh(
-        "api",
         f"repos/{repository}/pulls/{number}/files?per_page=100",
         "--paginate",
         "--jq",
@@ -257,7 +261,7 @@ def check(
 def jobs_of(repository: str, run: str) -> list[Job] | None:
     """The latest jobs of the run, also of a run again of its failed jobs."""
     printed = gh(
-        "api", f"repos/{repository}/actions/runs/{run}/jobs?filter=latest&per_page=100"
+        f"repos/{repository}/actions/runs/{run}/jobs?filter=latest&per_page=100"
     )
     if printed is None:
         return None
@@ -268,7 +272,7 @@ def jobs_of(repository: str, run: str) -> list[Job] | None:
 def annotations_of(repository: str) -> Callable[[Job], Sequence[Annotation] | None]:
     def read(job: Job) -> Sequence[Annotation] | None:
         printed = gh(
-            "api", f"repos/{repository}/check-runs/{job['id']}/annotations?per_page=100"
+            f"repos/{repository}/check-runs/{job['id']}/annotations?per_page=100"
         )
         if printed is None:
             return None

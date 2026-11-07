@@ -225,8 +225,10 @@ def missing_steps(steps: Iterable[EngineStep]) -> list[str]:
 
 
 def run_gh(arguments: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    """Run `gh api` with the arguments and the version of GitHub's REST API that
+    the issue assistant asks for."""
     return subprocess.run(
-        ["gh", *arguments],
+        ["gh", "api", *arguments, "--header", assistant.API_VERSION_HEADER],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -239,7 +241,6 @@ def github_file(repository: str, path: str, ref: str) -> str | None:
     """A file of a repository on GitHub at a commit or a tag; None when it has none."""
     result = run_gh(
         [
-            "api",
             "-H",
             "Accept: application/vnd.github.raw",
             f"repos/{repository}/contents/{path}?ref={ref}",
@@ -886,7 +887,6 @@ def changes_command() -> int:
     repository, number = os.environ["GITHUB_REPOSITORY"], os.environ["PR"]
     result = run_gh(
         [
-            "api",
             "--paginate",
             f"repos/{repository}/pulls/{number}/files",
             "--jq",

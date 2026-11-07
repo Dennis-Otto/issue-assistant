@@ -346,6 +346,8 @@ def test_github_files_are_read_raw_and_a_missing_one_is_none(monkeypatch):
         "-H",
         "Accept: application/vnd.github.raw",
         f"repos/o/r/contents/action.yml?ref={SHA}",
+        "--header",
+        assistant.API_VERSION_HEADER,
     ]
     with pytest.raises(assistant.AssistantError, match="Bad credentials"):
         contract.github_file("o/r", "action.yml", SHA)
@@ -1198,9 +1200,7 @@ def test_changes_tells_whether_the_check_runs(
         lambda arguments: asked.append(arguments) or completed(files),
     )
     assert contract.changes_command() == 0
-    assert asked == [
-        ["api", "--paginate", "repos/o/r/pulls/7/files", "--jq", ".[].filename"]
-    ]
+    assert asked == [["--paginate", "repos/o/r/pulls/7/files", "--jq", ".[].filename"]]
     assert output.read_text(encoding="utf-8") == f"engines={runs}\n"
     said = capsys.readouterr().out
     assert said.endswith("so the check runs.\n" if runs == "true" else "running.\n")

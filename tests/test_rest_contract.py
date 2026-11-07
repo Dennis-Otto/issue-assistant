@@ -16,10 +16,12 @@ the workflow brings a new one in a pull request of its own.
 import ast
 import io
 import json
+import re
 import runpy
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 from urllib.error import URLError
 from urllib.parse import urlencode
 
@@ -495,6 +497,160 @@ def test_every_call_of_gh_api_goes_through_the_one_method_that_adds_the_version(
     assert len(commands) > 1
     for words in commands:
         assert not (isinstance(words[1], ast.Constant) and words[1].value == "api")
+
+
+# The maintainer's scripts and the workflows of this project alone call `gh api`
+# themselves, and ask for the same version (#239). A script starts gh at one place,
+# with the version last, as the package does; one that runs from a sparse checkout of
+# itself alone keeps a copy of the header, which its tests keep equal.
+SCRIPTS = ROOT / "scripts"
+# The workflows that the blueprint keeps, which change in repo-blueprint.
+OWNED = ROOT / ".github" / "blueprint" / "owned.txt"
+# A call of `gh api` in a workflow that doesn't ask right after it for the version
+# in API_VERSION_HEADER, which the environment of its step holds.
+CALL_WITHOUT_THE_VERSION = re.compile(r'\bgh api\b(?! --header "\$API_VERSION_HEADER")')
+
+
+def gh_commands(source: str) -> list[list[ast.expr]]:
+    """The words of each list or tuple of the source that starts with "gh"."""
+    return [
+        node.elts
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.List | ast.Tuple)
+        and node.elts
+        and isinstance(node.elts[0], ast.Constant)
+        and node.elts[0].value == "gh"
+    ]
+
+
+def ends_with_the_version(words: list[ast.expr]) -> bool:
+    """Whether the words are a call of `gh api`, with "api" written out, that ends
+    with --header and the constant API_VERSION_HEADER."""
+    if len(words) < 4:
+        return False
+    command, flag, value = words[1], *words[-2:]
+    name = value.attr if isinstance(value, ast.Attribute) else getattr(value, "id", "")
+    return (
+        isinstance(command, ast.Constant)
+        and command.value == "api"
+        and isinstance(flag, ast.Constant)
+        and flag.value == "--header"
+        and name == "API_VERSION_HEADER"
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "asks"),
+    [
+        ('run(["gh", "api", path, "--header", API_VERSION_HEADER])', True),
+        ('run(("gh", "api", *words, "--header", assistant.API_VERSION_HEADER))', True),
+        ('run(("gh", *words, "--header", assistant.API_VERSION_HEADER))', False),
+        ('run(["gh", "release", path, "--header", API_VERSION_HEADER])', False),
+        ('run(["gh", "api", path])', False),
+        ('run(["gh", "api", "--header", API_VERSION_HEADER, path])', False),
+        ('run(["gh", "api", "--header", "X-GitHub-Api-Version: 2022-11-28"])', False),
+        ('run(["gh", "api", "--input", API_VERSION_HEADER])', False),
+        ('run(["gh", API_VERSION_HEADER])', False),
+    ],
+)
+def test_a_call_of_gh_in_a_script_without_the_version_is_found(source, asks):
+    (words,) = gh_commands(source)
+    assert ends_with_the_version(words) is asks
+
+
+def test_every_call_of_gh_in_the_scripts_asks_for_the_version_of_the_api():
+    commands = {
+        path.relative_to(ROOT).as_posix(): gh_commands(path.read_text("utf-8"))
+        for path in sorted(SCRIPTS.rglob("*.py"))
+    }
+    # Each starts gh at one place; scripts/github_schemas.py goes through the package.
+    assert {name: len(calls) for name, calls in commands.items() if calls} == {
+        "scripts/canary_queue.py": 1,
+        "scripts/engine_contract.py": 1,
+        "scripts/workflow_test.py": 1,
+    }
+    without = [
+        name
+        for name, calls in commands.items()
+        for words in calls
+        if not ends_with_the_version(words)
+    ]
+    assert not without, f"gh without --header API_VERSION_HEADER at its end: {without}"
+
+
+def calls_without_the_version(workflow: dict[str, Any]) -> list[str]:
+    """Each step of the workflow whose `gh api` doesn't ask for the version, and how."""
+    found = []
+    for key, job in workflow.get("jobs", {}).items():
+        for number, step in enumerate(job.get("steps", []), 1):
+            run = step.get("run", "")
+            if "gh api" not in run:
+                continue
+            where = f"{key}: {step.get('name', f'step {number}')}"
+            env = workflow.get("env", {}) | job.get("env", {}) | step.get("env", {})
+            if env.get("API_VERSION_HEADER") != assistant.API_VERSION_HEADER:
+                found.append(f"{where}: no API_VERSION_HEADER")
+            found += [
+                f"{where}: {line.strip()}"
+                for line in run.splitlines()
+                if CALL_WITHOUT_THE_VERSION.search(line)
+            ]
+    return found
+
+
+ASKS = 'gh api --header "$API_VERSION_HEADER" repos/o/r'
+VERSION_ENV = {"API_VERSION_HEADER": assistant.API_VERSION_HEADER}
+
+
+@pytest.mark.parametrize(
+    ("workflow", "found"),
+    [
+        ({"env": VERSION_ENV, "jobs": {"a": {"steps": [{"run": ASKS}]}}}, []),
+        (
+            {
+                "jobs": {
+                    "a": {
+                        "env": VERSION_ENV,
+                        "steps": [{"name": "Read", "run": f"{ASKS}\nx=$(gh api y)"}],
+                    }
+                }
+            },
+            ["a: Read: x=$(gh api y)"],
+        ),
+        (
+            {
+                "jobs": {
+                    "a": {
+                        "steps": [
+                            {"run": "gh pr list"},
+                            {"env": {"API_VERSION_HEADER": "x"}, "run": ASKS},
+                        ]
+                    }
+                }
+            },
+            ["a: step 2: no API_VERSION_HEADER"],
+        ),
+        ({"jobs": {"a": {"steps": [{"env": VERSION_ENV, "run": "gh apis"}]}}}, []),
+        ({"jobs": {"a": {"uses": "./.github/workflows/b.yml"}}}, []),
+    ],
+)
+def test_a_call_of_gh_api_in_a_workflow_without_the_version_is_found(workflow, found):
+    assert calls_without_the_version(workflow) == found
+
+
+def test_every_gh_api_of_the_workflows_of_this_project_asks_for_the_version():
+    owned = set(OWNED.read_text(encoding="utf-8").splitlines())
+    workflows = {
+        path.name: yaml.safe_load(path.read_text(encoding="utf-8"))
+        for path in sorted((ROOT / assistant.WORKFLOWS).glob("*.yml"))
+        if (assistant.WORKFLOWS / path.name).as_posix() not in owned
+    }
+    found = {name: calls_without_the_version(flow) for name, flow in workflows.items()}
+    assert {name for name, flow in workflows.items() if "gh api" in str(flow)} == {
+        "canary.yml",
+        "evaluate.yml",
+    }
+    assert found == dict.fromkeys(workflows, [])
 
 
 # The weekly refresh of the copies

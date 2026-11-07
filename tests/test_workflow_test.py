@@ -281,6 +281,10 @@ def test_apply_accepts_the_answer_of_the_smoke_test_for_the_canary_s_issue(
 # ---------------------------------------------------------------- the script
 
 
+# The arguments that end every call of gh: the version of GitHub's API.
+VERSION = ["--header", assistant.API_VERSION_HEADER]
+
+
 def completed(stdout="", code=0, stderr=""):
     return lambda arguments, **options: subprocess.CompletedProcess(
         arguments, code, stdout, stderr
@@ -295,13 +299,18 @@ def test_gh_prints_what_the_github_cli_printed(monkeypatch):
         return subprocess.CompletedProcess(arguments, 0, "out", "")
 
     monkeypatch.setattr(subprocess, "run", run)
-    assert script.gh("api", "repos/o/r") == "out"
-    assert seen == [["gh", "api", "repos/o/r"]]
+    assert script.gh("repos/o/r") == "out"
+    assert seen == [["gh", "api", "repos/o/r", *VERSION]]
+
+
+def test_the_script_asks_for_the_version_of_the_api_that_the_assistant_asks_for():
+    # The job's sparse checkout holds the script alone, so it keeps a copy.
+    assert script.API_VERSION_HEADER == assistant.API_VERSION_HEADER
 
 
 def test_gh_warns_when_the_github_cli_fails(monkeypatch, capsys):
     monkeypatch.setattr(subprocess, "run", completed(code=1, stderr="HTTP 403\n"))
-    assert script.gh("api", "repos/o/r") is None
+    assert script.gh("repos/o/r") is None
     assert capsys.readouterr().out == "::warning::gh api repos/o/r failed: HTTP 403\n"
 
 
@@ -382,6 +391,7 @@ def test_the_files_of_a_pull_request_count_a_renamed_file_by_its_old_name_too(
             "--paginate",
             "--jq",
             ".[] | .filename, (.previous_filename // empty)",
+            *VERSION,
         ]
     ]
     monkeypatch.setattr(subprocess, "run", completed(code=1))
@@ -652,8 +662,13 @@ def test_the_jobs_and_annotations_come_from_the_api(monkeypatch):
     assert script.annotations_of("o/r")({"id": 9}) == [ALERT]
     # The latest attempt of each job, also after a run again of the failed ones.
     assert seen == [
-        ["gh", "api", "repos/o/r/actions/runs/7/jobs?filter=latest&per_page=100"],
-        ["gh", "api", "repos/o/r/check-runs/9/annotations?per_page=100"],
+        [
+            "gh",
+            "api",
+            "repos/o/r/actions/runs/7/jobs?filter=latest&per_page=100",
+            *VERSION,
+        ],
+        ["gh", "api", "repos/o/r/check-runs/9/annotations?per_page=100", *VERSION],
     ]
     monkeypatch.setattr(subprocess, "run", completed(code=1))
     assert script.jobs_of("o/r", "7") is None
