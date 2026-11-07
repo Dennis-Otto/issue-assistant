@@ -239,6 +239,9 @@ jobs:
           BRANCH: bot/accuracy
           HEADLINE: "docs: publish the measured accuracy"
           PAGE: docs/accuracy.md
+          # The version of GitHub's REST API that the issue assistant asks for, its
+          # API_VERSION_HEADER; tests/test_rest_contract.py keeps both equal.
+          API_VERSION_HEADER: "X-GitHub-Api-Version: 2022-11-28"
         run: |
           # Only the app's own pull request from the branch of this repository: a fork
           # may open one from a branch of the same name.
@@ -247,9 +250,9 @@ jobs:
           # The numbers of an open pull request stay; those of this run join them.
           ref="$BRANCH"
           if [[ -z "$open" ]]; then
-            ref="$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)"
+            ref="$(gh api --header "$API_VERSION_HEADER" "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)"
           fi
-          gh api "repos/$GH_REPO/contents/$PAGE?ref=$ref" > "$RUNNER_TEMP/page.json"
+          gh api --header "$API_VERSION_HEADER" "repos/$GH_REPO/contents/$PAGE?ref=$ref" > "$RUNNER_TEMP/page.json"
           jq --raw-output .content "$RUNNER_TEMP/page.json" | base64 --decode > "$PAGE"
           cp "$PAGE" "$RUNNER_TEMP/before.md"
           python3 -m issue_assistant accuracy-page --report "$RUNNER_TEMP/accuracy/report.md" --repository "$TARGET"
@@ -259,21 +262,21 @@ jobs:
           fi
           if [[ -z "$open" ]]; then
             # A branch that a closed pull request left behind starts anew.
-            if gh api "repos/$GH_REPO/git/ref/heads/$BRANCH" > /dev/null 2>&1; then
-              gh api --method DELETE "repos/$GH_REPO/git/refs/heads/$BRANCH" > /dev/null
+            if gh api --header "$API_VERSION_HEADER" "repos/$GH_REPO/git/ref/heads/$BRANCH" > /dev/null 2>&1; then
+              gh api --header "$API_VERSION_HEADER" --method DELETE "repos/$GH_REPO/git/refs/heads/$BRANCH" > /dev/null
             fi
-            gh api --method POST "repos/$GH_REPO/git/refs" -f ref="refs/heads/$BRANCH" -f sha="$ref" > /dev/null
+            gh api --header "$API_VERSION_HEADER" --method POST "repos/$GH_REPO/git/refs" -f ref="refs/heads/$BRANCH" -f sha="$ref" > /dev/null
           fi
           # The commit goes through GitHub's API as the release app: GitHub signs it, and
           # it starts the checks. The sign-off names the app's account, its author.
-          user_id="$(gh api "users/${APP_SLUG}[bot]" --jq .id)"
+          user_id="$(gh api --header "$API_VERSION_HEADER" "users/${APP_SLUG}[bot]" --jq .id)"
           message="$HEADLINE of $TARGET
 
           Measured by the Evaluate workflow: $URL
 
           Signed-off-by: ${APP_SLUG}[bot] <${user_id}+${APP_SLUG}[bot]@users.noreply.github.com>"
           base64 --wrap=0 "$PAGE" > "$RUNNER_TEMP/page.b64"
-          gh api --method PUT "repos/$GH_REPO/contents/$PAGE" -f branch="$BRANCH" -f message="$message" \
+          gh api --header "$API_VERSION_HEADER" --method PUT "repos/$GH_REPO/contents/$PAGE" -f branch="$BRANCH" -f message="$message" \
             -f sha="$(jq --raw-output .sha "$RUNNER_TEMP/page.json")" -F content=@"$RUNNER_TEMP/page.b64" > /dev/null
           if [[ -z "$open" ]]; then
             cat > "$RUNNER_TEMP/body.md" <<BODY

@@ -1440,10 +1440,14 @@ def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
         assert next(ROOT.glob(pattern), None), f"{pattern} matches no file"
 
 
-def start_script():
+def start_step():
     return step_named(
         CANARY["jobs"]["start"], "Start the canary and wait for its result"
-    )["run"]
+    )
+
+
+def start_script():
+    return start_step()["run"]
 
 
 # The GitHub CLI of the job start, as a shell function: it notes its arguments and
@@ -1452,7 +1456,7 @@ FAKE_GH = """
 gh() {
   echo "gh $*" >> "$CALLS"
   case "$1 $2" in
-    "api --method") [[ -z "$RUN" ]] || echo "$RUN" ;;
+    "api --header") [[ -z "$RUN" ]] || echo "$RUN" ;;
     "run view") echo "$CONCLUSION" ;;
   esac
 }
@@ -1485,6 +1489,7 @@ def test_the_push_fails_when_the_canary_that_it_started_fails(
         "GH_REPO": "octo/assistant",
         "GITHUB_REF_NAME": "main",
         "GITHUB_SERVER_URL": "https://github.com",
+        "API_VERSION_HEADER": start_step()["env"]["API_VERSION_HEADER"],
     }
     result = subprocess.run(
         [shutil.which("bash"), "-e", "-c", FAKE_GH + start_script()],
@@ -1497,8 +1502,9 @@ def test_the_push_fails_when_the_canary_that_it_started_fails(
     assert says in result.stdout
     started, *rest = calls.read_text(encoding="utf-8").splitlines()
     assert started == (
-        "gh api --method POST repos/octo/assistant/actions/workflows/canary.yml/"
-        "dispatches -f ref=main -F return_run_details=true --jq .workflow_run_id"
+        f"gh api --header {assistant.API_VERSION_HEADER} --method POST "
+        "repos/octo/assistant/actions/workflows/canary.yml/dispatches -f ref=main "
+        "-F return_run_details=true --jq .workflow_run_id"
     )
     if run:
         url = "https://github.com/octo/assistant/actions/runs/42"

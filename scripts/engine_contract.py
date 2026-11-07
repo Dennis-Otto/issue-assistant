@@ -225,8 +225,10 @@ def missing_steps(steps: Iterable[EngineStep]) -> list[str]:
 
 
 def run_gh(arguments: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    """Run `gh api` with the arguments, which start with "api", and the version of
+    GitHub's REST API that the issue assistant asks for."""
     return subprocess.run(
-        ["gh", *arguments],
+        ["gh", *arguments, "--header", assistant.API_VERSION_HEADER],
         capture_output=True,
         text=True,
         encoding="utf-8",

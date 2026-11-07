@@ -28,5 +28,5 @@ Option 3, written by `scripts/github_schemas.py`.
 
 - A new REST request has to exist in GitHub's description, in the fake and in the source in a form that the test can read.
 - Every repository sends the version from its next release of the action on. When GitHub ends `2022-11-28`, the weekly download of its description fails and names it, well before the requests stop working.
-- `scripts/` and the workflows have calls of `gh api` of their own, which only maintainers run; they don't ask for a version yet ([#239](https://github.com/Dennis-Otto/issue-assistant/issues/239)).
+- `scripts/` and the workflows of this project alone have calls of `gh api` of their own, which only maintainers run; they ask for the same version, and a test fails on a call without it ([#239](https://github.com/Dennis-Otto/issue-assistant/issues/239)). The workflows that the blueprint keeps don't ask for one yet: they change in repo-blueprint.
 - The commit of the bot goes through GitHub's API, which signs it, and always sits on the newest commit of `main`, so the required checks of the pull request never wait for an update of its branch.

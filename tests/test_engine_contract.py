@@ -346,6 +346,8 @@ def test_github_files_are_read_raw_and_a_missing_one_is_none(monkeypatch):
         "-H",
         "Accept: application/vnd.github.raw",
         f"repos/o/r/contents/action.yml?ref={SHA}",
+        "--header",
+        assistant.API_VERSION_HEADER,
     ]
     with pytest.raises(assistant.AssistantError, match="Bad credentials"):
         contract.github_file("o/r", "action.yml", SHA)

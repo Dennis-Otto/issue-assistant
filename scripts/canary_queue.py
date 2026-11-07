@@ -75,6 +75,12 @@ KEY = ".github/workflows/canary.yml"
 WORKFLOW = "Canary"
 NO_LINE = "The job failed before it could tell the wait; its summary says why."
 
+# The version of GitHub's REST API that every call asks for, that of the issue
+# assistant: the job's sparse checkout holds this script alone, so it keeps a copy of
+# API_VERSION_HEADER of issue_assistant/github.py, which tests/test_canary_queue.py
+# keeps equal.
+API_VERSION_HEADER = "X-GitHub-Api-Version: 2022-11-28"
+
 Job = Mapping[str, Any]
 
 
@@ -182,18 +188,25 @@ def watch(
         sleep(POLL)
 
 
-def jobs_of(repository: str, run: str, attempt: str) -> list[Job] | None:
-    """The jobs of the attempt of the run, with the GitHub CLI; None when it fails."""
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{repository}/actions/runs/{run}/attempts/{attempt}/jobs?per_page=100",
-        ],
+def gh_api(
+    arguments: Sequence[str], payload: Mapping[str, Any] | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run `gh api` with the arguments and the version of the API, the one place
+    that starts it, with the payload as JSON on its input."""
+    return subprocess.run(
+        ["gh", "api", *arguments, "--header", API_VERSION_HEADER],
+        input=None if payload is None else json.dumps(payload),
         capture_output=True,
         text=True,
         encoding="utf-8",
         check=False,
+    )
+
+
+def jobs_of(repository: str, run: str, attempt: str) -> list[Job] | None:
+    """The jobs of the attempt of the run, with the GitHub CLI; None when it fails."""
+    result = gh_api(
+        [f"repos/{repository}/actions/runs/{run}/attempts/{attempt}/jobs?per_page=100"]
     )
     if result.returncode != 0:
         print(f"::warning::GitHub didn't list the jobs: {result.stderr.strip()}")
@@ -204,17 +217,10 @@ def jobs_of(repository: str, run: str, attempt: str) -> list[Job] | None:
 
 def api(method: str, path: str, payload: Mapping[str, Any] | None = None) -> Any:
     """A call of the REST API with the GitHub CLI; None when it fails."""
-    arguments = ["gh", "api", "--method", method, path]
+    arguments = ["--method", method, path]
     if payload is not None:
         arguments += ["--input", "-"]
-    result = subprocess.run(
-        arguments,
-        input=None if payload is None else json.dumps(payload),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    )
+    result = gh_api(arguments, payload)
     if result.returncode != 0:
         print(f"::warning::GitHub refused {method} {path}: {result.stderr.strip()}")
         return None

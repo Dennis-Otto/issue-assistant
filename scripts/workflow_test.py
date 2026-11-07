@@ -92,14 +92,21 @@ EXIT_CODE = re.compile(r"Process completed with exit code \d+\.")
 
 TITLE = "### The reusable workflows as dry runs"
 
+# The version of GitHub's REST API that every call asks for, that of the issue
+# assistant: the job's sparse checkout holds this script alone, so it keeps a copy of
+# API_VERSION_HEADER of issue_assistant/github.py, which tests/test_workflow_test.py
+# keeps equal.
+API_VERSION_HEADER = "X-GitHub-Api-Version: 2022-11-28"
+
 Job = Mapping[str, Any]
 Annotation = Mapping[str, Any]
 
 
 def gh(*arguments: str) -> str | None:
-    """What the GitHub CLI printed; None when it failed, after a warning."""
+    """What the GitHub CLI printed; None when it failed, after a warning. Every call
+    asks for the version of the API, so its arguments are those of `gh api`."""
     result = subprocess.run(
-        ["gh", *arguments],
+        ["gh", *arguments, "--header", API_VERSION_HEADER],
         capture_output=True,
         text=True,
         encoding="utf-8",

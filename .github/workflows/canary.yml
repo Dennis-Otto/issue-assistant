@@ -99,9 +99,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           GH_TELEMETRY: "false"
+          # The version of GitHub's REST API that the issue assistant asks for, its
+          # API_VERSION_HEADER; tests/test_rest_contract.py keeps both equal.
+          API_VERSION_HEADER: "X-GitHub-Api-Version: 2022-11-28"
         run: |
           # GitHub answers with the number of the run that it started.
-          run=$(gh api --method POST "repos/$GH_REPO/actions/workflows/canary.yml/dispatches"             -f ref="$GITHUB_REF_NAME" -F return_run_details=true --jq .workflow_run_id)
+          run=$(gh api --header "$API_VERSION_HEADER" --method POST "repos/$GH_REPO/actions/workflows/canary.yml/dispatches" \
+            -f ref="$GITHUB_REF_NAME" -F return_run_details=true --jq .workflow_run_id)
           if [[ -z "$run" ]]; then
             echo "::warning::GitHub started the canary without naming its run; its result is under Actions."
             exit 0

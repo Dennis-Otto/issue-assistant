@@ -19,6 +19,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+import issue_assistant as assistant
+
 ROOT = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location(
     "canary_queue", ROOT / "scripts" / "canary_queue.py"
@@ -307,6 +309,8 @@ def test_the_jobs_come_from_the_attempt_of_the_run(monkeypatch, capsys):
         "gh",
         "api",
         "repos/o/r/actions/runs/7/attempts/2/jobs?per_page=100",
+        "--header",
+        assistant.API_VERSION_HEADER,
     ]
 
 
@@ -510,6 +514,15 @@ def test_the_alarm_fails_when_github_refuses(monkeypatch, broken):
         alarm()
 
 
+# The arguments that end every call of gh: the version of GitHub's API.
+VERSION = ["--header", assistant.API_VERSION_HEADER]
+
+
+def test_the_script_asks_for_the_version_of_the_api_that_the_assistant_asks_for():
+    # The job's sparse checkout holds the script alone, so it keeps a copy.
+    assert queue.API_VERSION_HEADER == assistant.API_VERSION_HEADER
+
+
 def test_api_calls_the_github_cli(monkeypatch, capsys):
     calls = []
     answers = iter(
@@ -527,11 +540,14 @@ def test_api_calls_the_github_cli(monkeypatch, capsys):
     monkeypatch.setattr(queue.subprocess, "run", run)
     assert queue.api("POST", "repos/o/r/issues", {"title": "t"}) == {"number": 3}
     assert calls[0] == (
-        ["gh", "api", "--method", "POST", "repos/o/r/issues", "--input", "-"],
+        ["gh", "api", "--method", "POST", "repos/o/r/issues", "--input", "-", *VERSION],
         '{"title": "t"}',
     )
     assert queue.api("GET", "repos/o/r/labels/x") == {}
-    assert calls[1] == (["gh", "api", "--method", "GET", "repos/o/r/labels/x"], None)
+    assert calls[1] == (
+        ["gh", "api", "--method", "GET", "repos/o/r/labels/x", *VERSION],
+        None,
+    )
     assert queue.api("GET", "repos/o/r/labels/y") is None
     assert "GitHub refused GET repos/o/r/labels/y: HTTP 404" in capsys.readouterr().out
 
