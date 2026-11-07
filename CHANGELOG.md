@@ -6,11 +6,10 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## [1.10.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.0...v1.10.1) (2026-11-07)
 
-
 ### Bug fixes
 
-* a release closes only the issues that its pull requests close ([#279](https://github.com/Dennis-Otto/issue-assistant/issues/279)) ([e6ce41b](https://github.com/Dennis-Otto/issue-assistant/commit/e6ce41bbe5900d06ec6f5ca506956473d098af0f))
-* the maintainer scripts and project workflows ask for the API version too ([#280](https://github.com/Dennis-Otto/issue-assistant/issues/280)) ([8ff3adc](https://github.com/Dennis-Otto/issue-assistant/commit/8ff3adcec76233c2240b85a9da2c3023cbfc6601))
+- The scripts of the maintainers in `scripts/` and the Canary and Evaluate workflows ask GitHub for the same version of its REST API as the action, `2022-11-28`, on every call of `gh api`, so they no longer follow whatever version GitHub serves by default; a new call without it fails a test.
+- A release no longer closes an issue that a pull request only refers to. GitHub links an issue to a pull request also where its description says the opposite, such as `This doesn't close #12` or `Partly fixes #12`, and the assistant took that link for a fix: it labeled the issue `fixed-in-next-release` at the merge and closed it with the release. Now such words keep the issue as it is, open and without the label, and the comment of the release names only the pull requests that fix the issue. `Fixes`, `Closes` and `Resolves` close an issue as before, and so does a link made by hand in the box *Development* of a pull request.
 
 ## [1.10.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.9.1...v1.10.0) (2026-11-03)
 
