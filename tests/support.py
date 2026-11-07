@@ -389,7 +389,9 @@ def make_pull(
 ):
     """A merged pull request with the issues that it fixes, last updated at its merge.
 
-    `fixes` holds numbers of this repository's issues, or `owner/name#number`.
+    `fixes` holds numbers of this repository's issues, or `owner/name#number`, which
+    its description names with `Fixes`, as GitHub links them; a test that passes a
+    `body` gives the words that GitHub found the links in.
     """
     references = []
     for issue in fixes:
@@ -408,6 +410,9 @@ def make_pull(
         "baseRefName": base,
         "mergeCommit": {"oid": f"{number:040x}"},
         "repository": {"nameWithOwner": repository},
+        "body": "\n".join(
+            f"Fixes {issue if '#' in str(issue) else f'#{issue}'}" for issue in fixes
+        ),
         "closingIssuesReferences": {"nodes": references},
         **extra,
     }
@@ -1111,6 +1116,7 @@ class FakeGitHub(assistant.GitHub):
                         "merged",
                         "mergedAt",
                         "baseRefName",
+                        "body",
                         "repository",
                     )
                 }

@@ -56,6 +56,29 @@ MERGE_LOOKBACK = timedelta(days=14)
 # lookback would lose the release that ships it.
 LABEL_SLACK = timedelta(hours=1)
 
+# A closing keyword of GitHub and the issue after it, as GitHub links a pull request
+# to the issues that it closes: close, fix or resolve in any of their forms and of
+# any case, a colon or not, and the issue as #12, owner/project#12 or its address.
+# A keyword starts after no word character or hyphen, as GitHub's does, so that
+# the pattern reads each character of a text a bounded number of times.
+CLOSING_KEYWORD = re.compile(
+    r"(?<![\w-])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?[ \t]+"
+    r"(?:https://github\.com/([\w.-]+/[\w.-]+)/issues/|([\w.-]+/[\w.-]+)?#)"
+    r"(\d+)(?![\w-])",
+    re.IGNORECASE,
+)
+# GitHub links the issue also where the words before the keyword say the opposite,
+# as in "This doesn't close #12" or "Partly fixes #12": a negation or a part among
+# the last DENIAL_WORDS words of the clause before it, which a mark such as a comma
+# ends, within the DENIAL_REACH characters before the keyword. A negation that the
+# next word makes an emphasis, as in "Not only fixes #12", doesn't deny it.
+DENIAL = re.compile(r"not|never|cannot|partially|partly|\w+n['’]t", re.IGNORECASE)
+EMPHASIS = re.compile(r"only|just|merely|simply", re.IGNORECASE)
+CLAUSE_END = re.compile(r"[.,;:!?()\[\]\n]")
+CLAUSE_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?")
+DENIAL_WORDS = 4
+DENIAL_REACH = 80
+
 # Runs a step of the sweep, named for the log, and returns what it did.
 Isolate = Callable[[str, Callable[[], list[str]]], list[str]]
 
@@ -159,6 +182,31 @@ def first_release(
     return None
 
 
+def denies_closing(text: str, repository: str, number: int) -> bool:
+    """Whether the text says that it doesn't close the issue of the repository.
+
+    GitHub links a pull request to each issue that a closing keyword of its
+    description names, also after words that say the opposite, as in "This doesn't
+    close #12" or "Partly fixes #12". Such a pull request doesn't fix the issue,
+    although GitHub lists it so. One denial anywhere in the text decides, so an
+    issue stays open when a description says both; a link that a maintainer made
+    by hand, with no keyword in the text, still counts.
+    """
+    for match in CLOSING_KEYWORD.finditer(text):
+        named = (match[1] or match[2] or repository).lower()
+        if named != repository.lower() or int(match[3]) != number:
+            continue
+        start = match.start()
+        clause = CLAUSE_END.split(text[max(0, start - DENIAL_REACH) : start])[-1]
+        words = CLAUSE_WORD.findall(clause)[-DENIAL_WORDS:]
+        if any(
+            DENIAL.fullmatch(word) and not EMPHASIS.fullmatch(after)
+            for word, after in zip(words, [*words, ""][1:], strict=True)
+        ):
+            return True
+    return False
+
+
 def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> list[str]:
     """Label the open issues that a recently merged pull request fixes.
 
@@ -175,10 +223,18 @@ def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> li
         for reference in pull["closingIssuesReferences"]["nodes"]:
             # Most issues that a merge names are closed by the time of a sweep, and
             # each one read would spend the requests that the token has in an
-            # hour; the read of an open one decides.
+            # hour; the read of an open one decides. A pull request whose words
+            # deny the fix only refers to the issue, which stays as it is.
+            number = reference["number"]
             if not github.owns(reference) or reference["state"] == "CLOSED":
                 continue
-            number = reference["number"]
+            if denies_closing(pull["body"], github.repository, number):
+                command(
+                    "notice",
+                    f"#{number}: #{pull['number']} names it after words against"
+                    " the fix; it stays open.",
+                )
+                continue
             done += isolate(
                 f"#{number}",
                 partial(mark_issue_fixed, github, number, pull, branch, releases),
@@ -299,11 +355,13 @@ def close_issue_released(
     )
     # The fixes that the label waits for: merged after that release, and at most
     # MERGE_LOOKBACK before the label, the latest that a sweep sets it, with the
-    # time of its run.
+    # time of its run. One whose words deny the fix, which GitHub lists all the
+    # same, is neither awaited nor named.
     pulls = [
         pull
         for pull in github.fixing_pulls(number)
-        if not (spent and moment(pull["mergedAt"]) <= spent)
+        if not denies_closing(pull["body"], github.repository, number)
+        and not (spent and moment(pull["mergedAt"]) <= spent)
         and labeled - moment(pull["mergedAt"]) <= MERGE_LOOKBACK + LABEL_SLACK
     ]
     # The first release that ships them all, published after the last of them was
