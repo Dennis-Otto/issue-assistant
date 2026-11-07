@@ -510,10 +510,10 @@ class GitHub:
     def merged_pulls(self, since: datetime) -> tuple[str, list[dict[str, Any]]]:
         """The default branch, and the pull requests merged since `since`.
 
-        Each with the issues that it fixes and their state. GitHub lists them by
-        their last update, which a merge is, so the pages end with one that nobody
-        updated since then; a busy repository merges far more than one page in
-        MERGE_LOOKBACK.
+        Each with its description and the issues that it fixes, with their state.
+        GitHub lists them by their last update, which a merge is, so the pages end
+        with one that nobody updated since then; a busy repository merges far more
+        than one page in MERGE_LOOKBACK.
         """
         pulls: list[dict[str, Any]] = []
         cursor = None
@@ -527,7 +527,7 @@ class GitHub:
                                  orderBy: {field: UPDATED_AT, direction: DESC}) {
                       pageInfo { hasNextPage endCursor }
                       nodes {
-                        number mergedAt updatedAt baseRefName
+                        number mergedAt updatedAt baseRefName body
                         mergeCommit { oid }
                         closingIssuesReferences(first: 10) {
                           nodes { number state repository { nameWithOwner } }
@@ -554,6 +554,7 @@ class GitHub:
     def fixing_pulls(self, number: int) -> list[dict[str, Any]]:
         """This repository's merged pull requests into the default branch that fix the issue.
 
+        Each with its description, whose words can deny the fix that GitHub lists.
         A pull request of another repository can name the issue too, as
         `Fixes owner/project#12`; its commit isn't here, and no release here ships it.
         """
@@ -565,7 +566,7 @@ class GitHub:
                 issue(number: $number) {
                   closedByPullRequestsReferences(first: 10, includeClosedPrs: true) {
                     nodes {
-                      number merged mergedAt baseRefName mergeCommit { oid }
+                      number merged mergedAt baseRefName body mergeCommit { oid }
                       repository { nameWithOwner }
                     }
                   }

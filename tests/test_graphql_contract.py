@@ -126,6 +126,7 @@ def pull(
         "merged": merged,
         "mergedAt": "2026-10-06T12:00:00Z" if merged else None,
         "baseRefName": base,
+        "body": "Fixes #12",
         "mergeCommit": {"oid": REF} if merged else None,
         "repository": {"nameWithOwner": repository},
     }
@@ -334,6 +335,7 @@ REQUESTS = {
                     "mergedAt": "2026-10-06T12:00:00Z",
                     "updatedAt": "2026-10-06T13:00:00Z",
                     "baseRefName": "main",
+                    "body": "Fixes #12",
                     "mergeCommit": {"oid": REF},
                     "closingIssuesReferences": FIXES,
                 }

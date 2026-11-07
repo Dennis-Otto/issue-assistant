@@ -7504,6 +7504,97 @@ def test_a_fix_from_another_repository_alone_waits_for_the_next_release(config):
     assert "with the fix" not in github.posted(12)[0]
 
 
+# GitHub links an issue to a pull request whose description says that it doesn't
+# close it, as in "doesn't close #13": its parser reads only "close #13".
+DENIED = "Refs #13. This doesn't close #13: a test of the cause still waits."
+
+
+@pytest.mark.parametrize(
+    ("body", "linked"),
+    [("Refs #13.", ()), (DENIED, (13,))],
+    ids=["only a reference", "a denied keyword"],
+)
+def test_a_release_closes_only_the_issue_that_a_pull_request_closes(
+    config, capsys, body, linked
+):
+    """One release ships two pull requests: #40 says `Fixes #12`, and #41 only
+    refers to #13, which GitHub lists among the issues that #41 closes when its
+    description denies a closing keyword."""
+    github = merged(config, labels=("bug",), days_ago=10)
+    github.store[13] = make_issue(13, labels=("bug",), days_ago=10)
+    github.pull_store = [make_pull(), make_pull(41, linked, body=body)]
+    assert assistant.mark_fixed(github, NOW) == [
+        "#12: fixed by #40; closes with the next release."
+    ]
+    # The log says why a listed fix left the issue alone.
+    note = "#13: #41 names it after words against the fix; it stays open."
+    assert (f"::notice::{note}" in capsys.readouterr().out) is bool(linked)
+    github.release_store = [make_release()]
+    github.contained = {(f"{pull:040x}", "v1.10.0") for pull in (40, 41)}
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+    assert "Released in [v1.10.0](" in github.posted(12)[-1]
+    assert github.store[12]["state"] == "closed"
+    assert github.store[13]["state"] == "open"
+    assert github.posted(13) == [] and github.labels_of(13) == {"bug"}
+
+
+def test_a_pull_request_that_denies_the_fix_is_neither_awaited_nor_named(config):
+    # GitHub lists #41 as a fix of #12 for its words "partly fixes #12", and the
+    # release ships only #40.
+    partly = make_pull(41, days_ago=3, body="This partly fixes #12.")
+    github = released(config, pulls=[make_pull(days_ago=3), partly])
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+    assert "with the fix from #40. @reporter" in github.posted(12)[0]
+
+
+@pytest.mark.parametrize(
+    ("text", "denies"),
+    [
+        ("Fixes #12", False),
+        ("fixed: #12, closes #13", False),
+        (DENIED.replace("13", "12"), True),
+        ("This does not yet fully resolve #12.", True),
+        ("It does not on its own close #12", True),
+        ("Partly fixes #12", True),
+        ("It won’t close owner/project#12", True),
+        ("Never closes https://github.com/owner/project/issues/12", True),
+        ("Cannot fix #12 alone", True),
+        # One denial decides, wherever it is.
+        ("Fixes #12.\n\nThis doesn't fix #12 on Windows.", True),
+        # Another issue or repository, another clause, words too far before.
+        ("Doesn't close #120, fixes #12", False),
+        ("Doesn't close someone/else#12. Fixes #12", False),
+        ("Not a breaking change, fixes #12", False),
+        ("Not a refactor but also fixes #12", False),
+        # A negation as an emphasis doesn't deny the fix.
+        ("Not only fixes #12, but also speeds up the sweep.", False),
+        ("This not only closes #12 but also #13", False),
+        ("Doesn't just fix #12", False),
+        ("Not just a test: not fixes #12", True),
+        ("not" + " " * 77 + "fixes #12", True),
+        ("not" + " " * 78 + "fixes #12", False),
+        # No closing keyword of GitHub: it links nothing.
+        ("Doesn't refer to #12 and unfixes #12", False),
+        ("", False),
+    ],
+)
+def test_words_against_a_closing_keyword_deny_the_fix(text, denies):
+    # The name of the repository, as GitHub gives it, in any case.
+    assert assistant.denies_closing(text, "Owner/Project", 12) is denies
+
+
+def test_no_description_makes_reading_its_closing_keywords_slow():
+    for text in (
+        "close #1 " * 7_281,
+        "fix " * 16_384,
+        "fix a/" + "a" * 65_000,
+        "fix " + " " * 65_000 + "x",
+        "fix https://github.com/" + "a" * 65_000,
+        "doesn't " * 8_192,
+    ):
+        assert fast(0.5, assistant.denies_closing, text, "owner/project", 1)
+
+
 def test_an_unreleased_fix_of_one_issue_doesn_t_stop_the_next(config):
     github = released(config, pulls=[make_pull(days_ago=3), make_pull(41, (13,))])
     github.store[13] = make_issue(
