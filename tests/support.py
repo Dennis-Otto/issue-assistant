@@ -1618,6 +1618,15 @@ def package_source() -> str:
     )
 
 
+def blueprint_files() -> frozenset[str]:
+    """The files that the blueprint keeps in this repository, which change in
+    repo-blueprint: the paths of .github/blueprint/owned.txt, read as the blueprint's
+    own tool reads them, one on each line, without the comments."""
+    owned = assistant.TOOL / ".github" / "blueprint" / "owned.txt"
+    lines = (line.strip() for line in owned.read_text(encoding="utf-8").splitlines())
+    return frozenset(line for line in lines if line and not line.startswith("#"))
+
+
 def replace_everywhere(monkeypatch: Any, name: str, value: Any) -> None:
     """Replace a name in the package and in each of its modules that looks it up:
     each holds what it imports under a name of its own, so a test of a path through
