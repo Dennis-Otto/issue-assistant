@@ -140,6 +140,11 @@ jobs:
           path: ${{ runner.temp }}/accuracy/report.md
           if-no-files-found: error
           retention-days: 7
+      # When the probe of the network block failed, nothing is checked out yet.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: failure() && hashFiles('.github/blueprint.py') == ''
+        with:
+          persist-credentials: false
       # The PR coach: what failed, why it matters and how to fix it, in the summary of
       # the job and as its annotation, from .github/checks.project.toml.
       - name: Explain the failure
