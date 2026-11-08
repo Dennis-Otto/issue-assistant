@@ -101,7 +101,7 @@ jobs:
       endpoints: ${{ steps.endpoints.outputs.endpoints }}
     steps:
       - name: Block every host but GitHub's
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           disable-sudo-and-containers: true
@@ -276,10 +276,30 @@ jobs:
       # isolates them, and run no command that could lift the block.
       - name: Block every host but those of the firewall policy
         if: vars.ISSUE_ASSISTANT_AI_RUNNER != '' && vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           allowed-endpoints: ${{ needs.event.outputs.endpoints }}
+      # GitHub's DNS experiment on some of its runners hides the lookups of the job from
+      # Harden-Runner, which then blocks the hosts of the policy until the time limit
+      # (step-security/harden-runner#708). Harden-Runner takes it away unless its
+      # feature flags say no; a job that keeps sudo makes sure, as decision 0123 of the
+      # blueprint has its jobs do. Just where Harden-Runner runs, never on the firewall
+      # runner, whose firewall this step must not touch; the next step checks the block
+      # as the engine meets it.
+      - name: Let Harden-Runner see the DNS lookups
+        if: vars.ISSUE_ASSISTANT_AI_RUNNER != '' && vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
+        run: |
+          dropins=(/etc/systemd/resolved.conf.d/90-egress-proxy.conf /run/systemd/resolved.conf.d/90-egress-proxy.conf)
+          if [[ ! -e ${dropins[0]} && ! -e ${dropins[1]} ]] && ! grep -qs 127.0.0.100 /etc/resolv.conf; then
+            exit 0
+          fi
+          echo "::notice::GitHub's DNS experiment is on this runner; taking it out of the way of Harden-Runner."
+          sudo rm -f "${dropins[@]}"
+          sudo systemctl restart systemd-resolved
+          sudo ln -sfn /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+          sudo systemctl stop egress-dns-resolver.service egress-outbound-proxy.service || true
+          sudo resolvectl flush-caches || true
       # The AI runs only behind a block that holds, on both runners: GitHub's egress
       # firewall enforces the policy only for a job that may read the repository, and
       # its preview may change how it finds and reads the policy, without a warning;
@@ -550,7 +570,7 @@ jobs:
       discussions: read
     steps:
       - name: Block every host but GitHub's
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           disable-sudo-and-containers: true

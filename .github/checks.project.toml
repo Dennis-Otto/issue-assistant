@@ -244,13 +244,16 @@ from `.github/egress-firewall.yaml`, the step *Make sure that the network block 
 failed, because requests to `example.com`, a host outside the policy, still got
 through after a minute or `api.github.com` never answered, or one request to
 `registry.npmjs.org` on port 443 or to `azure.archive.ubuntu.com` on port 80, hosts of
-the policy, was blocked; the log says which."""
+the policy, was blocked; the log says which. Or the step before it, *Let Harden-Runner
+see the DNS lookups*, failed: GitHub's DNS experiment was on the runner, and
+`systemd-resolved` didn't start again after the step took it away."""
 why = """The job analyze runs behind exactly this block when a repository moves the AI
 to the runner in reserve. A host that gets through lets the AI reach any host, and a
 blocked host of the policy stops every analysis there."""
 fix = """When `example.com` still got through, Harden-Runner blocked nothing: look at
 its status and the log of its step. *Reverted changes* there means that its agent gave
-up at its start, such as on an allowed host that it couldn't resolve: run the job again. When a host of the policy was blocked, compare the
+up at its start, such as on an allowed host that it couldn't resolve: run the job again. When *Let Harden-Runner see the DNS lookups* failed, run the job again
+too: the next runner starts `systemd-resolved` anew. When a host of the policy was blocked, compare the
 endpoints in the log of the job before with `.github/egress-firewall.yaml`, and fix
 `firewall_endpoints` in `issue_assistant/setup_check.py`, with its case in
 `tests/test_setup.py`."""
@@ -351,7 +354,9 @@ the app, not a change of the repository."""
 title = "The names that keep each engine to reading"
 problem = """A step of the check of the engine contracts failed before its parts ran,
 such as the checkout of the pull request, or the block of Harden-Runner stopped a host
-other than `api.github.com`, `github.com` and `registry.npmjs.org`. When a part fails,
+other than `api.github.com`, `github.com` and `registry.npmjs.org`, or *Let
+Harden-Runner see the DNS lookups* failed, because GitHub's DNS experiment was on the
+runner and `systemd-resolved` didn't start again after the step took it away. When a part fails,
 the PR coach explains that part instead: the files of the pull request, the actions of
 the engines or their command lines."""
 why = """The check runs the pinned versions of the engines without a key, the only
