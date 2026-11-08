@@ -6,10 +6,9 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## [1.10.3](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.2...v1.10.3) (2026-11-08)
 
-
 ### Bug fixes
 
-* **findings:** an open alert fails the job once, not after every scan ([#298](https://github.com/Dennis-Otto/issue-assistant/issues/298)) ([8f6fada](https://github.com/Dennis-Otto/issue-assistant/commit/8f6fada95e83b8a6886fbca915ea17c3c9f920e6))
+- The Findings workflow no longer fails after every scan while an alert stays open; it fails once, when the alert opens. It runs after each scan of code scanning on the default branch and every morning, and GitHub mails the maintainer about every failed run, so one open alert made up to four failed runs for each push and one more every morning. Now the job keeps a record of the alerts that it reported, each with the time it opened, in the Actions cache of the default branch: a run fails only for an alert that opened since, also one that a scan finds again after its fix, and the runs after it pass and name the alert as still open, with a warning, until it is fixed or accepted in `.github/findings.toml`. Without a record, as in the first run after the update, every open alert fails one run. It comes with the next move of the pin, without `install`; besides `api.github.com` and `github.com`, the job reaches GitHub's results service of the cache.
 
 ## [1.10.2](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.1...v1.10.2) (2026-11-08)
 
