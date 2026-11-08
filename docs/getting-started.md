@@ -99,7 +99,7 @@ Add the check to the CI of the repository, so that a change of the labels, the f
     command: check
 ```
 
-It is the step that the [listing on the GitHub Marketplace](https://github.com/marketplace/actions/read-only-issue-assistant) offers under *Use latest version*. On its own, that step only checks: the four workflows that run the assistant come from `install`, in step 1 of [Set up a repository](#set-up-a-repository), and call the other commands of the action themselves.
+The [listing on the GitHub Marketplace](https://github.com/marketplace/actions/read-only-issue-assistant) offers a bare step of the action under *Use latest version*, with every input and an empty `command`; on its own, give it `command: check`, as above. The four workflows that run the assistant come from `install`, in step 1 of [Set up a repository](#set-up-a-repository), and call the other commands of the action themselves.
 
 The check runs on Linux, macOS or Windows, with Python 3.12 or newer, and reads YAML with PyYAML or `yq`. In a job, the action is tested on `ubuntu-24.04`, `ubuntu-26.04` and `ubuntu-24.04-arm`; on an older Python it stops with an error that names the version and the fix. When a workflow differs from its template, it names the commands that write the templates of its release anew.
 

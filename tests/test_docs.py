@@ -748,7 +748,7 @@ def test_the_readme_the_set_up_and_the_home_page_lead_to_the_listing():
     badges = re.findall(r"^\[!\[([^\]]+)\]\([^)]+\)\]\(([^)]+)\)$", top, re.MULTILINE)
     assert ("GitHub Marketplace", address) in badges
     # The listing's *Use latest version* shows one step of the action, which needs a
-    # command: a visitor from there learns that the step alone only checks, and that
+    # command: a visitor from there learns to give it `command: check`, and that
     # install writes the workflows that run the assistant.
     (visitor,) = [line for line in top.splitlines() if f"]({address})?" in line]
     assert "`command: check`" in visitor and "`install` above writes" in visitor
