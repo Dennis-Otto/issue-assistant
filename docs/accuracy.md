@@ -8,11 +8,35 @@ How often the assistant's labels, duplicates and questions match what the mainta
 
 ## The numbers
 
-They come from the repositories that use the assistant, [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync) and [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), each with the day, the engine and the model of its measurement, as `evaluate` writes them into its report. [The next section](#how-the-numbers-get-here) says how they get here.
+They come from the repositories that use the assistant, [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync) and [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), each with the day, the engine and the model of its measurement, as `evaluate` writes them into its report. [The next section](#how-the-numbers-get-here) says how they get here. They rest on few issues, and Paperless Unified Search has no table, since none of its closed issues could be replayed: [the limits](#what-the-numbers-cant-tell) say why.
 
 <!-- accuracy numbers: start -->
 
-None yet: the first run of the workflow *Evaluate* brings the first table.
+### [Dennis-Otto/homedarts-for-autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts)
+
+Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 2 newest of 125 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $0.35 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+
+| Measure | Precision | Recall | Issues |
+| --- | ---: | ---: | ---: |
+| Type | 100 % (2 of 2) | 50 % (2 of 4) | 2 |
+| Areas | – | – | 0 |
+| Topics | – | – | 0 |
+| Duplicates | – | – | 0 |
+| Sure duplicates | – | – | 0 |
+| Asks for information | – | – | 2 |
+
+### [Dennis-Otto/paperless-sync](https://github.com/Dennis-Otto/paperless-sync)
+
+Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 1 newest of 101 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $0.25 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+
+| Measure | Precision | Recall | Issues |
+| --- | ---: | ---: | ---: |
+| Type | – | – | 0 |
+| Areas | 100 % (1 of 1) | 100 % (1 of 1) | 1 |
+| Topics | – | – | 0 |
+| Duplicates | – | – | 0 |
+| Sure duplicates | – | – | 0 |
+| Asks for information | – | – | 1 |
 
 <!-- accuracy numbers: end -->
 
@@ -59,4 +83,5 @@ PYTHONPATH=path/to/issue-assistant python3 -P -m issue_assistant evaluate --issu
 - **The window of the other issues is that of today.** It holds the issues open now and those closed last, so for an older issue an original that was open then and closed long ago may be missing from it; the search for its words still finds the issues of that moment. The duplicates found may be a little fewer than at that moment.
 - **The labels of its form count for nothing.** A label that an issue had a minute after it was opened, such as that of its form, is no decision of the maintainers, and the AI sees it, so only the labels that people added later count.
 - **A maintainer's question is a guess.** A question mark in the first comment of a maintainer, or the label `needs-info`, counts as a question for more information, also when it asked something else.
+- **The issues above are few.** On 2026-11-08 only 2 of the 125 closed issues of HomeDarts for Autodarts could be replayed, 1 of the 101 of Paperless Sync and none of the 76 of Paperless Unified Search. Their maintainer opened most of them, many with a coding agent and with their labels set as they were opened, which count for nothing. Bots opened most of the others, which `evaluate` leaves out, and the assistant had already analyzed most of the few that users opened, which it can't grade itself on. Three issues, two of them from one user, say little about any repository: the numbers of your own repository tell you more.
 - **Small numbers vary.** A repository with few closed issues has few duplicates to find, and one more found or missed moves the share a lot; the report names the counts behind each share.
