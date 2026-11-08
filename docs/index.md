@@ -134,7 +134,7 @@ What the assistant does on its own, so that an answer never makes matters worse:
 
 --8<-- "docs/getting-started.md:quick-start"
 
-[Get started](getting-started.md) has the [requirements](getting-started.md#requirements) of a repository, every step in detail and how to check that it works; [Configuration](configuration.md) has the settings.
+[Get started](getting-started.md) has the [requirements](getting-started.md#requirements) of a repository, every step in detail and how to check that it works; [Configuration](configuration.md) has the settings. The action is also [listed on the GitHub Marketplace](https://github.com/marketplace/actions/read-only-issue-assistant), where its step alone runs `check`: the workflows come from `install` above.
 
 ## Learn more
 
@@ -192,7 +192,7 @@ What the assistant does on its own, so that an answer never makes matters worse:
 
     ---
 
-    The examples of the Claude Code and Gemini CLI actions, GitHub's AI assessment labeler, GitHub Agentic Workflows, actions/stale, Dosu and GitHub's duplicate detection, cell by cell with sources.
+    The examples of the Claude Code and Gemini CLI actions, GitHub's AI assessment labeler, GitHub Agentic Workflows, copilot-triage, Copilot's triage automations, actions/stale, Dosu and GitHub's duplicate detection, cell by cell with sources.
 
     [:octicons-arrow-right-24: Comparison](comparison.md)
 

@@ -3,6 +3,7 @@
 **Safe AI issue triage for GitHub.** A read-only AI writes a first analysis of every new issue, and a job without AI checks it before anything is posted.
 
 [![Documentation](https://img.shields.io/badge/docs-website-blue)](https://dennis-otto.github.io/issue-assistant/)
+[![GitHub Marketplace](https://img.shields.io/badge/marketplace-read--only%20issue%20assistant-purple?logo=github)](https://github.com/marketplace/actions/read-only-issue-assistant)
 [![CI](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/codeql.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/codeql.yml)
 [![Secret scan](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/secret-scan.yml)
@@ -25,6 +26,8 @@ git clone --quiet --depth 1 --branch "$tag" https://github.com/Dennis-Otto/issue
 ```
 
 Then describe the project, clear one setting and try it on an issue, as [Set up a repository](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.md#set-up-a-repository) shows. [Requirements](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.md#requirements) lists what it needs, and the [FAQ](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/faq.md#what-does-it-cost) what it costs.
+
+Coming from the [GitHub Marketplace](https://github.com/marketplace/actions/read-only-issue-assistant)? On its own, the step that its *Use latest version* offers only checks the set-up, with `command: check`, as in [Keep it checked](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.md#keep-it-checked); `install` above writes the four workflows that run the assistant.
 
 **See it live:** [the first analysis of a feature request in Paperless Sync](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710), posted 2 minutes 39 seconds after the issue was opened.
 
@@ -96,12 +99,14 @@ Issues come from anyone, so the design assumes that an issue tries to steer the 
 
 ## Compared with other tools
 
-Other tools cover parts of this. GitHub Agentic Workflows and the workflows built on it share its design, and the triage examples of the Gemini CLI action share its split between an AI that reads and a job that writes. Checked on 2026-10-25:
+Other tools cover parts of this. GitHub Agentic Workflows and the workflows built on it share its design, and copilot-triage and the triage examples of the Gemini CLI action share its split between an AI that reads and code without AI that writes. Checked on 2026-11-08:
 
 - **The issue examples of the [Claude Code action](https://github.com/anthropics/claude-code-action/tree/main/examples)** let the AI set labels and post comments itself, with a token that writes to issues and no check of its answer before it is posted.
 - **The [triage examples of the Gemini CLI action](https://github.com/google-github-actions/run-gemini-cli/tree/main/examples/workflows/issue-triage)** give Gemini a token that only reads, and a separate job sets the labels that it chose, if they exist. They only label: no analysis, no question for the reporter, no duplicates and no reminders.
 - **[GitHub's AI assessment labeler](https://docs.github.com/en/issues/tracking-your-work-with-issues/administering-issues/triaging-an-issue-with-ai)** assesses an issue when a maintainer adds a label, and posts the model's answer unchecked as a comment, from a job that writes to issues. It ran on GitHub Models, which GitHub retired on 2026-07-30.
 - **[GitHub Agentic Workflows](https://github.github.com/gh-aw/)** (gh-aw) has the closest design: an agent with a read-only token behind a firewall, and writes through limited *safe outputs* after a second AI pass looks for threats. It is a general framework in version 0.x, in which you write and compile the triage workflow yourself; reminders, duplicates that close and the closing with the release are not part of its triage.
+- **[copilot-triage](https://github.com/crmne/copilot-triage)** gives a model six tools that only read and keeps the tokens out of its environment; Ruby checks its decision and posts it from the same job, which can write. It also looks after discussions, pull requests and a project board, replies in under 60 words or not at all, and closes what a release fixed or the reporter calls solved. It runs on a Copilot allowance or your own key, without a firewall, in version 0.x.
+- **[Copilot's automations](https://docs.github.com/en/copilot/concepts/agent-capabilities/agent-powered-workflows-and-operations/about-automations)** run GitHub's cloud agent on a new issue, with the tools that write which you select. The agent gives each label, type, field, assignee or closing a reason and a confidence, and holds the uncertain ones for an approval that GitHub says is no security control. They work only in private and internal repositories, and by default ignore the issues of people who can't write there.
 - **[actions/stale](https://github.com/actions/stale)** closes inactive issues without AI, by default 60 and then 7 days after the last activity. It writes no analysis, and limiting it to issues that wait for their reporter takes a label such as `needs-info`, which something else has to set.
 - **[Dosu](https://dosu.dev/pricing)** is a hosted service for documentation now. Its labels and its stale bot became open-source workflows on gh-aw, which run with your own engine.
 - **[GitHub's duplicate detection](https://github.blog/changelog/2026-06-18-duplicate-detection-and-issue-fields-mcp-support-for-github-issues/)**, in public preview, suggests up to three similar issues while a reporter writes. It goes well with the assistant, which also finds duplicates of an issue that exists.
