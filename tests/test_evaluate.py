@@ -247,8 +247,10 @@ def test_a_closed_issue_of_a_deleted_account_or_a_bot_without_labels(config):
 
 
 def test_the_samples_are_the_newest_closed_issues_that_people_decided(config, github):
-    samples, read = assistant.choose_samples(github, config, 10)
-    assert read == 7
+    samples, left_out = assistant.choose_samples(github, config, 10)
+    # Each issue that it left out, by why: #26 of a bot, #25 analyzed, #24 with no
+    # label of a scored group, and #23, whose only label of a type a bot added.
+    assert left_out == {"bot": 1, "analyzed": 1, "undecided": 1, "not by people": 1}
     assert [item.number for item in samples] == [22, 21, 20]
     duplicate, newer, bug = samples
     assert duplicate.original == 7
@@ -272,22 +274,23 @@ def test_the_samples_are_the_newest_closed_issues_that_people_decided(config, gi
 
 
 def test_the_samples_stop_at_their_number(config, github):
-    samples, read = assistant.choose_samples(github, config, 1)
-    assert ([item.number for item in samples], read) == ([22], 5)
+    samples, left_out = assistant.choose_samples(github, config, 1)
+    assert [item.number for item in samples] == [22]
+    assert left_out.total() == 4
 
 
 def test_an_issue_whose_only_label_came_with_its_form_is_no_sample(config):
     issue = closed(30, 8, labels=("bug",))
     github = FakeGitHub(config, issue)
     github.event_store = {30: [labeled("bug", 8, "reporter")]}
-    assert assistant.choose_samples(github, config, 1) == ([], 1)
+    assert assistant.choose_samples(github, config, 1) == ([], {"not by people": 1})
 
 
 def test_an_issue_whose_reporter_keeps_the_ai_out_is_no_sample(config):
     issue = closed(30, 8, labels=("bug", "assistant-muted"), body=BOX_TICKED)
     github = FakeGitHub(config, issue)
     github.event_store = {30: [labeled("bug", 7)]}
-    assert assistant.choose_samples(github, config, 1) == ([], 1)
+    assert assistant.choose_samples(github, config, 1) == ([], {"kept out": 1})
     # After a /assistant unmute, a maintainer lets the AI read it.
     issue = closed(30, 8, labels=("bug",), body=BOX_TICKED)
     github = FakeGitHub(config, issue)
@@ -1149,6 +1152,27 @@ def test_the_ai_of_the_evaluate_workflow_runs_behind_the_firewall_and_writes_not
     assert '--issues "$ISSUES"' in replay["run"]
 
 
+def test_a_run_without_a_closed_issue_to_replay_keeps_and_publishes_nothing():
+    """evaluate passes without a report then, with a notice of why in the summary
+    of the job. So the job replay keeps a report only when evaluate wrote one, and
+    the job publish runs only on a report: such a run ends green, and the page keeps
+    its numbers."""
+    replay = step_named("replay", "Replay the closed issues")
+    assert replay["id"] == "replay"
+    assert replay["run"].endswith(
+        'if [[ -f "$RUNNER_TEMP/accuracy/report.md" ]]; then\n'
+        '  echo "report=true" >> "$GITHUB_OUTPUT"\n'
+        "fi\n"
+    )
+    jobs = EVALUATE["jobs"]
+    assert jobs["replay"]["outputs"] == {"report": "${{ steps.replay.outputs.report }}"}
+    keep = step_named("replay", "Keep the report for the job publish")
+    assert keep["if"] == "steps.replay.outputs.report == 'true'"
+    # The condition, not a laxer upload, leaves out a report that doesn't exist.
+    assert keep["with"]["if-no-files-found"] == "error"
+    assert jobs["publish"]["if"] == "needs.replay.outputs.report == 'true'"
+
+
 def test_the_command_line_of_the_evaluate_workflow_comes_from_its_lock_file():
     install = step_named(
         "replay", "Install the command line of Claude from its lock file"
@@ -1656,17 +1680,65 @@ def test_the_evaluate_command_refuses_what_would_mislead_it(
     assert error in capsys.readouterr().out
 
 
-def test_the_evaluate_command_needs_an_issue_that_people_decided(
+def test_the_evaluate_command_without_an_issue_to_replay_ends_with_a_notice(
     monkeypatch, tmp_path, root, config, capsys
 ):
+    """A repository whose closed issues people never decided after they were opened,
+    such as one whose maintainer labelled each as it was opened, has nothing to
+    measure, which is no failure: the run passes, says why it left out each issue
+    and what an issue needs to be replayed, and writes no report, so the job publish
+    of the workflow Evaluate has nothing to bring to the page."""
     monkeypatch.setattr(assistant.shutil, "which", lambda name: f"/usr/bin/{name}")
-    github = FakeGitHub(config, closed(3, 5, labels=()))
-    code, _, _ = run_main(monkeypatch, tmp_path, root, github, "evaluate")
-    assert code == 1
-    assert capsys.readouterr().out == (
-        "::error::None of the 1 closed issues read has a label that people chose or "
-        "the original of a duplicate, without an analysis of the assistant.\n"
+    monkeypatch.setattr(assistant.subprocess, "run", FakeRun())
+    github = FakeGitHub(
+        config,
+        closed(26, 2, author="renovate[bot]"),
+        closed(25, 3),
+        closed(24, 4, labels=("needs-info",)),
+        closed(23, 5, labels=("enhancement",)),
+        closed(22, 6, labels=("bug", "assistant-muted"), body=BOX_TICKED),
+        closed(21, 8, labels=("bug",)),
     )
+    github.comment_store = {25: [make_comment(1, "bot", f"{MARKED}\nAn analysis", 2.9)]}
+    github.event_store = {
+        23: [labeled("enhancement", 4.9, "github-actions[bot]")],
+        22: [labeled("bug", 5.5)],
+        # The label of its form, which it had from the start.
+        21: [labeled("bug", 8, "reporter")],
+    }
+    code, outputs, summary = run_main(monkeypatch, tmp_path, root, github, "evaluate")
+    lines = [
+        "Nothing to replay, so no report: 6 closed issues read, and none that people "
+        "decided and that the assistant never analyzed.",
+        "Opened by a bot: 1.",
+        "Kept out of the AI by their reporter: 1.",
+        "Without a label of a type, an area, a topic or a priority, and not closed as "
+        "a duplicate of an older issue: 1.",
+        "Analyzed by the assistant, whose labels would grade themselves: 1.",
+        "With such a label only from when they were opened, such as that of their "
+        "form, or from a bot: 2.",
+        "An issue is replayed when people gave it a label of a type, an area, a topic "
+        "or a priority of `labels.toml` after it was opened, or closed it as a "
+        "duplicate of an older issue, and the assistant never analyzed it.",
+    ]
+    assert (code, outputs) == (0, "")
+    assert capsys.readouterr().out.startswith("::notice::" + "%0A".join(lines) + "\n")
+    assert summary == "### Accuracy on owner/project\n\n" + "".join(
+        f"- {line}\n" for line in lines
+    )
+    assert not (tmp_path / "project-accuracy.md").exists()
+    assert github.writes == []
+
+
+def test_an_evaluation_names_only_the_reasons_that_left_out_an_issue(config):
+    github = FakeGitHub(config)
+    assert assistant.evaluate(
+        github, config, 3, Path("unused.md"), lambda: None, date(2026, 10, 7)
+    ) == [
+        "Nothing to replay, so no report: 0 closed issues read, and none that people "
+        "decided and that the assistant never analyzed.",
+        assistant.REPLAYED,
+    ]
 
 
 def test_the_evaluate_command_writes_nothing_on_github(

@@ -1,0 +1,3 @@
+### Bug fixes
+
+- `evaluate` and the Evaluate workflow no longer fail on a repository without a closed issue to replay, one whose closed issues people never labelled after they were opened or closed as a duplicate. Such a run now passes without a report, and its notice counts why it left out each closed issue it read, such as those that a bot opened or whose only label came with their form, and says what an issue needs to be replayed. The workflow then skips publishing, so the accuracy page keeps its numbers, and no failure mail goes out for a repository that has nothing to measure.

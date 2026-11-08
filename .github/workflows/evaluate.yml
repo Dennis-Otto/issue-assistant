@@ -10,7 +10,9 @@ name: Evaluate
 # and the engine's secret, and only its tools that read the checkout of the repository.
 # The job publish runs no AI and takes only numbers from the report, which the command
 # accuracy-page checks, into a pull request of the release app. Each run adds its
-# repository to the one open pull request. docs/accuracy.md describes it.
+# repository to the one open pull request. A repository without a closed issue to
+# replay ends the run with a notice and no report, and publish doesn't run.
+# docs/accuracy.md describes it.
 
 on:
   workflow_dispatch:
@@ -54,6 +56,10 @@ jobs:
       contents: read
       issues: read
       discussions: read
+    # Whether evaluate wrote a report: not for a repository without a closed issue to
+    # replay, whose run ends with a notice.
+    outputs:
+      report: ${{ steps.replay.outputs.report }}
     steps:
       # As in the job analyze of the reusable workflows: the AI runs only once a host
       # outside the firewall policy is out of reach, before any step that gets the
@@ -112,6 +118,7 @@ jobs:
           ln -s "$PWD/.github/evaluate/node_modules/@anthropic-ai/claude-code-linux-x64/claude" "$RUNNER_TEMP/bin/claude"
           "$RUNNER_TEMP/bin/claude" --version
       - name: Replay the closed issues
+        id: replay
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ inputs.repository }}
@@ -133,7 +140,13 @@ jobs:
           mkdir -p "$RUNNER_TEMP/accuracy"
           PATH="$RUNNER_TEMP/bin:$PATH" python3 -m issue_assistant evaluate \
             --engine claude --issues "$ISSUES" --report "$RUNNER_TEMP/accuracy/report.md"
+          # Without a closed issue to replay, evaluate passes with a notice of why, and
+          # writes no report.
+          if [[ -f "$RUNNER_TEMP/accuracy/report.md" ]]; then
+            echo "report=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Keep the report for the job publish
+        if: steps.replay.outputs.report == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: accuracy
@@ -156,6 +169,7 @@ jobs:
   publish:
     name: publish the numbers
     needs: replay
+    if: needs.replay.outputs.report == 'true'
     # One run at a time ends what it started with the branch and the pull request.
     concurrency:
       group: ${{ github.workflow }}-publish
