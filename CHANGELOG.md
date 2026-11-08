@@ -4,6 +4,13 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.10.2](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.1...v1.10.2) (2026-11-08)
+
+
+### Bug fixes
+
+* the AI runs only once the egress firewall proves that it blocks other hosts ([#287](https://github.com/Dennis-Otto/issue-assistant/issues/287)) ([9375697](https://github.com/Dennis-Otto/issue-assistant/commit/93756974b217456a9c18e18195c4a3a5d100d0f2))
+
 ## [1.10.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.0...v1.10.1) (2026-11-07)
 
 ### Bug fixes
