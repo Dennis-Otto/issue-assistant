@@ -33,6 +33,7 @@ from support import (
     CONFIG,
     REPOSITORY,
     FakeGitHub,
+    blueprint_files,
     fake_gh,
     make_issue,
     package_source,
@@ -504,8 +505,6 @@ def test_every_call_of_gh_api_goes_through_the_one_method_that_adds_the_version(
 # with the version last, as the package does; one that runs from a sparse checkout of
 # itself alone keeps a copy of the header, which its tests keep equal.
 SCRIPTS = ROOT / "scripts"
-# The workflows that the blueprint keeps, which change in repo-blueprint.
-OWNED = ROOT / ".github" / "blueprint" / "owned.txt"
 # A call of `gh api` in a workflow that doesn't ask right after it for the version
 # in API_VERSION_HEADER, which the environment of its step holds.
 CALL_WITHOUT_THE_VERSION = re.compile(r'\bgh api\b(?! --header "\$API_VERSION_HEADER")')
@@ -639,7 +638,8 @@ def test_a_call_of_gh_api_in_a_workflow_without_the_version_is_found(workflow, f
 
 
 def test_every_gh_api_of_the_workflows_of_this_project_asks_for_the_version():
-    owned = set(OWNED.read_text(encoding="utf-8").splitlines())
+    # The workflows that the blueprint keeps, which change in repo-blueprint.
+    owned = blueprint_files()
     workflows = {
         path.name: yaml.safe_load(path.read_text(encoding="utf-8"))
         for path in sorted((ROOT / assistant.WORKFLOWS).glob("*.yml"))

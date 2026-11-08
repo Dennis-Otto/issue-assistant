@@ -22,14 +22,14 @@ import pytest
 import yaml
 
 import issue_assistant as assistant
-from support import package_source
+from support import blueprint_files, package_source
 
 ROOT = assistant.TOOL
 # The workflows that install writes into a repository: the triggers, the permissions
 # and the pin of a reusable workflow of this repository, which has the jobs.
 TEMPLATES = assistant.TEMPLATES / assistant.WORKFLOWS
-# This repository's own workflows. The blueprint brings them, the four of the issue
-# assistant too, which are the templates of the release that it pins; no test
+# This repository's workflows. The blueprint brings most of them, the four of the
+# issue assistant too, which are the templates of the release that it pins; no test
 # compares those with the templates of this commit. The reusable workflows are this
 # repository's own.
 OWN = ROOT / assistant.WORKFLOWS
@@ -341,12 +341,55 @@ def steps(path):
     ]
 
 
-# The templates and this repository's own workflows.
-WORKFLOWS = sorted(TEMPLATES.glob("*.yml")) + sorted(OWN.glob("*.yml"))
+# The workflows that the blueprint keeps here, as .github/blueprint/owned.txt lists
+# them. They change in repo-blueprint, whose tests hold for them, in every repository,
+# the rules that the tests below check for the others: actions and called workflows
+# pinned to a commit, checkouts without the token and, in a workflow that others
+# start, of the default branch or a commit that main has, and values that reach a
+# script only through its environment. So an update of the blueprint needs no change
+# of these tests.
+BLUEPRINT_WORKFLOWS = sorted(
+    path
+    for path in OWN.glob("*.yml")
+    if path.relative_to(ROOT).as_posix() in blueprint_files()
+)
+# The workflows of this project alone, which the blueprint renders none of: the
+# reusable workflows, which every repository calls, and those of its own checks.
+PROJECT_WORKFLOWS = sorted(set(OWN.glob("*.yml")) - set(BLUEPRINT_WORKFLOWS))
+# The templates and the workflows of this project alone.
+WORKFLOWS = sorted(TEMPLATES.glob("*.yml")) + PROJECT_WORKFLOWS
+# Every workflow, for a rule of a name of this project, such as its input canary,
+# which no test of the blueprint knows.
+EVERY_WORKFLOW = sorted(TEMPLATES.glob("*.yml")) + sorted(OWN.glob("*.yml"))
 
 
 def workflow_id(path):
     return path.relative_to(ROOT).as_posix()
+
+
+def test_the_tests_leave_the_blueprint_s_workflows_to_the_blueprint():
+    """The workflows that .github/blueprint/owned.txt lists are left out of the
+    tests that walk every workflow, and only those: every template and every workflow
+    of this project alone stays in."""
+    listed = {
+        path for path in blueprint_files() if path.startswith(f"{assistant.WORKFLOWS}/")
+    }
+    assert {workflow_id(path) for path in BLUEPRINT_WORKFLOWS} == listed
+    assert set(WORKFLOWS).isdisjoint(BLUEPRINT_WORKFLOWS)
+    assert set(WORKFLOWS) | set(BLUEPRINT_WORKFLOWS) == set(EVERY_WORKFLOW)
+    # The bots of the blueprint, which change with its releases, are its own.
+    assert OWN / "screenshot-bot.yml" in BLUEPRINT_WORKFLOWS
+    assert OWN / "issue-assistant.yml" in BLUEPRINT_WORKFLOWS
+    # The templates, the reusable workflows that every repository calls and the
+    # checks of this project are checked here.
+    assert set(TEMPLATES.glob("*.yml")) <= set(WORKFLOWS)
+    assert {path.name for path in PROJECT_WORKFLOWS} == {
+        "action-test.yml",
+        "canary.yml",
+        "evaluate.yml",
+        "workflow-test.yml",
+        *(reusable(name).name for name in NAMES),
+    }
 
 
 def test_the_templates_are_the_workflows_that_install_writes():
@@ -873,16 +916,6 @@ def test_the_ai_runs_only_where_the_block_holds(
 # never finishes after its last step, at "Cleaning up orphan processes", until its
 # timeout. https://github.com/step-security/harden-runner/issues/708
 HARDEN_RUNNER_FIXED = (2, 22, 3)
-# The blueprint brings its own workflows with their pins, and renders none of these.
-PROJECT_WORKFLOWS = [
-    OWN / name
-    for name in (
-        "action-test.yml",
-        "canary.yml",
-        "evaluate.yml",
-        "workflow-test.yml",
-    )
-] + sorted(OWN.glob("reusable-*.yml"))
 
 
 @pytest.mark.parametrize("path", PROJECT_WORKFLOWS, ids=lambda path: path.name)
@@ -1367,7 +1400,7 @@ def test_the_canary_calls_the_reusable_workflow_as_every_repository_does():
     # No other workflow passes the input canary.
     callers = [
         (path.name, job_name)
-        for path in WORKFLOWS
+        for path in EVERY_WORKFLOW
         for job_name, job in load(path)["jobs"].items()
         if CANARY_INPUT in (job.get("with") or {})
     ]
@@ -1698,28 +1731,11 @@ def test_the_github_cli_sends_no_telemetry():
     assert step["env"]["GH_TELEMETRY"] == "false"
 
 
-def screenshot_checkout(path, job_name, step):
-    # The screenshot bot of the blueprint renders the newest commit of the branch that
-    # started it, which a workflow run starts on the default branch; its job start names
-    # that commit, and its job with the token of the release app checks it out only after
-    # a step has checked that main has it (decisions 0118 and 0120 of the blueprint).
-    if path.name != "screenshot-bot.yml":
-        return False
-    if step["with"]["ref"] == "${{ github.ref }}":
-        return True
-    names = [other.get("name") for other in load(path)["jobs"][job_name]["steps"]]
-    check = "Check that main has the commit that the job start names"
-    return (
-        step["with"]["ref"] == "${{ needs.start.outputs.sha }}"
-        and check in names
-        and names.index(check) < load(path)["jobs"][job_name]["steps"].index(step)
-    )
-
-
 @pytest.mark.parametrize("path", WORKFLOWS, ids=workflow_id)
 def test_actions_are_pinned_and_checkouts_keep_no_credentials(path):
-    # Workflows that issues, comments or other workflows start run the default branch;
-    # the release workflow checks out the tag that it releases.
+    # Workflows that issues, comments or other workflows start run the default branch.
+    # The blueprint's own, such as its release workflow and its screenshot bot, are
+    # left to the tests of the blueprint (BLUEPRINT_WORKFLOWS).
     events = load(path)[True]
     privileged = not {
         "issues",
@@ -1741,11 +1757,9 @@ def test_actions_are_pinned_and_checkouts_keep_no_credentials(path):
             # The jobs of a reusable workflow run for the events of the templates;
             # their only other checkout is the issue assistant of their workflow.
             if privileged or path.name.startswith(assistant.REUSABLE_PREFIX):
-                assert (
-                    "ref" not in step["with"]
-                    or step["with"] == TOOL_CHECKOUT
-                    or screenshot_checkout(path, job_name, step)
-                ), "issue events must run the default branch"
+                assert "ref" not in step["with"] or step["with"] == TOOL_CHECKOUT, (
+                    "issue events must run the default branch"
+                )
     for job_name, job in load(path)["jobs"].items():
         # A called workflow of another repository, at a commit too.
         if "uses" in job and not job["uses"].startswith("./"):
