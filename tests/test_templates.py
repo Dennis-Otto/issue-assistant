@@ -1544,17 +1544,17 @@ def test_the_github_cli_sends_no_telemetry():
 
 def screenshot_checkout(path, job_name, step):
     # The screenshot bot of the blueprint renders the newest commit of the branch that
-    # started it, which a workflow run starts on the default branch; its job with the
-    # token of the release app checks out the commit that it rendered only after a step
-    # has checked that main has it (decision 0118 of the blueprint).
+    # started it, which a workflow run starts on the default branch; its job start names
+    # that commit, and its job with the token of the release app checks it out only after
+    # a step has checked that main has it (decisions 0118 and 0120 of the blueprint).
     if path.name != "screenshot-bot.yml":
         return False
     if step["with"]["ref"] == "${{ github.ref }}":
         return True
     names = [other.get("name") for other in load(path)["jobs"][job_name]["steps"]]
-    check = "Check that main has the commit that the job render names"
+    check = "Check that main has the commit that the job start names"
     return (
-        step["with"]["ref"] == "${{ needs.render.outputs.sha }}"
+        step["with"]["ref"] == "${{ needs.start.outputs.sha }}"
         and check in names
         and names.index(check) < load(path)["jobs"][job_name]["steps"].index(step)
     )
