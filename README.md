@@ -65,7 +65,7 @@ A GitHub Action that looks after the issues of a repository. Each line leads to 
 - **[Good first issue candidates](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/good-first-issues.md):** the digest names the issues that someone new could take; only a maintainer adds the label.
 - <a name="when-github-fails"></a>**[When GitHub fails](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/github-failures.md):** a rate limit, a server error or an incident never changes what the assistant posts.
 - **[Labels as code](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#githublabelstoml):** the labels of the repository in `.github/labels.toml`, from the issue forms and from the analysis, each with its reason.
-- **[Findings of code scanning](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings):** the findings that `.github/findings.toml` accepts are dismissed with their reason; any other open finding fails a daily run, without a public issue.
+- **[Findings of code scanning](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings):** the findings that `.github/findings.toml` accepts are dismissed with their reason; any other open finding fails one run, the first after it opens, so GitHub mails about it once, without a public issue.
 
 The maintainer reads every issue and has the last word. A first analysis looks like this, here on an issue of a demo project:
 

@@ -3,10 +3,12 @@ name: Findings
 # The job of templates/.github/workflows/findings.yml, which every repository that
 # uses the issue assistant calls at the commit of a release. Without AI: dismisses
 # the code scanning alerts that .github/findings.toml accepts, with its reason, and
-# fails while any other alert is open. The run names an open alert by its number and
-# link only, which only maintainers can follow; nothing becomes a public issue. The
-# job blocks every host but GitHub's with Harden-Runner and runs the issue assistant
-# of this workflow's own commit (decision 0015).
+# fails once for every other alert, in the first run that finds it open, and again
+# only when it opens again; the runs after it warn of it (decision 0026). The run
+# names an open alert by its number and link only, which only maintainers can
+# follow; nothing becomes a public issue. The job blocks every host but GitHub's with
+# Harden-Runner and runs the issue assistant of this workflow's own commit (decision
+# 0015).
 # https://github.com/Dennis-Otto/issue-assistant
 
 on:
@@ -46,9 +48,12 @@ jobs:
         with:
           egress-policy: block
           disable-sudo-and-containers: true
+          # GitHub's results service holds the cache with the record of the reported
+          # alerts; Harden-Runner allows the storage of its files by itself.
           allowed-endpoints: >-
             api.github.com:443
             github.com:443
+            results-receiver.actions.githubusercontent.com:443
       - name: Wait until Harden-Runner lets the hosts through
         # The runner may have asked for an address past Harden-Runner, which then blocks
         # that address for as long as systemd-resolved keeps it, up to a minute.
@@ -57,6 +62,7 @@ jobs:
           HOSTS: >-
             api.github.com:443
             github.com:443
+            results-receiver.actions.githubusercontent.com:443
         run: |
           deadline=$(($(date +%s) + 120))
           for endpoint in $HOSTS; do
@@ -110,11 +116,44 @@ jobs:
             /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      # The alerts that earlier runs reported, each with the time it opened, from the
+      # newest record in the cache of the branch, after the checkouts, which would
+      # remove it: a run fails only for an alert that isn't in it, and writes the
+      # record anew then (decision 0026). Without one, as in the first run or when
+      # GitHub's cache fails, every open alert counts as new, so the cache can make a
+      # run fail again but never hide an alert.
+      - name: Restore the record of the reported alerts
+        id: record
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # A cache that fails or hangs, as in an incident of GitHub, stops neither the
+        # findings nor the job, which has five minutes.
+        timeout-minutes: 1
+        continue-on-error: true
+        with:
+          path: .issue-assistant/findings.json
+          key: issue-assistant-findings-${{ github.run_id }}
+          restore-keys: issue-assistant-findings-
       - name: Dismiss accepted findings and report the others
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         with:
           command: findings
           dry-run: ${{ inputs.dry_run }}
+      # Only a record that this run wrote, after it found a new alert, also when it
+      # failed for that: its key is the hash of the file, so the record that the run
+      # restored and left as it was has its key already. A dry run writes none.
+      - name: Keep the record of the reported alerts
+        if: >-
+          !cancelled() && !inputs.dry_run &&
+          hashFiles('.issue-assistant/findings.json') != '' &&
+          steps.record.outputs.cache-matched-key !=
+          format('issue-assistant-findings-{0}', hashFiles('.issue-assistant/findings.json'))
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # A record that isn't kept makes the next run fail again, and fails no run.
+        timeout-minutes: 1
+        continue-on-error: true
+        with:
+          path: .issue-assistant/findings.json
+          key: issue-assistant-findings-${{ hashFiles('.issue-assistant/findings.json') }}
       - name: Wait until Harden-Runner has removed Docker
         # Harden-Runner removes Docker with apt-get in the background; a job that ends
         # before it finishes hangs in "Cleaning up orphan processes" until its timeout.

@@ -35,6 +35,8 @@ _spec.loader.exec_module(schemas)
 # The folder of the package, whose code package_source() reads.
 PACKAGE = Path(assistant.__file__).parent
 REPOSITORY = "owner/project"
+# When the alerts of make_alert opened.
+OPENED = "2026-11-08T04:08:48Z"
 # The settings that the property tests and the fuzzers clean with: a repository, a
 # kind of issue and one site besides GitHub that links may lead to.
 CONFIG = assistant.Config(
@@ -443,10 +445,17 @@ def release_history(*ages, **changes):
     return releases
 
 
-def make_alert(number=1, tool="Scorecard", rule="CodeReviewID", path="no file"):
+def make_alert(
+    number=1, tool="Scorecard", rule="CodeReviewID", path="no file", opened=OPENED
+):
+    """An open alert of code scanning, which opened at the time `opened`: GitHub
+    sets updated_at when an alert opens, opens again, is fixed or is dismissed, and
+    leaves it as it is while every scan finds the alert open again."""
     return {
         "number": number,
         "state": "open",
+        "created_at": opened,
+        "updated_at": opened,
         "tool": {"name": tool},
         "rule": {"id": rule},
         "most_recent_instance": {"location": {"path": path}},

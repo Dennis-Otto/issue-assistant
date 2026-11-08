@@ -21,6 +21,7 @@ from support import (
     BOX_TICKED,
     BOX_UNTICKED,
     BUG_BODY,
+    OPENED,
     FakeGitHub,
     Frozen,
     analysis,
@@ -430,6 +431,19 @@ def open_alert(config):
     return github
 
 
+def with_no_record(root):
+    """The findings write the record of the alerts that they report into the
+    repository's checkout, so they get a copy of their own."""
+    assert not (root / assistant.FINDINGS_RECORD).exists()
+
+
+def with_alert_reported(root):
+    """The record of an earlier run that reported the alert of open_alert."""
+    path = root / assistant.FINDINGS_RECORD
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"4": OPENED}), "utf-8")
+
+
 def without_gitignore(root):
     (root / ".gitignore").unlink()
 
@@ -498,12 +512,15 @@ SUMMARIES = {
     ),
     "sweep-incomplete": (sweep_stopped_by_github, ["sweep"], {}),
     "findings": (open_alert, ["findings"], {}),
+    "findings-reported": (open_alert, ["findings"], {}),
     "check": (lambda config: None, ["check"], {}),
 }
 # The cases that change the files of the repository, in a copy of their own.
 CHANGED_ROOTS = {
     "apply-candidate": with_labels_to_offer,
     "check": without_gitignore,
+    "findings": with_no_record,
+    "findings-reported": with_alert_reported,
     "sweep-candidates": with_labels_to_offer,
     "sweep-digest-issue": with_digest_issue,
 }

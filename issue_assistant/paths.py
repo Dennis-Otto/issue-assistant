@@ -26,6 +26,10 @@ WORKFLOWS = PurePosixPath(".github/workflows")
 FIREWALL = PurePosixPath(".github/egress-firewall.yaml")
 ACTIONLINT = PurePosixPath(".github/actionlint.yaml")
 FINDINGS_FILE = PurePosixPath(".github/findings.toml")
+# The alerts of code scanning that a run of the findings reported, each with the
+# time it opened, so that an alert fails one run and not every one after it. The
+# Findings workflow keeps it from run to run in the cache of the default branch.
+FINDINGS_RECORD = CONTEXT / "findings.json"
 # Files that install writes only when a repository doesn't have them yet.
 STARTERS = (
     LABELS_FILE,

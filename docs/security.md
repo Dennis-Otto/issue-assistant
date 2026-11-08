@@ -16,7 +16,7 @@ What the issue assistant protects, what it trusts and which risks remain. [SECUR
 - No issue can close another reporter's issue. A sure duplicate closes on its own only when a maintainer opened or triaged the original, and a comment of anyone, or a thumbs down of the reporter or of anyone who may push to the repository, keeps it open.
 - The secret of the engine stays in the environment `issue-assistant`, which only the default branch may use; only the job that runs the engine sees it.
 - No code of a pull request runs in a workflow of the assistant.
-- The jobs that write reach only GitHub, in a public repository and in a private one whose owner subscribes to StepSecurity. Every job without the AI blocks every host but `api.github.com` and `github.com` with Harden-Runner, and no step in it can use sudo or containers.
+- The jobs that write reach only GitHub, in a public repository and in a private one whose owner subscribes to StepSecurity. Every job without the AI blocks every host but `api.github.com` and `github.com` with Harden-Runner, and the findings GitHub's results service of their cache besides, and no step in it can use sudo or containers.
 - An open finding of code scanning is named in a public log only by the number and link of its alert.
 - The action stores no secrets and no data outside GitHub. Only Harden-Runner, in the jobs without the AI, reports to StepSecurity, as the residual risks say.
 

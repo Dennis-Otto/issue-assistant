@@ -89,6 +89,12 @@ HARDEN_RUNNER = "step-security/harden-runner"
 # The hosts that a job without the AI reaches: the checkout and the GitHub CLI.
 # Harden-Runner allows the hosts of the runner itself, such as those of the logs.
 GITHUB_HOSTS = ["api.github.com:443", "github.com:443"]
+# GitHub's results service, which holds the cache of the findings with the record of
+# the alerts that they reported (decision 0026); Harden-Runner allows the storage of
+# its files by itself, as it does for its own cache.
+CACHE_HOST = "results-receiver.actions.githubusercontent.com:443"
+# The prefix of the keys of the records in the cache of the findings.
+FINDINGS_CACHE = "issue-assistant-findings-"
 # The runner of the AI: GitHub's egress-firewall runner, a technical preview, or the
 # runner that the repository's variable names in its place, behind Harden-Runner.
 AI_RUNNER = (
@@ -661,10 +667,11 @@ def test_jobs_without_the_ai_reach_only_github(item):
     first, *rest = job["steps"]
     action, _, ref = first["uses"].partition("@")
     assert action == HARDEN_RUNNER and assistant.SHA.fullmatch(ref), (name, job_name)
+    hosts = GITHUB_HOSTS + [CACHE_HOST] * (job_name == "findings")
     assert first["with"] == {
         "egress-policy": "block",
         "disable-sudo-and-containers": True,
-        "allowed-endpoints": " ".join(GITHUB_HOSTS),
+        "allowed-endpoints": " ".join(hosts),
     }
     assert not any(step.get("uses", "").startswith(HARDEN_RUNNER) for step in rest)
 
@@ -2363,12 +2370,48 @@ def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
     # Only code scanning of the default branch of this repository, never of a fork.
     assert "head_repository.full_name == github.repository" in condition
     assert "head_branch == github.event.repository.default_branch" in condition
-    _, _, guard, checkout, tool, step, _ = job["steps"]
+    _, _, guard, checkout, tool, restore, step, keep, _ = job["steps"]
     assert guard["name"] == GUARD["name"]
     assert checkout["with"] == {"persist-credentials": False}
     assert tool["with"] == TOOL_CHECKOUT and step["uses"] == TOOL
     assert step["with"]["command"] == "findings"
     assert "environment" not in job
+
+
+def test_the_findings_keep_the_record_of_the_reported_alerts_in_the_cache():
+    """An open alert fails one run, not every run after each scan and every morning,
+    which GitHub would mail the maintainer about: the record of the alerts that a run
+    reported goes from run to run in the cache of the default branch (decision 0026).
+    """
+    (job,) = load(reusable("findings.yml"))["jobs"].values()
+    names = [step.get("name") for step in job["steps"]]
+    restore = step_named(job, "Restore the record of the reported alerts")
+    keep = step_named(job, "Keep the record of the reported alerts")
+    findings = names.index("Dismiss accepted findings and report the others")
+    # After the checkouts, whose clean would remove the record, around the findings.
+    assert names.index(restore["name"]) == findings - 1
+    assert names.index(keep["name"]) == findings + 1
+    record = assistant.FINDINGS_RECORD.as_posix()
+    hashed = f"hashFiles('{record}')"
+    for step, part in ((restore, "restore"), (keep, "save")):
+        action, _, ref = step["uses"].partition("@")
+        assert action == f"actions/cache/{part}" and assistant.SHA.fullmatch(ref)
+        # A cache that fails or hangs stops neither the findings nor the job.
+        assert step["continue-on-error"] is True and step["timeout-minutes"] == 1
+        assert step["with"]["path"] == record
+    # The newest record of the branch, by a key that no record has.
+    assert restore["id"] == "record"
+    assert restore["with"]["key"] == FINDINGS_CACHE + "${{ github.run_id }}"
+    assert restore["with"]["restore-keys"] == FINDINGS_CACHE
+    assert "if" not in restore
+    # A new record alone, by the hash of the file, also after a failed run; a dry run
+    # writes none, and keeps none.
+    assert keep["with"]["key"] == FINDINGS_CACHE + "${{ " + hashed + " }}"
+    assert " ".join(keep["if"].split()) == (
+        f"!cancelled() && !inputs.dry_run && {hashed} != '' && "
+        "steps.record.outputs.cache-matched-key != "
+        f"format('{FINDINGS_CACHE}{{0}}', {hashed})"
+    )
 
 
 def test_the_firewall_template_allows_only_named_hosts():
