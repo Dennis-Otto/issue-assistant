@@ -686,13 +686,23 @@ def tagline(text: str) -> str:
     return match[1]
 
 
+def listing() -> str:
+    """The address of the action's listing on the GitHub Marketplace, which the name
+    in action.yml gives: in lower case, with a hyphen for each space."""
+    action = yaml.safe_load((ROOT / "action.yml").read_text("utf-8"))
+    slug = re.sub(r"[^a-z0-9]+", "-", action["name"].lower()).strip("-")
+    return f"https://github.com/marketplace/actions/{slug}"
+
+
 def test_the_action_has_a_name_of_its_own_on_the_marketplace():
     action = yaml.safe_load((ROOT / "action.yml").read_text("utf-8"))
     # The Marketplace lists an action only under a name that no other action has, at
     # the address that the name gives. issue-assistant belongs to workflowkit's
-    # "Issue Assistant"; this address was free on 2026-10-12.
-    address = re.sub(r"[^a-z0-9]+", "-", action["name"].lower()).strip("-")
-    assert address == "read-only-issue-assistant"
+    # "Issue Assistant"; this address was free on 2026-10-12, and the action is
+    # listed there since.
+    assert (
+        listing() == "https://github.com/marketplace/actions/read-only-issue-assistant"
+    )
     # The violet of the hero and of the social preview.
     assert action["branding"]["color"] in MARKETPLACE_COLORS
     assert action["branding"]["color"] == "purple"
@@ -728,6 +738,30 @@ def test_the_readme_says_what_why_and_how_before_the_animation():
     assert re.findall(r"^(\d+)\. \*\*", steps, re.MULTILINE) == ["1", "2", "3", "4"]
     for needed in ("Auto-close issues with merged linked pull requests", "Try it"):
         assert needed in steps
+
+
+def test_the_readme_the_set_up_and_the_home_page_lead_to_the_listing():
+    address = listing()
+    readme = (ROOT / "README.md").read_text("utf-8")
+    top = readme[: readme.index("<picture>")]
+    # A badge of the row at the top leads to the listing.
+    badges = re.findall(r"^\[!\[([^\]]+)\]\([^)]+\)\]\(([^)]+)\)$", top, re.MULTILINE)
+    assert ("GitHub Marketplace", address) in badges
+    # The listing's *Use latest version* shows one step of the action, which needs a
+    # command: a visitor from there learns to give it `command: check`, and that
+    # install writes the workflows that run the assistant.
+    (visitor,) = [line for line in top.splitlines() if f"]({address})?" in line]
+    assert "`command: check`" in visitor and "`install` above writes" in visitor
+    assert "/docs/getting-started.md#keep-it-checked)" in visitor
+    for page in ("getting-started.md", "index.md", "roadmap.md"):
+        assert f"]({address})" in (ROOT / "docs" / page).read_text("utf-8"), page
+    # The set-up names the listing where it shows that step.
+    page = (ROOT / "docs" / "getting-started.md").read_text("utf-8")
+    checked = page.split("\n### Keep it checked\n", 1)[1].split("\n### ", 1)[0]
+    assert "command: check" in checked and f"]({address})" in checked
+    # The roadmap no longer waits for the listing.
+    roadmap = (ROOT / "docs" / "roadmap.md").read_text("utf-8")
+    assert "isn't listed" not in roadmap and "Marketplace, done" in roadmap
 
 
 def test_the_website_and_the_repository_describe_the_project_alike(settings):
