@@ -7,7 +7,7 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | Record | Decision | Status |
 | --- | --- | --- |
 | [0001](0001-record-decisions.md) | Record the decisions that shape the project | accepted |
-| [0002](0002-the-ai-only-reads.md) | The AI only reads; a job without AI writes | accepted |
+| [0002](0002-the-ai-only-reads.md) | The AI only reads; a job without AI writes | accepted, amended by [0025](0025-the-ai-runs-only-once-the-block-holds.md) |
 | [0003](0003-the-standard-library-alone.md) | Run on the standard library of Python alone, as a package in layers | accepted, amended |
 | [0004](0004-prompts-without-a-vendor.md) | Keep the prompts and texts independent of the AI vendor | accepted |
 | [0005](0005-close-with-the-release.md) | Close an issue with the release that ships its fix | accepted |
@@ -24,9 +24,10 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0016](0016-learn-from-the-history-on-github.md) | Learn from the maintainers' corrections as they stand on GitHub, as data of the context | accepted |
 | [0017](0017-engines-without-an-action-of-their-own.md) | Four engines, and the command lines without a fitting action run in the action | accepted, amended by [0020](0020-patch-versions-of-the-engines-merge-on-their-own.md) |
 | [0018](0018-answer-questions-in-discussions.md) | A first answer in Discussions, from a workflow of its own that alone may write there | accepted |
-| [0019](0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md) | A repository may name another runner for the AI, behind Harden-Runner with the hosts of its firewall policy, should the firewall runner be gone | accepted |
+| [0019](0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md) | A repository may name another runner for the AI, behind Harden-Runner with the hosts of its firewall policy, should the firewall runner be gone | accepted, amended by [0025](0025-the-ai-runs-only-once-the-block-holds.md) |
 | [0020](0020-patch-versions-of-the-engines-merge-on-their-own.md) | A patch version of an engine merges on its own once the check of its contracts passed | accepted |
 | [0021](0021-letters-of-a-script-count-as-stopwords.md) | Letters of a script of their own count as stopwords in the guess of the language, and Russian and Ukrainian get a third form of a number of days | accepted |
 | [0022](0022-the-pages-hold-the-details.md) | The pages of `docs/` hold the details, with a page for each feature, and a short README links them | accepted |
 | [0023](0023-a-reporter-can-keep-the-ai-out.md) | A reporter can keep the AI out of their issue with a box of the form, which mutes it and takes its text out of every other run | accepted |
 | [0024](0024-requests-against-github-s-own-descriptions.md) | Every request asks for one version of GitHub's API and meets a reduced copy of GitHub's OpenAPI description, which a bot keeps current | accepted |
+| [0025](0025-the-ai-runs-only-once-the-block-holds.md) | The AI runs only once a step proves on its runner that a host outside the firewall policy is out of reach and GitHub answers | accepted |

@@ -240,10 +240,11 @@ autofix = """An error of the command needs a person, who knows what it should na
 [check."the AI's runner in reserve behind Harden-Runner"]
 title = "The block of Harden-Runner on the AI's runner in reserve"
 problem = """Behind Harden-Runner in block mode, with the hosts that `endpoints` names
-from `.github/egress-firewall.yaml`, either requests to `example.com`, a host outside
-the policy, still got through after a minute, or one to `registry.npmjs.org` on port
-443 or to `azure.archive.ubuntu.com` on port 80, hosts of the policy, was blocked; the
-log says which."""
+from `.github/egress-firewall.yaml`, the step *Make sure that the network block holds*
+failed, because requests to `example.com`, a host outside the policy, still got
+through after a minute or `api.github.com` never answered, or one request to
+`registry.npmjs.org` on port 443 or to `azure.archive.ubuntu.com` on port 80, hosts of
+the policy, was blocked; the log says which."""
 why = """The job analyze runs behind exactly this block when a repository moves the AI
 to the runner in reserve. A host that gets through lets the AI reach any host, and a
 blocked host of the policy stops every analysis there."""
@@ -256,6 +257,45 @@ endpoints in the log of the job before with `.github/egress-firewall.yaml`, and 
 docs = "docs/decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md"
 autofix = """Whether a host may be reached is a decision of the security design, for a
 person."""
+
+# ---------------------------------------------------------------- the network block of the AI
+
+[check."the network block of the AI's runner"]
+title = "The network block on GitHub's egress-firewall runner"
+problem = """On `ubuntu-24.04-firewall`, with this repository's `.github/egress-firewall.yaml`,
+the step *Make sure that the network block holds*, which the job analyze of every
+repository runs before the engine, failed: a request to `example.com`, a host outside
+the policy, got an answer, or `api.github.com` answered none within a minute. The
+summary of the job shows how the firewall answered `example.com`."""
+why = """Where this step fails, the AI of every repository stops before it runs, or, had
+the step passed where the firewall lets every host through, it would run with the
+engine's secret and open network access. GitHub's firewall is a technical preview
+whose rules and discovery of the policy may change."""
+fix = """When `example.com` got through, look at the policy (`mode: enforce`), at the
+permission `contents: read` of the job, and at the README of the preview for a change
+of its format or of how it finds the file; fix the policy in `templates/` and
+`.github/`, and the step only together with decision 0025. When `api.github.com`
+answered none, or the job waited for a runner, run the job again."""
+docs = "docs/decisions/0025-the-ai-runs-only-once-the-block-holds.md"
+autofix = """Whether the network of the AI is blocked is a decision of the security design,
+for a person."""
+
+[check."the probe of the network block on a runner without one"]
+title = "The probe of the network block where nothing blocks"
+problem = """On `ubuntu-24.04`, without Harden-Runner and without the firewall, the step
+*Make sure that the network block holds* of `.github/workflows/reusable-issue-assistant.yml`
+passed, or failed without its message that `example.com` got through; the log shows its
+output with a mark before each line."""
+why = """The step is the guard of the AI's network in every repository. One that passes
+where nothing blocks would let the AI run with the engine's secret and open network
+access, should the firewall stop enforcing the policy."""
+fix = """Fix the step so that it counts only failed requests to `example.com` as the
+block, with its case in `test_the_ai_runs_only_where_the_block_holds` of
+`tests/test_templates.py`, and keep the first words of its error as the job looks for
+them. Should `example.com` itself have been down for a minute, run the job again."""
+docs = "docs/decisions/0025-the-ai-runs-only-once-the-block-holds.md"
+autofix = """A guard that lets too much through needs a person, who decides what counts
+as the block."""
 
 # ---------------------------------------------------------------- the job schema
 

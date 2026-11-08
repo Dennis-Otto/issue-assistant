@@ -1,0 +1,3 @@
+### Bug fixes
+
+- The AI runs only once its runner proves that the network block holds. Before, only the runner in reserve behind Harden-Runner was checked; on `ubuntu-24.04-firewall`, the default, nothing noticed when GitHub's egress firewall, a technical preview, didn't enforce `.github/egress-firewall.yaml`, such as for a job without `contents: read`, with `mode: log`, or after a change of the preview. Now, on every runner, `analyze` asks for `example.com`, a host of no policy, and for `api.github.com` before any step gets the engine's secret, and stops with an error that names the likely causes when the one answers or the other doesn't. This takes about five seconds per analysis, needs no `install`, and comes with the next update of the pin.
