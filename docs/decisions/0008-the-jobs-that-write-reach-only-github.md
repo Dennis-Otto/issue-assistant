@@ -1,6 +1,6 @@
 # The jobs that write reach only GitHub
 
-- Status: accepted
+- Status: accepted, amended by [0026](0026-an-open-alert-fails-one-run.md)
 - Date: 2026-10-13
 
 ## Context

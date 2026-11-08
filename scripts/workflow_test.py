@@ -40,6 +40,10 @@ CALLS: dict[str, dict[str, str | None]] = {
         "Synchronize labels": "Create and update the labels",
     },
     "reusable-findings.yml": {
+        # It writes no plan: the step that hands the record on to the findings.
+        "Read the record of the reported alerts": (
+            "Check the record of the reported alerts"
+        ),
         "Accept or report findings": "Dismiss accepted findings and report the others",
     },
     "reusable-issue-lifecycle.yml": {

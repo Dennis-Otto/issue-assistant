@@ -1,8 +1,9 @@
 # Findings of code scanning (CodeQL, OpenSSF Scorecard and other tools) that this
 # repository accepts, each with its reason. The Findings workflow of the issue
 # assistant (https://github.com/Dennis-Otto/issue-assistant) dismisses matching
-# alerts with this reason and fails while any other alert is open. Its run names an
-# open alert only by number and link; nothing becomes a public issue.
+# alerts with this reason and fails once for every other alert, in the first run
+# that finds it open, and again only when it opens again. Its run names an open
+# alert only by number and link; nothing becomes a public issue.
 #
 # Accept a finding only when fixing it is impossible or wrong, and say why:
 #

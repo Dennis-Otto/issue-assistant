@@ -1,6 +1,7 @@
 # Findings of code scanning that this repository accepts, each with its reason.
-# The Findings workflow dismisses matching alerts with this reason and fails while
-# any other alert is open; see docs/configuration.md#findings.
+# The Findings workflow dismisses matching alerts with this reason and fails once
+# for every other alert, in the first run that finds it open, and again only when
+# it opens again; see docs/configuration.md#findings.
 
 [[accept]]
 tool = "Scorecard"

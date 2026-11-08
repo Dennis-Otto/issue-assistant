@@ -1,11 +1,12 @@
-"""Findings of code scanning: accepted ones are dismissed, others fail the run."""
+"""Findings of code scanning: accepted ones are dismissed, others fail a run once."""
 
 import dataclasses
+import json
 
 import pytest
 
 import issue_assistant as assistant
-from support import FakeGitHub, make_alert, run_main
+from support import OPENED, REPOSITORY, FakeGitHub, make_alert, run_main
 
 ACCEPTED = """
 [[accept]]
@@ -177,21 +178,187 @@ def test_the_starter_and_accepted_findings_pass_the_check(config, root):
     assert assistant.check_accepted_findings(config) == []
 
 
-def test_the_findings_command_fails_while_findings_are_open(
-    monkeypatch, tmp_path, root, config
+def link(number):
+    return f"https://github.com/{REPOSITORY}/security/code-scanning/{number}"
+
+
+ANNOTATIONS = ("::error::", "::warning::")
+
+
+def findings(monkeypatch, tmp_path, root, github, capsys, **env):
+    """A run of the findings command: its exit code, its summary, and the
+    annotations of its log."""
+    (tmp_path / "summary").unlink(missing_ok=True)
+    capsys.readouterr()
+    code, _, summary = run_main(monkeypatch, tmp_path, root, github, "findings", **env)
+    log = capsys.readouterr().out.splitlines()
+    return code, summary, [line for line in log if line.startswith(ANNOTATIONS)]
+
+
+def record(root):
+    return json.loads((root / assistant.FINDINGS_RECORD).read_text("utf-8"))
+
+
+STILL_OPEN = (
+    "An open alert fails only the first run that finds it, and again once it opens "
+    "again; until it is fixed or accepted, the runs after it name it here."
+)
+FIX = "Fix these findings, or accept them with a reason in .github/findings.toml."
+
+
+def test_an_open_alert_fails_the_first_run_that_finds_it_alone(
+    monkeypatch, tmp_path, root, config, capsys
 ):
+    """The workflow runs after every scan and every morning, and GitHub mails the
+    maintainer about every failed run: an alert that stays open fails one."""
     write_findings(root)
     github = FakeGitHub(config)
     github.alert_store = [make_alert(3), make_alert(4, "CodeQL", "js/xss", "x.js")]
-    code, _, summary = run_main(monkeypatch, tmp_path, root, github, "findings")
+    code, summary, annotations = findings(monkeypatch, tmp_path, root, github, capsys)
     assert code == 1
-    assert "### Findings\n\n- Alert #3 (Scorecard CodeReviewID) dismissed" in summary
-    assert "Alert #4 is open" in summary
-    code, _, summary = run_main(monkeypatch, tmp_path, root, github, "findings")
-    assert code == 1
+    assert summary == (
+        "### Findings\n\n"
+        "- Alert #3 (Scorecard CodeReviewID) dismissed as won't fix.\n"
+        f"- Alert #4 is open: {link(4)}\n"
+        f"- {FIX}\n"
+    )
+    assert annotations == [f"::error::Alert #4 is open: {link(4)}"]
+    # Only the alerts that stay open, with the time each opened.
+    assert record(root) == {"4": OPENED}
+    for _ in range(2):
+        code, summary, annotations = findings(
+            monkeypatch, tmp_path, root, github, capsys
+        )
+        assert code == 0
+        assert summary == (
+            "### Findings\n\n"
+            "- Alert #3 (Scorecard CodeReviewID) dismissed as won't fix.\n"
+            f"- Alert #4 is still open: {link(4)}\n"
+            f"- {STILL_OPEN}\n"
+            f"- {FIX}\n"
+        )
+        assert annotations == [f"::warning::Alert #4 is still open: {link(4)}"]
+        assert record(root) == {"4": OPENED}
     github.alert_store = [alert for alert in github.alert_store if alert["number"] == 3]
-    code, _, summary = run_main(monkeypatch, tmp_path, root, github, "findings")
-    assert code == 0
+    code, summary, annotations = findings(monkeypatch, tmp_path, root, github, capsys)
+    assert code == 0 and annotations == []
+    assert "open" not in summary
+
+
+def test_an_alert_that_opens_again_fails_a_run_again(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    """A fixed alert that a later scan finds again keeps its number, and GitHub
+    gives it the time it opened again; a new alert fails the run beside one that
+    an earlier run reported, which stays a warning."""
+    github = FakeGitHub(config)
+    github.alert_store = [make_alert(4), make_alert(5)]
+    assert findings(monkeypatch, tmp_path, root, github, capsys)[0] == 1
+    later = "2026-11-09T07:17:00Z"
+    github.alert_store = [make_alert(4, opened=later), make_alert(5), make_alert(6)]
+    code, summary, annotations = findings(monkeypatch, tmp_path, root, github, capsys)
+    assert code == 1
+    assert annotations == [
+        f"::error::Alert #4 is open: {link(4)}",
+        f"::error::Alert #6 is open: {link(6)}",
+        f"::warning::Alert #5 is still open: {link(5)}",
+    ]
+    assert summary.endswith(f"- {STILL_OPEN}\n- {FIX}\n")
+    assert record(root) == {"4": later, "5": OPENED, "6": OPENED}
+    # A fixed alert leaves the record with the next one that opens.
+    github.alert_store = [make_alert(5), make_alert(7)]
+    assert findings(monkeypatch, tmp_path, root, github, capsys)[0] == 1
+    assert record(root) == {"5": OPENED, "7": OPENED}
+
+
+def test_a_run_without_new_alerts_leaves_the_record_as_it_is(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    """The workflow keeps the record in the cache only when it changed: a run that
+    finds nothing new writes nothing, also with no alert open at all."""
+    github = FakeGitHub(config)
+    assert findings(monkeypatch, tmp_path, root, github, capsys)[0] == 0
+    path = root / assistant.FINDINGS_RECORD
+    assert not path.exists()
+    github.alert_store = [make_alert(5), make_alert(4)]
+    findings(monkeypatch, tmp_path, root, github, capsys)
+    before = path.read_bytes()
+    assert before == (
+        b'{\n  "4": "2026-11-08T04:08:48Z",\n  "5": "2026-11-08T04:08:48Z"\n}\n'
+    )
+    github.alert_store = [make_alert(5)]
+    assert findings(monkeypatch, tmp_path, root, github, capsys)[0] == 0
+    github.alert_store = []
+    assert findings(monkeypatch, tmp_path, root, github, capsys)[0] == 0
+    assert path.read_bytes() == before
+
+
+def test_a_dry_run_keeps_no_record(monkeypatch, tmp_path, root, config, capsys):
+    """The dry runs of the Workflow test find the alerts of the default branch as the
+    Findings workflow does there, and leave its record alone."""
+    github = FakeGitHub(config, dry_run=True)
+    github.alert_store = [make_alert(4)]
+    for _ in range(2):
+        code, summary, _ = findings(
+            monkeypatch, tmp_path, root, github, capsys, DRY_RUN="true"
+        )
+        assert code == 1 and summary.startswith("### Findings (dry run)")
+    assert not (root / assistant.FINDINGS_RECORD).exists()
+
+
+def test_a_dry_run_follows_the_record_of_the_real_runs(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    github = FakeGitHub(config)
+    github.alert_store = [make_alert(4)]
+    findings(monkeypatch, tmp_path, root, github, capsys)
+    dry = FakeGitHub(config, dry_run=True)
+    dry.alert_store = [make_alert(4), make_alert(5)]
+    code, _, annotations = findings(
+        monkeypatch, tmp_path, root, dry, capsys, DRY_RUN="true"
+    )
+    assert code == 1
+    assert annotations == [
+        f"::error::Alert #5 is open: {link(5)}",
+        f"::warning::Alert #4 is still open: {link(4)}",
+    ]
+    assert record(root) == {"4": OPENED}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        b"not JSON",
+        b"\xff\xfe",
+        b"[4]",
+        b'{"four": "2026-11-08T04:08:48Z"}',
+        b'{"-4": "2026-11-08T04:08:48Z"}',
+        b'{"4": 1762575000}',
+    ],
+)
+def test_a_broken_record_counts_every_open_alert_as_new(
+    monkeypatch, tmp_path, root, config, capsys, text
+):
+    """The record comes from the cache, which other workflows of the default branch
+    can write too: one that isn't a record reports every open alert again, and
+    never hides one."""
+    path = root / assistant.FINDINGS_RECORD
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(text)
+    github = FakeGitHub(config)
+    github.alert_store = [make_alert(4)]
+    code, summary, annotations = findings(monkeypatch, tmp_path, root, github, capsys)
+    problem = (
+        ".issue-assistant/findings.json holds no record of the alerts that earlier "
+        "runs reported, so every open alert counts as new."
+    )
+    assert code == 1
+    assert annotations == [
+        f"::warning::{problem}",
+        f"::error::Alert #4 is open: {link(4)}",
+    ]
+    assert summary.startswith(f"### Findings\n\n- {problem}\n- Alert #4 is open")
+    assert record(root) == {"4": OPENED}
 
 
 def test_the_findings_command_needs_no_issue_settings(monkeypatch, tmp_path, config):

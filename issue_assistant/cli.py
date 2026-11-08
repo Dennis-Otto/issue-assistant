@@ -15,7 +15,12 @@ from typing import Any
 
 from .accuracy import ACCURACY_PAGE, measurement_of, page_with_numbers
 from .applying import apply_answer
-from .code_scanning import watch_findings
+from .code_scanning import (
+    ALERT_OPEN,
+    ALERT_STILL_OPEN,
+    BROKEN_RECORD,
+    watch_findings,
+)
 from .constants import (
     DISCUSSION_MODES,
     EVALUATED,
@@ -150,8 +155,8 @@ SCRIPT_COMMANDS = {
     "sweep": "remind, close unanswered issues and duplicates, and fixed issues with "
     "the release",
     "sync-labels": "create and update the labels",
-    "findings": "dismiss the accepted findings of code scanning and fail while others "
-    "are open",
+    "findings": "dismiss the accepted findings of code scanning, and fail once for "
+    "each other alert, when it opens",
     "check": "check the repository's set-up",
     "evaluate": "measure how often a first analysis chooses the labels, duplicates and "
     "questions of the maintainers, by replaying closed issues with the engine's "
@@ -409,12 +414,18 @@ def usage_command(root: Path, repository: str, arguments: argparse.Namespace) ->
 
 
 def findings_command(github: GitHub, root: Path, dry_run: bool) -> int:
-    lines, left = watch_findings(github, root)
+    """Fail on the alerts that opened since the run before, which GitHub mails the
+    maintainer about, and warn of those that an earlier run reported."""
+    lines, new = watch_findings(github, root)
     for line in lines:
-        if line.startswith("Alert #") and " is open: " in line:
+        if line.startswith("Alert #") and ALERT_OPEN in line:
             command("error", line)
+        elif line == BROKEN_RECORD or (
+            line.startswith("Alert #") and ALERT_STILL_OPEN in line
+        ):
+            command("warning", line)
     summary("Findings", lines or ["No open findings."], dry_run)
-    return 1 if left else 0
+    return 1 if new else 0
 
 
 def evaluate_command(

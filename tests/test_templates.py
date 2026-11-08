@@ -22,6 +22,7 @@ import pytest
 import yaml
 
 import issue_assistant as assistant
+from issue_assistant.code_scanning import keep_reported
 from support import blueprint_files, package_source
 
 ROOT = assistant.TOOL
@@ -89,6 +90,27 @@ HARDEN_RUNNER = "step-security/harden-runner"
 # The hosts that a job without the AI reaches: the checkout and the GitHub CLI.
 # Harden-Runner allows the hosts of the runner itself, such as those of the logs.
 GITHUB_HOSTS = ["api.github.com:443", "github.com:443"]
+# GitHub's results service, which holds the cache of the findings with the record of
+# the alerts that they reported (decision 0026); Harden-Runner allows the storage of
+# its files by itself, as it does for its own cache.
+CACHE_HOST = "results-receiver.actions.githubusercontent.com:443"
+# The prefix of the keys of the records in the cache of the findings.
+FINDINGS_CACHE = "issue-assistant-findings-"
+# The job of the findings that unpacks the record from the cache, without any scope
+# of the token and without the issue assistant (decision 0026).
+RECORD_JOB = "record"
+
+
+def tool_jobs(name):
+    """The jobs of a reusable workflow that run the issue assistant: all of them, but
+    the job of the findings that reads their record from the cache."""
+    return {
+        job_name: job
+        for job_name, job in load(reusable(name))["jobs"].items()
+        if (name, job_name) != ("findings.yml", RECORD_JOB)
+    }
+
+
 # The runner of the AI: GitHub's egress-firewall runner, a technical preview, or the
 # runner that the repository's variable names in its place, behind Harden-Runner.
 AI_RUNNER = (
@@ -491,7 +513,7 @@ def test_every_job_runs_the_issue_assistant_of_its_workflow_s_commit(name):
     pins, and runs the action from there: the templates and the action of one
     release, always."""
     assert f"{assistant.ACTION}@" not in reusable(name).read_text(encoding="utf-8")
-    for job_name, job in load(reusable(name))["jobs"].items():
+    for job_name, job in tool_jobs(name).items():
         uses = [step.get("uses", "") for step in job["steps"]]
         tool = [index for index, step in enumerate(uses) if step == TOOL]
         (checkout,) = [
@@ -527,7 +549,7 @@ def guard_step():
 def test_every_job_stops_where_github_names_no_commit_of_its_workflow(name):
     """The guard comes right before the first checkout of each job, the same in
     each."""
-    for job_name, job in load(reusable(name))["jobs"].items():
+    for job_name, job in tool_jobs(name).items():
         steps = job["steps"]
         guards = [
             index
@@ -661,10 +683,13 @@ def test_jobs_without_the_ai_reach_only_github(item):
     first, *rest = job["steps"]
     action, _, ref = first["uses"].partition("@")
     assert action == HARDEN_RUNNER and assistant.SHA.fullmatch(ref), (name, job_name)
+    hosts = GITHUB_HOSTS + [CACHE_HOST] * (job_name == "findings")
+    if (name, job_name) == ("findings.yml", RECORD_JOB):
+        hosts = [CACHE_HOST]
     assert first["with"] == {
         "egress-policy": "block",
         "disable-sudo-and-containers": True,
-        "allowed-endpoints": " ".join(GITHUB_HOSTS),
+        "allowed-endpoints": " ".join(hosts),
     }
     assert not any(step.get("uses", "").startswith(HARDEN_RUNNER) for step in rest)
 
@@ -2295,7 +2320,7 @@ def test_a_run_that_skips_its_job_never_takes_the_place_of_a_waiting_one(name, g
     assert "concurrency" not in template and "concurrency" not in caller
     workflow = load(reusable(name))
     assert "concurrency" not in workflow
-    (job,) = workflow["jobs"].values()
+    (job,) = tool_jobs(name).values()
     # A dry run writes nothing, so it waits for no other run and replaces none.
     assert job["concurrency"] == {
         "group": f"${{{{ inputs.dry_run && format('{group}-dry-run-{{0}}', "
@@ -2357,18 +2382,195 @@ def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
         "types": ["completed"],
     }
     assert triggers["workflow_dispatch"]["inputs"]["dry_run"]["default"] is True
-    (job,) = load(reusable("findings.yml"))["jobs"].values()
+    job = load(reusable("findings.yml"))["jobs"]["findings"]
     assert job["permissions"] == {"contents": "read", "security-events": "write"}
     condition = " ".join(job["if"].split())
     # Only code scanning of the default branch of this repository, never of a fork.
     assert "head_repository.full_name == github.repository" in condition
     assert "head_branch == github.event.repository.default_branch" in condition
-    _, _, guard, checkout, tool, step, _ = job["steps"]
+    _, _, guard, checkout, tool, record, step, keep, _ = job["steps"]
     assert guard["name"] == GUARD["name"]
     assert checkout["with"] == {"persist-credentials": False}
     assert tool["with"] == TOOL_CHECKOUT and step["uses"] == TOOL
     assert step["with"]["command"] == "findings"
     assert "environment" not in job
+
+
+def test_the_findings_keep_the_record_of_the_reported_alerts_in_the_cache():
+    """An open alert fails one run, not every run after each scan and every morning,
+    which GitHub would mail the maintainer about: the record of the alerts that a run
+    reported goes from run to run in the cache of the default branch (decision 0026).
+    """
+    jobs = load(reusable("findings.yml"))["jobs"]
+    reader, job = jobs[RECORD_JOB], jobs["findings"]
+    names = [step.get("name") for step in job["steps"]]
+    restore = step_named(reader, "Restore the record of the reported alerts")
+    check = step_named(reader, "Check the record of the reported alerts")
+    put = step_named(job, "Put the record of the reported alerts in place")
+    keep = step_named(job, "Keep the record of the reported alerts")
+    findings = names.index("Dismiss accepted findings and report the others")
+    # After the checkouts, whose clean would remove the record, around the findings.
+    assert names.index(put["name"]) == findings - 1
+    assert names.index(keep["name"]) == findings + 1
+    record = assistant.FINDINGS_RECORD.as_posix()
+    hashed = f"hashFiles('{record}')"
+    for step, part in ((restore, "restore"), (keep, "save")):
+        action, _, ref = step["uses"].partition("@")
+        assert action == f"actions/cache/{part}" and assistant.SHA.fullmatch(ref)
+        # A cache that fails or hangs stops neither the findings nor the job.
+        assert step["continue-on-error"] is True and step["timeout-minutes"] == 1
+        assert step["with"]["path"] == record
+    # The newest record of the branch, by a key that no record has.
+    assert restore["id"] == "restore"
+    assert restore["with"]["key"] == FINDINGS_CACHE + "${{ github.run_id }}"
+    assert restore["with"]["restore-keys"] == FINDINGS_CACHE
+    assert "if" not in restore
+    assert reader["outputs"] == {
+        "record": "${{ steps.check.outputs.record }}",
+        "key": "${{ steps.restore.outputs.cache-matched-key }}",
+    }
+    assert check["id"] == "check" and check["env"] == {"RECORD": record}
+    # Through the environment alone, never as an expression in the script.
+    assert put["env"] == {"RECORD": "${{ needs.record.outputs.record }}"}
+    assert put["if"] == "needs.record.outputs.record != ''"
+    assert "${{" not in check["run"] + put["run"]
+    # A new record alone, by the hash of the file, also after a failed run; a dry run
+    # writes none, and keeps none.
+    assert keep["with"]["key"] == FINDINGS_CACHE + "${{ " + hashed + " }}"
+    assert " ".join(keep["if"].split()) == (
+        f"!cancelled() && !inputs.dry_run && {hashed} != '' && "
+        "needs.record.outputs.key != "
+        f"format('{FINDINGS_CACHE}{{0}}', {hashed})"
+    )
+    # The findings run also when the record couldn't be read, with none then.
+    assert job["needs"] == RECORD_JOB
+    assert " ".join(job["if"].split()) == (
+        "!cancelled() && " + " ".join(reader["if"].split())
+    )
+
+
+def test_no_job_that_may_write_unpacks_a_cache():
+    """actions/cache unpacks an archive with every path that it holds, also outside
+    the workspace, such as the action that the job runs next, and every workflow of
+    the default branch can write that cache. So the record of the findings comes out
+    of the cache in a job without any scope of the token, which runs no issue
+    assistant and hands on only a record that it checked (decision 0026)."""
+    for name in NAMES:
+        for job_name, job in load(reusable(name))["jobs"].items():
+            restores = [
+                step
+                for step in job["steps"]
+                if step.get("uses", "").startswith("actions/cache")
+                and not step["uses"].startswith("actions/cache/save@")
+            ]
+            if (name, job_name) == ("findings.yml", RECORD_JOB):
+                assert job["permissions"] == {}
+                assert len(restores) == 1
+                assert not any(
+                    step.get("uses", "").startswith("actions/checkout@")
+                    or step.get("uses") == TOOL
+                    for step in job["steps"]
+                )
+            else:
+                assert not restores, (name, job_name)
+
+
+def record_script(step):
+    """The script of `step` with the Python of this test in place of the image's."""
+    python = shlex.quote(Path(sys.executable).as_posix())
+    return step["run"].replace("/usr/bin/python3", python)
+
+
+def run_record_step(step, cwd, **env):
+    output = cwd / "output"
+    output.touch()
+    result = subprocess.run(
+        [shutil.which("bash"), "-e", "-c", record_script(step)],
+        cwd=cwd,
+        env={**os.environ, **env, "GITHUB_OUTPUT": str(output)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    return output.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        (None, ""),
+        ("{}", "{}"),
+        (
+            '{"7": "2026-11-08T04:08:48Z", "12": ""}',
+            '{"7":"2026-11-08T04:08:48Z","12":""}',
+        ),
+        # Anything but numbers and their times is a broken record.
+        ("[]", "null"),
+        ("not json", "null"),
+        ('{"seven": "2026-11-08T04:08:48Z"}', "null"),
+        ('{"7": 1}', "null"),
+        ('{"7": "a\\nb"}', "null"),
+        ('{"1234567890": ""}', "null"),
+        ('{"7": "' + "1" * 41 + '"}', "null"),
+        # Even a record of numbers and times, once it is larger than 64 KB.
+        (
+            json.dumps(dict.fromkeys(map(str, range(4000)), "2026-11-08T04:08:48Z")),
+            "null",
+        ),
+        ("\udcff", "null"),
+    ],
+)
+def test_only_a_checked_record_leaves_the_job_record(tmp_path, content, expected):
+    step = step_named(
+        load(reusable("findings.yml"))["jobs"][RECORD_JOB],
+        "Check the record of the reported alerts",
+    )
+    record = tmp_path / assistant.FINDINGS_RECORD
+    if content is not None:
+        record.parent.mkdir(parents=True)
+        record.write_bytes(content.encode("utf-8", "surrogateescape"))
+    output = run_record_step(
+        step, tmp_path, RECORD=assistant.FINDINGS_RECORD.as_posix()
+    )
+    assert output == f"record={expected}\n"
+
+
+def test_a_directory_is_no_record(tmp_path):
+    step = step_named(
+        load(reusable("findings.yml"))["jobs"][RECORD_JOB],
+        "Check the record of the reported alerts",
+    )
+    (tmp_path / assistant.FINDINGS_RECORD).mkdir(parents=True)
+    output = run_record_step(
+        step, tmp_path, RECORD=assistant.FINDINGS_RECORD.as_posix()
+    )
+    assert output == "record=null\n"
+
+
+def test_the_record_comes_back_as_the_issue_assistant_wrote_it(tmp_path):
+    """The record that the findings get from the job record has the bytes that the
+    issue assistant wrote, so its hash is the key that the cache holds it under, and
+    a run that finds no new alert keeps no new entry."""
+    jobs = load(reusable("findings.yml"))["jobs"]
+    written = tmp_path / "written"
+    alerts = [
+        {"number": 12, "updated_at": "2026-11-08T04:08:48Z"},
+        {"number": 3, "updated_at": None},
+    ]
+    keep_reported(written, alerts)
+    original = (written / assistant.FINDINGS_RECORD).read_bytes()
+    source = tmp_path / "source"
+    (source / assistant.FINDINGS_RECORD).parent.mkdir(parents=True)
+    (source / assistant.FINDINGS_RECORD).write_bytes(original)
+    check = step_named(jobs[RECORD_JOB], "Check the record of the reported alerts")
+    output = run_record_step(check, source, RECORD=assistant.FINDINGS_RECORD.as_posix())
+    record = output.removeprefix("record=").removesuffix("\n")
+    target = tmp_path / "target"
+    target.mkdir()
+    put = step_named(jobs["findings"], "Put the record of the reported alerts in place")
+    run_record_step(put, target, RECORD=record)
+    assert (target / assistant.FINDINGS_RECORD).read_bytes() == original
 
 
 def test_the_firewall_template_allows_only_named_hosts():

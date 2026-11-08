@@ -3,10 +3,12 @@ name: Findings
 # The job of templates/.github/workflows/findings.yml, which every repository that
 # uses the issue assistant calls at the commit of a release. Without AI: dismisses
 # the code scanning alerts that .github/findings.toml accepts, with its reason, and
-# fails while any other alert is open. The run names an open alert by its number and
-# link only, which only maintainers can follow; nothing becomes a public issue. The
-# job blocks every host but GitHub's with Harden-Runner and runs the issue assistant
-# of this workflow's own commit (decision 0015).
+# fails once for every other alert, in the first run that finds it open, and again
+# only when it opens again; the runs after it warn of it (decision 0026). The run
+# names an open alert by its number and link only, which only maintainers can
+# follow; nothing becomes a public issue. The job blocks every host but GitHub's with
+# Harden-Runner and runs the issue assistant of this workflow's own commit (decision
+# 0015).
 # https://github.com/Dennis-Otto/issue-assistant
 
 on:
@@ -20,9 +22,119 @@ on:
 permissions: {}
 
 jobs:
+  # The alerts that earlier runs reported, each with the time it opened, from the
+  # newest record in the cache of the branch (decision 0026). Every workflow of the
+  # default branch can write that cache, and actions/cache unpacks an archive with
+  # every path that it holds, also outside the workspace: so the archive is unpacked
+  # here, in a job without any scope of the token, which hands on only a record that
+  # it checked, never in the job that may dismiss alerts. Without one, as in the
+  # first run or when GitHub's cache fails, every open alert counts as new, so the
+  # cache can make a run fail again but never hide an alert.
+  record:
+    name: Read the record of the reported alerts
+    if: >-
+      !github.event.repository.fork &&
+      (github.event_name != 'workflow_run' ||
+        (github.event.workflow_run.head_repository.full_name == github.repository &&
+         github.event.workflow_run.head_branch == github.event.repository.default_branch))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      record: ${{ steps.check.outputs.record }}
+      key: ${{ steps.restore.outputs.cache-matched-key }}
+    steps:
+      - name: Block every host but GitHub's results service
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          # GitHub's results service holds the cache; Harden-Runner allows the storage
+          # of its files by itself.
+          allowed-endpoints: >-
+            results-receiver.actions.githubusercontent.com:443
+      - name: Wait until Harden-Runner lets the hosts through
+        # The runner may have asked for an address past Harden-Runner, which then blocks
+        # that address for as long as systemd-resolved keeps it, up to a minute.
+        timeout-minutes: 4
+        env:
+          HOSTS: >-
+            results-receiver.actions.githubusercontent.com:443
+        run: |
+          deadline=$(($(date +%s) + 120))
+          for endpoint in $HOSTS; do
+            host="${endpoint%:*}"
+            # A wildcard names no host to ask.
+            [[ "$host" == '*.'* ]] && continue
+            until curl --silent --head --connect-timeout 3 --max-time 5 --output /dev/null "https://$host/"; do
+              if (($(date +%s) >= deadline)); then
+                echo "::warning::Harden-Runner still blocks $host after two minutes; a step that needs it will fail, and the job can run again."
+                break
+              fi
+              echo "Harden-Runner still blocks $host, waiting 3 s."
+              sleep 3
+            done
+          done
+      - name: Restore the record of the reported alerts
+        id: restore
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # A cache that fails or hangs, as in an incident of GitHub, stops neither the
+        # findings nor the job.
+        timeout-minutes: 1
+        continue-on-error: true
+        with:
+          path: .issue-assistant/findings.json
+          key: issue-assistant-findings-${{ github.run_id }}
+          restore-keys: issue-assistant-findings-
+      # Only a record of alert numbers and their times goes on, as one line of JSON:
+      # anything else becomes null, which the findings take as a broken record, and
+      # no record stays empty. The Python of the image, isolated from the workspace.
+      - name: Check the record of the reported alerts
+        id: check
+        timeout-minutes: 1
+        env:
+          RECORD: .issue-assistant/findings.json
+        run: |
+          /usr/bin/python3 -I - <<'PY'
+          import json, os, re
+          path = os.environ["RECORD"]
+          record = ""
+          if os.path.lexists(path):
+              data = None
+              if os.path.isfile(path) and not os.path.islink(path) and os.path.getsize(path) <= 65536:
+                  try:
+                      with open(path, encoding="utf-8") as file:
+                          data = json.load(file)
+                  except ValueError:
+                      pass
+              valid = isinstance(data, dict) and all(
+                  re.fullmatch(r"[0-9]{1,9}", key)
+                  and isinstance(value, str)
+                  and re.fullmatch(r"[0-9A-Za-z:.+-]{0,40}", value)
+                  for key, value in data.items()
+              )
+              record = json.dumps(data if valid else None, separators=(",", ":"))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"record={record}\n")
+          print(f"The record: {record or 'none'}")
+          PY
+      - name: Wait until Harden-Runner has removed Docker
+        # Harden-Runner removes Docker with apt-get in the background; a job that ends
+        # before it finishes hangs in "Cleaning up orphan processes" until its timeout.
+        if: always()
+        run: |
+          for _ in {1..120}; do
+            pgrep -x 'apt-get|dpkg' >/dev/null || exit 0
+            sleep 1
+          done
+          echo "::warning::Harden-Runner still removes Docker after two minutes; the job may hang until its timeout."
+
   findings:
     name: Accept or report findings
+    needs: record
+    # Also when the job record failed: then every open alert counts as new.
     if: >-
+      !cancelled() &&
       !github.event.repository.fork &&
       (github.event_name != 'workflow_run' ||
         (github.event.workflow_run.head_repository.full_name == github.repository &&
@@ -46,9 +158,12 @@ jobs:
         with:
           egress-policy: block
           disable-sudo-and-containers: true
+          # GitHub's results service holds the cache with the record of the reported
+          # alerts; Harden-Runner allows the storage of its files by itself.
           allowed-endpoints: >-
             api.github.com:443
             github.com:443
+            results-receiver.actions.githubusercontent.com:443
       - name: Wait until Harden-Runner lets the hosts through
         # The runner may have asked for an address past Harden-Runner, which then blocks
         # that address for as long as systemd-resolved keeps it, up to a minute.
@@ -57,6 +172,7 @@ jobs:
           HOSTS: >-
             api.github.com:443
             github.com:443
+            results-receiver.actions.githubusercontent.com:443
         run: |
           deadline=$(($(date +%s) + 120))
           for endpoint in $HOSTS; do
@@ -110,11 +226,39 @@ jobs:
             /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      # The record that the job record checked, after the checkouts, which would
+      # remove it, in the form in which the issue assistant writes it: its hash is
+      # the key under which the cache holds it. A run fails only for an alert that
+      # isn't in it, and writes the record anew then (decision 0026).
+      - name: Put the record of the reported alerts in place
+        if: needs.record.outputs.record != ''
+        env:
+          RECORD: ${{ needs.record.outputs.record }}
+        run: |
+          mkdir -p .issue-assistant
+          /usr/bin/python3 -I -c 'import json, os, pathlib; pathlib.Path(".issue-assistant/findings.json").write_text(json.dumps(json.loads(os.environ["RECORD"]), indent=2) + "\n", encoding="utf-8", newline="\n")'
       - name: Dismiss accepted findings and report the others
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         with:
           command: findings
           dry-run: ${{ inputs.dry_run }}
+      # Only a record that this run wrote, after it found a new alert, also when it
+      # failed for that: its key is the hash of the file, so the record that the run
+      # restored and left as it was has its key already. A dry run writes none. Saving
+      # only packs the file and sends it: nothing of the cache is unpacked here.
+      - name: Keep the record of the reported alerts
+        if: >-
+          !cancelled() && !inputs.dry_run &&
+          hashFiles('.issue-assistant/findings.json') != '' &&
+          needs.record.outputs.key !=
+          format('issue-assistant-findings-{0}', hashFiles('.issue-assistant/findings.json'))
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # A record that isn't kept makes the next run fail again, and fails no run.
+        timeout-minutes: 1
+        continue-on-error: true
+        with:
+          path: .issue-assistant/findings.json
+          key: issue-assistant-findings-${{ hashFiles('.issue-assistant/findings.json') }}
       - name: Wait until Harden-Runner has removed Docker
         # Harden-Runner removes Docker with apt-get in the background; a job that ends
         # before it finishes hangs in "Cleaning up orphan processes" until its timeout.
