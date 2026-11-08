@@ -12,7 +12,18 @@ They come from the repositories that use the assistant, [HomeDarts for Autodarts
 
 <!-- accuracy numbers: start -->
 
-None yet: the first run of the workflow *Evaluate* brings the first table.
+### [Dennis-Otto/homedarts-for-autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts)
+
+Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 2 newest of 125 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $0.35 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+
+| Measure | Precision | Recall | Issues |
+| --- | ---: | ---: | ---: |
+| Type | 100 % (2 of 2) | 50 % (2 of 4) | 2 |
+| Areas | – | – | 0 |
+| Topics | – | – | 0 |
+| Duplicates | – | – | 0 |
+| Sure duplicates | – | – | 0 |
+| Asks for information | – | – | 2 |
 
 <!-- accuracy numbers: end -->
 
