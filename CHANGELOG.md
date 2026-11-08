@@ -4,6 +4,13 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.10.3](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.2...v1.10.3) (2026-11-08)
+
+
+### Bug fixes
+
+* **findings:** an open alert fails the job once, not after every scan ([#298](https://github.com/Dennis-Otto/issue-assistant/issues/298)) ([8f6fada](https://github.com/Dennis-Otto/issue-assistant/commit/8f6fada95e83b8a6886fbca915ea17c3c9f920e6))
+
 ## [1.10.2](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.1...v1.10.2) (2026-11-08)
 
 ### Bug fixes
