@@ -765,7 +765,7 @@ def test_the_error_of_the_block_names_its_likely_causes():
         "ISSUE_ASSISTANT_AI to off",
     ):
         assert cause in through, cause
-    assert "api.github.com" in unreachable
+    assert unreachable.split(",")[0] == "No request to api.github.com"
 
 
 @pytest.mark.parametrize("workflow", list(JOBS_WITH_THE_AI))
@@ -817,7 +817,7 @@ def test_the_ai_runs_only_where_the_block_holds(
     )
     assert "example.com" not in policy
     assert "example.com" not in assistant.FIREWALL_DEFAULT_HOSTS
-    assert "api.github.com" in policy
+    assert {"api.github.com"} <= set(policy)
     folder = tmp_path / "bin"
     folder.mkdir()
     arguments = tmp_path / "arguments"
