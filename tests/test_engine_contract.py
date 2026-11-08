@@ -125,8 +125,11 @@ def test_the_job_checks_the_engines_on_a_change_of_one_and_every_week():
     # No secret: the job reads GitHub with its own token, which can only read.
     assert job["permissions"] == {"contents": "read", "pull-requests": "read"}
     assert "secrets." not in json.dumps(job)
-    block, warm_up, checkout = job["steps"][:3]
+    block, see, warm_up, checkout = job["steps"][:4]
     assert block["uses"].startswith("step-security/harden-runner@")
+    # The job keeps sudo, so it lets Harden-Runner see its DNS lookups first, as
+    # tests/test_templates.py checks.
+    assert see["name"] == "Let Harden-Runner see the DNS lookups"
     # GitHub for the files of the actions and the schemas, npm for the command
     # lines, and Sigstore's root of trust, with which npm verifies the attestations
     # of the packages of the lock files.

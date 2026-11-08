@@ -192,7 +192,7 @@ jobs:
             check: action behind the egress block (ubuntu-24.04-arm)
     steps:
       - name: Block every host but GitHub's
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           disable-sudo-and-containers: true
@@ -357,7 +357,7 @@ jobs:
       endpoints: ${{ steps.endpoints.outputs.endpoints }}
     steps:
       - name: Block every host but GitHub's
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           disable-sudo-and-containers: true
@@ -423,10 +423,23 @@ jobs:
     steps:
       # As the first step of analyze on the runner of ISSUE_ASSISTANT_AI_RUNNER.
       - name: Block every host but those of the firewall policy
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           allowed-endpoints: ${{ needs.fallback-hosts.outputs.endpoints }}
+      # As the second step of analyze there.
+      - name: Let Harden-Runner see the DNS lookups
+        run: |
+          dropins=(/etc/systemd/resolved.conf.d/90-egress-proxy.conf /run/systemd/resolved.conf.d/90-egress-proxy.conf)
+          if [[ ! -e ${dropins[0]} && ! -e ${dropins[1]} ]] && ! grep -qs 127.0.0.100 /etc/resolv.conf; then
+            exit 0
+          fi
+          echo "::notice::GitHub's DNS experiment is on this runner; taking it out of the way of Harden-Runner."
+          sudo rm -f "${dropins[@]}"
+          sudo systemctl restart systemd-resolved
+          sudo ln -sfn /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+          sudo systemctl stop egress-dns-resolver.service egress-outbound-proxy.service || true
+          sudo resolvectl flush-caches || true
       - name: Make sure that the network block holds
         run: |
           # A request to example.com, a host of no firewall policy, has to fail: two in a
@@ -647,7 +660,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Block every host but GitHub's, npm's and Sigstore's root of trust
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           allowed-endpoints: >-
@@ -655,6 +668,22 @@ jobs:
             github.com:443
             registry.npmjs.org:443
             tuf-repo-cdn.sigstore.dev:443
+      # GitHub's DNS experiment on some of its runners hides the lookups of the job from
+      # Harden-Runner, which then blocks its hosts until the time limit
+      # (step-security/harden-runner#708). Harden-Runner takes it away unless its
+      # feature flags say no; a job that keeps sudo makes sure, as analyze does.
+      - name: Let Harden-Runner see the DNS lookups
+        run: |
+          dropins=(/etc/systemd/resolved.conf.d/90-egress-proxy.conf /run/systemd/resolved.conf.d/90-egress-proxy.conf)
+          if [[ ! -e ${dropins[0]} && ! -e ${dropins[1]} ]] && ! grep -qs 127.0.0.100 /etc/resolv.conf; then
+            exit 0
+          fi
+          echo "::notice::GitHub's DNS experiment is on this runner; taking it out of the way of Harden-Runner."
+          sudo rm -f "${dropins[@]}"
+          sudo systemctl restart systemd-resolved
+          sudo ln -sfn /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+          sudo systemctl stop egress-dns-resolver.service egress-outbound-proxy.service || true
+          sudo resolvectl flush-caches || true
       - name: Wait until Harden-Runner lets the hosts through
         # The runner may have asked for an address past Harden-Runner, which then blocks
         # that address for as long as systemd-resolved keeps it, up to a minute.
@@ -731,7 +760,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Record the network traffic of the job
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -808,7 +837,7 @@ jobs:
       GH_TELEMETRY: "false"
     steps:
       - name: Block every host that the job doesn't need
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           disable-sudo-and-containers: true

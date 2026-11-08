@@ -28,6 +28,7 @@ JOBS = yaml.safe_load(
 )["jobs"]
 EXPLAIN = "Explain the failure"
 # The steps of Harden-Runner that belong to no part: right after it, and at the end.
+SEE_LOOKUPS = "Let Harden-Runner see the DNS lookups"
 WARM_UP = "Wait until Harden-Runner lets the hosts through"
 WAIT_FOR_DOCKER = "Wait until Harden-Runner has removed Docker"
 # A line of the variable FAILED of that step: the outcomes of the steps of a part,
@@ -117,7 +118,7 @@ def test_each_step_of_a_job_with_parts_belongs_to_one_part(key):
         step
         for step in job["steps"]
         if not step.get("uses", "").startswith(SET_UP)
-        and step["name"] not in (EXPLAIN, WARM_UP, WAIT_FOR_DOCKER)
+        and step["name"] not in (EXPLAIN, SEE_LOOKUPS, WARM_UP, WAIT_FOR_DOCKER)
     ]
     ids = [step.get("id") for step in steps]
     named = [step for part in parts_of(job).values() for step in part]

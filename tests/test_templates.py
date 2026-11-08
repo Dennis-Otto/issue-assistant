@@ -721,18 +721,20 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     the variable is unset, every job runs as before.
 
     On that runner Harden-Runner blocks every host but those of the firewall policy,
-    before any other step of analyze, and the next step, which runs on every runner,
-    makes sure that the network blocks. The job event names the hosts, and fails on a
-    runner where nothing would block.
+    before any other step of analyze, the next step lets it see the DNS lookups, and
+    the one after it, which runs on every runner, makes sure that the network blocks.
+    The job event names the hosts, and fails on a runner where nothing would block.
     """
     jobs = JOBS_WITH_ENGINE[name]
     analyze = jobs["analyze"]
     assert analyze["runs-on"] == AI_RUNNER
     assert analyze["needs"] == "event"
-    block, holds, warm, *rest = analyze["steps"]
+    block, see, holds, warm, *rest = analyze["steps"]
     action, _, ref = block["uses"].partition("@")
     assert action == HARDEN_RUNNER and assistant.SHA.fullmatch(ref)
-    assert block["if"] == warm["if"] == ON_ANOTHER_RUNNER
+    # Never on GitHub's egress-firewall runner, whose firewall is the block there.
+    assert block["if"] == see["if"] == warm["if"] == ON_ANOTHER_RUNNER
+    assert see["name"] == SEE_LOOKUPS
     # The engines need sudo, to install what isolates them.
     assert block["with"] == {
         "egress-policy": "block",
@@ -770,16 +772,22 @@ def test_the_ai_runs_only_once_the_network_block_holds(workflow):
     that the AI and the engine's secret run with open network access.
 
     So the step runs on every runner, without a condition, in each job that runs the
-    AI: first, or right after the block of Harden-Runner, and before every step that
-    gets a secret or runs an engine. The job goes on only when the step passes, and it
-    may read the repository, which the firewall needs to enforce its policy."""
+    AI: first, or right after the block of Harden-Runner and the step that lets it see
+    the DNS lookups, so that it checks the block as the engine meets it, and before
+    every step that gets a secret or runs an engine. The job goes on only when the
+    step passes, and it may read the repository, which the firewall needs to enforce
+    its policy."""
     job = JOBS_WITH_THE_AI[workflow]
     assert job["permissions"]["contents"] == "read"
     names = [step.get("name") for step in job["steps"]]
     index = names.index(NETWORK_BLOCK)
     assert set(job["steps"][index]) == {"name", "run"}
     before = job["steps"][:index]
-    assert all(step["uses"].startswith(f"{HARDEN_RUNNER}@") for step in before)
+    assert all(
+        step.get("uses", "").startswith(f"{HARDEN_RUNNER}@")
+        or step["name"] == SEE_LOOKUPS
+        for step in before
+    )
     secrets = [step for step in job["steps"] if gets_a_secret(step)]
     assert secrets
     assert all(job["steps"].index(step) > index for step in secrets)
@@ -821,7 +829,9 @@ def probe_errors(run):
 def test_the_error_of_the_block_names_its_likely_causes():
     """A maintainer who meets it sees what to look at, on either runner, and how to
     keep the AI from running until the block holds."""
-    through, unreachable = probe_errors(JOBS["analyze"]["steps"][1]["run"])
+    through, unreachable = probe_errors(
+        step_named(JOBS["analyze"], NETWORK_BLOCK)["run"]
+    )
     for cause in (
         "example.com",
         "contents: read",
@@ -936,18 +946,21 @@ def test_the_ai_runs_only_where_the_block_holds(
 
 
 # The first version that leaves the hosts of allowed-endpoints open on the runners
-# with GitHub's newer DNS resolver, seen in westus2: the agent sees none of the
-# addresses that they resolve to, so it drops them, a checkout fails, and the job
-# never finishes after its last step, at "Cleaning up orphan processes", until its
-# timeout. https://github.com/step-security/harden-runner/issues/708
-HARDEN_RUNNER_FIXED = (2, 22, 3)
+# with GitHub's DNS experiment, seen in westus2, also when its feature flags don't
+# come: the agent sees none of the addresses that they resolve to, so it drops them,
+# a checkout fails, and the job never finishes after its last step, at "Cleaning up
+# orphan processes", until its timeout. v2.22.3 took the experiment away only when
+# its flags came within 3 s, and a 429 of StepSecurity's API left it there
+# (homedarts-for-autodarts#586). https://github.com/step-security/harden-runner/issues/708
+HARDEN_RUNNER_FIXED = (2, 22, 4)
 
 
 @pytest.mark.parametrize("path", PROJECT_WORKFLOWS, ids=lambda path: path.name)
 def test_harden_runner_is_a_version_that_lets_the_allowed_hosts_through(path):
     """An older pin drops the allowed hosts, or hangs the job, on the runners in
     westus2. The jobs that the reusable workflows run in every repository, and those
-    of the tests here, must not wait for a timeout there."""
+    of the tests here, must not wait for a timeout there. Decision 0123 of the
+    blueprint takes the same version for its workflows."""
     text = path.read_text(encoding="utf-8")
     uses = re.findall(rf"{HARDEN_RUNNER}@.*", text)
     pins = [
@@ -961,6 +974,7 @@ def test_harden_runner_is_a_version_that_lets_the_allowed_hosts_through(path):
 
 WAIT_FOR_DOCKER = "Wait until Harden-Runner has removed Docker"
 WARM_UP = "Wait until Harden-Runner lets the hosts through"
+SEE_LOOKUPS = "Let Harden-Runner see the DNS lookups"
 # The jobs that block with the hosts of the firewall policy, as the AI does on the
 # runner of ISSUE_ASSISTANT_AI_RUNNER.
 WITH_THE_FIREWALL_POLICY = {
@@ -1036,18 +1050,20 @@ def test_every_job_that_blocks_waits_until_harden_runner_lets_its_hosts_through(
         return
     warm = step_named(job, WARM_UP)
     index = job["steps"].index(warm)
+    # Once Harden-Runner sees the lookups, in a job that keeps sudo.
+    first = job["steps"].index(block) + 1 + (SEE_LOOKUPS in names)
     if (workflow, name) in WITH_THE_FIREWALL_POLICY:
         # After the step that makes sure of the block, since a request that gets
         # through before it holds says nothing. Only GitHub's hosts: the runner asked
         # for no other, and the policy names hosts of engines that this repository may
         # not use, and one that answers only on port 80, each of which would stop the
         # AI for two minutes.
-        assert index == job["steps"].index(block) + 2, name
+        assert index == first + 1, name
         assert warm["env"] == {"HOSTS": " ".join(GITHUB_HOSTS)}, name
     else:
         # Before every step that could need a host, and for just the hosts that the
         # job allows, by the same words, so that they can't drift apart.
-        assert index == job["steps"].index(block) + 1, (workflow, name)
+        assert index == first, (workflow, name)
         assert warm["env"] == {"HOSTS": block["with"]["allowed-endpoints"]}, name
     # It runs just where the block does.
     assert warm.get("if") == block.get("if"), (workflow, name)
@@ -1055,9 +1071,53 @@ def test_every_job_that_blocks_waits_until_harden_runner_lets_its_hosts_through(
     assert warm["timeout-minutes"] == 4, (workflow, name)
 
 
+# The jobs that block and keep sudo: analyze, whose engines need it to install what
+# isolates them, its runner in reserve in the Action test, and the engine contracts.
+KEEPS_SUDO = WITH_THE_FIREWALL_POLICY | {("action-test.yml", "engines")}
+
+
+@pytest.mark.parametrize("item", HARDENED_JOBS, ids=hardened_job_id)
+def test_every_job_that_blocks_and_keeps_sudo_lets_harden_runner_see_its_lookups(
+    item,
+):
+    """GitHub's DNS experiment on some of its runners hides the lookups of a job from
+    Harden-Runner, which then blocks the hosts of the job until its time limit.
+    Harden-Runner takes it away unless its feature flags say no; a job that keeps sudo
+    makes sure, right after it, as decision 0123 of the blueprint has the jobs of its
+    workflows do. A job without sudo can't, and one that only records its traffic
+    drops nothing. https://github.com/step-security/harden-runner/issues/708
+
+    The step runs just where Harden-Runner does: never on GitHub's egress-firewall
+    runner, whose own firewall is the block there."""
+    workflow, name, job, block = item
+    names = [step.get("name") for step in job["steps"]]
+    settings = block["with"]
+    if settings["egress-policy"] != "block" or settings.get(
+        "disable-sudo-and-containers"
+    ):
+        assert SEE_LOOKUPS not in names, (workflow, name)
+        return
+    assert (workflow, name) in KEEPS_SUDO
+    see = job["steps"][job["steps"].index(block) + 1]
+    assert see["name"] == SEE_LOOKUPS, (workflow, name)
+    assert names.count(SEE_LOOKUPS) == 1, (workflow, name)
+    assert see.get("if") == block.get("if"), (workflow, name)
+    # A script of its own, with no secret and no token.
+    assert set(see) <= {"name", "if", "run"}, (workflow, name)
+
+
+def test_the_jobs_that_keep_sudo_behind_the_block_are_found():
+    found = {
+        (workflow, name)
+        for workflow, name, job, _ in HARDENED_JOBS
+        if SEE_LOOKUPS in [step.get("name") for step in job["steps"]]
+    }
+    assert found == KEEPS_SUDO
+
+
 def test_the_wait_for_docker_and_the_warm_up_are_one_script_each():
     """So that a fix reaches every job, those of the reusable workflows above all."""
-    for step_name in (WAIT_FOR_DOCKER, WARM_UP):
+    for step_name in (WAIT_FOR_DOCKER, WARM_UP, SEE_LOOKUPS):
         scripts = {
             step["run"]
             for _, _, job, _ in HARDENED_JOBS
@@ -1145,6 +1205,75 @@ def warm_up(tmp_path, blocked):
 
 
 PROBE = "curl --silent --head --connect-timeout 3 --max-time 5 --output /dev/null "
+
+
+def see_lookups(tmp_path, files, fails="false"):
+    """The step of analyze with the files of the runner in a folder of their own, and
+    a sudo that fails for the commands that the condition `fails` matches; with the
+    result, the calls and the folder."""
+    runner = tmp_path / "runner"
+    for name, content in files.items():
+        (runner / name).parent.mkdir(parents=True, exist_ok=True)
+        (runner / name).write_text(content, encoding="utf-8")
+    root = runner.as_posix()
+    script = re.sub(
+        r"(?<![\w/])/(etc|run)/",
+        lambda found: root + found[0],
+        step_named(JOBS["analyze"], SEE_LOOKUPS)["run"],
+    )
+    path, calls = stand_ins(tmp_path, sudo=f"if {fails}; then exit 1; fi")
+    result, _ = run_step({"run": script}, tmp_path, PATH=path)
+    return result, calls.read_text(encoding="utf-8").splitlines(), root
+
+
+def test_the_dns_step_does_nothing_on_a_runner_without_github_s_experiment(tmp_path):
+    result, calls, _ = see_lookups(
+        tmp_path, {"etc/resolv.conf": "nameserver 127.0.0.53\n"}
+    )
+    assert result.returncode == 0, result.stderr
+    assert calls == []
+    assert "::notice::" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"etc/systemd/resolved.conf.d/90-egress-proxy.conf": "[Resolve]\n"},
+        {"run/systemd/resolved.conf.d/90-egress-proxy.conf": "[Resolve]\n"},
+        {"etc/resolv.conf": "nameserver 127.0.0.100\n"},
+    ],
+    ids=["etc", "run", "resolver"],
+)
+def test_the_dns_step_takes_github_s_experiment_away(tmp_path, files):
+    # The services of the experiment may be gone already, which fails nothing.
+    result, calls, root = see_lookups(
+        tmp_path,
+        files,
+        '[ "$1 $2" = "systemctl stop" ] || [ "$1" = resolvectl ]',
+    )
+    assert result.returncode == 0, result.stderr
+    dropin = "systemd/resolved.conf.d/90-egress-proxy.conf"
+    stub = f"{root}/run/systemd/resolve/stub-resolv.conf"
+    assert calls == [
+        f"sudo rm -f {root}/etc/{dropin} {root}/run/{dropin}",
+        "sudo systemctl restart systemd-resolved",
+        f"sudo ln -sfn {stub} {root}/etc/resolv.conf",
+        "sudo systemctl stop egress-dns-resolver.service egress-outbound-proxy.service",
+        "sudo resolvectl flush-caches",
+    ]
+    assert "::notice::GitHub's DNS experiment is on this runner" in result.stdout
+
+
+def test_the_dns_step_fails_when_it_cant_take_the_experiment_away(tmp_path):
+    # Harden-Runner would block the hosts of the job until its time limit; the failure
+    # says so at once, and the engine doesn't run.
+    result, calls, _ = see_lookups(
+        tmp_path,
+        {"etc/resolv.conf": "nameserver 127.0.0.100\n"},
+        '[ "$1" = systemctl ]',
+    )
+    assert result.returncode != 0
+    assert calls[-1] == "sudo systemctl restart systemd-resolved"
 
 
 def test_the_warm_up_asks_each_host_once_when_harden_runner_lets_it_through(tmp_path):
@@ -1309,9 +1438,13 @@ def test_the_block_of_the_ai_s_runner_in_reserve_runs_in_ci():
         "allowed-endpoints": "${{ needs.fallback-hosts.outputs.endpoints }}",
     }
     assert block["steps"][0] == first
-    # The very step of analyze makes sure of the block, before the warm-up.
-    assert block["steps"][1] == JOBS["analyze"]["steps"][1]
-    assert block["steps"][2]["name"] == WARM_UP
+    # The very steps of analyze let Harden-Runner see the DNS lookups and make sure of
+    # the block, before the warm-up.
+    see = {key: value for key, value in JOBS["analyze"]["steps"][1].items()}
+    del see["if"]
+    assert block["steps"][1] == see
+    assert block["steps"][2] == step_named(JOBS["analyze"], NETWORK_BLOCK)
+    assert block["steps"][3]["name"] == WARM_UP
     checks = step_named(
         block, "Make sure that the block lets the hosts of the policy through"
     )["run"]
@@ -1340,7 +1473,7 @@ def test_the_network_block_of_the_ai_s_runner_runs_in_ci():
     firewall, unblocked = jobs["firewall"], jobs["no-block"]
     assert firewall["runs-on"] == assistant.FIREWALL_RUNNER
     assert firewall["permissions"] == {"contents": "read"}
-    assert firewall["steps"][0] == JOBS["analyze"]["steps"][1]
+    assert firewall["steps"][0] == step_named(JOBS["analyze"], NETWORK_BLOCK)
     record = step_named(
         firewall, "Record how the firewall refuses a host outside the policy"
     )
@@ -1362,7 +1495,7 @@ def test_the_network_block_of_the_ai_s_runner_runs_in_ci():
         f"  {path} >"
     ) in script
     (pattern,) = re.findall(r"grep --quiet '(.+?)' ", script)
-    through, _ = probe_errors(JOBS["analyze"]["steps"][1]["run"])
+    through, _ = probe_errors(step_named(JOBS["analyze"], NETWORK_BLOCK)["run"])
     assert re.match(pattern, f"::error::{through}")
     # Each line of its output gets a mark, so that the runner runs no command of it.
     assert "sed 's/^/> /'" in script
