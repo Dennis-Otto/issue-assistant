@@ -631,6 +631,19 @@ JOBS_WITH_ENGINE = {
     "issue-assistant.yml": JOBS,
     assistant.DISCUSSION_WORKFLOW: DISCUSSION_JOBS,
 }
+# The step that makes sure that the network blocks every host outside the firewall
+# policy before the AI runs, on both of its runners (decision 0025).
+NETWORK_BLOCK = "Make sure that the network block holds"
+EVALUATE = load(OWN / "evaluate.yml")
+# The jobs that run the AI: analyze of both reusable workflows and replay of the
+# Evaluate workflow, by the workflow that runs each.
+JOBS_WITH_THE_AI = {
+    "reusable-issue-assistant.yml": JOBS["analyze"],
+    "reusable-discussion-assistant.yml": DISCUSSION_JOBS["analyze"],
+    "evaluate.yml": EVALUATE["jobs"]["replay"],
+}
+# The steps of analyze that run an engine, by their ids.
+ENGINE_STEPS = ("claude", "codex", "gemini", "copilot")
 
 
 @pytest.mark.parametrize("name", list(JOBS_WITH_ENGINE))
@@ -640,8 +653,9 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     the variable is unset, every job runs as before.
 
     On that runner Harden-Runner blocks every host but those of the firewall policy,
-    before any other step of analyze, and the next step makes sure that it blocks.
-    The job event names the hosts, and fails on a runner where nothing would block.
+    before any other step of analyze, and the next step, which runs on every runner,
+    makes sure that the network blocks. The job event names the hosts, and fails on a
+    runner where nothing would block.
     """
     jobs = JOBS_WITH_ENGINE[name]
     analyze = jobs["analyze"]
@@ -650,13 +664,13 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     block, holds, warm, *rest = analyze["steps"]
     action, _, ref = block["uses"].partition("@")
     assert action == HARDEN_RUNNER and assistant.SHA.fullmatch(ref)
-    assert block["if"] == holds["if"] == warm["if"] == ON_ANOTHER_RUNNER
+    assert block["if"] == warm["if"] == ON_ANOTHER_RUNNER
     # The engines need sudo, to install what isolates them.
     assert block["with"] == {
         "egress-policy": "block",
         "allowed-endpoints": "${{ needs.event.outputs.endpoints }}",
     }
-    assert holds["name"] == "Make sure that the block holds"
+    assert holds["name"] == NETWORK_BLOCK
     assert warm["name"] == WARM_UP
     for step in rest:
         assert assistant.RUNNER_VARIABLE not in str(step.get("if", "")), step
@@ -675,48 +689,151 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     assert event["outputs"]["endpoints"] == "${{ steps.endpoints.outputs.endpoints }}"
 
 
-@pytest.mark.parametrize("name", list(JOBS_WITH_ENGINE))
+def gets_a_secret(step):
+    """Whether the step gets a secret or runs an engine, which reaches its API."""
+    return "secrets." in json.dumps(step) or step.get("id") in ENGINE_STEPS
+
+
+@pytest.mark.parametrize("workflow", list(JOBS_WITH_THE_AI))
+def test_the_ai_runs_only_once_the_network_block_holds(workflow):
+    """GitHub's egress firewall enforces the policy only for a job that may read the
+    repository, and its preview may change how it finds and reads the policy without
+    a warning, while Harden-Runner fails open. Nothing else at run time would notice
+    that the AI and the engine's secret run with open network access.
+
+    So the step runs on every runner, without a condition, in each job that runs the
+    AI: first, or right after the block of Harden-Runner, and before every step that
+    gets a secret or runs an engine. The job goes on only when the step passes, and it
+    may read the repository, which the firewall needs to enforce its policy."""
+    job = JOBS_WITH_THE_AI[workflow]
+    assert job["permissions"]["contents"] == "read"
+    names = [step.get("name") for step in job["steps"]]
+    index = names.index(NETWORK_BLOCK)
+    assert set(job["steps"][index]) == {"name", "run"}
+    before = job["steps"][:index]
+    assert all(step["uses"].startswith(f"{HARDEN_RUNNER}@") for step in before)
+    secrets = [step for step in job["steps"] if gets_a_secret(step)]
+    assert secrets
+    assert all(job["steps"].index(step) > index for step in secrets)
+    if workflow == "evaluate.yml":
+        assert job["runs-on"] == assistant.FIREWALL_RUNNER
+    else:
+        assert job["runs-on"] == AI_RUNNER
+        assert {step.get("id") for step in secrets} >= set(ENGINE_STEPS)
+
+
+def test_every_job_that_makes_sure_of_the_block_runs_one_script():
+    """So that a fix reaches every job, those of the reusable workflows above all,
+    and the Action test runs the very step of every repository."""
+    found = {
+        (path.name, name): step
+        for path in PROJECT_WORKFLOWS
+        for name, job in load(path)["jobs"].items()
+        for step in job.get("steps", [])
+        if step.get("name") == NETWORK_BLOCK
+    }
+    assert set(found) == {
+        ("reusable-issue-assistant.yml", "analyze"),
+        ("reusable-discussion-assistant.yml", "analyze"),
+        ("evaluate.yml", "replay"),
+        ("action-test.yml", "fallback"),
+        ("action-test.yml", "firewall"),
+    }
+    assert len({json.dumps(step) for step in found.values()}) == 1
+
+
+def probe_errors(run):
+    """The two errors of the step: a host outside the policy got through, and the
+    network reached no host."""
+    errors = re.findall(r'^ *echo "::error::(.*)"$', run, re.MULTILINE)
+    assert len(errors) == 2
+    return errors
+
+
+def test_the_error_of_the_block_names_its_likely_causes():
+    """A maintainer who meets it sees what to look at, on either runner, and how to
+    keep the AI from running until the block holds."""
+    through, unreachable = probe_errors(JOBS["analyze"]["steps"][1]["run"])
+    for cause in (
+        "example.com",
+        "contents: read",
+        "mode: log",
+        "preview",
+        assistant.FIREWALL_RUNNER,
+        assistant.RUNNER_VARIABLE,
+        "StepSecurity",
+        "ISSUE_ASSISTANT_AI to off",
+    ):
+        assert cause in through, cause
+    assert unreachable.split(",")[0] == "No request to api.github.com"
+
+
+@pytest.mark.parametrize("workflow", list(JOBS_WITH_THE_AI))
 @pytest.mark.parametrize(
-    ("answers", "code", "pauses"),
+    ("blocked", "github", "code", "pauses", "error"),
     [
         # A request that fails to resolve, connect or answer in time: the block holds,
         # when the next one fails too, after a pause that a hiccup doesn't outlast.
-        ([6, 6], 0, 1),
-        ([7, 7], 0, 1),
-        ([28, 28], 0, 1),
-        # The agent was still starting: the block holds from the third request on.
-        ([0, 0, 7, 7], 0, 3),
+        ([6, 6], [0], 0, 1, ""),
+        ([7, 7], [0], 0, 1, ""),
+        ([28, 28], [0], 0, 1, ""),
+        # A connection that breaks off, as a firewall may end it.
+        ([35, 56], [0], 0, 1, ""),
+        # The agent of Harden-Runner was still starting: the block holds from the
+        # third request on.
+        ([0, 0, 7, 7], [0], 0, 3, ""),
         # In the last two requests of the minute it asks for.
-        ([0] * 10 + [7, 7], 0, 11),
+        ([0] * 10 + [7, 7], [0], 0, 11, ""),
         # One failure among answers is a hiccup of the host, not the block.
-        ([0, 28, 0, 28, 0, 28, 0, 28, 0, 28, 0, 28], 1, 12),
-        ([0] * 11 + [7], 1, 12),
-        # It never blocks.
-        ([0] * 12, 1, 12),
+        ([0, 28, 0, 28, 0, 28, 0, 28, 0, 28, 0, 28], [], 1, 12, "through"),
+        ([0] * 11 + [7], [], 1, 12, "through"),
+        # It never blocks, as on a runner without a block, or with a policy that
+        # GitHub didn't enforce.
+        ([0] * 12, [], 1, 12, "through"),
+        # GitHub answers once Harden-Runner lets it through, within a minute.
+        ([6, 6], [6, 6, 0], 0, 3, ""),
+        ([6, 6], [7] * 11 + [0], 0, 12, ""),
+        # The network reaches no host, so the failed requests prove no block.
+        ([6, 6], [6] * 12, 1, 12, "unreachable"),
     ],
 )
-def test_the_ai_runs_only_where_the_block_holds(tmp_path, name, answers, code, pauses):
-    """Harden-Runner fails open: in a private repository without a subscription of
-    StepSecurity, or when its service is down, it blocks nothing. And it waits only
-    about ten seconds for its agent, so the block can come a little after its step.
-    The step asks for a host of no firewall policy, for up to a minute, and stops the
-    job analyze when requests keep getting through; two requests in a row, five seconds
-    apart, that fail to resolve, connect or answer in time let it run."""
-    holds = JOBS_WITH_ENGINE[name]["analyze"]["steps"][1]
-    policy = (assistant.TEMPLATES / assistant.FIREWALL).read_text(encoding="utf-8")
-    assert "example.com" not in assistant.allowed_hosts(policy)
+def test_the_ai_runs_only_where_the_block_holds(
+    tmp_path, workflow, blocked, github, code, pauses, error
+):
+    """The step asks for example.com, a host of no firewall policy, for up to a
+    minute, since Harden-Runner waits only about ten seconds for its agent, so its
+    block can come a little after its step. Two requests in a row, five seconds
+    apart, that fail to resolve, connect or answer in time count as the block. Then
+    api.github.com, a host of every policy, has to answer within a minute, so that a
+    network that reaches no host isn't taken for the block; otherwise the job stops
+    before the AI."""
+    (holds,) = [
+        step
+        for step in JOBS_WITH_THE_AI[workflow]["steps"]
+        if step.get("name") == NETWORK_BLOCK
+    ]
+    policy = assistant.allowed_hosts(
+        (assistant.TEMPLATES / assistant.FIREWALL).read_text(encoding="utf-8")
+    )
+    assert "example.com" not in policy
     assert "example.com" not in assistant.FIREWALL_DEFAULT_HOSTS
+    assert {"api.github.com"} <= set(policy)
     folder = tmp_path / "bin"
     folder.mkdir()
     arguments = tmp_path / "arguments"
     slept = tmp_path / "slept"
-    statuses = tmp_path / "statuses"
-    statuses.write_text("".join(f"{answer}\n" for answer in answers), encoding="utf-8")
-    # Each request takes the next answer; one too many fails the test.
+    answers = tmp_path / "answers"
+    answers.mkdir()
+    for host, codes in (("example.com", blocked), ("api.github.com", github)):
+        (answers / host).write_text(
+            "".join(f"{answer}\n" for answer in codes), encoding="utf-8"
+        )
+    # Each request to a host takes its next answer; one too many fails the test.
     (folder / "curl").write_text(
         f'#!/bin/sh\necho "$@" >> "{arguments.as_posix()}"\n'
-        f'count=$(wc -l < "{arguments.as_posix()}")\n'
-        f'exit "$(sed -n "${{count}}p" "{statuses.as_posix()}")"\n',
+        "for url; do :; done\nhost=${url#https://}\nhost=${host%/}\n"
+        f'count=$(grep -c "https://$host" "{arguments.as_posix()}")\n'
+        f'exit "$(sed -n "${{count}}p" "{answers.as_posix()}/$host")"\n',
         encoding="utf-8",
         newline="\n",
     )
@@ -733,18 +850,20 @@ def test_the_ai_runs_only_where_the_block_holds(tmp_path, name, answers, code, p
     assert result.returncode == code, result.stderr
     assert arguments.read_text(encoding="utf-8").splitlines() == [
         "--silent --max-time 10 --output /dev/null https://example.com"
-    ] * len(answers)
+    ] * len(blocked) + [
+        "--silent --max-time 10 --output /dev/null https://api.github.com/"
+    ] * len(github)
     assert (slept.read_text(encoding="utf-8").split() if slept.exists() else []) == [
         "5"
     ] * pauses
-    if code:
-        assert result.stdout.startswith(
-            "::error::Harden-Runner let a request to example.com through"
-        )
+    through, unreachable = probe_errors(holds["run"])
+    if error:
+        message = through if error == "through" else unreachable
+        assert result.stdout == f"::error::{message}\n"
     else:
         assert result.stdout == (
-            "Harden-Runner blocks example.com, a host outside "
-            ".github/egress-firewall.yaml.\n"
+            "The network blocks example.com, a host outside "
+            ".github/egress-firewall.yaml, and lets api.github.com through.\n"
         )
 
 
@@ -1132,15 +1251,12 @@ def test_the_block_of_the_ai_s_runner_in_reserve_runs_in_ci():
         "allowed-endpoints": "${{ needs.fallback-hosts.outputs.endpoints }}",
     }
     assert block["steps"][0] == first
-    holds = JOBS["analyze"]["steps"][1]["run"]
-    checks = block["steps"][1]["run"]
-
-    def without_the_error(script):
-        return [line for line in script.splitlines() if "::error::" not in line]
-
-    # The same wait for the block, each with its own words for the error.
-    waits = without_the_error(holds)
-    assert without_the_error(checks)[: len(waits)] == waits
+    # The very step of analyze makes sure of the block, before the warm-up.
+    assert block["steps"][1] == JOBS["analyze"]["steps"][1]
+    assert block["steps"][2]["name"] == WARM_UP
+    checks = step_named(
+        block, "Make sure that the block lets the hosts of the policy through"
+    )["run"]
     # A host of the policy on 443, and one on 80, which must pass the block.
     (listed,) = re.findall(r"^ *for url in (.+); do$", checks, re.MULTILINE)
     urls = [urllib.parse.urlsplit(url) for url in listed.split()]
@@ -1152,6 +1268,46 @@ def test_the_block_of_the_ai_s_runner_in_reserve_runs_in_ci():
         (assistant.TEMPLATES / assistant.FIREWALL).read_text(encoding="utf-8")
     )
     assert {url.hostname for url in urls} <= set(policy)
+
+
+def test_the_network_block_of_the_ai_s_runner_runs_in_ci():
+    """The Action test runs the step of analyze on GitHub's egress-firewall runner,
+    with this repository's policy, which it may read, and records how the firewall
+    refuses a host outside it, so that a change of the preview shows in every pull
+    request and every week, before an analysis meets it. On a runner without any
+    block, the step of the reusable workflow itself has to stop the AI, with its
+    message; a step that passed there would let the AI run with open network access
+    in every repository."""
+    jobs = load(OWN / "action-test.yml")["jobs"]
+    firewall, unblocked = jobs["firewall"], jobs["no-block"]
+    assert firewall["runs-on"] == assistant.FIREWALL_RUNNER
+    assert firewall["permissions"] == {"contents": "read"}
+    assert firewall["steps"][0] == JOBS["analyze"]["steps"][1]
+    record = step_named(
+        firewall, "Record how the firewall refuses a host outside the policy"
+    )
+    assert record["if"] == "${{ !cancelled() }}"
+    assert '>> "$GITHUB_STEP_SUMMARY"' not in record["run"]
+    assert 'tee -a "$GITHUB_STEP_SUMMARY"' in record["run"]
+    assert "--fail" in record["run"] and "--max-time 10" in record["run"]
+    # Nothing blocks on this runner: no Harden-Runner, and no firewall.
+    assert unblocked["runs-on"] == RUNNER
+    assert not any(
+        step.get("uses", "").startswith(HARDEN_RUNNER) for step in unblocked["steps"]
+    )
+    script = step_named(
+        unblocked, "Make sure that the probe stops the AI where nothing blocks"
+    )["run"]
+    path = reusable("issue-assistant.yml").relative_to(ROOT).as_posix()
+    assert (
+        f"yq '.jobs.analyze.steps[] | select(.name == \"{NETWORK_BLOCK}\") | .run' \\\n"
+        f"  {path} >"
+    ) in script
+    (pattern,) = re.findall(r"grep --quiet '(.+?)' ", script)
+    through, _ = probe_errors(JOBS["analyze"]["steps"][1]["run"])
+    assert re.match(pattern, f"::error::{through}")
+    # Each line of its output gets a mark, so that the runner runs no command of it.
+    assert "sed 's/^/> /'" in script
 
 
 def test_the_graphql_documents_meet_github_s_schema_of_the_day_every_week():

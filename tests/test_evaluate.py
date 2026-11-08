@@ -1132,14 +1132,18 @@ def test_the_ai_of_the_evaluate_workflow_runs_behind_the_firewall_and_writes_not
     # The root of the replays, where the tools of the engine stay, is the measured
     # repository, in a folder of its own beside this repository and the report.
     assert replay["env"]["ISSUE_ASSISTANT_ROOT"] == "${{ github.workspace }}/target"
+    steps = steps_of("replay")
     checkouts = [
-        step["with"]
-        for step in steps_of("replay")
-        if step.get("uses", "").startswith("actions/checkout@")
+        step for step in steps if step.get("uses", "").startswith("actions/checkout@")
     ]
-    assert [checkout.get("path") for checkout in checkouts] == [None, "target"]
-    assert checkouts[1]["repository"] == "${{ inputs.repository }}"
-    assert all(checkout["persist-credentials"] is False for checkout in checkouts)
+    assert [step["with"].get("path") for step in checkouts] == [None, "target", None]
+    assert checkouts[1]["with"]["repository"] == "${{ inputs.repository }}"
+    assert all(step["with"]["persist-credentials"] is False for step in checkouts)
+    # When the probe of the network block, the first step, fails, nothing is checked
+    # out yet: the last checkout brings the PR coach for the explanation of the failure.
+    assert "if" not in checkouts[0]
+    assert checkouts[2]["if"] == "failure() && hashFiles('.github/blueprint.py') == ''"
+    assert steps[steps.index(checkouts[2]) + 1]["name"] == "Explain the failure"
     assert "python3 -m issue_assistant evaluate" in replay["run"]
     assert '--report "$RUNNER_TEMP/accuracy/report.md"' in replay["run"]
     assert '--issues "$ISSUES"' in replay["run"]

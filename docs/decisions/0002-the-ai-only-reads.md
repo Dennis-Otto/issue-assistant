@@ -1,6 +1,6 @@
 # The AI only reads; a job without AI writes
 
-- Status: accepted
+- Status: accepted, amended by [0025](0025-the-ai-runs-only-once-the-block-holds.md)
 - Date: 2026-10-07
 
 ## Context
