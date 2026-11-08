@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+from collections import Counter
 from collections.abc import Callable, Iterable
 from contextlib import ExitStack
 from copy import deepcopy
@@ -37,7 +38,7 @@ from .running import (
     placed_settings,
 )
 from .settings import Config, label_names, task_run
-from .values import created, login, moment, stamp
+from .values import command, created, login, moment, stamp
 
 # The moment that it replays: a minute after the issue was opened, when it had the
 # labels of its form and the analysis would have started.
@@ -63,6 +64,27 @@ MEASURES = (
 MEASURES_HEAD = (
     "| Measure | Precision | Recall | Issues |",
     "| --- | ---: | ---: | ---: |",
+)
+# Why a closed issue that `evaluate` read is no sample, by the key that `sample_of`
+# gives, in the order that it asks: what the notice of a run without a sample counts.
+LEFT_OUT = {
+    "bot": "Opened by a bot",
+    "kept out": "Kept out of the AI by their reporter",
+    "undecided": (
+        "Without a label of a type, an area, a topic or a priority, and not closed "
+        "as a duplicate of an older issue"
+    ),
+    "analyzed": "Analyzed by the assistant, whose labels would grade themselves",
+    "not by people": (
+        "With such a label only from when they were opened, such as that of their "
+        "form, or from a bot"
+    ),
+}
+# What makes a closed issue a sample, the end of that notice.
+REPLAYED = (
+    "An issue is replayed when people gave it a label of a type, an area, a topic or "
+    "a priority of `labels.toml` after it was opened, or closed it as a duplicate of "
+    "an older issue, and the assistant never analyzed it."
 )
 
 
@@ -168,13 +190,15 @@ def maintainers_asked(
     )
 
 
-def sample_of(github: GitHub, config: Config, issue: dict[str, Any]) -> Sample | None:
+def sample_of(github: GitHub, config: Config, issue: dict[str, Any]) -> Sample | str:
     """The sample of a closed issue that people labelled with a label of a scored
     group or closed as a duplicate of an older issue, and that the assistant never
-    analyzed; None for any other issue, such as one that a bot opened or whose
-    reporter keeps the AI out of it."""
-    if is_bot(issue["user"]) or opted_out(issue, config):
-        return None
+    analyzed; for any other issue, such as one that a bot opened or whose reporter
+    keeps the AI out of it, the key of LEFT_OUT that says why it is none."""
+    if is_bot(issue["user"]):
+        return "bot"
+    if opted_out(issue, config):
+        return "kept out"
     duplicate = issue["duplicate_of"]
     original = (
         duplicate["number"]
@@ -183,16 +207,16 @@ def sample_of(github: GitHub, config: Config, issue: dict[str, Any]) -> Sample |
     )
     scored = {name for group in SCORED_GROUPS for name in config.group(group)}
     if original is None and not label_names(issue) & scored:
-        return None
+        return "undecided"
     number = issue["number"]
     comments = github.comments(number)
     if any(kind_of(comment) == "analysis" for comment in comments):
-        return None
+        return "analyzed"
     events = github.events(number)
     when = created(issue) + OPENING
     labels = labels_by_people(config, issue, events, when)
     if original is None and not any(labels.values()):
-        return None
+        return "not by people"
     then = issue | {
         "state": "open",
         "state_reason": None,
@@ -206,19 +230,36 @@ def sample_of(github: GitHub, config: Config, issue: dict[str, Any]) -> Sample |
 
 def choose_samples(
     github: GitHub, config: Config, count: int
-) -> tuple[list[Sample], int]:
+) -> tuple[list[Sample], Counter[str]]:
     """The samples of the `count` closed issues opened last that have one, and how
-    many closed issues it read for them."""
+    many of the other closed issues that it read for them it left out, by the key of
+    LEFT_OUT that says why."""
     chosen: list[Sample] = []
-    read = 0
+    left_out: Counter[str] = Counter()
     for issue in github.closed_issues():
-        read += 1
         sample = sample_of(github, config, issue)
-        if sample:
-            chosen.append(sample)
-            if len(chosen) == count:
-                break
-    return chosen, read
+        if isinstance(sample, str):
+            left_out[sample] += 1
+            continue
+        chosen.append(sample)
+        if len(chosen) == count:
+            break
+    return chosen, left_out
+
+
+def nothing_to_replay(left_out: Counter[str]) -> list[str]:
+    """The lines of the summary of an evaluation without a sample: how many closed
+    issues it read, why it left out each, and what makes an issue a sample."""
+    return [
+        f"Nothing to replay, so no report: {plural(left_out.total(), 'closed issue')} "
+        "read, and none that people decided and that the assistant never analyzed.",
+        *(
+            f"{reason}: {left_out[key]}."
+            for key, reason in LEFT_OUT.items()
+            if left_out[key]
+        ),
+        REPLAYED,
+    ]
 
 
 class Then(GitHub):
@@ -736,19 +777,25 @@ def evaluate(
 ) -> list[str]:
     """Replay the first analysis of the `count` closed issues opened last that
     people labelled or closed as a duplicate, write the report, and return the
-    lines of the summary: each measure, and where the report is."""
+    lines of the summary: each measure, and where the report is.
+
+    Without such an issue it writes no report and gives a notice, whose lines it
+    returns: nothing to measure is no failure."""
     if not 1 <= count <= MOST_EVALUATED:
         raise AssistantError(
             f"--issues must be a whole number from 1 to {MOST_EVALUATED}, not {count}."
         )
     # The replays read again the comments and events that the choice read.
     github.remember()
-    samples, read = choose_samples(github, config, count)
+    samples, left_out = choose_samples(github, config, count)
     if not samples:
-        raise AssistantError(
-            f"None of the {read} closed issues read has a label that people chose or "
-            "the original of a duplicate, without an analysis of the assistant."
-        )
+        # Such as in a repository whose maintainer labelled each issue as it was
+        # opened. The run passes, so that a measurement of every repository by hand
+        # fails only on a fault; with no report, the page keeps its numbers.
+        lines = nothing_to_replay(left_out)
+        command("notice", "\n".join(lines))
+        return lines
+    read = len(samples) + left_out.total()
     outcomes = replay(github, config, samples, answer)
     engine = ENGINES[engine_named(config.engine)]
     run = task_run(config, "triage")

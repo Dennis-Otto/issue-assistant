@@ -1,8 +1,10 @@
 flowchart TB
   accTitle: How the numbers get onto the accuracy page
-  accDescr: A maintainer starts the workflow Evaluate by hand with a repository and a number of issues. The job replay, on the egress-firewall runner with a read-only token and the engine's secret, runs evaluate against a checkout of that repository and keeps its report as an artifact. The job publish runs no AI: accuracy-page takes only numbers and names from the report, and refuses a report that has anything else. The release app adds them to one pull request, which a person merges, and the website shows the table.
+  accDescr: A maintainer starts the workflow Evaluate by hand with a repository and a number of issues. The job replay, on the egress-firewall runner with a read-only token and the engine's secret, runs evaluate against a checkout of that repository. Without a closed issue to replay, the run passes with a notice in its summary, which says why each issue read was left out and what an issue needs to be replayed, and the page stays. Otherwise the job keeps the report as an artifact. The job publish runs no AI: accuracy-page takes only numbers and names from the report, and refuses a report that has anything else. The release app adds them to one pull request, which a person merges, and the website shows the table.
   start(["a maintainer runs<br>the workflow Evaluate:<br>repository, 30 issues"]) --> replay["`**job replay**, with the AI:<br>egress-firewall runner,<br>read-only token,<br>the engine's secret`"]
-  replay --> report[("the report,<br>an artifact")]
+  replay --> found{"a closed issue<br>to replay?"}
+  found -- "no" --> notice["passes with a notice:<br>why each issue was left out,<br>what one needs;<br>the page stays"]
+  found -- "yes" --> report[("the report,<br>an artifact")]
   report --> check{"`**job publish**, no AI:<br>accuracy-page finds only<br>numbers and names?`"}
   check -- "no" --> refused["refused:<br>the page stays"]
   check -- "yes" --> pull["`**one pull request**<br>of the release app,<br>which each run adds to`"]
@@ -13,6 +15,6 @@ flowchart TB
   classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
   classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
   class start trigger
-  class check question
-  class replay,pull,merge,refused job
+  class found,check question
+  class replay,pull,merge,refused,notice job
   class report,website safe
