@@ -25,6 +25,19 @@ Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 2 newest of 125 cl
 | Sure duplicates | – | – | 0 |
 | Asks for information | – | – | 2 |
 
+### [Dennis-Otto/paperless-sync](https://github.com/Dennis-Otto/paperless-sync)
+
+Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 1 newest of 101 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $0.25 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+
+| Measure | Precision | Recall | Issues |
+| --- | ---: | ---: | ---: |
+| Type | – | – | 0 |
+| Areas | 100 % (1 of 1) | 100 % (1 of 1) | 1 |
+| Topics | – | – | 0 |
+| Duplicates | – | – | 0 |
+| Sure duplicates | – | – | 0 |
+| Asks for information | – | – | 1 |
+
 <!-- accuracy numbers: end -->
 
 A number of your own repository is welcome in the [discussions](https://github.com/Dennis-Otto/issue-assistant/discussions): the table of measures of the report, with the day, the engine and the model that it names.
