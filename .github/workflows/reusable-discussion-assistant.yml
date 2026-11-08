@@ -203,22 +203,26 @@ jobs:
         with:
           egress-policy: block
           allowed-endpoints: ${{ needs.event.outputs.endpoints }}
-      # Harden-Runner fails open: it blocks nothing in a private repository without
-      # a subscription of StepSecurity, or when its service is down. Then the AI
-      # doesn't run.
-      - name: Make sure that the block holds
-        if: vars.ISSUE_ASSISTANT_AI_RUNNER != '' && vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
+      # The AI runs only behind a block that holds, on both runners: GitHub's egress
+      # firewall enforces the policy only for a job that may read the repository, and
+      # its preview may change how it finds and reads the policy, without a warning;
+      # Harden-Runner fails open, in a private repository without a subscription of
+      # StepSecurity or when its service is down. So before any step that gets the
+      # engine's secret, a host outside the policy has to be out of reach, and the job
+      # stops otherwise. Decision 0025.
+      - name: Make sure that the network block holds
         run: |
-          # Harden-Runner waits only about ten seconds for its agent and lets the job go
-          # on while the agent still starts, so a request right after it can get through.
-          # Ask for up to a minute. It takes two failures in a row, five seconds apart, to
-          # count as the block, so that a hiccup of example.com isn't taken for one.
+          # A request to example.com, a host of no firewall policy, has to fail: two in a
+          # row, five seconds apart, so that a hiccup of example.com isn't taken for the
+          # block, within a minute, since Harden-Runner lets the job go on while its agent
+          # still starts. Then a request to api.github.com, a host of every policy, has to
+          # get an answer, so that a network that reaches no host isn't taken for it.
           failures=0
           attempt=0
           while [ "$failures" -lt 2 ]; do
             attempt=$((attempt + 1))
             if [ "$attempt" -gt 12 ]; then
-              echo "::error::Harden-Runner let a request to example.com through, a host outside .github/egress-firewall.yaml, so the AI doesn't run. In a private repository it blocks only with a subscription of StepSecurity; unset ISSUE_ASSISTANT_AI_RUNNER for the egress-firewall runner, or set ISSUE_ASSISTANT_AI to off. If the log of Harden-Runner says Reverted changes, its agent gave up at its start: run the job again."
+              echo "::error::A request to example.com, a host outside .github/egress-firewall.yaml, got through, so the AI doesn't run: nothing blocks the hosts that the policy leaves out. On ubuntu-24.04-firewall, GitHub didn't enforce the policy: the job lacks the permission contents: read, the policy says mode: log in place of mode: enforce, or GitHub changed its preview of the egress firewall. Behind Harden-Runner, on the runner of ISSUE_ASSISTANT_AI_RUNNER, it blocks in a private repository only with a subscription of StepSecurity, and when its log says Reverted changes, its agent gave up at its start: run the job again. Until the block holds, set ISSUE_ASSISTANT_AI to off: https://dennis-otto.github.io/issue-assistant/troubleshooting/"
               exit 1
             fi
             if curl --silent --max-time 10 --output /dev/null https://example.com; then
@@ -228,7 +232,16 @@ jobs:
             fi
             [ "$failures" -ge 2 ] || sleep 5
           done
-          echo "Harden-Runner blocks example.com, a host outside .github/egress-firewall.yaml."
+          attempt=1
+          until curl --silent --max-time 10 --output /dev/null https://api.github.com/; do
+            if [ "$attempt" -ge 12 ]; then
+              echo "::error::No request to api.github.com, a host of every firewall policy, got an answer within a minute, so the failed requests to example.com prove no block, and the AI doesn't run: the runner reaches no host. Run the job again."
+              exit 1
+            fi
+            attempt=$((attempt + 1))
+            sleep 5
+          done
+          echo "The network blocks example.com, a host outside .github/egress-firewall.yaml, and lets api.github.com through."
       - name: Wait until Harden-Runner lets the hosts through
         if: vars.ISSUE_ASSISTANT_AI_RUNNER != '' && vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
         # Only the hosts that the next steps need first, and that the runner may have
