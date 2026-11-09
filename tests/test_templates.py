@@ -2521,11 +2521,24 @@ def test_the_events_of_an_issue_wait_their_turn_instead_of_being_dropped():
     }
 
 
-@pytest.mark.parametrize(
-    ("name", "group"),
-    [("issue-lifecycle.yml", "issue-lifecycle"), ("findings.yml", "findings")],
+# The scans of a pull request wait in a group of their branch, so that they never
+# take the place of a run of the default branch that waits (decision 0028).
+BRANCH_GROUP = (
+    "github.event.workflow_run.event == 'pull_request' && "
+    "format('findings-pull-request-{0}', github.event.workflow_run.head_branch) || "
 )
-def test_a_run_that_skips_its_job_never_takes_the_place_of_a_waiting_one(name, group):
+
+
+@pytest.mark.parametrize(
+    ("name", "group", "branch_group"),
+    [
+        ("issue-lifecycle.yml", "issue-lifecycle", ""),
+        ("findings.yml", "findings", BRANCH_GROUP),
+    ],
+)
+def test_a_run_that_skips_its_job_never_takes_the_place_of_a_waiting_one(
+    name, group, branch_group
+):
     """The job, not the run, waits for the group.
 
     A whole run waits for a group of the workflow before its job checks its
@@ -2544,7 +2557,7 @@ def test_a_run_that_skips_its_job_never_takes_the_place_of_a_waiting_one(name, g
     # A dry run writes nothing, so it waits for no other run and replaces none.
     assert job["concurrency"] == {
         "group": f"${{{{ inputs.dry_run && format('{group}-dry-run-{{0}}', "
-        f"github.run_id) || '{group}' }}}}",
+        f"github.run_id) || {branch_group}'{group}' }}}}",
         "cancel-in-progress": False,
     }
 
@@ -2605,9 +2618,11 @@ def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
     job = load(reusable("findings.yml"))["jobs"]["findings"]
     assert job["permissions"] == {"contents": "read", "security-events": "write"}
     condition = " ".join(job["if"].split())
-    # Only code scanning of the default branch of this repository, never of a fork.
+    # Only code scanning of the default branch and of the pull requests of this
+    # repository, never of a fork (decision 0028).
     assert "head_repository.full_name == github.repository" in condition
     assert "head_branch == github.event.repository.default_branch" in condition
+    assert "workflow_run.event == 'pull_request'" in condition
     _, _, guard, checkout, tool, record, step, keep, _ = job["steps"]
     assert guard["name"] == GUARD["name"]
     assert checkout["with"] == {"persist-credentials": False}
@@ -2662,10 +2677,24 @@ def test_the_findings_keep_the_record_of_the_reported_alerts_in_the_cache():
         "needs.record.outputs.key != "
         f"format('{FINDINGS_CACHE}{{0}}', {hashed})"
     )
-    # The findings run also when the record couldn't be read, with none then.
+    # The findings run also when the record couldn't be read, with none then, and
+    # after the scan of a pull request of the repository, which needs no record and
+    # whose run the job record skips (decision 0028).
     assert job["needs"] == RECORD_JOB
+    default_branch = (
+        "github.event.workflow_run.head_branch == "
+        "github.event.repository.default_branch"
+    )
+    assert " ".join(reader["if"].split()) == (
+        "!github.event.repository.fork && (github.event_name != 'workflow_run' || "
+        "(github.event.workflow_run.head_repository.full_name == github.repository && "
+        f"{default_branch}))"
+    )
     assert " ".join(job["if"].split()) == (
-        "!cancelled() && " + " ".join(reader["if"].split())
+        "!cancelled() && !github.event.repository.fork && "
+        "(github.event_name != 'workflow_run' || "
+        "(github.event.workflow_run.head_repository.full_name == github.repository && "
+        f"({default_branch} || github.event.workflow_run.event == 'pull_request')))"
     )
 
 

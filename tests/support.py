@@ -446,11 +446,18 @@ def release_history(*ages, **changes):
 
 
 def make_alert(
-    number=1, tool="Scorecard", rule="CodeReviewID", path="no file", opened=OPENED
+    number=1,
+    tool="Scorecard",
+    rule="CodeReviewID",
+    path="no file",
+    opened=OPENED,
+    pull_request=0,
 ):
     """An open alert of code scanning, which opened at the time `opened`: GitHub
     sets updated_at when an alert opens, opens again, is fixed or is dismissed, and
-    leaves it as it is while every scan finds the alert open again."""
+    leaves it as it is while every scan finds the alert open again. With
+    `pull_request`, the scan of that pull request alone found it, on its merge ref."""
+    ref = f"refs/pull/{pull_request}/merge" if pull_request else "refs/heads/main"
     return {
         "number": number,
         "state": "open",
@@ -458,7 +465,7 @@ def make_alert(
         "updated_at": opened,
         "tool": {"name": tool},
         "rule": {"id": rule},
-        "most_recent_instance": {"location": {"path": path}},
+        "most_recent_instance": {"ref": ref, "location": {"path": path}},
         "html_url": f"https://github.com/{REPOSITORY}/security/code-scanning/{number}",
     }
 
@@ -827,7 +834,17 @@ class FakeGitHub(assistant.GitHub):
                     raise assistant.GitHubError(self.alert_error)
                 if self.alert_store is None:
                     raise not_found("no analysis found")
-                return paged(self.alert_store, query, pages)
+                # Those of the default branch, or of the scans of one pull request.
+                number = query.get("pr", ["0"])[0]
+                ref = (
+                    f"refs/pull/{number}/merge" if number != "0" else "refs/heads/main"
+                )
+                found = [
+                    alert
+                    for alert in self.alert_store
+                    if alert["most_recent_instance"].get("ref", ref) == ref
+                ]
+                return paged(found, query, pages)
             if match := re.fullmatch(r"compare/([0-9a-f]+)\.\.\.(.+)", route):
                 tag = unquote(match[2])
                 if tag not in {item["tag_name"] for item in self.release_store}:

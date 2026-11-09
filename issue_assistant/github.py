@@ -1111,12 +1111,20 @@ class GitHub:
 
         self._write(f"set the milestone {title} on #{number}", assign)
 
-    def open_alerts(self) -> list[dict[str, Any]] | None:
-        """The open alerts of code scanning; None where it isn't set up."""
+    def open_alerts(self, pull_request: int = 0) -> list[dict[str, Any]] | None:
+        """The open alerts of code scanning on the default branch, or those of the
+        scans of a pull request, by its number; None where it isn't set up."""
+        alerts: list[dict[str, Any]]
         try:
-            alerts: list[dict[str, Any]] = self.rest(
-                "code-scanning/alerts?state=open&per_page=100", pages=True
-            )
+            if pull_request:
+                alerts = self.rest(
+                    f"code-scanning/alerts?state=open&pr={pull_request}&per_page=100",
+                    pages=True,
+                )
+            else:
+                alerts = self.rest(
+                    "code-scanning/alerts?state=open&per_page=100", pages=True
+                )
         except GitHubError as error:
             text = str(error).casefold()
             if "no analysis found" in text or "not enabled" in text:

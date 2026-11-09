@@ -19,6 +19,8 @@ from .code_scanning import (
     ALERT_OPEN,
     ALERT_STILL_OPEN,
     BROKEN_RECORD,
+    accept_in_pull_requests,
+    scanned_pull_requests,
     watch_findings,
 )
 from .constants import (
@@ -415,7 +417,17 @@ def usage_command(root: Path, repository: str, arguments: argparse.Namespace) ->
 
 def findings_command(github: GitHub, root: Path, dry_run: bool) -> int:
     """Fail on the alerts that opened since the run before, which GitHub mails the
-    maintainer about, and warn of those that an earlier run reported."""
+    maintainer about, and warn of those that an earlier run reported; after the scan
+    of a pull request, dismiss its accepted alerts alone, and fail on none."""
+    numbers = scanned_pull_requests(
+        os.environ.get("GITHUB_EVENT_NAME", ""), run_event()
+    )
+    if numbers is not None:
+        named = ", ".join(f"#{number}" for number in numbers)
+        title = f"Findings of pull request {named}" if numbers else "Findings"
+        lines = accept_in_pull_requests(github, root, numbers)
+        summary(title, lines or ["No open findings."], dry_run)
+        return 0
     lines, new = watch_findings(github, root)
     for line in lines:
         if line.startswith("Alert #") and ALERT_OPEN in line:
