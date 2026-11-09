@@ -65,7 +65,7 @@ jobs:
     outputs:
       issue: ${{ steps.event.outputs.issue }}
       mode: ${{ steps.event.outputs.mode }}
-      # The endpoints of Harden-Runner for analyze, on the runner of
+      # The endpoints of Harden-Runner for analyze-in-reserve, on the runner of
       # ISSUE_ASSISTANT_AI_RUNNER alone.
       endpoints: ${{ steps.endpoints.outputs.endpoints }}
     steps:
