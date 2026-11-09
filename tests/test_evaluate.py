@@ -21,6 +21,7 @@ import yaml
 import issue_assistant as assistant
 from support import (
     BOX_TICKED,
+    BUG_BODY,
     REPOSITORY,
     FakeGitHub,
     Frozen,
@@ -121,8 +122,8 @@ def github(config):
         23: [labeled("enhancement", 4.9, "github-actions[bot]")],
         21: [labeled("question", 11.5)],
         20: [
-            # The label of its form, which it had from the start.
-            labeled("bug", 30),
+            # The label of its form, which GitHub records as added by the reporter.
+            labeled("bug", 30, "reporter"),
             labeled("area: cards", 29.4),
             labeled("area: games", 29.4),
             labeled("area: games", 29.3, kind="unlabeled"),
@@ -286,6 +287,124 @@ def test_an_issue_whose_only_label_came_with_its_form_is_no_sample(config):
     assert assistant.choose_samples(github, config, 1) == ([], {"not by people": 1})
 
 
+def test_the_labels_that_a_maintainer_chose_as_they_opened_their_own_issue_count(
+    config,
+):
+    """A maintainer, or their coding agent, who opens an issue with its labels, such
+    as with `gh issue create --label`, decided them: the replay doesn't see them,
+    and they count. The labels of the form that a maintainer opened an issue with
+    still count for nothing, since the form chose them."""
+    own = {"author": "owner", "association": "OWNER"}
+    github = FakeGitHub(
+        config,
+        closed(32, 6, labels=("bug", "area: cards"), body="It stays empty.", **own),
+        closed(
+            31, 7, labels=("bug", "needs-triage", "area: cards"), body=BUG_BODY, **own
+        ),
+        closed(30, 8, labels=("bug", "needs-triage"), body=BUG_BODY, **own),
+    )
+    github.event_store = {
+        32: [labeled("bug", 6), labeled("area: cards", 6)],
+        31: [labeled("bug", 7), labeled("needs-triage", 7), labeled("area: cards", 7)],
+        30: [labeled("bug", 8), labeled("needs-triage", 8)],
+    }
+    samples, left_out = assistant.choose_samples(github, config, 3)
+    # Only the labels of its form, bug and needs-triage of the bug report.
+    assert left_out == {"not by people": 1}
+    typed, formed = samples
+    assert typed.labels == {
+        "type": {"bug"},
+        "area": {"area: cards"},
+        "topic": set(),
+        "priority": set(),
+    }
+    assert typed.then["labels"] == []
+    assert formed.labels == {
+        "type": set(),
+        "area": {"area: cards"},
+        "topic": set(),
+        "priority": set(),
+    }
+    assert formed.then["labels"] == [{"name": "bug"}, {"name": "needs-triage"}]
+    # No maintainer asks their own issue for more information.
+    assert typed.asked is None
+    assert formed.asked is None
+
+
+@pytest.mark.parametrize(
+    ("association", "form", "chosen"),
+    [
+        # A maintainer chooses the labels of their own issue, but those of its form.
+        ("OWNER", frozenset(), {"bug", "area: cards", "question"}),
+        ("MEMBER", frozenset({"bug"}), {"area: cards", "question"}),
+        # A reporter who may not triage the issue adds only those of its form.
+        ("NONE", frozenset(), {"question"}),
+    ],
+)
+def test_the_labels_that_people_chose_by_the_moment(association, form, chosen):
+    issue = make_issue(
+        association=association,
+        labels=("bug", "area: cards", "area: games", "question", "documentation"),
+        days_ago=10,
+    )
+    when = assistant.moment(at(10)) + assistant.OPENING
+    events = [
+        labeled("bug", 10, "reporter"),
+        labeled("area: cards", 10, "reporter"),
+        # From a bot, such as the one that routes the area of the form, and from
+        # someone else in the first minute.
+        labeled("area: games", 10, "github-actions[bot]"),
+        labeled("question", 9.9999, "owner"),
+        # Removed by the moment, so the issue didn't have it then.
+        labeled("enhancement", 10, "reporter"),
+        labeled("enhancement", 9.9999, "reporter", "unlabeled"),
+        # A bot added it then, and what a person did later doesn't change that.
+        labeled("documentation", 10, "github-actions[bot]"),
+        labeled("documentation", 9, "owner", "unlabeled"),
+        labeled("documentation", 8, "owner"),
+    ]
+    assert assistant.chosen_then(issue, events, when, form) == chosen
+
+
+def test_the_forms_of_the_checkout_by_the_heading_that_their_issues_begin_with(
+    root, config
+):
+    forms = root / ".github" / "ISSUE_TEMPLATE"
+    files = {
+        "feature.yml": (
+            "labels: enhancement, accessibility\nbody:\n  - type: markdown\n"
+            "    attributes: {value: Thanks}\n  - type: textarea\n"
+            "    attributes: {label: ' What would help? '}\n"
+        ),
+        # A second form whose first field has the same label adds its own.
+        "idea.yaml": (
+            "labels: [question]\nbody:\n  - type: input\n    attributes:\n"
+            "      label: What would help?\n"
+        ),
+        # No field that GitHub writes, a field without a label, no YAML and no form.
+        "notes.yml": "body:\n  - type: markdown\n    attributes: {value: Text}\n",
+        "unnamed.yml": "labels: [bug]\nbody:\n  - type: input\n    id: version\n",
+        "broken.yml": "labels: [\n",
+        "list.yml": "- bug\n",
+    }
+    for name, text in files.items():
+        (forms / name).write_text(text, encoding="utf-8")
+    assert assistant.issue_forms(config) == {
+        "What happened?": {"bug", "needs-triage"},
+        "What would help?": {"enhancement", "accessibility", "question"},
+    }
+
+
+def test_the_form_of_an_issue_is_the_one_whose_first_heading_begins_its_text():
+    forms = {"What happened?": frozenset({"bug"})}
+    issue = make_issue(body="\n### What happened? \r\n\nIt stays empty.")
+    assert assistant.form_of(issue, forms) == {"bug"}
+    # A text of its own, which names the heading later, begins with another one or
+    # is empty.
+    for body in ("It fails.\n\n### What happened?\n", "### Steps\n\n1. Run it", None):
+        assert assistant.form_of(make_issue(body=body), forms) == set()
+
+
 def test_an_issue_whose_reporter_keeps_the_ai_out_is_no_sample(config):
     issue = closed(30, 8, labels=("bug", "assistant-muted"), body=BOX_TICKED)
     github = FakeGitHub(config, issue)
@@ -328,9 +447,30 @@ def test_a_label_counts_when_a_person_added_it_last_after_the_moment(config):
         labeled("area: games", 2, "github-actions[bot]"),
         labeled("needs-info", 2, "owner"),
     ]
-    assert assistant.labels_by_people(config, issue, events, when) == {
+    assert assistant.labels_by_people(config, issue, events, when, set()) == {
         "type": set(),
         "area": {"area: cards"},
+        "topic": set(),
+        "priority": set(),
+    }
+
+
+def test_a_label_that_a_person_chose_by_the_moment_counts_until_it_changes(config):
+    issue = make_issue(labels=("bug", "area: cards", "area: games"))
+    when = assistant.moment(at(6))
+    events = [
+        labeled("bug", 6.5),
+        # Of its form, which a person didn't choose.
+        labeled("area: cards", 6.5, "reporter"),
+        # Removed after the moment, and added again by a bot, which decided it.
+        labeled("area: games", 6.5),
+        labeled("area: games", 5, kind="unlabeled"),
+        labeled("area: games", 4, "github-actions[bot]"),
+    ]
+    chosen = {"bug", "area: games"}
+    assert assistant.labels_by_people(config, issue, events, when, chosen) == {
+        "type": {"bug"},
+        "area": set(),
         "topic": set(),
         "priority": set(),
     }
@@ -670,6 +810,21 @@ def test_precision_and_recall_of_each_measure(config):
     )
 
 
+def test_a_maintainers_own_issue_counts_in_no_question(config):
+    """A maintainer's own issue gets no analysis, so its reporter no question: a
+    question of the assistant there counts in neither precision nor recall, and the
+    report says nothing of it."""
+    own = outcome(sample(20, asked=None, type={"bug"}), type={"bug"}, asks=True)
+    reported = outcome(sample(21, asked=True, type={"bug"}), asks=True)
+    found = {score.name: score for score in assistant.scores([own, reported], config)}
+    assert found["Asks for information"] == assistant.Score(
+        "Asks for information", 1, 1, 1, 1
+    )
+    assert found["Type"] == assistant.Score("Type", 2, 1, 2, 1)
+    row = assistant.outcome_row(own, "owner/project")
+    assert row.endswith("|  |  |  |  |")
+
+
 def test_a_repository_with_priorities_scores_them(config):
     labels = (
         *config.labels,
@@ -730,13 +885,14 @@ def test_the_report_has_each_measure_and_a_line_for_each_issue(config):
         "*Precision* is the share of the assistant's choices that the maintainers "
         "made too, and *recall* the share of the maintainers' choices that the "
         "assistant made. A group of labels counts the issues that people gave a "
-        "label of the group after they were opened, and a label that an issue had "
-        "then, such as that of its form, counts for neither; the duplicates count "
-        "the issues closed as a duplicate of an older one, and the sure ones only "
-        "the duplicates that the assistant "
-        "was sure of, which get the notice that closes them; the questions count "
-        "every issue, and the maintainers asked when the first comment of one of "
-        "them asked a question or someone added `needs-info`.\n"
+        "label of the group, after they were opened or, other than with a form, as "
+        "a maintainer opened them, and a label that an issue had from its form or "
+        "from a bot counts for neither; the duplicates count the issues closed as a "
+        "duplicate of an older one, and the sure ones only the duplicates that the "
+        "assistant was sure of, which get the notice that closes them; the "
+        "questions count every issue but a maintainer's own, which gets no "
+        "analysis and so no question, and the maintainers asked when the first "
+        "comment of one of them asked a question or someone added `needs-info`.\n"
         "\n"
         "1 of the 6 analyses failed; they count in no measure.\n"
         "\n"
@@ -1683,8 +1839,8 @@ def test_the_evaluate_command_refuses_what_would_mislead_it(
 def test_the_evaluate_command_without_an_issue_to_replay_ends_with_a_notice(
     monkeypatch, tmp_path, root, config, capsys
 ):
-    """A repository whose closed issues people never decided after they were opened,
-    such as one whose maintainer labelled each as it was opened, has nothing to
+    """A repository whose closed issues people never decided, such as one whose
+    issues have only the labels of their forms and of bots, has nothing to
     measure, which is no failure: the run passes, says why it left out each issue
     and what an issue needs to be replayed, and writes no report, so the job publish
     of the workflow Evaluate has nothing to bring to the page."""
@@ -1715,11 +1871,11 @@ def test_the_evaluate_command_without_an_issue_to_replay_ends_with_a_notice(
         "Without a label of a type, an area, a topic or a priority, and not closed as "
         "a duplicate of an older issue: 1.",
         "Analyzed by the assistant, whose labels would grade themselves: 1.",
-        "With such a label only from when they were opened, such as that of their "
-        "form, or from a bot: 2.",
+        "With such a label only from their form or from a bot: 2.",
         "An issue is replayed when people gave it a label of a type, an area, a topic "
-        "or a priority of `labels.toml` after it was opened, or closed it as a "
-        "duplicate of an older issue, and the assistant never analyzed it.",
+        "or a priority of `labels.toml`, after it was opened or, other than with its "
+        "form, as a maintainer opened it, or closed it as a duplicate of an older "
+        "issue, and the assistant never analyzed it.",
     ]
     assert (code, outputs) == (0, "")
     assert capsys.readouterr().out.startswith("::notice::" + "%0A".join(lines) + "\n")

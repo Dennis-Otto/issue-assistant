@@ -25,6 +25,7 @@ from .constants import (
 )
 from .engines import DEFAULT_ENGINE, ENGINES
 from .errors import AssistantError, SettingsError
+from .issues import labels_of_form
 from .languages import LANGUAGES, LOCALES
 from .paths import (
     CHOOSER_REPOSITORY,
@@ -229,11 +230,7 @@ def check_forms(config: Config) -> list[str]:
         if not isinstance(form, dict):
             problems.append(f"{where} is no issue form")
             continue
-        names = form.get("labels") or []
-        # GitHub takes a list of names or one text of them separated by commas.
-        if isinstance(names, str):
-            names = [name.strip() for name in names.split(",") if name.strip()]
-        for name in names:
+        for name in labels_of_form(form):
             if name not in defined:
                 problems.append(f"{where}: the label {name} is not in {LABELS_FILE}")
         for item in form.get("body") or []:

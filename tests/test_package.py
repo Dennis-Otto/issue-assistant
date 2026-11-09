@@ -27,7 +27,8 @@ PACKAGE = ROOT / "issue_assistant"
 # The modules besides those that hold code: the one that hands on the names of the
 # others, and the one that runs the command line.
 FRAME = {"__init__", "__main__"}
-# What `check` reads YAML with where a machine has it, and yq where it hasn't.
+# What `check` and `evaluate` read YAML with where a machine has it, and yq where
+# it hasn't.
 OPTIONAL = {"yaml"}
 LONGEST_MODULE = 1500
 LONGEST_FUNCTION = 150

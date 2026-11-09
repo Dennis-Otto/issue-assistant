@@ -109,6 +109,25 @@ def form_labels(issue: dict[str, Any], config: Config) -> list[str]:
     return [label.name for label in config.labels if answers & set(label.form_options)]
 
 
+def labels_of_form(form: dict[str, Any]) -> list[str]:
+    """The labels that an issue form gives each issue opened with it. GitHub takes a
+    list of names or one text of them separated by commas."""
+    names = form.get("labels") or []
+    if isinstance(names, str):
+        return [name.strip() for name in names.split(",") if name.strip()]
+    return [str(name) for name in names]
+
+
+def first_heading(form: dict[str, Any]) -> str | None:
+    """The heading that the text of an issue opened with the form begins with: the
+    label of its first field, as GitHub writes every field but the texts of type
+    markdown. None for a form without such a field, such as the chooser."""
+    for item in form.get("body") or []:
+        if item.get("type") != "markdown":
+            return str((item.get("attributes") or {}).get("label") or "").strip()
+    return None
+
+
 def box_ticked(body: str | None, config: Config) -> bool:
     """Whether the text of an issue has the box of [forms] opt_out_field ticked, with
     which its reporter keeps the AI out of it."""

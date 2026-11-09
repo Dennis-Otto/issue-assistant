@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from .actionlint import load_yaml
 from .answer import parse_answer
 from .applying import other_issue, questions, vouched_for
 from .cleaning import code_span, one_line
@@ -22,11 +23,20 @@ from .constants import MOST_EVALUATED, NEEDS_INFO, NO_PRIORITY
 from .context import write_context
 from .digests import share
 from .engines import ENGINES, Engine, Run, engine_named
-from .errors import AssistantError, GitHubError
+from .errors import AssistantError, GitHubError, SettingsError
 from .github import GitHub
-from .issues import is_bot, is_maintainer, kind_of, opted_out, text_of
+from .issues import (
+    FORM_HEADING,
+    first_heading,
+    is_bot,
+    is_maintainer,
+    kind_of,
+    labels_of_form,
+    opted_out,
+    text_of,
+)
 from .learning import CHOSEN_GROUPS, plural
-from .paths import CONTEXT
+from .paths import CONTEXT, FORMS
 from .patterns import CODE, HTML_COMMENT
 from .running import (
     ENGINE_MINUTES,
@@ -75,16 +85,14 @@ LEFT_OUT = {
         "as a duplicate of an older issue"
     ),
     "analyzed": "Analyzed by the assistant, whose labels would grade themselves",
-    "not by people": (
-        "With such a label only from when they were opened, such as that of their "
-        "form, or from a bot"
-    ),
+    "not by people": "With such a label only from their form or from a bot",
 }
 # What makes a closed issue a sample, the end of that notice.
 REPLAYED = (
     "An issue is replayed when people gave it a label of a type, an area, a topic or "
-    "a priority of `labels.toml` after it was opened, or closed it as a duplicate of "
-    "an older issue, and the assistant never analyzed it."
+    "a priority of `labels.toml`, after it was opened or, other than with its form, "
+    "as a maintainer opened it, or closed it as a duplicate of an older issue, and "
+    "the assistant never analyzed it."
 )
 
 
@@ -96,12 +104,14 @@ class Sample:
     issue: dict[str, Any]
     moment: datetime
     then: dict[str, Any]
-    # The labels of each group of SCORED_GROUPS that it has, but those of bots.
+    # The labels of each group of SCORED_GROUPS that people chose for it.
     labels: dict[str, frozenset[str]]
     # The older issue that it was closed as a duplicate of.
     original: int | None
-    # Whether a maintainer asked its reporter for more information.
-    asked: bool
+    # Whether a maintainer asked its reporter for more information; None for a
+    # maintainer's own issue, whose reporter no maintainer would ask, and which gets
+    # no analysis, so no question either.
+    asked: bool | None
 
     @property
     def number(self) -> int:
@@ -126,19 +136,77 @@ def labels_at(
     return names
 
 
+def issue_forms(config: Config) -> dict[str, frozenset[str]]:
+    """The labels that the issue forms of the checkout give, by the heading that the
+    text of an issue opened with each begins with: what tells the labels of a form
+    from those that a maintainer chose as they opened their own issue. A file that
+    is no form, such as the chooser or one that `check` reports, gives none."""
+    forms: dict[str, frozenset[str]] = {}
+    for path in sorted((config.root / FORMS).glob("*.y*ml")):
+        try:
+            form = load_yaml(path)
+        except SettingsError:
+            continue
+        heading = first_heading(form) if isinstance(form, dict) else None
+        if heading:
+            forms[heading] = forms.get(heading, frozenset()).union(labels_of_form(form))
+    return forms
+
+
+def form_of(issue: dict[str, Any], forms: dict[str, frozenset[str]]) -> frozenset[str]:
+    """The labels of the form that the issue was opened with, which its text begins
+    with the first heading of; none for a text of its own."""
+    heading = FORM_HEADING.match(text_of(issue).lstrip())
+    return forms.get(heading[1].strip(), frozenset()) if heading else frozenset()
+
+
+def chosen_then(
+    issue: dict[str, Any],
+    events: list[dict[str, Any]],
+    when: datetime,
+    form: frozenset[str],
+) -> set[str]:
+    """The labels that the issue had at the moment and that a person chose: those
+    that anyone but a bot and its reporter added, and those that a reporter who may
+    triage it added and that its form doesn't give.
+
+    GitHub records the labels of a form as added by the reporter, and only people
+    who may triage an issue add labels of their own, such as a maintainer who opens
+    their own issue with `gh issue create --label`. The replay doesn't see these,
+    and they count as decisions."""
+    added = {
+        str((event.get("label") or {}).get("name", "")): event
+        for event in sorted(events, key=created)
+        if event["event"] == "labeled" and created(event) <= when
+    }
+    reporter = login(issue.get("user"))
+    return {
+        name
+        for name in labels_at(issue, events, when)
+        if name in added
+        and not is_bot(added[name].get("actor"))
+        and (
+            login(added[name].get("actor")) != reporter
+            or (is_maintainer(issue) and name not in form)
+        )
+    }
+
+
 def labels_by_people(
     config: Config,
     issue: dict[str, Any],
     events: list[dict[str, Any]],
     when: datetime,
+    chosen: set[str],
 ) -> dict[str, frozenset[str]]:
-    """The labels of each scored group that the issue has and that a person added
-    last, after the moment: what the maintainers decided.
+    """The labels of each scored group that the issue has and that people chose:
+    what the maintainers decided. Those that a person added last, after the moment,
+    and those of `chosen`, which a person added by the moment and nobody changed
+    since.
 
-    A label that it had at the moment, such as that of its form, which GitHub
-    records as added by the reporter, is no decision: the replay sees it. Nor is
-    one that a bot added last, such as the assistant or a labeler of the
-    repository."""
+    A label that its form gave it, which GitHub records as added by the reporter,
+    is no decision: the replay sees it. Nor is one that a bot added last, such as
+    the assistant or a labeler of the repository."""
     last = {
         str((event.get("label") or {}).get("name", "")): event
         for event in sorted(events, key=created)
@@ -148,8 +216,10 @@ def labels_by_people(
         name
         for name in label_names(issue)
         if name in last
-        and created(last[name]) > when
-        and not is_bot(last[name].get("actor"))
+        and (
+            (created(last[name]) > when and not is_bot(last[name].get("actor")))
+            or (created(last[name]) <= when and name in chosen)
+        )
     }
     return {
         group: frozenset(names.intersection(config.group(group)))
@@ -190,11 +260,17 @@ def maintainers_asked(
     )
 
 
-def sample_of(github: GitHub, config: Config, issue: dict[str, Any]) -> Sample | str:
+def sample_of(
+    github: GitHub,
+    config: Config,
+    issue: dict[str, Any],
+    forms: dict[str, frozenset[str]],
+) -> Sample | str:
     """The sample of a closed issue that people labelled with a label of a scored
     group or closed as a duplicate of an older issue, and that the assistant never
     analyzed; for any other issue, such as one that a bot opened or whose reporter
-    keeps the AI out of it, the key of LEFT_OUT that says why it is none."""
+    keeps the AI out of it, the key of LEFT_OUT that says why it is none. The
+    replay sees the labels of its form and of bots, not those that people chose."""
     if is_bot(issue["user"]):
         return "bot"
     if opted_out(issue, config):
@@ -214,17 +290,23 @@ def sample_of(github: GitHub, config: Config, issue: dict[str, Any]) -> Sample |
         return "analyzed"
     events = github.events(number)
     when = created(issue) + OPENING
-    labels = labels_by_people(config, issue, events, when)
+    chosen = chosen_then(issue, events, when, form_of(issue, forms))
+    labels = labels_by_people(config, issue, events, when, chosen)
     if original is None and not any(labels.values()):
         return "not by people"
+    seen = labels_at(issue, events, when) - chosen
     then = issue | {
         "state": "open",
         "state_reason": None,
         "closed_at": None,
         "duplicate_of": None,
-        "labels": [{"name": name} for name in sorted(labels_at(issue, events, when))],
+        "labels": [{"name": name} for name in sorted(seen)],
     }
-    asked = maintainers_asked(issue, comments, events, when)
+    asked = (
+        None
+        if is_maintainer(issue)
+        else maintainers_asked(issue, comments, events, when)
+    )
     return Sample(issue, when, then, labels, original, asked)
 
 
@@ -236,8 +318,9 @@ def choose_samples(
     LEFT_OUT that says why."""
     chosen: list[Sample] = []
     left_out: Counter[str] = Counter()
+    forms = issue_forms(config)
     for issue in github.closed_issues():
-        sample = sample_of(github, config, issue)
+        sample = sample_of(github, config, issue, forms)
         if isinstance(sample, str):
             left_out[sample] += 1
             continue
@@ -483,7 +566,7 @@ def scores(outcomes: list[Outcome], config: Config) -> list[Score]:
     A group counts the issues that people gave a label of it, since an issue
     without an area says nothing about the areas; the duplicates count the issues
     closed as a duplicate of an older one, and a duplicate named for any other is a
-    wrong one; the questions count every issue.
+    wrong one; the questions count every issue but a maintainer's own.
     """
     answered = [outcome for outcome in outcomes if not outcome.error]
     found = []
@@ -516,13 +599,14 @@ def scores(outcomes: list[Outcome], config: Config) -> list[Score]:
         ]
         right = sum(number == outcome.sample.original for outcome, number in named)
         found.append(Score(name, originals, len(named), originals, right))
+    reported = [outcome for outcome in answered if outcome.sample.asked is not None]
     found.append(
         Score(
             MEASURES[-1],
-            len(answered),
-            sum(outcome.asks for outcome in answered),
-            sum(outcome.sample.asked for outcome in answered),
-            sum(outcome.asks and outcome.sample.asked for outcome in answered),
+            len(reported),
+            sum(outcome.asks for outcome in reported),
+            sum(bool(outcome.sample.asked) for outcome in reported),
+            sum(outcome.asks and bool(outcome.sample.asked) for outcome in reported),
         )
     )
     return found
@@ -558,6 +642,8 @@ def outcome_row(outcome: Outcome, repository: str) -> str:
     right = [name for g in groups for name in outcome.labels[g] & sample.labels[g]]
     wrong = [name for g in groups for name in outcome.labels[g] - sample.labels[g]]
     missed = [name for g in groups for name in sample.labels[g] - outcome.labels[g]]
+    # A maintainer's own issue has no question to compare with.
+    asked = "" if sample.asked is None else ASKED[(outcome.asks, sample.asked)]
     numbers = list(outcome.duplicates)
     named = ", ".join(f"#{number}" for number in numbers)
     if sample.original is None:
@@ -568,7 +654,7 @@ def outcome_row(outcome: Outcome, repository: str) -> str:
         duplicate = f"missed #{sample.original}" + (f", named {named}" if named else "")
     return (
         f"| {link} | {names(right)} | {names(wrong)} | {names(missed)} | "
-        f"{duplicate} | {ASKED[(outcome.asks, sample.asked)]} |"
+        f"{duplicate} | {asked} |"
     )
 
 
@@ -605,12 +691,14 @@ def render_evaluation(
         "*Precision* is the share of the assistant's choices that the maintainers "
         "made too, and *recall* the share of the maintainers' choices that the "
         "assistant made. A group of labels counts the issues that people gave a "
-        "label of the group after they were opened, and a label that an issue had "
-        "then, such as that of its form, counts for neither; the duplicates count the issues closed as a duplicate "
-        "of an older one, and the sure ones only the duplicates that the assistant "
-        "was sure of, which get the notice that closes them; the questions count "
-        "every issue, and the maintainers asked when the first comment of one of "
-        "them asked a question or someone added `needs-info`.",
+        "label of the group, after they were opened or, other than with a form, as "
+        "a maintainer opened them, and a label that an issue had from its form or "
+        "from a bot counts for neither; the duplicates count the issues closed as a "
+        "duplicate of an older one, and the sure ones only the duplicates that the "
+        "assistant was sure of, which get the notice that closes them; the "
+        "questions count every issue but a maintainer's own, which gets no "
+        "analysis and so no question, and the maintainers asked when the first "
+        "comment of one of them asked a question or someone added `needs-info`.",
     ]
     if failed:
         lines += [
@@ -789,8 +877,8 @@ def evaluate(
     github.remember()
     samples, left_out = choose_samples(github, config, count)
     if not samples:
-        # Such as in a repository whose maintainer labelled each issue as it was
-        # opened. The run passes, so that a measurement of every repository by hand
+        # Such as in a repository whose issues have only the labels of their forms
+        # and of bots. The run passes, so that a measurement of every repository by hand
         # fails only on a fault; with no report, the page keeps its numbers.
         lines = nothing_to_replay(left_out)
         command("notice", "\n".join(lines))

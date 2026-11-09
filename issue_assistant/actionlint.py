@@ -35,7 +35,8 @@ def load_yaml(path: Path, where: str = "") -> Any:
             )
         except FileNotFoundError:
             raise AssistantError(
-                "Reading the workflows needs PyYAML or yq; install one of them, "
+                "Reading YAML, such as that of the workflows and the issue forms, "
+                "needs PyYAML or yq; install one of them, "
                 "for example with: pip install pyyaml"
             ) from None
         except subprocess.CalledProcessError as error:
