@@ -300,8 +300,8 @@ jobs:
           RUN: ${{ github.run_id }}
           ATTEMPT: ${{ github.run_attempt }}
         run: python3 scripts/canary_queue.py
-      # The run, and with it GitHub's mail and bot-health, ends only when analyze does,
-      # up to a day later: this issue tells at once.
+      # The run, and with it GitHub's mail and bot-health, ends only when the job of the AI
+      # (analyze or analyze-in-reserve) does, up to a day later: this issue tells at once.
       - name: Open the issue of bot-health
         if: >-
           failure() && steps.measure.outcome == 'failure'

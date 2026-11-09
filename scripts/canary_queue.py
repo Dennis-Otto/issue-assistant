@@ -76,8 +76,9 @@ RESERVE_ADVICE = (
     "GitHub's egress-firewall runner: check that it names one of GitHub's runners "
     "of Ubuntu that exists, such as ubuntu-24.04, and look for an outage of GitHub "
     "Actions on https://www.githubstatus.com. Once ubuntu-24.04-firewall runs "
-    "jobs again, `gh variable delete ISSUE_ASSISTANT_AI_RUNNER` brings the AI back "
-    "to it: https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/"
+    "jobs again, taking the variable out of [variables] of "
+    ".github/repository.project.toml, or `gh variable delete ISSUE_ASSISTANT_AI_RUNNER` "
+    "when it isn't declared there, brings the AI back to it: https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/"
     "decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md"
 )
 
