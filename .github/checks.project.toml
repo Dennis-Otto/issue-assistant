@@ -532,9 +532,12 @@ title = "The wait of the AI for its runner"
 problem = """The job `analyze` of the Canary waited for longer than 30 minutes for its
 runner, or still waits: the summary of the job says how long. The AI runs on
 `ubuntu-24.04-firewall`, GitHub's runner with the egress firewall, which is a
-technical preview; GitHub may have renamed or ended it, or the account lost it. On
-`main` the job opened the issue of the bot-health bot for the Canary, which closes
-when a Canary passes again.
+technical preview; GitHub may have renamed or ended it, or the account lost it.
+When the variable `ISSUE_ASSISTANT_AI_RUNNER` names another runner, the job
+`analyze-in-reserve` runs the AI there in its place, and the summary names that one:
+then GitHub has no machine for the runner that the variable names, or an outage of
+GitHub Actions holds every job. On `main` the job opened the issue of the
+bot-health bot for the Canary, which closes when a Canary passes again.
 When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
 had no agent that blocks, mostly because an outage of GitHub kept it from downloading
 it: that is no problem of the code, and the check passes when it runs again."""
@@ -547,7 +550,12 @@ of the action moves to the new runner, a repository names another one for the AI
 its variable `ISSUE_ASSISTANT_AI_RUNNER`, such as `ubuntu-24.04`, where Harden-Runner
 blocks every host but those of `.github/egress-firewall.yaml`; decision 0019 says
 what that changes. Set it in `[variables]` of `.github/repository.project.toml`,
-which the settings bot applies, or on GitHub, and run the Canary again:"""
+which the settings bot applies, or on GitHub, and run the Canary again. When
+`analyze-in-reserve` waited, check that the variable names one of GitHub's runners
+of Ubuntu that exists, such as `ubuntu-24.04`, and look at
+https://www.githubstatus.com; once the firewall runner runs jobs again, taking the
+variable out of `[variables]`, or `gh variable delete ISSUE_ASSISTANT_AI_RUNNER`,
+brings the AI back to it. The commands for the firewall runner:"""
 commands = [
   "gh variable set ISSUE_ASSISTANT_AI_RUNNER --body ubuntu-24.04 --repo {repo}",
   "gh workflow run canary.yml --repo {repo}",

@@ -54,6 +54,7 @@ EVENT_DONE = job(
     "Handle the event", "completed", "success", created_at=0, completed_at=1
 )
 WATCHER = {"name": "the AI's wait for its runner", "status": "in_progress"}
+RESERVE = "Analyze with the AI engine on the runner in reserve"
 
 
 def test_the_job_of_the_canary_runs_the_script_beside_the_call():
@@ -75,9 +76,9 @@ def test_the_job_of_the_canary_runs_the_script_beside_the_call():
     called = yaml.safe_load(
         (ROOT / ".github/workflows/reusable-issue-assistant.yml").read_text("utf-8")
     )["jobs"]
-    assert called["analyze"]["name"] == queue.ANALYZE
+    assert {called[key]["name"]: key for key in queue.AI.values()} == queue.AI
     assert called["event"]["name"] == queue.EVENT
-    assert called["analyze"]["needs"] == "event"
+    assert all(called[key]["needs"] == "event" for key in queue.AI.values())
     # Long enough for the call to wait for an earlier canary, then FAIL.
     assert watcher["timeout-minutes"] * 60 > queue.FAIL.total_seconds() * 2
 
@@ -152,11 +153,86 @@ def test_the_job_of_the_canary_runs_the_script_beside_the_call():
             0,
             None,
         ),
-        # Nothing to measure.
+        # Nothing to measure: the run skips the AI.
+        (
+            [
+                EVENT_DONE,
+                job("Analyze with the AI engine", "completed", "skipped"),
+                job(RESERVE, "completed", "skipped"),
+            ],
+            2,
+            queue.Wait(None, reason="analyze and analyze-in-reserve were skipped"),
+        ),
+        # The firewall runner is skipped for the runner in reserve, which GitHub
+        # may list a moment later: its wait counts as well.
         (
             [EVENT_DONE, job("Analyze with the AI engine", "completed", "skipped")],
             2,
-            queue.Wait(None, reason="analyze was skipped"),
+            None,
+        ),
+        (
+            [EVENT_DONE, job("Analyze with the AI engine", "completed", "skipped")],
+            32,
+            queue.Wait(timedelta(minutes=31), job="analyze-in-reserve"),
+        ),
+        (
+            [
+                EVENT_DONE,
+                job("Analyze with the AI engine", "completed", "skipped"),
+                job(RESERVE, created_at=0),
+            ],
+            31,
+            None,
+        ),
+        (
+            [
+                EVENT_DONE,
+                job("Analyze with the AI engine", "completed", "skipped"),
+                job(RESERVE, created_at=0),
+            ],
+            32,
+            queue.Wait(timedelta(minutes=31), job="analyze-in-reserve"),
+        ),
+        (
+            [
+                EVENT_DONE,
+                job("Analyze with the AI engine", "completed", "skipped"),
+                job(RESERVE, "in_progress", created_at=0, started_at=3),
+            ],
+            5,
+            queue.Wait(timedelta(minutes=2), started=True, job="analyze-in-reserve"),
+        ),
+        (
+            [
+                EVENT_DONE,
+                job(RESERVE, "completed", "cancelled", created_at=1),
+                job("Analyze with the AI engine", "completed", "skipped"),
+            ],
+            2,
+            queue.Wait(
+                None,
+                reason="analyze-in-reserve ended without a start, as when cancelled",
+            ),
+        ),
+        # The runner in reserve is skipped for the firewall runner.
+        (
+            [
+                EVENT_DONE,
+                job(RESERVE, "completed", "skipped"),
+                job("Analyze with the AI engine", created_at=0),
+            ],
+            32,
+            queue.Wait(timedelta(minutes=31)),
+        ),
+        # While the event runs, both wait for it.
+        (
+            [
+                job("Handle the event", "in_progress", created_at=0),
+                job("Analyze with the AI engine", "pending", created_at=0),
+                job(RESERVE, "pending", created_at=0),
+            ],
+            90,
+            None,
         ),
         # The event passed, and GitHub doesn't list analyze yet: it could start.
         ([EVENT_DONE, WATCHER], 2, None),
@@ -233,9 +309,35 @@ def test_the_wait_counts_from_when_analyze_could_start(jobs, now, expected):
             f"above 10 min 0 s, fails above 30 min 0 s). {queue.ADVICE}",
         ),
         (
-            queue.Wait(None, reason="analyze was skipped"),
+            queue.Wait(None, reason="analyze and analyze-in-reserve were skipped"),
             0,
-            "::notice::Nothing to measure: analyze was skipped.",
+            "::notice::Nothing to measure: analyze and analyze-in-reserve were "
+            "skipped.",
+        ),
+        # The runner that ISSUE_ASSISTANT_AI_RUNNER names, with advice of its own.
+        (
+            queue.Wait(timedelta(minutes=2), started=True, job="analyze-in-reserve"),
+            0,
+            "analyze-in-reserve waited 2 min 0 s for its runner (warns above "
+            "10 min 0 s, fails above 30 min 0 s).",
+        ),
+        (
+            queue.Wait(timedelta(minutes=12), started=True, job="analyze-in-reserve"),
+            0,
+            "::warning::analyze-in-reserve waited 12 min 0 s for its runner (warns "
+            "above 10 min 0 s, fails above 30 min 0 s).",
+        ),
+        (
+            queue.Wait(timedelta(minutes=45), started=True, job="analyze-in-reserve"),
+            1,
+            "::error::analyze-in-reserve waited 45 min 0 s for its runner (warns "
+            f"above 10 min 0 s, fails above 30 min 0 s). {queue.RESERVE_ADVICE}",
+        ),
+        (
+            queue.Wait(timedelta(minutes=31), job="analyze-in-reserve"),
+            1,
+            "::error::analyze-in-reserve still waits for its runner after 31 min 0 s "
+            f"(warns above 10 min 0 s, fails above 30 min 0 s). {queue.RESERVE_ADVICE}",
         ),
     ],
 )
@@ -246,10 +348,20 @@ def test_the_canary_warns_above_10_minutes_and_fails_above_30(wait, code, messag
     assert line == re.sub(r"^::[a-z]+::", "", message)
 
 
-def test_a_failure_says_what_to_do():
-    assert "ISSUE_ASSISTANT_AI_RUNNER" in queue.ADVICE
-    decision = queue.ADVICE.rpartition("/docs/decisions/")[2]
+@pytest.mark.parametrize("advice", ["ADVICE", "RESERVE_ADVICE"])
+def test_a_failure_says_what_to_do(advice):
+    text = getattr(queue, advice)
+    assert "ISSUE_ASSISTANT_AI_RUNNER" in text
+    decision = text.rpartition("/docs/decisions/")[2]
     assert (ROOT / "docs" / "decisions" / decision).is_file()
+
+
+def test_the_advice_fits_the_runner_that_waited():
+    # The firewall runner may be gone: name another one. The runner in reserve is
+    # the one that the variable names: check it, or go back to the firewall runner.
+    assert "ubuntu-24.04-firewall" in queue.ADVICE
+    assert "gh variable delete ISSUE_ASSISTANT_AI_RUNNER" in queue.RESERVE_ADVICE
+    assert queue.ADVICE != queue.RESERVE_ADVICE
 
 
 def test_the_script_looks_until_the_wait_can_be_told():

@@ -11,7 +11,8 @@ name: Canary
 # this repository gets few issues, so a broken path would show first as issues
 # without an answer in every repository that uses the action. The job queue
 # measures how long analyze waits for the runner with the firewall, a technical
-# preview, and fails when it waits for longer than 30 minutes.
+# preview, or analyze-in-reserve for the runner that ISSUE_ASSISTANT_AI_RUNNER
+# names in its place, and fails when it waits for longer than 30 minutes.
 #
 # The issue is tests/fixtures/canary-issue.json, which exists nowhere on GitHub: the
 # input canary of the reusable workflow, which only this repository may pass, gives
@@ -203,10 +204,12 @@ jobs:
   # The AI runs on GitHub's egress-firewall runner, a technical preview. Should
   # GitHub rename or end it, analyze waits in the queue, up to a day, and every
   # later run of an issue waits behind it, in every repository. This job reads the
-  # jobs of its run beside the call, until analyze starts, and shows the wait in its
-  # summary: a warning above 10 minutes, a failure above 30, also while analyze
-  # still waits. On the default branch it then opens the issue of bot-health for the
-  # Canary, since the run ends, and GitHub mails its failure, only when analyze does.
+  # jobs of its run beside the call, until the job of the AI starts, analyze or,
+  # when the variable ISSUE_ASSISTANT_AI_RUNNER names another runner,
+  # analyze-in-reserve in its place, and shows the wait in its summary: a warning
+  # above 10 minutes, a failure above 30, also while the job still waits. On the
+  # default branch it then opens the issue of bot-health for the Canary, since the
+  # run ends, and GitHub mails its failure, only when the job of the AI does.
   # scripts/canary_queue.py says when the wait starts.
   queue:
     name: the AI's wait for its runner
