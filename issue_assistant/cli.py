@@ -359,9 +359,9 @@ def check_command(root: Path, repository: str) -> int:
 
 
 def endpoints_command(root: Path) -> int:
-    """For the job event: the endpoints of Harden-Runner for the job analyze on the
-    runner of ISSUE_ASSISTANT_AI_RUNNER, empty on GitHub's egress-firewall runner,
-    whose firewall reads the policy itself."""
+    """For the job event: the endpoints of Harden-Runner for the job
+    analyze-in-reserve on the runner of ISSUE_ASSISTANT_AI_RUNNER, empty on GitHub's
+    egress-firewall runner, whose firewall reads the policy itself."""
     runner = os.environ.get(RUNNER_VARIABLE, "")
     problems = runner_problems(runner)
     if problems:

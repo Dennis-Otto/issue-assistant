@@ -11,8 +11,9 @@ name: Workflow test
 # Each job below calls one reusable workflow of the commit, with the permissions of
 # its template and dry_run: the labels, the findings and the lifecycle in full. The
 # issues with the input smoke, which only this repository may pass: the job event
-# takes the issue of tests/fixtures/canary-issue.json, analyze is skipped, and apply
-# checks the answer of tests/fixtures/smoke-answer.json in place of the engine's;
+# takes the issue of tests/fixtures/canary-issue.json, analyze and
+# analyze-in-reserve are skipped, and apply checks the answer of
+# tests/fixtures/smoke-answer.json in place of the engine's;
 # the engine itself is the Canary's. The discussions get no event of theirs and skip
 # every job. On a pull request from a fork GitHub gives every job a token that can
 # only read, which a dry run needs.

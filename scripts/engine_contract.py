@@ -191,8 +191,11 @@ class Pin:
 
 
 def engine_steps(folder: Path = WORKFLOWS) -> list[EngineStep]:
-    """The steps of the engines in the workflows of the folder."""
-    found = []
+    """The steps of the engines in the workflows of the folder. A step that a YAML
+    alias repeats in another job of its workflow, as analyze-in-reserve repeats those
+    of analyze, is one text: it counts once, in the job where it is written, unless
+    the other job reads other outputs of it."""
+    found: list[EngineStep] = []
     for path in sorted(folder.glob("*.yml")):
         workflow = assistant.load_yaml(path) or {}
         for job_name, job in (workflow.get("jobs") or {}).items():
@@ -202,14 +205,18 @@ def engine_steps(folder: Path = WORKFLOWS) -> list[EngineStep]:
                 if key not in assistant.ENGINES:
                     continue
                 reads = re.findall(OUTPUT.format(re.escape(key)), text)
-                found.append(
-                    EngineStep(
-                        str(assistant.WORKFLOWS / path.name),
-                        job_name,
-                        step,
-                        frozenset(dotted or bracketed for dotted, bracketed in reads),
-                    )
+                engine_step = EngineStep(
+                    str(assistant.WORKFLOWS / path.name),
+                    job_name,
+                    step,
+                    frozenset(dotted or bracketed for dotted, bracketed in reads),
                 )
+                if not any(
+                    (other.workflow, other.step, other.outputs)
+                    == (engine_step.workflow, step, engine_step.outputs)
+                    for other in found
+                ):
+                    found.append(engine_step)
     return found
 
 

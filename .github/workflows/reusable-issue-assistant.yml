@@ -10,9 +10,11 @@ name: Issue assistant
 #          override of the one-comment rule that only a maintainer may give
 # analyze  the AI engine of .github/issue-assistant/config.toml reads the checkout and
 #          a context folder and answers with JSON; read-only token, read-only tools,
-#          egress-firewall runner (the caller's .github/egress-firewall.yaml), or the
-#          runner of the caller's variable ISSUE_ASSISTANT_AI_RUNNER with the same
-#          hosts behind Harden-Runner
+#          egress-firewall runner (the caller's .github/egress-firewall.yaml)
+# analyze-in-reserve
+#          the same steps on the runner of the caller's variable
+#          ISSUE_ASSISTANT_AI_RUNNER, in place of analyze, with the same hosts behind
+#          Harden-Runner
 # apply    no AI: checks the engine's answer and is the only job that writes;
 #          it checks an override again before it posts a second comment
 #
@@ -243,6 +245,10 @@ jobs:
           done
           echo "::warning::Harden-Runner still removes Docker after two minutes; the job may hang until its timeout."
 
+  # The AI on GitHub's egress-firewall runner. No step of Harden-Runner belongs in this
+  # job, not even one that its condition skips: GitHub runs the pre step of an action,
+  # which starts the agent of Harden-Runner, whatever the if of its step says
+  # (decision 0027). The anchors, such as &engine, give its steps to analyze-in-reserve.
   analyze:
     name: Analyze with the AI engine
     needs: event
@@ -251,55 +257,27 @@ jobs:
       !inputs.smoke &&
       needs.event.outputs.mode != '' &&
       needs.event.outputs.mode != 'none' &&
-      vars.ISSUE_ASSISTANT_AI != 'off'
-    # GitHub's egress-firewall runner, or the one that the repository names in its
-    # place; the job event checks it.
-    runs-on: ${{ vars.ISSUE_ASSISTANT_AI_RUNNER || 'ubuntu-24.04-firewall' }}
+      vars.ISSUE_ASSISTANT_AI != 'off' &&
+      (vars.ISSUE_ASSISTANT_AI_RUNNER == '' ||
+        vars.ISSUE_ASSISTANT_AI_RUNNER == 'ubuntu-24.04-firewall')
+    # GitHub's egress-firewall runner, whose firewall blocks every host but those of
+    # the caller's .github/egress-firewall.yaml for the whole machine.
+    runs-on: ubuntu-24.04-firewall
     timeout-minutes: 20
     # The engine's secret belongs to this environment of the caller, limited to the
     # default branch; no deployment is recorded for a run.
-    environment:
+    environment: &ai-environment
       name: issue-assistant
       deployment: false
-    permissions:
+    permissions: &ai-permissions
       contents: read
       issues: read
       discussions: read
-    outputs:
+    outputs: &ai-outputs
       engine: ${{ steps.engine.outputs.engine }}
       # One answer per engine step; only the chosen engine runs.
       answer: ${{ steps.claude.outputs.structured_output || steps.codex.outputs.final-message || steps.gemini.outputs.answer || steps.copilot.outputs.answer }}
     steps:
-      # Only on the runner of ISSUE_ASSISTANT_AI_RUNNER: Harden-Runner blocks every
-      # host but those of the firewall policy for this job, as the firewall does for
-      # the whole machine of its runner. The engines need sudo, to install what
-      # isolates them, and run no command that could lift the block.
-      - name: Block every host but those of the firewall policy
-        if: vars.ISSUE_ASSISTANT_AI_RUNNER != '' && vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
-        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
-        with:
-          egress-policy: block
-          allowed-endpoints: ${{ needs.event.outputs.endpoints }}
-      # GitHub's DNS experiment on some of its runners hides the lookups of the job from
-      # Harden-Runner, which then blocks the hosts of the policy until the time limit
-      # (step-security/harden-runner#708). Harden-Runner takes it away unless its
-      # feature flags say no; a job that keeps sudo makes sure, as decision 0123 of the
-      # blueprint has its jobs do. Just where Harden-Runner runs, never on the firewall
-      # runner, whose firewall this step must not touch; the next step checks the block
-      # as the engine meets it.
-      - name: Let Harden-Runner see the DNS lookups
-        if: vars.ISSUE_ASSISTANT_AI_RUNNER != '' && vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
-        run: |
-          dropins=(/etc/systemd/resolved.conf.d/90-egress-proxy.conf /run/systemd/resolved.conf.d/90-egress-proxy.conf)
-          if [[ ! -e ${dropins[0]} && ! -e ${dropins[1]} ]] && ! grep -qs 127.0.0.100 /etc/resolv.conf; then
-            exit 0
-          fi
-          echo "::notice::GitHub's DNS experiment is on this runner; taking it out of the way of Harden-Runner."
-          sudo rm -f "${dropins[@]}"
-          sudo systemctl restart systemd-resolved
-          sudo ln -sfn /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
-          sudo systemctl stop egress-dns-resolver.service egress-outbound-proxy.service || true
-          sudo resolvectl flush-caches || true
       # The AI runs only behind a block that holds, on both runners: GitHub's egress
       # firewall enforces the policy only for a job that may read the repository, and
       # its preview may change how it finds and reads the policy, without a warning;
@@ -307,7 +285,8 @@ jobs:
       # StepSecurity or when its service is down. So before any step that gets the
       # engine's secret, a host outside the policy has to be out of reach, and the job
       # stops otherwise. Decision 0025.
-      - name: Make sure that the network block holds
+      - &network-block
+        name: Make sure that the network block holds
         run: |
           # A request to example.com, a host of no firewall policy, has to fail: two in a
           # row, five seconds apart, so that a hiccup of example.com isn't taken for the
@@ -339,38 +318,12 @@ jobs:
             sleep 5
           done
           echo "The network blocks example.com, a host outside .github/egress-firewall.yaml, and lets api.github.com through."
-      - name: Wait until Harden-Runner lets the hosts through
-        if: vars.ISSUE_ASSISTANT_AI_RUNNER != '' && vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
-        # Only the hosts that the next steps need first, and that the runner may have
-        # asked for past Harden-Runner, which then blocks such an address for as long as
-        # systemd-resolved keeps it, up to a minute. The policy also names hosts of the
-        # engines that this repository may not use, and a mirror that answers only on
-        # port 80; waiting for those would hold up the AI for two minutes.
-        timeout-minutes: 4
-        env:
-          HOSTS: >-
-            api.github.com:443
-            github.com:443
-        run: |
-          deadline=$(($(date +%s) + 120))
-          for endpoint in $HOSTS; do
-            host="${endpoint%:*}"
-            # A wildcard names no host to ask.
-            [[ "$host" == '*.'* ]] && continue
-            until curl --silent --head --connect-timeout 3 --max-time 5 --output /dev/null "https://$host/"; do
-              if (($(date +%s) >= deadline)); then
-                echo "::warning::Harden-Runner still blocks $host after two minutes; a step that needs it will fail, and the job can run again."
-                break
-              fi
-              echo "Harden-Runner still blocks $host, waiting 3 s."
-              sleep 3
-            done
-          done
       # The checkouts below take the issue assistant of the commit of this workflow,
       # which GitHub names in the context of the job. Without one, actions/checkout
       # would take the caller's own repository at its default branch, and the job
       # would run the caller's action.yml in place of the release that it pins.
-      - name: Make sure that GitHub names the commit of this workflow
+      - &workflow-commit
+        name: Make sure that GitHub names the commit of this workflow
         env:
           WORKFLOW_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
           WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
@@ -380,11 +333,13 @@ jobs:
             exit 1
           fi
           echo "The issue assistant of $WORKFLOW_REPOSITORY at $WORKFLOW_SHA."
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - &checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       # In the context folder, which .gitignore leaves out of the checkout's files.
-      - name: Check out the issue assistant of this workflow
+      - &assistant-checkout
+        name: Check out the issue assistant of this workflow
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
@@ -404,7 +359,8 @@ jobs:
           persist-credentials: false
       # The engine and what a run of the task may use: its model, turns, dollars and
       # effort, from config.toml.
-      - name: Choose the engine and check its secret
+      - &engine
+        name: Choose the engine and check its secret
         id: engine
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         with:
@@ -417,7 +373,8 @@ jobs:
             (secrets.OPENAI_API_KEY != '') && 'codex' || '',
             (secrets.GEMINI_API_KEY != '') && 'gemini' || '',
             (secrets.COPILOT_GITHUB_TOKEN != '') && 'copilot' || '') }}
-      - name: Collect the issue, earlier issues and discussions
+      - &context
+        name: Collect the issue, earlier issues and discussions
         id: context
         if: steps.engine.outputs.ready == 'true'
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
@@ -432,7 +389,8 @@ jobs:
       # The engines. Each one gets the rules before its task and the JSON schema,
       # may only read files of the checkout and returns the JSON answer.
 
-      - name: Analyze with Claude
+      - &claude
+        name: Analyze with Claude
         id: claude
         if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'claude'
         uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1.0.266
@@ -469,7 +427,8 @@ jobs:
             --max-budget-usd ${{ steps.engine.outputs.budget }}
             ${{ steps.engine.outputs.effort && format('--effort {0}', steps.engine.outputs.effort) || '' }}
             --json-schema '${{ steps.context.outputs.schema }}'
-      - name: Analyze with Codex
+      - &codex
+        name: Analyze with Codex
         id: codex
         if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'codex'
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1.13
@@ -500,7 +459,8 @@ jobs:
       # The Gemini CLI and the Copilot CLI have no action that keeps them to reading,
       # so the issue assistant runs them, with only their tools that read files of
       # the checkout and no token of GitHub (decision 0017).
-      - name: Analyze with Gemini
+      - &gemini
+        name: Analyze with Gemini
         id: gemini
         if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'gemini'
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
@@ -510,7 +470,8 @@ jobs:
           command: analyze
           mode: ${{ needs.event.outputs.mode }}
           engine: gemini
-      - name: Analyze with Copilot
+      - &copilot
+        name: Analyze with Copilot
         id: copilot
         if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'copilot'
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
@@ -522,7 +483,8 @@ jobs:
           engine: copilot
       # Numbers alone, also after a failure: the turns, time, cost and tokens of
       # the run, in the summary of the job.
-      - name: Report what the analysis cost
+      - &usage
+        name: Report what the analysis cost
         id: usage
         if: always() && steps.claude.outputs.execution_file != ''
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
@@ -535,7 +497,8 @@ jobs:
       # answer; the canary fails, since either is what it watches for: a secret
       # that expired or no longer reaches this job, or a renamed output of the
       # engine's action.
-      - name: Check that the engine answered the canary
+      - &canary-answer
+        name: Check that the engine answered the canary
         if: inputs.canary
         env:
           READY: ${{ steps.engine.outputs.ready }}
@@ -552,16 +515,110 @@ jobs:
           fi
           echo "The engine answered with ${#ANSWER} characters of JSON."
 
+  # The AI on the runner that the caller's variable ISSUE_ASSISTANT_AI_RUNNER
+  # names, should GitHub rename or end its egress-firewall runner, a technical
+  # preview; the job event checks the runner and names the hosts of the firewall
+  # policy. A job of its own: GitHub runs the pre step of an action, which starts
+  # the agent of Harden-Runner, even when the if of its step is false, so in
+  # analyze the agent would run on the firewall runner too. The aliases, such as
+  # *engine, take the steps of analyze, so that the AI runs the same steps on either
+  # runner.
+  analyze-in-reserve:
+    name: Analyze with the AI engine on the runner in reserve
+    needs: event
+    if: >-
+      !inputs.smoke &&
+      needs.event.outputs.mode != '' &&
+      needs.event.outputs.mode != 'none' &&
+      vars.ISSUE_ASSISTANT_AI != 'off' &&
+      vars.ISSUE_ASSISTANT_AI_RUNNER != '' &&
+      vars.ISSUE_ASSISTANT_AI_RUNNER != 'ubuntu-24.04-firewall'
+    runs-on: ${{ vars.ISSUE_ASSISTANT_AI_RUNNER }}
+    timeout-minutes: 20
+    environment: *ai-environment
+    permissions: *ai-permissions
+    outputs: *ai-outputs
+    steps:
+      # Harden-Runner blocks every host but those of the firewall policy for this
+      # job, as the firewall does for the whole machine of its runner. The engines
+      # need sudo, to install what isolates them, and run no command that could lift
+      # the block.
+      - name: Block every host but those of the firewall policy
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: block
+          allowed-endpoints: ${{ needs.event.outputs.endpoints }}
+      # GitHub's DNS experiment on some of its runners hides the lookups of the job from
+      # Harden-Runner, which then blocks the hosts of the policy until the time limit
+      # (step-security/harden-runner#708). Harden-Runner takes it away unless its
+      # feature flags say no; a job that keeps sudo makes sure, as decision 0123 of the
+      # blueprint has its jobs do. Just here, where Harden-Runner runs, never in
+      # analyze, on the firewall runner, whose firewall this step must not touch; the
+      # next step checks the block as the engine meets it.
+      - name: Let Harden-Runner see the DNS lookups
+        run: |
+          dropins=(/etc/systemd/resolved.conf.d/90-egress-proxy.conf /run/systemd/resolved.conf.d/90-egress-proxy.conf)
+          if [[ ! -e ${dropins[0]} && ! -e ${dropins[1]} ]] && ! grep -qs 127.0.0.100 /etc/resolv.conf; then
+            exit 0
+          fi
+          echo "::notice::GitHub's DNS experiment is on this runner; taking it out of the way of Harden-Runner."
+          sudo rm -f "${dropins[@]}"
+          sudo systemctl restart systemd-resolved
+          sudo ln -sfn /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+          sudo systemctl stop egress-dns-resolver.service egress-outbound-proxy.service || true
+          sudo resolvectl flush-caches || true
+      - *network-block
+      - name: Wait until Harden-Runner lets the hosts through
+        # Only the hosts that the next steps need first, and that the runner may have
+        # asked for past Harden-Runner, which then blocks such an address for as long as
+        # systemd-resolved keeps it, up to a minute. The policy also names hosts of the
+        # engines that this repository may not use, and a mirror that answers only on
+        # port 80; waiting for those would hold up the AI for two minutes.
+        timeout-minutes: 4
+        env:
+          HOSTS: >-
+            api.github.com:443
+            github.com:443
+        run: |
+          deadline=$(($(date +%s) + 120))
+          for endpoint in $HOSTS; do
+            host="${endpoint%:*}"
+            # A wildcard names no host to ask.
+            [[ "$host" == '*.'* ]] && continue
+            until curl --silent --head --connect-timeout 3 --max-time 5 --output /dev/null "https://$host/"; do
+              if (($(date +%s) >= deadline)); then
+                echo "::warning::Harden-Runner still blocks $host after two minutes; a step that needs it will fail, and the job can run again."
+                break
+              fi
+              echo "Harden-Runner still blocks $host, waiting 3 s."
+              sleep 3
+            done
+          done
+      - *workflow-commit
+      - *checkout
+      - *assistant-checkout
+      - *engine
+      - *context
+      - *claude
+      - *codex
+      - *gemini
+      - *copilot
+      - *usage
+      - *canary-answer
+
   apply:
     name: Check and post the analysis
-    needs: [event, analyze]
-    # After an answer of the engine, or in the smoke test, which skips analyze, with
-    # the answer of its file; written out, what GitHub otherwise adds: both jobs
-    # passed.
+    needs: [event, analyze, analyze-in-reserve]
+    # After an answer of the engine on either runner, or in the smoke test, which
+    # skips both, with the answer of its file; written out, what GitHub otherwise
+    # adds: the jobs that ran passed. One of analyze and analyze-in-reserve is always
+    # skipped, which would skip apply without a status function.
     if: >-
       !cancelled() && needs.event.result == 'success' &&
       (inputs.smoke ||
-        (needs.analyze.result == 'success' && needs.analyze.outputs.answer != ''))
+        (needs.analyze.result == 'success' && needs.analyze.outputs.answer != '') ||
+        (needs.analyze-in-reserve.result == 'success' &&
+          needs.analyze-in-reserve.outputs.answer != ''))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -652,8 +709,8 @@ jobs:
           command: apply
           issue: ${{ needs.event.outputs.issue }}
           mode: ${{ needs.event.outputs.mode }}
-          engine: ${{ needs.analyze.outputs.engine }}
-          answer: ${{ needs.analyze.outputs.answer || steps.smoke.outputs.answer }}
+          engine: ${{ needs.analyze.outputs.engine || needs.analyze-in-reserve.outputs.engine }}
+          answer: ${{ needs.analyze.outputs.answer || needs.analyze-in-reserve.outputs.answer || steps.smoke.outputs.answer }}
           dry-run: ${{ inputs.dry_run }}
       - name: Wait until Harden-Runner has removed Docker
         # Harden-Runner removes Docker with apt-get in the background; a job that ends

@@ -59,12 +59,14 @@ CALLS: dict[str, dict[str, str | None]] = {
     "reusable-issue-assistant.yml": {
         "Handle the event": "Take the issue of the smoke test",
         "Analyze with the AI engine": None,
+        "Analyze with the AI engine on the runner in reserve": None,
         "Check and post the analysis": "Check the engine's answer and post it",
     },
     # A pull request is no event of the discussions.
     "reusable-discussion-assistant.yml": {
         "Handle the event": None,
         "Analyze with the AI engine": None,
+        "Analyze with the AI engine on the runner in reserve": None,
         "Check and post the answer": None,
     },
 }
