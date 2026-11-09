@@ -10,7 +10,8 @@ FIREWALL_RUNNER = "ubuntu-24.04-firewall"
 # name may choose another runner for the AI, should GitHub rename or end it: one of
 # GitHub's runners of Ubuntu with a fixed version, such as ubuntu-24.04, where
 # Harden-Runner blocks every host but those of the firewall policy for the job
-# analyze alone; decision 0019 says why.
+# analyze-in-reserve alone, which runs the steps of analyze in its place; decision
+# 0019 says why.
 RUNNER_VARIABLE = "ISSUE_ASSISTANT_AI_RUNNER"
 
 ACTION = "Dennis-Otto/issue-assistant"

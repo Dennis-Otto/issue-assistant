@@ -4,7 +4,10 @@ name: Findings
 # uses the issue assistant calls at the commit of a release. Without AI: dismisses
 # the code scanning alerts that .github/findings.toml accepts, with its reason, and
 # fails once for every other alert, in the first run that finds it open, and again
-# only when it opens again; the runs after it warn of it (decision 0026). The run
+# only when it opens again; the runs after it warn of it (decision 0026). After the
+# scan of a pull request of the repository itself, it dismisses the alerts of the
+# pull request that .github/findings.toml of the default branch accepts, whose review
+# threads would block the merge, and fails for none (decision 0028). The run
 # names an open alert by its number and link only, which only maintainers can
 # follow; nothing becomes a public issue. The job blocks every host but GitHub's with
 # Harden-Runner and runs the issue assistant of this workflow's own commit (decision
@@ -53,6 +56,38 @@ jobs:
           # of its files by itself.
           allowed-endpoints: >-
             results-receiver.actions.githubusercontent.com:443
+      - name: Make sure that Harden-Runner blocks
+        id: blocks
+        # Harden-Runner goes on without its agent when the agent can't be downloaded, as
+        # in GitHub's outage of 8 November 2026, or doesn't start: the job would reach
+        # every host. It stops here instead, so that it can run again (decision 0029).
+        timeout-minutes: 1
+        run: |
+          # The agent writes Initialized into its status once its firewall stands, and
+          # runs as the service agent until the end of the job; one that is there may
+          # still be starting.
+          for _ in {1..30}; do
+            [[ -e /home/agent/agent.status || ! -e /home/agent/agent ]] && break
+            sleep 1
+          done
+          status="$(cat /home/agent/agent.status 2>/dev/null || true)"
+          if [[ ! -d /home/agent/ ]]; then
+            # Harden-Runner returns before it makes the folder of the agent when
+            # StepSecurity says that it is unavailable, or the repository skips it.
+            why="didn't install its agent, as StepSecurity said that it is unavailable or the repository skips it (the log of its step says which),"
+          elif [[ ! -e /home/agent/agent ]]; then
+            why="couldn't download its agent, mostly in an outage of GitHub (https://www.githubstatus.com),"
+          elif [[ "$status" != Initialized ]]; then
+            why="has an agent that didn't start,"
+          elif ! systemctl is-active --quiet agent; then
+            why="has an agent that stopped,"
+          else
+            echo "Harden-Runner blocks every host that the job doesn't name."
+            exit 0
+          fi
+          echo "The status of the agent: ${status:-none}"
+          echo "::error title=Harden-Runner doesn't block::Harden-Runner $why so this job would reach every host, and it stops here instead. That is no problem of the change: run the job again."
+          exit 1
       - name: Wait until Harden-Runner lets the hosts through
         # The runner may have asked for an address past Harden-Runner, which then blocks
         # that address for as long as systemd-resolved keeps it, up to a minute.
@@ -132,20 +167,27 @@ jobs:
   findings:
     name: Accept or report findings
     needs: record
-    # Also when the job record failed: then every open alert counts as new.
+    # Also when the job record failed: then every open alert counts as new. After
+    # the scan of a pull request of this repository, which the job record skips,
+    # the job dismisses the accepted alerts of the pull request alone (decision
+    # 0028); never after the scan of a fork's, whose code could match an accepted
+    # rule in an accepted file with a real finding.
     if: >-
       !cancelled() &&
       !github.event.repository.fork &&
       (github.event_name != 'workflow_run' ||
         (github.event.workflow_run.head_repository.full_name == github.repository &&
-         github.event.workflow_run.head_branch == github.event.repository.default_branch))
-    # The job waits for the group, not the run: a run whose job is skipped, after
-    # the scan of a pull request, never takes the place of one that waits.
-    # A dry run writes nothing, so it waits for no other run, and none waits for
-    # it or is replaced by it, such as by the dry runs of the Workflow test of
-    # the issue assistant's pull requests.
+         (github.event.workflow_run.head_branch == github.event.repository.default_branch ||
+          github.event.workflow_run.event == 'pull_request')))
+    # The job waits for the group, not the run: a run whose job is skipped never
+    # takes the place of one that waits. A dry run writes nothing, so it waits for
+    # no other run, and none waits for it or is replaced by it, such as by the dry
+    # runs of the Workflow test of the issue assistant's pull requests. The scans of
+    # a pull request wait in a group of its branch, so that they never take the
+    # place of a run of the default branch: the newest takes that of an older one,
+    # and dismisses every accepted alert of the pull request as well.
     concurrency:
-      group: ${{ inputs.dry_run && format('findings-dry-run-{0}', github.run_id) || 'findings' }}
+      group: ${{ inputs.dry_run && format('findings-dry-run-{0}', github.run_id) || github.event.workflow_run.event == 'pull_request' && format('findings-pull-request-{0}', github.event.workflow_run.head_branch) || 'findings' }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -164,6 +206,38 @@ jobs:
             api.github.com:443
             github.com:443
             results-receiver.actions.githubusercontent.com:443
+      - name: Make sure that Harden-Runner blocks
+        id: blocks
+        # Harden-Runner goes on without its agent when the agent can't be downloaded, as
+        # in GitHub's outage of 8 November 2026, or doesn't start: the job would reach
+        # every host. It stops here instead, so that it can run again (decision 0029).
+        timeout-minutes: 1
+        run: |
+          # The agent writes Initialized into its status once its firewall stands, and
+          # runs as the service agent until the end of the job; one that is there may
+          # still be starting.
+          for _ in {1..30}; do
+            [[ -e /home/agent/agent.status || ! -e /home/agent/agent ]] && break
+            sleep 1
+          done
+          status="$(cat /home/agent/agent.status 2>/dev/null || true)"
+          if [[ ! -d /home/agent/ ]]; then
+            # Harden-Runner returns before it makes the folder of the agent when
+            # StepSecurity says that it is unavailable, or the repository skips it.
+            why="didn't install its agent, as StepSecurity said that it is unavailable or the repository skips it (the log of its step says which),"
+          elif [[ ! -e /home/agent/agent ]]; then
+            why="couldn't download its agent, mostly in an outage of GitHub (https://www.githubstatus.com),"
+          elif [[ "$status" != Initialized ]]; then
+            why="has an agent that didn't start,"
+          elif ! systemctl is-active --quiet agent; then
+            why="has an agent that stopped,"
+          else
+            echo "Harden-Runner blocks every host that the job doesn't name."
+            exit 0
+          fi
+          echo "The status of the agent: ${status:-none}"
+          echo "::error title=Harden-Runner doesn't block::Harden-Runner $why so this job would reach every host, and it stops here instead. That is no problem of the change: run the job again."
+          exit 1
       - name: Wait until Harden-Runner lets the hosts through
         # The runner may have asked for an address past Harden-Runner, which then blocks
         # that address for as long as systemd-resolved keeps it, up to a minute.
@@ -251,7 +325,8 @@ jobs:
           !cancelled() && !inputs.dry_run &&
           hashFiles('.issue-assistant/findings.json') != '' &&
           needs.record.outputs.key !=
-          format('issue-assistant-findings-{0}', hashFiles('.issue-assistant/findings.json'))
+          format('issue-assistant-findings-{0}', hashFiles('.issue-assistant/findings.json')) &&
+          steps.blocks.outcome != 'failure'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         # A record that isn't kept makes the next run fail again, and fails no run.
         timeout-minutes: 1

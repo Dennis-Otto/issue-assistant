@@ -166,7 +166,10 @@ title = "The action against GitHub, behind the egress block"
 problem = """A step of the job failed before its parts ran, such as the egress block of
 Harden-Runner or the checkout of the pull request. When a part fails, the PR coach
 explains that part instead: the dry runs of `sweep` and `sync-labels`, or the context
-of a real issue."""
+of a real issue.
+When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
+had no agent that blocks, mostly because an outage of GitHub kept it from downloading
+it: that is no problem of the code, and the check passes when it runs again."""
 why = """The job runs the action of the pull request against GitHub itself, behind the
 egress block of the templates and with a token that can only read: a request that
 GitHub refuses, or a host that the action starts to need, fails here before a release
@@ -226,9 +229,13 @@ autofix = """What the AI should read of an issue is the decision of a person."""
 title = "The hosts of the firewall policy for Harden-Runner"
 problem = """`endpoints`, which the job event runs when `ISSUE_ASSISTANT_AI_RUNNER` names
 another runner for the AI, failed for `ubuntu-24.04`, or a step before it did, such
-as the checkout; the log names the error."""
-why = """Without the hosts, the job analyze can't run on the runner in reserve, the one
-that a repository moves the AI to when GitHub's egress-firewall runner is gone."""
+as the checkout; the log names the error.
+When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
+had no agent that blocks, mostly because an outage of GitHub kept it from downloading
+it: that is no problem of the code, and the check passes when it runs again."""
+why = """Without the hosts, the job analyze-in-reserve can't run the AI on the runner in
+reserve, the one that a repository moves the AI to when GitHub's egress-firewall
+runner is gone."""
 fix = """Fix what the log names in `endpoints_command` of `issue_assistant/cli.py`, with
 its case in `tests/test_setup.py`. On your machine:"""
 commands = [
@@ -246,9 +253,12 @@ through after a minute or `api.github.com` never answered, or one request to
 `registry.npmjs.org` on port 443 or to `azure.archive.ubuntu.com` on port 80, hosts of
 the policy, was blocked; the log says which. Or the step before it, *Let Harden-Runner
 see the DNS lookups*, failed: GitHub's DNS experiment was on the runner, and
-`systemd-resolved` didn't start again after the step took it away."""
-why = """The job analyze runs behind exactly this block when a repository moves the AI
-to the runner in reserve. A host that gets through lets the AI reach any host, and a
+`systemd-resolved` didn't start again after the step took it away.
+When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
+had no agent that blocks, mostly because an outage of GitHub kept it from downloading
+it: that is no problem of the code, and the check passes when it runs again."""
+why = """The job analyze-in-reserve runs the AI behind exactly this block when a
+repository moves the AI to the runner in reserve. A host that gets through lets the AI reach any host, and a
 blocked host of the policy stops every analysis there."""
 fix = """When `example.com` still got through, Harden-Runner blocked nothing: look at
 its status and the log of its step. *Reverted changes* there means that its agent gave
@@ -333,7 +343,10 @@ problem = """The contract tests passed against GitHub's schema and description o
 but the job couldn't bring the copies in `tests/github/` to the one pull request from
 `bot/github-schemas`, couldn't turn on its automatic merge, or couldn't close that pull
 request when `main` already has the copies: GitHub refused a request
-or the token of the release app, as the log names it."""
+or the token of the release app, as the log names it.
+When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
+had no agent that blocks, mostly because an outage of GitHub kept it from downloading
+it: that is no problem of the code, and the check passes when it runs again."""
 why = """The copies stay behind what GitHub publishes, so the required check of every
 pull request checks the requests against an older description. Nothing breaks until the
 next weekly run, which tries again."""
@@ -358,7 +371,10 @@ other than `api.github.com`, `github.com` and `registry.npmjs.org`, or *Let
 Harden-Runner see the DNS lookups* failed, because GitHub's DNS experiment was on the
 runner and `systemd-resolved` didn't start again after the step took it away. When a part fails,
 the PR coach explains that part instead: the files of the pull request, the actions of
-the engines or their command lines."""
+the engines or their command lines.
+When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
+had no agent that blocks, mostly because an outage of GitHub kept it from downloading
+it: that is no problem of the code, and the check passes when it runs again."""
 why = """The check runs the pinned versions of the engines without a key, the only
 check that does before a release brings them to every repository that uses the
 action."""
@@ -482,7 +498,12 @@ the summary of this check names each job, and the job's own check shows why it
 failed, such as a wrong `needs`, `if` or output, a missing permission, or the guard
 that stops a job when GitHub names no commit of its workflow. A warning that GitHub
 still lists jobs without the steps that they ran means that it hadn't listed them
-after five minutes of waiting."""
+after five minutes of waiting. An error that GitHub refused to list the jobs of the
+run, such as with HTTP 403 or 404, fails the check at once, as every read again would
+repeat it: mostly the job lacks the permission `actions: read`.
+When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
+had no agent that blocks, mostly because an outage of GitHub kept it from downloading
+it: that is no problem of the code, and the check passes when it runs again."""
 why = """The tests and actionlint only read the reusable workflows, and the Action test
 runs the action by itself. A job that fails or skips its work here fails or does
 nothing in every repository after the next release, often without a red run: a job
@@ -491,7 +512,11 @@ fix = """Open the check of the job that the table names, fix the reusable workfl
 the action, and keep the names of `CALLS` in `scripts/workflow_test.py` in step with
 the jobs and steps when you rename one; `tests/test_workflow_test.py` checks them.
 After the warning that GitHub still lists jobs without their steps, run this check
-again once the check of each job shows them. The tests of the workflows run on your
+again once the check of each job shows them. After a refusal, the error names the status and
+GitHub's message: on 403 give the job *reusable workflows* in
+`.github/workflows/workflow-test.yml` back the permission `actions: read`, on 401
+check its token and on 404 the repository and the run that it reads, before you run
+it again. The tests of the workflows run on your
 machine:"""
 commands = [
   "python3 -m pytest tests/test_workflow_test.py tests/test_templates.py",
@@ -509,7 +534,10 @@ runner, or still waits: the summary of the job says how long. The AI runs on
 `ubuntu-24.04-firewall`, GitHub's runner with the egress firewall, which is a
 technical preview; GitHub may have renamed or ended it, or the account lost it. On
 `main` the job opened the issue of the bot-health bot for the Canary, which closes
-when a Canary passes again."""
+when a Canary passes again.
+When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
+had no agent that blocks, mostly because an outage of GitHub kept it from downloading
+it: that is no problem of the code, and the check passes when it runs again."""
 why = """A job that finds no runner waits in the queue for up to a day, and its
 timeout counts only from its start. Every later run of the same issue waits behind
 it, so no issue in any repository that uses the action gets an analysis, a
@@ -556,7 +584,10 @@ the report into the pull request: the log names the step. `accuracy-page` refuse
 report whose head isn't what `evaluate` writes, one that names another repository than
 the run measured, one in which every analysis failed, such as with a wrong token or a
 blocked host, or a page without its block of numbers; a token of the release app may have lost a permission, or a commit of the
-branch may have come in between."""
+branch may have come in between.
+When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
+had no agent that blocks, mostly because an outage of GitHub kept it from downloading
+it: that is no problem of the code, and the check passes when it runs again."""
 why = """A report that doesn't fit could carry text from the job with the AI into the
 website, so the job stops rather than publish it."""
 fix = """A commit in between goes away with a run of the failed job again. A refused
