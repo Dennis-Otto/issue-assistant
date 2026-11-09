@@ -108,8 +108,10 @@ class Sample:
     labels: dict[str, frozenset[str]]
     # The older issue that it was closed as a duplicate of.
     original: int | None
-    # Whether a maintainer asked its reporter for more information.
-    asked: bool
+    # Whether a maintainer asked its reporter for more information; None for a
+    # maintainer's own issue, whose reporter no maintainer would ask, and which gets
+    # no analysis, so no question either.
+    asked: bool | None
 
     @property
     def number(self) -> int:
@@ -300,7 +302,11 @@ def sample_of(
         "duplicate_of": None,
         "labels": [{"name": name} for name in sorted(seen)],
     }
-    asked = maintainers_asked(issue, comments, events, when)
+    asked = (
+        None
+        if is_maintainer(issue)
+        else maintainers_asked(issue, comments, events, when)
+    )
     return Sample(issue, when, then, labels, original, asked)
 
 
@@ -560,7 +566,7 @@ def scores(outcomes: list[Outcome], config: Config) -> list[Score]:
     A group counts the issues that people gave a label of it, since an issue
     without an area says nothing about the areas; the duplicates count the issues
     closed as a duplicate of an older one, and a duplicate named for any other is a
-    wrong one; the questions count every issue.
+    wrong one; the questions count every issue but a maintainer's own.
     """
     answered = [outcome for outcome in outcomes if not outcome.error]
     found = []
@@ -593,13 +599,14 @@ def scores(outcomes: list[Outcome], config: Config) -> list[Score]:
         ]
         right = sum(number == outcome.sample.original for outcome, number in named)
         found.append(Score(name, originals, len(named), originals, right))
+    reported = [outcome for outcome in answered if outcome.sample.asked is not None]
     found.append(
         Score(
             MEASURES[-1],
-            len(answered),
-            sum(outcome.asks for outcome in answered),
-            sum(outcome.sample.asked for outcome in answered),
-            sum(outcome.asks and outcome.sample.asked for outcome in answered),
+            len(reported),
+            sum(outcome.asks for outcome in reported),
+            sum(bool(outcome.sample.asked) for outcome in reported),
+            sum(outcome.asks and bool(outcome.sample.asked) for outcome in reported),
         )
     )
     return found
@@ -635,6 +642,8 @@ def outcome_row(outcome: Outcome, repository: str) -> str:
     right = [name for g in groups for name in outcome.labels[g] & sample.labels[g]]
     wrong = [name for g in groups for name in outcome.labels[g] - sample.labels[g]]
     missed = [name for g in groups for name in sample.labels[g] - outcome.labels[g]]
+    # A maintainer's own issue has no question to compare with.
+    asked = "" if sample.asked is None else ASKED[(outcome.asks, sample.asked)]
     numbers = list(outcome.duplicates)
     named = ", ".join(f"#{number}" for number in numbers)
     if sample.original is None:
@@ -645,7 +654,7 @@ def outcome_row(outcome: Outcome, repository: str) -> str:
         duplicate = f"missed #{sample.original}" + (f", named {named}" if named else "")
     return (
         f"| {link} | {names(right)} | {names(wrong)} | {names(missed)} | "
-        f"{duplicate} | {ASKED[(outcome.asks, sample.asked)]} |"
+        f"{duplicate} | {asked} |"
     )
 
 
@@ -687,7 +696,8 @@ def render_evaluation(
         "from a bot counts for neither; the duplicates count the issues closed as a "
         "duplicate of an older one, and the sure ones only the duplicates that the "
         "assistant was sure of, which get the notice that closes them; the "
-        "questions count every issue, and the maintainers asked when the first "
+        "questions count every issue but a maintainer's own, which gets no "
+        "analysis and so no question, and the maintainers asked when the first "
         "comment of one of them asked a question or someone added `needs-info`.",
     ]
     if failed:

@@ -326,6 +326,9 @@ def test_the_labels_that_a_maintainer_chose_as_they_opened_their_own_issue_count
         "priority": set(),
     }
     assert formed.then["labels"] == [{"name": "bug"}, {"name": "needs-triage"}]
+    # No maintainer asks their own issue for more information.
+    assert typed.asked is None
+    assert formed.asked is None
 
 
 @pytest.mark.parametrize(
@@ -807,6 +810,21 @@ def test_precision_and_recall_of_each_measure(config):
     )
 
 
+def test_a_maintainers_own_issue_counts_in_no_question(config):
+    """A maintainer's own issue gets no analysis, so its reporter no question: a
+    question of the assistant there counts in neither precision nor recall, and the
+    report says nothing of it."""
+    own = outcome(sample(20, asked=None, type={"bug"}), type={"bug"}, asks=True)
+    reported = outcome(sample(21, asked=True, type={"bug"}), asks=True)
+    found = {score.name: score for score in assistant.scores([own, reported], config)}
+    assert found["Asks for information"] == assistant.Score(
+        "Asks for information", 1, 1, 1, 1
+    )
+    assert found["Type"] == assistant.Score("Type", 2, 1, 2, 1)
+    row = assistant.outcome_row(own, "owner/project")
+    assert row.endswith("|  |  |  |  |")
+
+
 def test_a_repository_with_priorities_scores_them(config):
     labels = (
         *config.labels,
@@ -872,7 +890,8 @@ def test_the_report_has_each_measure_and_a_line_for_each_issue(config):
         "from a bot counts for neither; the duplicates count the issues closed as a "
         "duplicate of an older one, and the sure ones only the duplicates that the "
         "assistant was sure of, which get the notice that closes them; the "
-        "questions count every issue, and the maintainers asked when the first "
+        "questions count every issue but a maintainer's own, which gets no "
+        "analysis and so no question, and the maintainers asked when the first "
         "comment of one of them asked a question or someone added `needs-info`.\n"
         "\n"
         "1 of the 6 analyses failed; they count in no measure.\n"
