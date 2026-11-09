@@ -608,11 +608,11 @@ jobs:
             echo "Harden-Runner lets $url through."
           done
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure() && steps.blocks.outcome != 'failure'
+        if: failure() && steps.blocks.outcome == 'success'
         with:
           persist-credentials: false
       - name: Explain the failure
-        if: failure() && steps.blocks.outcome != 'failure'
+        if: failure() && steps.blocks.outcome == 'success'
         env:
           CHECK: the AI's runner in reserve behind Harden-Runner
         run: python3 .github/blueprint.py coach explain "$CHECK"
@@ -868,15 +868,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/engine_contract.py clis
-      # A step before the checkout failed, such as the one that lets Harden-Runner see
-      # the DNS lookups: the PR coach needs the checkout for its explanation.
+      # A step before the checkout failed after the one that makes sure that
+      # Harden-Runner blocks: the PR coach needs the checkout for its explanation.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure() && steps.checkout.outcome != 'success' && steps.blocks.outcome != 'failure'
+        if: failure() && steps.checkout.outcome != 'success' && steps.blocks.outcome == 'success'
         with:
           persist-credentials: false
       # The PR coach, as in the job action.
       - name: Explain the failure
-        if: failure() && steps.blocks.outcome != 'failure'
+        if: failure() && steps.blocks.outcome == 'success'
         env:
           CHECK: engine contracts
           FAILED: |

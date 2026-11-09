@@ -101,10 +101,18 @@ def test_every_job_of_the_action_test_ends_with_the_explanation_of_its_failure(k
     assert step["name"] == EXPLAIN
     # Not in a job that the step "Make sure that Harden-Runner blocks" stopped, which
     # would explain it without the block; that step's annotation explains it.
+    # Where a step that lets Harden-Runner see the DNS lookups comes before it, only
+    # after it passed: it was skipped when that step failed.
     blocks = "blocks" in [found.get("id") for found in job["steps"]]
-    assert step["if"] == (
-        "failure() && steps.blocks.outcome != 'failure'" if blocks else "failure()"
+    lookups = "Let Harden-Runner see the DNS lookups" in [
+        found.get("name") for found in job["steps"]
+    ]
+    guard = (
+        "steps.blocks.outcome == 'success'"
+        if lookups
+        else "steps.blocks.outcome != 'failure'"
     )
+    assert step["if"] == (f"failure() && {guard}" if blocks else "failure()")
     # The coach finds the explanation by the name that GitHub shows for the check.
     assert step["env"]["CHECK"] == job["name"]
     command = 'python3 .github/blueprint.py coach explain "$CHECK"'

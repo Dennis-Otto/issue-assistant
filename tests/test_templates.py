@@ -1040,6 +1040,9 @@ SEE_LOOKUPS = "Let Harden-Runner see the DNS lookups"
 # The step that stops a job that blocks when Harden-Runner has no agent that blocks.
 MAKE_SURE = "Make sure that Harden-Runner blocks"
 BLOCKS_GUARD = "steps.blocks.outcome != 'failure'"
+# In a job that keeps sudo, the step that lets Harden-Runner see the lookups comes
+# first; when it fails, the step is skipped and nothing made sure of the block.
+BLOCKS_PASSED = "steps.blocks.outcome == 'success'"
 # The jobs that block with the hosts of the firewall policy, as the AI does on the
 # runner of ISSUE_ASSISTANT_AI_RUNNER.
 WITH_THE_FIREWALL_POLICY = {
@@ -1160,7 +1163,10 @@ def test_every_job_that_blocks_stops_when_harden_runner_doesnt(item):
     The steps that run after a failure, such as the explanation of the PR coach, a
     checkout for it or the cache of the findings, would run without the block too:
     each has the guard, but the wait for the removal of Docker, which needs no host,
-    and a step that only follows a later one, which didn't run."""
+    and a step that only follows a later one, which didn't run. Where the step that
+    lets Harden-Runner see the lookups comes first, the guard asks for the step's
+    success: when that one fails, the step is skipped, and nothing made sure of the
+    block."""
     workflow, name, job, block = item
     steps = job["steps"]
     names = [step.get("name") for step in steps]
@@ -1192,7 +1198,8 @@ def test_every_job_that_blocks_stops_when_harden_runner_doesnt(item):
             continue
         if set(FOLLOWS.findall(condition)) & later_ids and "||" not in condition:
             continue
-        assert BLOCKS_GUARD in condition, (workflow, name, step.get("name"))
+        guard = BLOCKS_PASSED if SEE_LOOKUPS in names else BLOCKS_GUARD
+        assert guard in condition, (workflow, name, step.get("name"))
 
 
 def test_the_jobs_that_make_sure_that_harden_runner_blocks_are_found():
@@ -1229,7 +1236,11 @@ def test_the_step_that_makes_sure_that_harden_runner_blocks_is_the_blueprint_s()
         if step.get("name") == MAKE_SURE
     }
     assert len(blueprint) == 1
-    assert own == blueprint
+    assert own == blueprint, (
+        f"The blueprint changed the script of its step '{MAKE_SURE}': copy its run into"
+        " that step of every job of this project's workflows that blocks (decision"
+        " 0029). The fix bot can't change workflows."
+    )
 
 
 def test_a_check_whose_job_blocks_explains_a_harden_runner_that_doesnt():
