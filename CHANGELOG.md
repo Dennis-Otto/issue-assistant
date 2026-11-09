@@ -4,6 +4,16 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.10.5](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.4...v1.10.5) (2026-11-09)
+
+
+### Bug fixes
+
+* **canary:** the queue report measures the reserve runner too ([#330](https://github.com/Dennis-Otto/issue-assistant/issues/330)) ([3ee5904](https://github.com/Dennis-Otto/issue-assistant/commit/3ee59046d1d366e00fbb79a2cf4c31902e1bd5bc))
+* **ci:** Harden-Runner stays off the firewall runner ([#319](https://github.com/Dennis-Otto/issue-assistant/issues/319)) ([6d8e31d](https://github.com/Dennis-Otto/issue-assistant/commit/6d8e31dee39011ab1d28b607f0ccfeafca030a47))
+* **ci:** the own blocking jobs check that Harden-Runner blocks ([#326](https://github.com/Dennis-Otto/issue-assistant/issues/326)) ([3e2bbb5](https://github.com/Dennis-Otto/issue-assistant/commit/3e2bbb591bb609367c0483ac527d49a5e4e213db))
+* **findings:** an accepted alert that a pull request moves no longer blocks its merge ([#324](https://github.com/Dennis-Otto/issue-assistant/issues/324)) ([5f7eab6](https://github.com/Dennis-Otto/issue-assistant/commit/5f7eab6f0a28b57f47695b3a64bd0e34a6dce374))
+
 ## [1.10.4](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.3...v1.10.4) (2026-11-09)
 
 ### Bug fixes
