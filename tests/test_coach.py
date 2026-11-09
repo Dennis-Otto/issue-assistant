@@ -29,6 +29,7 @@ JOBS = yaml.safe_load(
 EXPLAIN = "Explain the failure"
 # The steps of Harden-Runner that belong to no part: right after it, and at the end.
 SEE_LOOKUPS = "Let Harden-Runner see the DNS lookups"
+MAKE_SURE = "Make sure that Harden-Runner blocks"
 WARM_UP = "Wait until Harden-Runner lets the hosts through"
 WAIT_FOR_DOCKER = "Wait until Harden-Runner has removed Docker"
 # A line of the variable FAILED of that step: the outcomes of the steps of a part,
@@ -98,7 +99,20 @@ def test_every_job_of_the_action_test_ends_with_the_explanation_of_its_failure(k
     job = JOBS[key]
     step = explain_step(job)
     assert step["name"] == EXPLAIN
-    assert step["if"] == "failure()"
+    # Not in a job that the step "Make sure that Harden-Runner blocks" stopped, which
+    # would explain it without the block; that step's annotation explains it.
+    # Where a step that lets Harden-Runner see the DNS lookups comes before it, only
+    # after it passed: it was skipped when that step failed.
+    blocks = "blocks" in [found.get("id") for found in job["steps"]]
+    lookups = "Let Harden-Runner see the DNS lookups" in [
+        found.get("name") for found in job["steps"]
+    ]
+    guard = (
+        "steps.blocks.outcome == 'success'"
+        if lookups
+        else "steps.blocks.outcome != 'failure'"
+    )
+    assert step["if"] == (f"failure() && {guard}" if blocks else "failure()")
     # The coach finds the explanation by the name that GitHub shows for the check.
     assert step["env"]["CHECK"] == job["name"]
     command = 'python3 .github/blueprint.py coach explain "$CHECK"'
@@ -118,7 +132,8 @@ def test_each_step_of_a_job_with_parts_belongs_to_one_part(key):
         step
         for step in job["steps"]
         if not step.get("uses", "").startswith(SET_UP)
-        and step["name"] not in (EXPLAIN, SEE_LOOKUPS, WARM_UP, WAIT_FOR_DOCKER)
+        and step["name"]
+        not in (EXPLAIN, SEE_LOOKUPS, MAKE_SURE, WARM_UP, WAIT_FOR_DOCKER)
     ]
     ids = [step.get("id") for step in steps]
     named = [step for part in parts_of(job).values() for step in part]

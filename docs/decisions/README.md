@@ -13,7 +13,7 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0005](0005-close-with-the-release.md) | Close an issue with the release that ships its fix | accepted |
 | [0006](0006-the-templates-exactly.md) | Every repository uses the workflows exactly as the templates have them | accepted, amended by [0007](0007-templates-live-in-templates.md) and [0015](0015-reusable-workflows.md) |
 | [0007](0007-templates-live-in-templates.md) | The templates live in `templates/`; this repository's own workflows come from the blueprint | accepted |
-| [0008](0008-the-jobs-that-write-reach-only-github.md) | The jobs that write reach only GitHub: Harden-Runner blocks every other host | accepted, amended by [0026](0026-an-open-alert-fails-one-run.md) |
+| [0008](0008-the-jobs-that-write-reach-only-github.md) | The jobs that write reach only GitHub: Harden-Runner blocks every other host | accepted, amended by [0026](0026-an-open-alert-fails-one-run.md) and [0029](0029-a-job-stops-when-harden-runner-doesnt-block.md) |
 | [0009](0009-limit-the-ai-runs.md) | Limit the AI runs that strangers start, counting issues rather than answers | accepted |
 | [0010](0010-the-lifecycle-keeps-the-day-it-names.md) | The lifecycle counts days of the calendar and keeps the day that a reminder names | accepted |
 | [0011](0011-install-pins-its-own-checkout.md) | `install` pins the commit of its own checkout, the release whose templates it writes | accepted |
@@ -34,3 +34,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0026](0026-an-open-alert-fails-one-run.md) | An open alert of code scanning fails one run of the Findings workflow, the first that finds it open, by a record of the reported alerts in the cache of the default branch | accepted, amended by [0028](0028-the-scan-of-a-pull-request-dismisses-its-accepted-alerts.md) |
 | [0027](0027-the-runner-in-reserve-has-a-job-of-its-own.md) | The AI's runner in reserve has a job of its own: no job on the firewall runner has a step of Harden-Runner, whose pre step would start its agent there | accepted |
 | [0028](0028-the-scan-of-a-pull-request-dismisses-its-accepted-alerts.md) | After the scan of a pull request of the repository itself, the Findings workflow dismisses the alerts of the pull request that `findings.toml` of the default branch accepts, whose review threads would block the merge, and fails for none | accepted |
+| [0029](0029-a-job-stops-when-harden-runner-doesnt-block.md) | Every job of this project that blocks stops at the step of the blueprint *Make sure that Harden-Runner blocks* when Harden-Runner has no agent that blocks, and no step runs after it without the block | accepted |

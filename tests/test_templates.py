@@ -742,9 +742,10 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     Then analyze-in-reserve runs in place of analyze, on that runner, with the same
     steps: Harden-Runner blocks every host but those of the firewall policy before
     any other step, the next step lets it see the DNS lookups, the one after it makes
-    sure that the network blocks, as it does first in analyze, and the next waits
-    until Harden-Runner lets GitHub's hosts through. The job event names the hosts,
-    and fails on a runner where nothing would block.
+    sure that Harden-Runner has an agent that blocks, the next that the network
+    blocks, as it does first in analyze, and the next waits until Harden-Runner lets
+    GitHub's hosts through. The job event names the hosts, and fails on a runner
+    where nothing would block.
     """
     jobs = JOBS_WITH_ENGINE[name]
     analyze, reserve = jobs["analyze"], jobs[RESERVE]
@@ -758,10 +759,11 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     assert words(reserve["if"]) == f"{condition} && {ON_ANOTHER_RUNNER}"
     for key in ("timeout-minutes", "environment", "permissions", "outputs"):
         assert reserve[key] == analyze[key], key
-    block, see, holds, warm, *rest = reserve["steps"]
+    block, see, blocks, holds, warm, *rest = reserve["steps"]
     action, _, ref = block["uses"].partition("@")
     assert action == HARDEN_RUNNER and assistant.SHA.fullmatch(ref)
     assert see["name"] == SEE_LOOKUPS
+    assert blocks["name"] == MAKE_SURE
     # The engines need sudo, to install what isolates them.
     assert block["with"] == {
         "egress-policy": "block",
@@ -831,11 +833,11 @@ def test_the_ai_runs_only_once_the_network_block_holds(workflow):
     that the AI and the engine's secret run with open network access.
 
     So the step runs on every runner, without a condition, in each job that runs the
-    AI: first, or right after the block of Harden-Runner and the step that lets it see
-    the DNS lookups, so that it checks the block as the engine meets it, and before
-    every step that gets a secret or runs an engine. The job goes on only when the
-    step passes, and it may read the repository, which the firewall needs to enforce
-    its policy."""
+    AI: first, or right after the block of Harden-Runner, the step that lets it see
+    the DNS lookups and the one that makes sure that it has an agent that blocks, so
+    that it checks the block as the engine meets it, and before every step that gets
+    a secret or runs an engine. The job goes on only when the step passes, and it may
+    read the repository, which the firewall needs to enforce its policy."""
     job = JOBS_WITH_THE_AI[workflow]
     assert job["permissions"]["contents"] == "read"
     names = [step.get("name") for step in job["steps"]]
@@ -844,7 +846,7 @@ def test_the_ai_runs_only_once_the_network_block_holds(workflow):
     before = job["steps"][:index]
     assert all(
         step.get("uses", "").startswith(f"{HARDEN_RUNNER}@")
-        or step["name"] == SEE_LOOKUPS
+        or step["name"] in (SEE_LOOKUPS, MAKE_SURE)
         for step in before
     )
     secrets = [step for step in job["steps"] if gets_a_secret(step)]
@@ -1035,6 +1037,12 @@ def test_harden_runner_is_a_version_that_lets_the_allowed_hosts_through(path):
 WAIT_FOR_DOCKER = "Wait until Harden-Runner has removed Docker"
 WARM_UP = "Wait until Harden-Runner lets the hosts through"
 SEE_LOOKUPS = "Let Harden-Runner see the DNS lookups"
+# The step that stops a job that blocks when Harden-Runner has no agent that blocks.
+MAKE_SURE = "Make sure that Harden-Runner blocks"
+BLOCKS_GUARD = "steps.blocks.outcome != 'failure'"
+# In a job that keeps sudo, the step that lets Harden-Runner see the lookups comes
+# first; when it fails, the step is skipped and nothing made sure of the block.
+BLOCKS_PASSED = "steps.blocks.outcome == 'success'"
 # The jobs that block with the hosts of the firewall policy, as the AI does on the
 # runner of ISSUE_ASSISTANT_AI_RUNNER.
 WITH_THE_FIREWALL_POLICY = {
@@ -1110,8 +1118,9 @@ def test_every_job_that_blocks_waits_until_harden_runner_lets_its_hosts_through(
         return
     warm = step_named(job, WARM_UP)
     index = job["steps"].index(warm)
-    # Once Harden-Runner sees the lookups, in a job that keeps sudo.
-    first = job["steps"].index(block) + 1 + (SEE_LOOKUPS in names)
+    # Once Harden-Runner sees the lookups, in a job that keeps sudo, and once a step
+    # made sure that it blocks.
+    first = job["steps"].index(block) + 1 + (SEE_LOOKUPS in names) + 1
     if (workflow, name) in WITH_THE_FIREWALL_POLICY:
         # After the step that makes sure of the block, since a request that gets
         # through before it holds says nothing. Only GitHub's hosts: the runner asked
@@ -1129,6 +1138,215 @@ def test_every_job_that_blocks_waits_until_harden_runner_lets_its_hosts_through(
     assert warm.get("if") == block.get("if"), (workflow, name)
     # Two minutes, and a last try of 5 s for each host, of a job of 5 minutes.
     assert warm["timeout-minutes"] == 4, (workflow, name)
+
+
+# What a step's condition holds when it runs only after a step that comes later: one
+# that the step "Make sure that Harden-Runner blocks" stopped the job before, so that
+# its outcome is skipped and its outputs are empty.
+FOLLOWS = re.compile(
+    r"steps\.([\w-]+)\.(?:outcome == '(?:success|failure)'"
+    r"|outputs\.[\w-]+ (?:!= ''|== '[^']+'))"
+)
+
+
+@pytest.mark.parametrize("item", HARDENED_JOBS, ids=hardened_job_id)
+def test_every_job_that_blocks_stops_when_harden_runner_doesnt(item):
+    """Harden-Runner goes on without its agent when the agent can't be downloaded, as
+    in GitHub's outage of 8 November 2026, when StepSecurity says that it is
+    unavailable, or when the agent doesn't start: a job that blocks would then reach
+    every host with its token, in every repository that calls the reusable
+    workflows. So each one makes sure that the agent runs, right after Harden-Runner
+    and the step that lets it see the lookups of DNS, before every step that could
+    need a host or get a secret: the warm-up, or the check of the network block before
+    the AI (decision 0029, as decision 0134 of the blueprint has its jobs do).
+
+    The steps that run after a failure, such as the explanation of the PR coach, a
+    checkout for it or the cache of the findings, would run without the block too:
+    each has the guard, but the wait for the removal of Docker, which needs no host,
+    and a step that only follows a later one, which didn't run. Where the step that
+    lets Harden-Runner see the lookups comes first, the guard asks for the step's
+    success: when that one fails, the step is skipped, and nothing made sure of the
+    block."""
+    workflow, name, job, block = item
+    steps = job["steps"]
+    names = [step.get("name") for step in steps]
+    if block["with"]["egress-policy"] != "block":
+        assert MAKE_SURE not in names, (workflow, name)
+        return
+    assert names.count(MAKE_SURE) == 1, (workflow, name)
+    index = steps.index(block) + 1 + (SEE_LOOKUPS in names)
+    check = steps[index]
+    assert check["name"] == MAKE_SURE, (workflow, name)
+    next_step = (
+        NETWORK_BLOCK if (workflow, name) in WITH_THE_FIREWALL_POLICY else WARM_UP
+    )
+    assert names[index + 1] == next_step, (workflow, name)
+    # A script of its own that needs no host, no secret and no token, wherever the
+    # block runs, and half a minute for an agent that is still starting.
+    assert set(check) == {"name", "id", "timeout-minutes", "run"}, (workflow, name)
+    assert check["id"] == "blocks", (workflow, name)
+    assert check["timeout-minutes"] == 1, (workflow, name)
+    later = steps[index + 1 :]
+    later_ids = {step.get("id") for step in later} - {None}
+    for step in later:
+        condition = " ".join(str(step.get("if", "")).split())
+        if not re.search(r"always\(\)|failure\(\)|cancelled\(\)", condition):
+            continue
+        if step.get("name") == WAIT_FOR_DOCKER:
+            # Else the job would hang until its timeout.
+            assert condition == "always()", (workflow, name)
+            continue
+        if set(FOLLOWS.findall(condition)) & later_ids and "||" not in condition:
+            continue
+        guard = BLOCKS_PASSED if SEE_LOOKUPS in names else BLOCKS_GUARD
+        assert guard in condition, (workflow, name, step.get("name"))
+
+
+def test_the_jobs_that_make_sure_that_harden_runner_blocks_are_found():
+    """Every job of this project that blocks, those of the reusable workflows above
+    all, which hold a token that writes in every repository."""
+    found = {
+        (workflow, name)
+        for workflow, name, job, _ in HARDENED_JOBS
+        if MAKE_SURE in [step.get("name") for step in job["steps"]]
+    }
+    assert found == {
+        (workflow, name)
+        for workflow, name, _, block in HARDENED_JOBS
+        if block["with"]["egress-policy"] == "block"
+    }
+    assert len(found) == 20
+
+
+def test_the_step_that_makes_sure_that_harden_runner_blocks_is_the_blueprint_s():
+    """The jobs of this project run the very script of the blueprint's workflows, whose
+    tests run it in every case, so that a fix of the blueprint reaches them: an update
+    of the blueprint that changes it fails here until the copies follow."""
+    blueprint = {
+        step["run"]
+        for path in BLUEPRINT_WORKFLOWS
+        for job in load(path)["jobs"].values()
+        for step in job.get("steps", [])
+        if step.get("name") == MAKE_SURE
+    }
+    own = {
+        step["run"]
+        for _, _, job, _ in HARDENED_JOBS
+        for step in job["steps"]
+        if step.get("name") == MAKE_SURE
+    }
+    assert len(blueprint) == 1
+    assert own == blueprint, (
+        f"The blueprint changed the script of its step '{MAKE_SURE}': copy its run into"
+        " that step of every job of this project's workflows that blocks (decision"
+        " 0029). The fix bot can't change workflows."
+    )
+
+
+def test_a_check_whose_job_blocks_explains_a_harden_runner_that_doesnt():
+    """The PR coach shows the explanation of a check that failed, also one that the
+    step stopped, as the coach of the Workflow test does: it says what that means, as
+    those of .github/checks.toml do for the jobs of the blueprint."""
+    catalog = tomllib.loads(
+        (ROOT / ".github" / "checks.project.toml").read_text(encoding="utf-8")
+    )["check"]
+    checks = set()
+    for _, _, job, _ in HARDENED_JOBS:
+        names = [step.get("name") for step in job["steps"]]
+        if MAKE_SURE not in names or "Explain the failure" not in names:
+            continue
+        check = step_named(job, "Explain the failure")["env"]["CHECK"]
+        # The legs of a matrix share the explanation of the first.
+        if check == "${{ matrix.check }}":
+            check = job["strategy"]["matrix"]["include"][0]["check"]
+        checks.add(check)
+    assert len(checks) == 8
+    for check in checks:
+        assert (
+            "When the step *Make sure that Harden-Runner blocks* stopped the job"
+            in catalog[check]["problem"]
+        ), check
+
+
+def make_sure(tmp_path, files, active=True, starts_after=0, installed=True):
+    """The step with the folder of the agent in a folder of its own, which
+    Harden-Runner made unless it didn't install the agent, and a systemctl that finds
+    the service of the agent active or not; with starts_after, the agent writes its
+    status at that call of sleep. The result, and the calls."""
+    runner = tmp_path / "runner"
+    if installed:
+        (runner / "home/agent").mkdir(parents=True)
+    for name, content in files.items():
+        (runner / name).write_text(content, encoding="utf-8")
+    script = step_named(JOBS["event"], MAKE_SURE)["run"].replace(
+        "/home/agent/", f"{runner.as_posix()}/home/agent/"
+    )
+    status = f"{runner.as_posix()}/home/agent/agent.status"
+    starts = (
+        f'[ "$n" -lt {starts_after} ] || printf Initialized > "{status}"'
+        if starts_after
+        else ""
+    )
+    path, calls = stand_ins(
+        tmp_path,
+        systemctl="exit 0" if active else "exit 3",
+        sleep=f"{count_up(tmp_path / 'sleeps')}\n{starts}",
+    )
+    result, _ = run_step({"run": script}, tmp_path, PATH=path)
+    return result, calls.read_text(encoding="utf-8").splitlines()
+
+
+AGENT = {"home/agent/agent": ""}
+INITIALIZED = {**AGENT, "home/agent/agent.status": "Initialized"}
+
+
+def test_the_step_passes_at_once_when_the_agent_blocks(tmp_path):
+    result, calls = make_sure(tmp_path, INITIALIZED)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == (
+        "Harden-Runner blocks every host that the job doesn't name.\n"
+    )
+    assert calls == ["systemctl is-active --quiet agent"]
+
+
+def test_the_step_waits_for_an_agent_that_starts_late(tmp_path):
+    # Harden-Runner waits only about ten seconds for its agent before it goes on.
+    result, calls = make_sure(tmp_path, AGENT, starts_after=3)
+    assert result.returncode == 0, result.stderr
+    assert calls.count("sleep 1") == 3
+
+
+@pytest.mark.parametrize(
+    ("files", "installed", "active", "why", "sleeps"),
+    [
+        # StepSecurity said that it is unavailable, or the repository skips it.
+        ({}, False, True, "didn't install its agent", 0),
+        # The download failed, as in GitHub's outage: nothing comes, so no wait.
+        ({}, True, True, "couldn't download its agent", 0),
+        (
+            {**AGENT, "home/agent/agent.status": "Error reading config file"},
+            True,
+            True,
+            "has an agent that didn't start",
+            0,
+        ),
+        # Half a minute for an agent that is there and doesn't start.
+        (AGENT, True, True, "has an agent that didn't start", 30),
+        (INITIALIZED, True, False, "has an agent that stopped", 0),
+    ],
+)
+def test_the_step_stops_the_job_when_harden_runner_doesnt_block(
+    tmp_path, files, installed, active, why, sleeps
+):
+    result, calls = make_sure(tmp_path, files, active=active, installed=installed)
+    assert result.returncode == 1
+    assert calls.count("sleep 1") == sleeps
+    assert (
+        f"::error title=Harden-Runner doesn't block::Harden-Runner {why}"
+        in result.stdout
+    )
+    assert "would reach every host, and it stops here instead" in result.stdout
+    assert "The status of the agent: " in result.stdout
 
 
 # The jobs that block and keep sudo: analyze-in-reserve, whose engines need it to
@@ -1502,11 +1720,13 @@ def test_the_block_of_the_ai_s_runner_in_reserve_runs_in_ci():
         },
     }
     assert block["steps"][0] == first
-    # The very steps of analyze-in-reserve let Harden-Runner see the DNS lookups and
-    # make sure of the block, before the warm-up.
+    # The very steps of analyze-in-reserve let Harden-Runner see the DNS lookups, make
+    # sure that it has an agent that blocks and make sure of the block, before the
+    # warm-up.
     assert block["steps"][1] == JOBS[RESERVE]["steps"][1]
-    assert block["steps"][2] == step_named(JOBS[RESERVE], NETWORK_BLOCK)
-    assert block["steps"][3]["name"] == WARM_UP
+    assert block["steps"][2] == step_named(JOBS[RESERVE], MAKE_SURE)
+    assert block["steps"][3] == step_named(JOBS[RESERVE], NETWORK_BLOCK)
+    assert block["steps"][4]["name"] == WARM_UP
     checks = step_named(
         block, "Make sure that the block lets the hosts of the policy through"
     )["run"]
@@ -2588,7 +2808,7 @@ def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_co
         "issues": "write",
         "pull-requests": "read",
     }
-    _, _, guard, checkout, tool, step, _ = job["steps"]
+    _, _, _, guard, checkout, tool, step, _ = job["steps"]
     assert guard["name"] == GUARD["name"]
     # The default branch: no ref of the pull request, no credentials left behind.
     assert checkout["with"] == {"persist-credentials": False}
@@ -2623,7 +2843,7 @@ def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
     assert "head_repository.full_name == github.repository" in condition
     assert "head_branch == github.event.repository.default_branch" in condition
     assert "workflow_run.event == 'pull_request'" in condition
-    _, _, guard, checkout, tool, record, step, keep, _ = job["steps"]
+    _, _, _, guard, checkout, tool, record, step, keep, _ = job["steps"]
     assert guard["name"] == GUARD["name"]
     assert checkout["with"] == {"persist-credentials": False}
     assert tool["with"] == TOOL_CHECKOUT and step["uses"] == TOOL
@@ -2670,12 +2890,12 @@ def test_the_findings_keep_the_record_of_the_reported_alerts_in_the_cache():
     assert put["if"] == "needs.record.outputs.record != ''"
     assert "${{" not in check["run"] + put["run"]
     # A new record alone, by the hash of the file, also after a failed run; a dry run
-    # writes none, and keeps none.
+    # writes none, and keeps none, nor does a job that Harden-Runner left unblocked.
     assert keep["with"]["key"] == FINDINGS_CACHE + "${{ " + hashed + " }}"
     assert " ".join(keep["if"].split()) == (
         f"!cancelled() && !inputs.dry_run && {hashed} != '' && "
         "needs.record.outputs.key != "
-        f"format('{FINDINGS_CACHE}{{0}}', {hashed})"
+        f"format('{FINDINGS_CACHE}{{0}}', {hashed}) && {BLOCKS_GUARD}"
     )
     # The findings run also when the record couldn't be read, with none then, and
     # after the scan of a pull request of the repository, which needs no record and
