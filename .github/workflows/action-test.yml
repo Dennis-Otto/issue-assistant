@@ -344,9 +344,10 @@ jobs:
 
   # The AI's runner in reserve, decision 0019: with ISSUE_ASSISTANT_AI_RUNNER set to
   # ubuntu-24.04, the job event names the hosts of .github/egress-firewall.yaml for
-  # Harden-Runner, and analyze blocks every other host. These two jobs run that
-  # block as analyze does, so that a host of the policy that the block refuses, or
-  # one outside it that gets through, fails here before a repository needs it.
+  # Harden-Runner, and analyze-in-reserve, in place of analyze, blocks every other
+  # host. These two jobs run that block as analyze-in-reserve does, so that a host of
+  # the policy that the block refuses, or one outside it that gets through, fails
+  # here before a repository needs it.
   fallback-hosts:
     name: the hosts for the AI's runner in reserve
     runs-on: ubuntu-24.04
@@ -421,13 +422,14 @@ jobs:
     permissions:
       contents: read
     steps:
-      # As the first step of analyze on the runner of ISSUE_ASSISTANT_AI_RUNNER.
+      # As the first step of analyze-in-reserve, on the runner of
+      # ISSUE_ASSISTANT_AI_RUNNER.
       - name: Block every host but those of the firewall policy
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           allowed-endpoints: ${{ needs.fallback-hosts.outputs.endpoints }}
-      # As the second step of analyze there.
+      # As the second step of analyze-in-reserve.
       - name: Let Harden-Runner see the DNS lookups
         run: |
           dropins=(/etc/systemd/resolved.conf.d/90-egress-proxy.conf /run/systemd/resolved.conf.d/90-egress-proxy.conf)
@@ -520,13 +522,14 @@ jobs:
         run: python3 .github/blueprint.py coach explain "$CHECK"
 
   # The network block of the AI, decision 0025: the step that makes sure of it, as the
-  # job analyze of both reusable workflows and the job replay of the Evaluate workflow
-  # run it, on GitHub's egress-firewall runner with this repository's
-  # .github/egress-firewall.yaml, where it has to pass, and on a runner without any
-  # block, where it has to stop the AI. The firewall is a technical preview whose
-  # rules and discovery of the policy may change, so each run also records in its
-  # summary how the firewall refused example.com, and a change shows here, in every
-  # pull request and every week, before an analysis of a repository meets it.
+  # jobs analyze and analyze-in-reserve of both reusable workflows and the job replay
+  # of the Evaluate workflow run it, here on GitHub's egress-firewall runner with this
+  # repository's .github/egress-firewall.yaml, where it has to pass, and on a runner
+  # without any block, where it has to stop the AI. The firewall is a technical
+  # preview whose rules and discovery of the policy may change, so each run also
+  # records in its summary how the firewall refused example.com, and a change shows
+  # here, in every pull request and every week, before an analysis of a repository
+  # meets it.
   firewall:
     name: the network block of the AI's runner
     runs-on: ubuntu-24.04-firewall
@@ -671,7 +674,8 @@ jobs:
       # GitHub's DNS experiment on some of its runners hides the lookups of the job from
       # Harden-Runner, which then blocks its hosts until the time limit
       # (step-security/harden-runner#708). Harden-Runner takes it away unless its
-      # feature flags say no; a job that keeps sudo makes sure, as analyze does.
+      # feature flags say no; a job that keeps sudo makes sure, as analyze-in-reserve
+      # does.
       - name: Let Harden-Runner see the DNS lookups
         run: |
           dropins=(/etc/systemd/resolved.conf.d/90-egress-proxy.conf /run/systemd/resolved.conf.d/90-egress-proxy.conf)

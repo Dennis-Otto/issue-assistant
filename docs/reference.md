@@ -13,7 +13,7 @@ The action runs the package `issue_assistant` with one command:
 | Command | Job | What |
 | --- | --- | --- |
 | `event` | event | handles the event and the slash command of a comment, sets labels and names the AI's next task, within the limits of the AI runs |
-| `endpoints` | event | on the runner that `ISSUE_ASSISTANT_AI_RUNNER` names for the AI, checks it and names the hosts of `.github/egress-firewall.yaml` with their ports for Harden-Runner in `analyze`; on the firewall runner, none |
+| `endpoints` | event | on the runner that `ISSUE_ASSISTANT_AI_RUNNER` names for the AI, checks it and names the hosts of `.github/egress-firewall.yaml` with their ports for Harden-Runner in `analyze-in-reserve`; on the firewall runner, none |
 | `engine` | analyze | names the engine of `config.toml` and whether its secret exists, and the model, turns, dollars and effort of the task |
 | `context` | analyze | writes what the task reads into `.issue-assistant/`: the issue, or for the first answer to a discussion the discussion; for an analysis, a follow-up or a first answer the other issues and the discussions, and for an issue the labels; for a reply or a question the comment of its event; then the rules, the task and the schema |
 | `analyze` | analyze | for Gemini or Copilot: installs the engine's command line at the version that the workflow pins and runs it on the task, with only its tools that read and the engine's secret alone, and outputs its answer |

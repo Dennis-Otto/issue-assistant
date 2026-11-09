@@ -290,6 +290,39 @@ def test_every_engine_has_its_step_and_the_outputs_that_its_job_reads():
     )
 
 
+def test_a_step_that_an_alias_repeats_counts_once(tmp_path):
+    """analyze-in-reserve takes the steps of analyze through YAML aliases: one text,
+    checked once, where it is written. A job that reads other outputs of the same
+    step counts as well, since those outputs need a check of their own."""
+    (tmp_path / "aliases.yml").write_text(
+        """jobs:
+  analyze:
+    outputs: &outputs
+      answer: ${{ steps.codex.outputs.final-message }}
+    steps:
+      - &codex
+        id: codex
+        uses: openai/codex-action@v1
+  analyze-in-reserve:
+    outputs: *outputs
+    steps:
+      - run: "true"
+      - *codex
+  other:
+    outputs:
+      answer: ${{ steps.codex.outputs.answer }}
+    steps:
+      - *codex
+""",
+        encoding="utf-8",
+    )
+    steps = contract.engine_steps(tmp_path)
+    assert [(step.job, step.outputs) for step in steps] == [
+        ("analyze", {"final-message"}),
+        ("other", {"answer"}),
+    ]
+
+
 def test_a_step_without_its_engine_goes_unchecked_no_longer(tmp_path):
     (tmp_path / "empty.yml").write_text("name: Empty\n", encoding="utf-8")
     (tmp_path / "other.yml").write_text(

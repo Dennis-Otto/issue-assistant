@@ -227,8 +227,9 @@ title = "The hosts of the firewall policy for Harden-Runner"
 problem = """`endpoints`, which the job event runs when `ISSUE_ASSISTANT_AI_RUNNER` names
 another runner for the AI, failed for `ubuntu-24.04`, or a step before it did, such
 as the checkout; the log names the error."""
-why = """Without the hosts, the job analyze can't run on the runner in reserve, the one
-that a repository moves the AI to when GitHub's egress-firewall runner is gone."""
+why = """Without the hosts, the job analyze-in-reserve can't run the AI on the runner in
+reserve, the one that a repository moves the AI to when GitHub's egress-firewall
+runner is gone."""
 fix = """Fix what the log names in `endpoints_command` of `issue_assistant/cli.py`, with
 its case in `tests/test_setup.py`. On your machine:"""
 commands = [
@@ -247,8 +248,8 @@ through after a minute or `api.github.com` never answered, or one request to
 the policy, was blocked; the log says which. Or the step before it, *Let Harden-Runner
 see the DNS lookups*, failed: GitHub's DNS experiment was on the runner, and
 `systemd-resolved` didn't start again after the step took it away."""
-why = """The job analyze runs behind exactly this block when a repository moves the AI
-to the runner in reserve. A host that gets through lets the AI reach any host, and a
+why = """The job analyze-in-reserve runs the AI behind exactly this block when a
+repository moves the AI to the runner in reserve. A host that gets through lets the AI reach any host, and a
 blocked host of the policy stops every analysis there."""
 fix = """When `example.com` still got through, Harden-Runner blocked nothing: look at
 its status and the log of its step. *Reverted changes* there means that its agent gave

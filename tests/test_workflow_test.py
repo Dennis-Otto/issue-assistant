@@ -99,8 +99,8 @@ def test_the_script_knows_every_job_and_the_step_that_writes_its_plan():
             plan = expected[job["name"]]
             if plan is not None:
                 assert plan in [step.get("name") for step in job["steps"]], plan
-    # Of the issues, analyze alone is skipped: the smoke test runs no engine. A pull
-    # request is no event of the discussions.
+    # Of the issues, the two jobs of the AI alone are skipped: the smoke test runs no
+    # engine. A pull request is no event of the discussions.
     skipped = {
         f"{call} / {name}"
         for call, expected in script.CALLS.items()
@@ -109,8 +109,12 @@ def test_the_script_knows_every_job_and_the_step_that_writes_its_plan():
     }
     assert skipped == {
         "reusable-issue-assistant.yml / Analyze with the AI engine",
+        "reusable-issue-assistant.yml / Analyze with the AI engine on the runner in "
+        "reserve",
         "reusable-discussion-assistant.yml / Handle the event",
         "reusable-discussion-assistant.yml / Analyze with the AI engine",
+        "reusable-discussion-assistant.yml / Analyze with the AI engine on the runner "
+        "in reserve",
         "reusable-discussion-assistant.yml / Check and post the answer",
     }
 

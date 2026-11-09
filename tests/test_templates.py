@@ -111,15 +111,32 @@ def tool_jobs(name):
     }
 
 
-# The runner of the AI: GitHub's egress-firewall runner, a technical preview, or the
-# runner that the repository's variable names in its place, behind Harden-Runner.
-AI_RUNNER = (
-    f"${{{{ vars.{assistant.RUNNER_VARIABLE} || '{assistant.FIREWALL_RUNNER}' }}}}"
+# The job of the AI on the runner that the repository's variable names in place of
+# GitHub's egress-firewall runner, behind Harden-Runner (decision 0019). It runs the
+# steps of analyze, which YAML aliases take from there.
+RESERVE = "analyze-in-reserve"
+# The runners of the jobs of the AI: GitHub's egress-firewall runner, a technical
+# preview, and the runner that the repository's variable names in its place.
+AI_RUNNERS = {
+    "analyze": assistant.FIREWALL_RUNNER,
+    RESERVE: f"${{{{ vars.{assistant.RUNNER_VARIABLE} }}}}",
+}
+# The conditions on the variable under which each of them runs: analyze while it is
+# unset or names the firewall runner, analyze-in-reserve otherwise.
+ON_THE_FIREWALL_RUNNER = (
+    f"(vars.{assistant.RUNNER_VARIABLE} == '' || "
+    f"vars.{assistant.RUNNER_VARIABLE} == '{assistant.FIREWALL_RUNNER}')"
 )
 ON_ANOTHER_RUNNER = (
     f"vars.{assistant.RUNNER_VARIABLE} != '' && "
     f"vars.{assistant.RUNNER_VARIABLE} != '{assistant.FIREWALL_RUNNER}'"
 )
+
+
+def words(text):
+    """A condition of a workflow in one line, as GitHub reads it."""
+    return " ".join(text.split())
+
 
 # The Canary of this repository, .github/workflows/canary.yml, calls the reusable
 # workflow of the issues with the input canary, for the issue of a file.
@@ -655,7 +672,7 @@ TEMPLATE_JOBS = [
     for name in NAMES
     for job_name, job in load(reusable(name))["jobs"].items()
 ]
-WITHOUT_AI = [item for item in TEMPLATE_JOBS if item[1] != "analyze"]
+WITHOUT_AI = [item for item in TEMPLATE_JOBS if item[1] not in AI_RUNNERS]
 
 
 def template_job_id(item):
@@ -667,7 +684,7 @@ def test_every_job_runs_on_a_fixed_version_of_ubuntu(item):
     name, job_name, job = item
     # The AI runs behind GitHub's egress firewall, whose runner has a label of its
     # own, unless the repository names another runner for it.
-    expected = AI_RUNNER if job_name == "analyze" else RUNNER
+    expected = AI_RUNNERS.get(job_name, RUNNER)
     assert job["runs-on"] == expected, (name, job_name)
 
 
@@ -703,12 +720,14 @@ JOBS_WITH_ENGINE = {
 # policy before the AI runs, on both of its runners (decision 0025).
 NETWORK_BLOCK = "Make sure that the network block holds"
 EVALUATE = load(OWN / "evaluate.yml")
-# The jobs that run the AI: analyze of both reusable workflows and replay of the
-# Evaluate workflow, by the workflow that runs each.
+# The jobs that run the AI: analyze and analyze-in-reserve of both reusable
+# workflows and replay of the Evaluate workflow, by workflow and job.
 JOBS_WITH_THE_AI = {
-    "reusable-issue-assistant.yml": JOBS["analyze"],
-    "reusable-discussion-assistant.yml": DISCUSSION_JOBS["analyze"],
-    "evaluate.yml": EVALUATE["jobs"]["replay"],
+    f"reusable-issue-assistant.yml:{RESERVE}": JOBS[RESERVE],
+    "reusable-issue-assistant.yml:analyze": JOBS["analyze"],
+    f"reusable-discussion-assistant.yml:{RESERVE}": DISCUSSION_JOBS[RESERVE],
+    "reusable-discussion-assistant.yml:analyze": DISCUSSION_JOBS["analyze"],
+    "evaluate.yml:replay": EVALUATE["jobs"]["replay"],
 }
 # The steps of analyze that run an engine, by their ids.
 ENGINE_STEPS = ("claude", "codex", "gemini", "copilot")
@@ -720,20 +739,28 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     or end it, a repository names another runner in ISSUE_ASSISTANT_AI_RUNNER; while
     the variable is unset, every job runs as before.
 
-    On that runner Harden-Runner blocks every host but those of the firewall policy,
-    before any other step of analyze, the next step lets it see the DNS lookups, and
-    the one after it, which runs on every runner, makes sure that the network blocks.
-    The job event names the hosts, and fails on a runner where nothing would block.
+    Then analyze-in-reserve runs in place of analyze, on that runner, with the same
+    steps: Harden-Runner blocks every host but those of the firewall policy before
+    any other step, the next step lets it see the DNS lookups, the one after it makes
+    sure that the network blocks, as it does first in analyze, and the next waits
+    until Harden-Runner lets GitHub's hosts through. The job event names the hosts,
+    and fails on a runner where nothing would block.
     """
     jobs = JOBS_WITH_ENGINE[name]
-    analyze = jobs["analyze"]
-    assert analyze["runs-on"] == AI_RUNNER
-    assert analyze["needs"] == "event"
-    block, see, holds, warm, *rest = analyze["steps"]
+    analyze, reserve = jobs["analyze"], jobs[RESERVE]
+    assert analyze["runs-on"] == assistant.FIREWALL_RUNNER
+    assert reserve["runs-on"] == AI_RUNNERS[RESERVE]
+    assert analyze["needs"] == reserve["needs"] == "event"
+    # One of the two runs, by the variable, under the same other conditions.
+    condition = words(analyze["if"]).removesuffix(f" && {ON_THE_FIREWALL_RUNNER}")
+    assert "vars.ISSUE_ASSISTANT_AI != 'off'" in condition
+    assert words(analyze["if"]) == f"{condition} && {ON_THE_FIREWALL_RUNNER}"
+    assert words(reserve["if"]) == f"{condition} && {ON_ANOTHER_RUNNER}"
+    for key in ("timeout-minutes", "environment", "permissions", "outputs"):
+        assert reserve[key] == analyze[key], key
+    block, see, holds, warm, *rest = reserve["steps"]
     action, _, ref = block["uses"].partition("@")
     assert action == HARDEN_RUNNER and assistant.SHA.fullmatch(ref)
-    # Never on GitHub's egress-firewall runner, whose firewall is the block there.
-    assert block["if"] == see["if"] == warm["if"] == ON_ANOTHER_RUNNER
     assert see["name"] == SEE_LOOKUPS
     # The engines need sudo, to install what isolates them.
     assert block["with"] == {
@@ -742,8 +769,12 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     }
     assert holds["name"] == NETWORK_BLOCK
     assert warm["name"] == WARM_UP
-    for step in rest:
+    # The steps of analyze, in their order, which the aliases take from there.
+    assert [holds, *rest] == analyze["steps"]
+    # The jobs choose the runner, so that no step needs to.
+    for step in reserve["steps"]:
         assert assistant.RUNNER_VARIABLE not in str(step.get("if", "")), step
+    for step in rest:
         assert not step.get("uses", "").startswith(HARDEN_RUNNER), step
     event = jobs["event"]
     assert event["steps"][-2] == {
@@ -757,6 +788,34 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
         "with": {"command": "endpoints"},
     }
     assert event["outputs"]["endpoints"] == "${{ steps.endpoints.outputs.endpoints }}"
+
+
+def test_no_job_that_may_run_on_the_firewall_runner_has_a_step_of_harden_runner():
+    """GitHub runs the pre step of an action under the pre-if of the action,
+    always() unless the action says otherwise, and never asks the if of its step.
+    Harden-Runner has no pre-if, so its pre step starts its agent in every job with
+    its step, also where the condition of the step skips it. On GitHub's
+    egress-firewall runner the agent watched every lookup and connection of analyze,
+    the engine with its secret among them, beside the firewall that is the block
+    there, and the job took about 15 s longer. So no job that may run there has the
+    step, whatever its condition: analyze-in-reserve runs the AI behind
+    Harden-Runner on every other runner."""
+    found = set()
+    for path in PROJECT_WORKFLOWS:
+        for name, job in load(path)["jobs"].items():
+            runners = json.dumps([job.get("runs-on"), job.get("strategy")])
+            if assistant.FIREWALL_RUNNER not in runners:
+                continue
+            found.add((path.name, name))
+            for step in job.get("steps", []):
+                uses = step.get("uses", "")
+                assert not uses.startswith(f"{HARDEN_RUNNER}@"), (path.name, name)
+    assert found == {
+        ("action-test.yml", "firewall"),
+        ("evaluate.yml", "replay"),
+        ("reusable-discussion-assistant.yml", "analyze"),
+        ("reusable-issue-assistant.yml", "analyze"),
+    }
 
 
 def gets_a_secret(step):
@@ -791,10 +850,9 @@ def test_the_ai_runs_only_once_the_network_block_holds(workflow):
     secrets = [step for step in job["steps"] if gets_a_secret(step)]
     assert secrets
     assert all(job["steps"].index(step) > index for step in secrets)
-    if workflow == "evaluate.yml":
-        assert job["runs-on"] == assistant.FIREWALL_RUNNER
-    else:
-        assert job["runs-on"] == AI_RUNNER
+    name = workflow.partition(":")[2]
+    assert job["runs-on"] == AI_RUNNERS.get(name, assistant.FIREWALL_RUNNER)
+    if name in AI_RUNNERS:
         assert {step.get("id") for step in secrets} >= set(ENGINE_STEPS)
 
 
@@ -810,7 +868,9 @@ def test_every_job_that_makes_sure_of_the_block_runs_one_script():
     }
     assert set(found) == {
         ("reusable-issue-assistant.yml", "analyze"),
+        ("reusable-issue-assistant.yml", RESERVE),
         ("reusable-discussion-assistant.yml", "analyze"),
+        ("reusable-discussion-assistant.yml", RESERVE),
         ("evaluate.yml", "replay"),
         ("action-test.yml", "fallback"),
         ("action-test.yml", "firewall"),
@@ -979,8 +1039,8 @@ SEE_LOOKUPS = "Let Harden-Runner see the DNS lookups"
 # runner of ISSUE_ASSISTANT_AI_RUNNER.
 WITH_THE_FIREWALL_POLICY = {
     ("action-test.yml", "fallback"),
-    ("reusable-discussion-assistant.yml", "analyze"),
-    ("reusable-issue-assistant.yml", "analyze"),
+    ("reusable-discussion-assistant.yml", RESERVE),
+    ("reusable-issue-assistant.yml", RESERVE),
 }
 HARDENED_JOBS = [
     (path.name, name, job, step)
@@ -1071,8 +1131,9 @@ def test_every_job_that_blocks_waits_until_harden_runner_lets_its_hosts_through(
     assert warm["timeout-minutes"] == 4, (workflow, name)
 
 
-# The jobs that block and keep sudo: analyze, whose engines need it to install what
-# isolates them, its runner in reserve in the Action test, and the engine contracts.
+# The jobs that block and keep sudo: analyze-in-reserve, whose engines need it to
+# install what isolates them, its runner in reserve in the Action test, and the
+# engine contracts.
 KEEPS_SUDO = WITH_THE_FIREWALL_POLICY | {("action-test.yml", "engines")}
 
 
@@ -1088,7 +1149,8 @@ def test_every_job_that_blocks_and_keeps_sudo_lets_harden_runner_see_its_lookups
     drops nothing. https://github.com/step-security/harden-runner/issues/708
 
     The step runs just where Harden-Runner does: never on GitHub's egress-firewall
-    runner, whose own firewall is the block there."""
+    runner, whose own firewall is the block there, and where no job has a step of
+    Harden-Runner."""
     workflow, name, job, block = item
     names = [step.get("name") for step in job["steps"]]
     settings = block["with"]
@@ -1219,7 +1281,7 @@ def see_lookups(tmp_path, files, fails="false"):
     script = re.sub(
         r"(?<![\w/])/(etc|run)/",
         lambda found: root + found[0],
-        step_named(JOBS["analyze"], SEE_LOOKUPS)["run"],
+        step_named(JOBS[RESERVE], SEE_LOOKUPS)["run"],
     )
     path, calls = stand_ins(tmp_path, sudo=f"if {fails}; then exit 1; fi")
     result, _ = run_step({"run": script}, tmp_path, PATH=path)
@@ -1413,7 +1475,7 @@ def test_the_readme_names_the_runners_that_the_action_test_runs_on():
 
 
 def test_the_block_of_the_ai_s_runner_in_reserve_runs_in_ci():
-    """The Action test runs the block of analyze on the runner in reserve.
+    """The Action test runs the block of analyze-in-reserve on the runner in reserve.
 
     With the hosts that endpoints names from the firewall policy, as the job event
     does, so that a host of the policy that Harden-Runner refuses, such as one on
@@ -1431,19 +1493,19 @@ def test_the_block_of_the_ai_s_runner_in_reserve_runs_in_ci():
         f"${{{{ steps.{named['id']}.outputs.endpoints }}}}"
     )
     assert block["needs"] == "fallback-hosts"
-    first = {key: value for key, value in JOBS["analyze"]["steps"][0].items()}
-    del first["if"]
-    first["with"] = {
-        **first["with"],
-        "allowed-endpoints": "${{ needs.fallback-hosts.outputs.endpoints }}",
+    first = JOBS[RESERVE]["steps"][0]
+    first = {
+        **first,
+        "with": {
+            **first["with"],
+            "allowed-endpoints": "${{ needs.fallback-hosts.outputs.endpoints }}",
+        },
     }
     assert block["steps"][0] == first
-    # The very steps of analyze let Harden-Runner see the DNS lookups and make sure of
-    # the block, before the warm-up.
-    see = {key: value for key, value in JOBS["analyze"]["steps"][1].items()}
-    del see["if"]
-    assert block["steps"][1] == see
-    assert block["steps"][2] == step_named(JOBS["analyze"], NETWORK_BLOCK)
+    # The very steps of analyze-in-reserve let Harden-Runner see the DNS lookups and
+    # make sure of the block, before the warm-up.
+    assert block["steps"][1] == JOBS[RESERVE]["steps"][1]
+    assert block["steps"][2] == step_named(JOBS[RESERVE], NETWORK_BLOCK)
     assert block["steps"][3]["name"] == WARM_UP
     checks = step_named(
         block, "Make sure that the block lets the hosts of the policy through"
@@ -1597,14 +1659,19 @@ def test_only_context_and_apply_read_the_canary_s_issue():
                 )
                 assert env[assistant.FIXTURE_VARIABLE] == expected
                 readers.append((job_name, step["with"]["command"]))
-    assert readers == [("analyze", "context"), ("apply", "apply")]
+    assert readers == [("analyze", "context"), (RESERVE, "context"), ("apply", "apply")]
 
 
 def canary_step(job):
     """The step of the job `job` of the issues' reusable workflow that only the
-    Canary runs."""
+    Canary runs; analyze-in-reserve runs the very step of analyze."""
     condition = f"inputs.{CANARY_INPUT}"
     (step,) = [step for step in JOBS[job]["steps"] if step.get("if") == condition]
+    if job == "analyze":
+        (same,) = [
+            step for step in JOBS[RESERVE]["steps"] if step.get("if") == condition
+        ]
+        assert same == step
     return step
 
 
@@ -1769,8 +1836,11 @@ def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
     assert start["runs-on"] == RUNNER
     assert start["steps"][0] == JOBS["event"]["steps"][0]
     assert "actions/workflows/canary.yml/dispatches" in start_script()
-    # It waits for the jobs of the canary, which may wait for an earlier canary's.
-    waits = 2 * sum(job["timeout-minutes"] for job in JOBS.values())
+    # It waits for the jobs of the canary, which may wait for an earlier canary's;
+    # analyze-in-reserve runs only in place of analyze.
+    waits = 2 * sum(
+        job["timeout-minutes"] for name, job in JOBS.items() if name != RESERVE
+    )
     assert start["timeout-minutes"] >= waits
     paths = triggers["push"]["paths"]
     for path in (
@@ -2169,13 +2239,13 @@ def test_only_the_analyze_job_runs_an_engine_and_only_with_read_permissions():
     assert [step.get("id") for step in ANALYZE["steps"] if runs_an_engine(step)] == (
         list(ENGINE_RULES)
     )
-    assert runs_engine == {"analyze"}
+    assert runs_engine == {"analyze", RESERVE}
     assert ANALYZE["permissions"] == {
         "contents": "read",
         "issues": "read",
         "discussions": "read",
     }
-    assert ANALYZE["runs-on"] == AI_RUNNER
+    assert ANALYZE["runs-on"] == assistant.FIREWALL_RUNNER
     assert ANALYZE["environment"] == {"name": "issue-assistant", "deployment": False}
     for name in ("event", "apply"):
         assert "environment" not in JOBS[name]
@@ -2280,20 +2350,28 @@ def test_the_answer_reaches_github_only_through_the_checks():
         f"steps.{engine}.outputs.{rules['output']}"
         for engine, rules in ENGINE_RULES.items()
     )
-    assert ANALYZE["outputs"] == {
-        "engine": "${{ steps.engine.outputs.engine }}",
-        "answer": f"${{{{ {answers} }}}}",
-    }
+    assert (
+        ANALYZE["outputs"]
+        == JOBS[RESERVE]["outputs"]
+        == {
+            "engine": "${{ steps.engine.outputs.engine }}",
+            "answer": f"${{{{ {answers} }}}}",
+        }
+    )
     (apply_step,) = [
         step for step in JOBS["apply"]["steps"] if step.get("uses") == TOOL
     ]
     assert apply_step["with"]["command"] == "apply"
-    # Or, in the smoke test alone, the answer of its file.
+    # From whichever of the two jobs of the AI ran, or, in the smoke test alone, the
+    # answer of its file.
     assert apply_step["with"]["answer"] == (
-        "${{ needs.analyze.outputs.answer || steps.smoke.outputs.answer }}"
+        f"${{{{ needs.analyze.outputs.answer || needs.{RESERVE}.outputs.answer "
+        "|| steps.smoke.outputs.answer }}"
     )
-    assert apply_step["with"]["engine"] == "${{ needs.analyze.outputs.engine }}"
-    assert JOBS["apply"]["needs"] == ["event", "analyze"]
+    assert apply_step["with"]["engine"] == (
+        f"${{{{ needs.analyze.outputs.engine || needs.{RESERVE}.outputs.engine }}}}"
+    )
+    assert JOBS["apply"]["needs"] == ["event", "analyze", RESERVE]
     assert JOBS["apply"]["permissions"] == {
         "contents": "read",
         "issues": "write",
@@ -2332,9 +2410,11 @@ def test_the_events_the_assistant_handles_trigger_it():
 
 
 def test_the_discussions_analyze_as_the_issues_do():
-    """The job analyze of the discussions is the one of the issues, as YAML: every
-    rule above that keeps the engine to reading holds for both."""
+    """The jobs analyze and analyze-in-reserve of the discussions are those of the
+    issues, as YAML: every rule above that keeps the engine to reading holds for
+    both."""
     assert DISCUSSION_JOBS["analyze"] == without_the_canary(ANALYZE)
+    assert DISCUSSION_JOBS[RESERVE] == without_the_canary(JOBS[RESERVE])
     issues = load(reusable("issue-assistant.yml"))[True]["workflow_call"]
     inputs = {
         name: value
@@ -2344,16 +2424,22 @@ def test_the_discussions_analyze_as_the_issues_do():
     assert load(reusable(assistant.DISCUSSION_WORKFLOW))[True] == {
         "workflow_call": dict(issues, inputs=inputs)
     }
-    assert list(DISCUSSION_JOBS) == ["event", "analyze", "apply"]
-    assert DISCUSSION_JOBS["apply"]["needs"] == ["event", "analyze"]
-    # apply runs after an answer of the engine; that of the issues writes out what
-    # GitHub otherwise adds, that both jobs passed, since the smoke test skips
-    # analyze.
-    assert DISCUSSION_JOBS["apply"]["if"] == "needs.analyze.outputs.answer != ''"
-    assert " ".join(JOBS["apply"]["if"].split()) == (
+    assert list(DISCUSSION_JOBS) == ["event", "analyze", RESERVE, "apply"]
+    assert DISCUSSION_JOBS["apply"]["needs"] == ["event", "analyze", RESERVE]
+    # apply runs after an answer of the engine on either runner. It writes out what
+    # GitHub otherwise adds, that the jobs that ran passed: one of the two jobs of the
+    # AI is always skipped, and the smoke test of the issues skips both.
+    answered = (
+        "(needs.analyze.result == 'success' && needs.analyze.outputs.answer != '') || "
+        f"(needs.{RESERVE}.result == 'success' && "
+        f"needs.{RESERVE}.outputs.answer != '')"
+    )
+    assert words(DISCUSSION_JOBS["apply"]["if"]) == (
+        f"!cancelled() && needs.event.result == 'success' && ({answered})"
+    )
+    assert words(JOBS["apply"]["if"]) == (
         "!cancelled() && needs.event.result == 'success' && "
-        f"(inputs.{SMOKE_INPUT} || (needs.analyze.result == 'success' && "
-        "needs.analyze.outputs.answer != ''))"
+        f"(inputs.{SMOKE_INPUT} || {answered})"
     )
     # Their event and apply jobs run the same commands of the action; only the
     # smoke test gives apply the answer of its file.
@@ -2389,6 +2475,7 @@ def test_only_the_apply_job_of_the_discussions_writes_to_discussions():
     assert {name: job["permissions"] for name, job in DISCUSSION_JOBS.items()} == {
         "event": {"contents": "read", "issues": "read", "discussions": "read"},
         "analyze": {"contents": "read", "issues": "read", "discussions": "read"},
+        RESERVE: {"contents": "read", "issues": "read", "discussions": "read"},
         "apply": {"contents": "read", "issues": "read", "discussions": "write"},
     }
     # The event job of the issues counts the new discussions for the limits.
