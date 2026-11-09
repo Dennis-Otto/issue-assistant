@@ -480,7 +480,9 @@ job failed, a job that has to run was skipped or is missing, a job that has to b
 skipped ran, or the step that writes the plan of its dry run didn't pass. The table in
 the summary of this check names each job, and the job's own check shows why it
 failed, such as a wrong `needs`, `if` or output, a missing permission, or the guard
-that stops a job when GitHub names no commit of its workflow."""
+that stops a job when GitHub names no commit of its workflow. A warning that GitHub
+still lists jobs without the steps that they ran means that it hadn't listed them
+after five minutes of waiting."""
 why = """The tests and actionlint only read the reusable workflows, and the Action test
 runs the action by itself. A job that fails or skips its work here fails or does
 nothing in every repository after the next release, often without a red run: a job
@@ -488,7 +490,9 @@ that its condition skips passes."""
 fix = """Open the check of the job that the table names, fix the reusable workflow or
 the action, and keep the names of `CALLS` in `scripts/workflow_test.py` in step with
 the jobs and steps when you rename one; `tests/test_workflow_test.py` checks them.
-The tests of the workflows run on your machine:"""
+After the warning that GitHub still lists jobs without their steps, run this check
+again once the check of each job shows them. The tests of the workflows run on your
+machine:"""
 commands = [
   "python3 -m pytest tests/test_workflow_test.py tests/test_templates.py",
 ]
