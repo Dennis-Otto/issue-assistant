@@ -4,6 +4,15 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.10.5](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.4...v1.10.5) (2026-11-09)
+
+### Bug fixes
+
+- On `ubuntu-24.04-firewall`, the default runner of the AI, Harden-Runner no longer starts its agent beside the engine, and each analysis there takes about 15 s less. Its step was skipped there, but GitHub still ran the step before it that installs the agent. The AI on the runner that `ISSUE_ASSISTANT_AI_RUNNER` names now runs in a job of its own, *Analyze with the AI engine on the runner in reserve*, with the same steps behind Harden-Runner, so a run shows that job as skipped beside *Analyze with the AI engine*. It comes with the next move of the pin, without `install`.
+- The Canary now measures the wait of the AI for its runner also when the variable `ISSUE_ASSISTANT_AI_RUNNER` names the runner in reserve. It looked only at `analyze` on `ubuntu-24.04-firewall`, so with the variable set it reported *analyze was skipped* and would never notice a runner in reserve that finds no machine, such as a version of Ubuntu that GitHub doesn't have yet. Now it measures `analyze-in-reserve` in its place, with the same warning above 10 minutes and failure above 30 and the issue of bot-health, and its summary names the job and gives advice for that runner. Only the Canary of this repository changes; repositories that use the action notice nothing.
+- A pull request that moves a finding that `.github/findings.toml` accepts, such as a false positive on a line that now has another number, no longer waits for a person to resolve the review thread of its new alert. After each scan of a pull request of the repository itself, the Findings workflow dismisses the alerts of the pull request that `findings.toml` of the default branch accepts, which resolves their threads; the other alerts there fail no run, and a fork's pull request keeps its threads for a person. It comes with the next move of the pin, without `install`.
+- A job of the reusable workflows no longer writes to your repository without the block of Harden-Runner. When Harden-Runner has no agent that blocks, because GitHub's outage kept it from downloading the agent, as on 8 November 2026, or StepSecurity's service is unavailable, the jobs `event`, `apply`, `sweep`, `sync-labels` and `findings` ran without any block and passed. Now each stops at the new step *Make sure that Harden-Runner blocks*, with the annotation *Harden-Runner doesn't block*, before any step reaches a host, and can run again; no step that runs after a failure, such as the cache of the findings, runs without the block. A repository that skips Harden-Runner by the custom property `skip-harden-runner` of StepSecurity takes the property away. In a private repository without a subscription of StepSecurity, the jobs run as before. It comes with the next move of the pin, without `install`.
+
 ## [1.10.4](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.3...v1.10.4) (2026-11-09)
 
 ### Bug fixes

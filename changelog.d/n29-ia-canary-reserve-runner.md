@@ -1,3 +1,0 @@
-### Bug fixes
-
-- The Canary now measures the wait of the AI for its runner also when the variable `ISSUE_ASSISTANT_AI_RUNNER` names the runner in reserve. It looked only at `analyze` on `ubuntu-24.04-firewall`, so with the variable set it reported *analyze was skipped* and would never notice a runner in reserve that finds no machine, such as a version of Ubuntu that GitHub doesn't have yet. Now it measures `analyze-in-reserve` in its place, with the same warning above 10 minutes and failure above 30 and the issue of bot-health, and its summary names the job and gives advice for that runner. Only the Canary of this repository changes; repositories that use the action notice nothing.
