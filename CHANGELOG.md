@@ -4,6 +4,14 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.10.4](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.3...v1.10.4) (2026-11-09)
+
+### Bug fixes
+
+- The jobs of the reusable workflows no longer hang until their timeout, or fail to reach GitHub, on GitHub's runners in `westus2` when StepSecurity's service doesn't answer Harden-Runner in time: they run Harden-Runner 2.22.4, which then takes GitHub's DNS experiment out of its way as well. On the runner that `ISSUE_ASSISTANT_AI_RUNNER` names, `analyze` also makes sure itself, right after Harden-Runner, and stops at once, before the engine runs, when it can't; on `ubuntu-24.04-firewall` nothing changes. It comes with the next move of the pin, without `install`.
+- `evaluate` and the Evaluate workflow no longer fail on a repository without a closed issue to replay, one whose closed issues people never labelled after they were opened or closed as a duplicate, or that the assistant analyzed itself. Such a run now passes without a report, and its notice counts why it left out each closed issue it read, such as those that a bot opened or whose only label came with their form, and says what an issue needs to be replayed. The workflow then skips publishing, so the accuracy page keeps its numbers, and no failure mail goes out for a repository that has nothing to measure.
+- `evaluate` now counts the labels that a maintainer, or their coding agent, set as they opened their own issue, such as with `gh issue create --label bug`: they are the maintainers' choice, so the replay no longer sees them and the AI's answer is scored against them. Until now such an issue counted as one whose only labels came with its form, so `evaluate` left out almost every issue of a repository whose maintainer labels his own issues. The labels of the issue form that an issue was opened with still count for nothing: `evaluate` finds that form among `.github/ISSUE_TEMPLATE/` of the checkout by the first field that the text begins with, so it reads YAML with PyYAML or `yq` now, as `check` does. A maintainer's own issue counts in no measure of the questions for more information, since no maintainer would ask its reporter.
+
 ## [1.10.3](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.2...v1.10.3) (2026-11-08)
 
 ### Bug fixes
