@@ -318,8 +318,46 @@ def test_the_script_asks_for_the_version_of_the_api_that_the_assistant_asks_for(
 
 def test_gh_warns_when_the_github_cli_fails(monkeypatch, capsys):
     monkeypatch.setattr(subprocess, "run", completed(code=1, stderr="HTTP 403\n"))
-    assert script.gh("repos/o/r") is None
+    assert script.gh("repos/o/r") == script.Failure(403, "HTTP 403")
     assert capsys.readouterr().out == "::warning::gh api repos/o/r failed: HTTP 403\n"
+
+
+@pytest.mark.parametrize(
+    ("said", "status", "transient"),
+    [
+        # As the GitHub CLI says it: GitHub's message, then the status of its answer.
+        ("gh: Not Found (HTTP 404)", 404, False),
+        ("gh: Resource not accessible by integration (HTTP 403)", 403, False),
+        ("gh: Bad credentials (HTTP 401)", 401, False),
+        ("gh: Validation Failed (HTTP 422)", 422, False),
+        # An answer without a message of GitHub's.
+        ("gh: HTTP 502", 502, True),
+        ("gh: Service Unavailable (HTTP 503)", 503, True),
+        ("gh: HTTP 408", 408, True),
+        ("gh: HTTP 429", 429, True),
+        # GitHub refuses a call over a rate limit with 403 or 429, and lifts it later.
+        ("gh: API rate limit exceeded for installation ID 1. (HTTP 403)", 403, True),
+        ("gh: You have exceeded a secondary rate limit. (HTTP 429)", 429, True),
+        # No answer came.
+        (
+            "error connecting to api.github.com\n"
+            "check your internet connection or https://githubstatus.com",
+            None,
+            True,
+        ),
+        ("", None, True),
+    ],
+)
+def test_a_failure_names_the_status_of_github_s_answer(
+    monkeypatch, capsys, said, status, transient
+):
+    """Only a read that may succeed is worth a read again: GitHub repeats every
+    error of the client but a timeout and a rate limit on every read."""
+    monkeypatch.setattr(subprocess, "run", completed(code=1, stderr=f"{said}\n"))
+    failure = script.gh("repos/o/r")
+    assert failure == script.Failure(status, said)
+    assert failure.transient is transient
+    assert capsys.readouterr().out.startswith("::warning::gh api repos/o/r failed: ")
 
 
 @pytest.mark.parametrize(
@@ -690,20 +728,21 @@ def test_the_jobs_and_annotations_come_from_the_api(monkeypatch):
         ],
         ["gh", "api", "repos/o/r/check-runs/9/annotations?per_page=100", *VERSION],
     ]
-    monkeypatch.setattr(subprocess, "run", completed(code=1))
-    assert script.jobs_of("o/r", "7") is None
+    monkeypatch.setattr(subprocess, "run", completed(code=1, stderr="HTTP 404"))
+    assert script.jobs_of("o/r", "7") == script.Failure(404, "HTTP 404")
     assert script.annotations_of("o/r")({"id": 9}) is None
 
 
 def listing(*reads):
     """A GitHub CLI that lists these jobs, one list after the other, and fails for
-    None; the last one stays."""
+    None with an error of GitHub's servers, or for a text with that text as what it
+    says; the last one stays."""
     left = list(reads)
 
     def run(arguments, **options):
         jobs = left.pop(0) if len(left) > 1 else left[0]
-        if jobs is None:
-            return subprocess.CompletedProcess(arguments, 1, "", "HTTP 502")
+        if jobs is None or isinstance(jobs, str):
+            return subprocess.CompletedProcess(arguments, 1, "", jobs or "HTTP 502")
         return subprocess.CompletedProcess(arguments, 0, json.dumps({"jobs": jobs}), "")
 
     return run
@@ -714,8 +753,9 @@ SLEPT: list[float] = []
 
 def verify(monkeypatch, tmp_path, listed, *later, **env):
     """The exit code of the gate and its summary, with `listed` as the jobs that
-    GitHub lists, or a failure of the GitHub CLI for None, and `later` as what it
-    lists when the gate reads the jobs again. The gate doesn't really wait."""
+    GitHub lists, or a failure of the GitHub CLI as in `listing()` (for None an
+    error of GitHub's servers, for a text a failure that says that text), and
+    `later` as what it lists when the gate reads the jobs again. The gate doesn't really wait."""
     monkeypatch.setattr(subprocess, "run", listing(listed, *later))
     monkeypatch.setattr(script.time, "sleep", SLEPT.append)
     SLEPT.clear()
@@ -866,6 +906,106 @@ def test_the_gate_reads_the_jobs_again_when_github_fails_to_list_them(
     )
     assert out.count(f"GitHub lists {RAN} of the jobs without") == 2
     assert "GitHub listed every job as it ended after 60 s.\n" in out
+
+
+REFUSED = "gh: Resource not accessible by integration (HTTP 403)"
+
+
+def refusal(status, said, hint):
+    return (
+        f"::error::GitHub refused to list the jobs of this run with HTTP {status} "
+        f"({said}), which every read again would repeat, so the check didn't wait. "
+        f"{hint}\n"
+    )
+
+
+def test_the_gate_fails_at_once_when_github_refuses_to_list_the_jobs(
+    monkeypatch, tmp_path, capsys
+):
+    """A read again only repeats an error of the client: the gate read the jobs
+    for five minutes before it failed, and then asked for a run again (#327)."""
+    code, summary = verify(
+        monkeypatch, tmp_path, REFUSED, CHANGES="success", WANTED="true"
+    )
+    assert code == 1
+    assert SLEPT == []
+    assert capsys.readouterr().out == (
+        "::warning::gh api repos/o/r/actions/runs/7/jobs?filter=latest&per_page=100 "
+        f"failed: {REFUSED}\n"
+        + refusal(
+            403, REFUSED, "Does the job still have the permission `actions: read`?"
+        )
+    )
+    assert summary == ""
+
+
+def test_the_gate_stops_reading_when_github_refuses_a_read_again(
+    monkeypatch, tmp_path, capsys
+):
+    good = jobs_as_they_should_be()
+    code, _ = verify(
+        monkeypatch,
+        tmp_path,
+        too_early(good),
+        "gh: Not Found (HTTP 404)",
+        good,
+        CHANGES="success",
+        WANTED="true",
+    )
+    assert code == 1
+    assert SLEPT == [script.PAUSE]
+    assert capsys.readouterr().out.endswith(
+        refusal(
+            404,
+            "gh: Not Found (HTTP 404)",
+            "Do `GH_REPO` and `RUN` name this run of this repository?",
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("said", "named", "hint"),
+    [
+        (
+            "gh: Bad credentials (HTTP 401)",
+            "gh: Bad credentials (HTTP 401)",
+            "Is the token of the job still valid?",
+        ),
+        (
+            "gh: Validation Failed (HTTP 422)\n{}",
+            "gh: Validation Failed (HTTP 422)",
+            "Is the request of the check still valid?",
+        ),
+    ],
+)
+def test_a_refusal_names_githubs_message_and_where_to_look(
+    monkeypatch, tmp_path, capsys, said, named, hint
+):
+    """A refusal other than 403 has nothing to do with `actions: read`."""
+    code, _ = verify(monkeypatch, tmp_path, said, CHANGES="success", WANTED="true")
+    assert code == 1
+    status = int(named[-4:-1])
+    assert capsys.readouterr().out.endswith(refusal(status, named, hint))
+
+
+def test_the_gate_reads_the_jobs_again_after_a_rate_limit(
+    monkeypatch, tmp_path, capsys
+):
+    """GitHub lifts a rate limit later, though it answers it with 403."""
+    good = jobs_as_they_should_be()
+    code, _ = verify(
+        monkeypatch,
+        tmp_path,
+        "gh: API rate limit exceeded for installation ID 1. (HTTP 403)",
+        good,
+        CHANGES="success",
+        WANTED="true",
+    )
+    assert code == 0
+    assert SLEPT == [script.PAUSE]
+    assert "GitHub didn't list the jobs of this run; reading them again in 20 s.\n" in (
+        capsys.readouterr().out
+    )
 
 
 STEPS_RAN = [("Set up job", "success"), ("Create and update the labels", "success")]
