@@ -4,6 +4,16 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.10.4](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.3...v1.10.4) (2026-11-09)
+
+
+### Bug fixes
+
+* **deps:** update dependency @github/copilot to v1.0.105 ([#309](https://github.com/Dennis-Otto/issue-assistant/issues/309)) ([5a71bbb](https://github.com/Dennis-Otto/issue-assistant/commit/5a71bbb31f6a14c318a732de8113a7aac6f3b7a0))
+* **evaluate:** a repository without an issue to replay ends with a notice, not a failure ([#302](https://github.com/Dennis-Otto/issue-assistant/issues/302)) ([f82bf22](https://github.com/Dennis-Otto/issue-assistant/commit/f82bf22b7319d9a1946c2c58b00a41a9b5cee99f))
+* **evaluation:** the replay of an issue counts the labels that its maintainer set at its opening ([#317](https://github.com/Dennis-Otto/issue-assistant/issues/317)) ([2d2cd3b](https://github.com/Dennis-Otto/issue-assistant/commit/2d2cd3b7ad7bb0f2598e8024e6103915c3905ba4))
+* the issue assistant's own workflows take the Harden-Runner that the blueprint takes ([#305](https://github.com/Dennis-Otto/issue-assistant/issues/305)) ([88207cb](https://github.com/Dennis-Otto/issue-assistant/commit/88207cb731fbc691ef771f4256c985955bab3718))
+
 ## [1.10.3](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.2...v1.10.3) (2026-11-08)
 
 ### Bug fixes
