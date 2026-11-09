@@ -139,7 +139,8 @@ def test_the_gate_waits_for_every_call_and_is_the_required_check():
     # steps of every job and for Harden-Runner to remove Docker, up to two minutes.
     assert gate["timeout-minutes"] >= 2 + script.READS * script.PAUSE / 60 + 2 + 1
     explain = gate["steps"][-2]
-    assert explain["if"] == "failure()"
+    # Not after the step that stopped the job because Harden-Runner didn't block.
+    assert explain["if"] == "failure() && steps.blocks.outcome != 'failure'"
     assert explain["env"] == {"CHECK": gate["name"]}
     settings = tomllib.loads(
         (ROOT / ".github/repository.project.toml").read_text("utf-8")
