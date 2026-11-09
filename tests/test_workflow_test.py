@@ -875,6 +875,24 @@ STEPS_RAN = [("Set up job", "success"), ("Create and update the labels", "succes
         ({**job(LABELS, LABELS_JOB, None), "status": "in_progress"}, True),
         (job(LABELS, LABELS_JOB, "failure"), True),
         (job(LABELS, LABELS_JOB, "cancelled"), True),
+        (
+            {
+                **job(LABELS, LABELS_JOB, "success"),
+                "steps": [
+                    {
+                        "name": "Set up job",
+                        "status": "completed",
+                        "conclusion": "success",
+                    },
+                    {
+                        "name": "Create and update the labels",
+                        "status": "in_progress",
+                        "conclusion": None,
+                    },
+                ],
+            },
+            True,
+        ),
         # As it ended: with its plan, failed before its plan, skipped, or not listed.
         (job(LABELS, LABELS_JOB, "success", STEPS_RAN), False),
         (job(LABELS, LABELS_JOB, "failure", STEPS_RAN), False),

@@ -215,9 +215,10 @@ def listed(jobs: Sequence[Job], full: str) -> Job | None:
 def unsettled(jobs: Sequence[Job]) -> list[str]:
     """The jobs that have to run and that GitHub doesn't list as they ended yet: not
     completed, or without the step that writes their plan though they passed, or
-    without any step though they ran. Once completed, a job that passed lists every
-    step, and one that ran at least the first; a job that ended earlier, such as one
-    that failed before its plan, is judged as it is."""
+    without any step though they ran, or completed with that step not yet completed.
+    Once completed, a job that passed lists every step as completed, and one that ran
+    at least the first; a job that ended earlier, such as one that failed before its
+    plan, is judged as it is."""
     late = []
     for call, called in CALLS.items():
         for name, plan in called.items():
@@ -225,8 +226,12 @@ def unsettled(jobs: Sequence[Job]) -> list[str]:
             job = listed(jobs, full)
             if plan is None or job is None:
                 continue
-            steps = [str(step.get("name")) for step in job.get("steps") or []]
-            if plan in steps:
+            listed_steps = job.get("steps") or []
+            steps = [str(step.get("name")) for step in listed_steps]
+            step = next((s for s in listed_steps if s.get("name") == plan), None)
+            if step is not None and (
+                step.get("status") == "completed" or job.get("status") != "completed"
+            ):
                 continue
             conclusion = job.get("conclusion")
             if (
