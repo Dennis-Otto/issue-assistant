@@ -131,6 +131,9 @@ def test_the_gate_waits_for_every_call_and_is_the_required_check():
     assert check["env"]["RUN"] == "${{ github.run_id }}"
     assert check["env"]["CHANGES"] == "${{ needs.changes.result }}"
     assert check["env"]["WANTED"] == "${{ needs.changes.outputs.run }}"
+    # Room for the wait for Harden-Runner, up to two minutes, for GitHub to list the
+    # steps of every job and for Harden-Runner to remove Docker, up to two minutes.
+    assert gate["timeout-minutes"] >= 2 + script.READS * script.PAUSE / 60 + 2 + 1
     explain = gate["steps"][-2]
     assert explain["if"] == "failure()"
     assert explain["env"] == {"CHECK": gate["name"]}
@@ -549,6 +552,18 @@ def replaced(*jobs):
             "it ended as success, and its step “Create and update the labels” as "
             "skipped",
         ),
+        # The job failed before it reached its plan, such as in its first step.
+        (
+            replaced(
+                (
+                    f"{LABELS} / {LABELS_JOB}",
+                    job(LABELS, LABELS_JOB, "failure", [("Set up job", "failure")]),
+                )
+            ),
+            "failure",
+            "it has no step “Create and update the labels”, which writes the plan of "
+            "its dry run",
+        ),
         (
             replaced(
                 (
@@ -593,8 +608,8 @@ def test_a_job_without_a_conclusion_shows_its_status():
     jobs = replaced((name, {"name": name, "status": "in_progress"}))
     rows, problems = script.check(jobs, no_annotations)
     assert problems == [
-        f"{name}: it has no step “Create and update the labels”, which writes the "
-        "plan of its dry run."
+        f"{name}: GitHub lists none of its steps, so none shows the step “Create and "
+        "update the labels”, which writes the plan of its dry run."
     ]
     jobs = replaced(
         (name, {"name": name, "steps": [{"name": "Create and update the labels"}]})
@@ -675,13 +690,30 @@ def test_the_jobs_and_annotations_come_from_the_api(monkeypatch):
     assert script.annotations_of("o/r")({"id": 9}) is None
 
 
-def verify(monkeypatch, tmp_path, listed, **env):
+def listing(*reads):
+    """A GitHub CLI that lists these jobs, one list after the other, and fails for
+    None; the last one stays."""
+    left = list(reads)
+
+    def run(arguments, **options):
+        jobs = left.pop(0) if len(left) > 1 else left[0]
+        if jobs is None:
+            return subprocess.CompletedProcess(arguments, 1, "", "HTTP 502")
+        return subprocess.CompletedProcess(arguments, 0, json.dumps({"jobs": jobs}), "")
+
+    return run
+
+
+SLEPT: list[float] = []
+
+
+def verify(monkeypatch, tmp_path, listed, *later, **env):
     """The exit code of the gate and its summary, with `listed` as the jobs that
-    GitHub lists, or a failure of the GitHub CLI for None."""
-    if listed is None:
-        monkeypatch.setattr(subprocess, "run", completed(code=1))
-    else:
-        monkeypatch.setattr(subprocess, "run", completed(json.dumps({"jobs": listed})))
+    GitHub lists, or a failure of the GitHub CLI for None, and `later` as what it
+    lists when the gate reads the jobs again. The gate doesn't really wait."""
+    monkeypatch.setattr(subprocess, "run", listing(listed, *later))
+    monkeypatch.setattr(script.time, "sleep", SLEPT.append)
+    SLEPT.clear()
     summary = tmp_path / "summary"
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
     monkeypatch.setenv("GH_REPO", "o/r")
@@ -733,6 +765,155 @@ def test_the_gate_names_every_job_that_did_not_run_as_it_has_to(
     )
 
 
+# The jobs that have to run, each with the step that writes its plan.
+RAN = sum(
+    plan is not None for called in script.CALLS.values() for plan in called.values()
+)
+
+
+def too_early(jobs):
+    """The jobs as GitHub listed them for minutes on 2026-11-08 (#288): each job that
+    ran, and passed, without any of its steps."""
+    return [
+        {**item, "steps": []} if item["conclusion"] == "success" else item
+        for item in jobs
+    ]
+
+
+def test_the_gate_waits_until_github_lists_the_steps_of_every_job(
+    monkeypatch, tmp_path, capsys
+):
+    """GitHub lists the steps of a job some time after it ends: the gate read the
+    jobs too early and failed on each job that had passed (#288)."""
+    good = jobs_as_they_should_be()
+    code, summary = verify(
+        monkeypatch,
+        tmp_path,
+        too_early(good),
+        too_early(good),
+        good,
+        CHANGES="success",
+        WANTED="true",
+    )
+    assert code == 0
+    assert SLEPT == [script.PAUSE, script.PAUSE]
+    early = (
+        f"GitHub lists {RAN} of the jobs without the steps that they ran yet, such "
+        f"as {LABELS} / {LABELS_JOB}; reading the jobs again in 20 s.\n"
+    )
+    assert capsys.readouterr().out == (
+        early * 2 + "GitHub listed every job as it ended after 40 s.\n"
+        "Each reusable workflow ran as a dry run, as its call has to.\n"
+    )
+    assert "| passes, with “Create and update the labels” | passed |" in summary
+
+
+def test_the_gate_fails_when_github_lists_a_job_too_early_for_too_long(
+    monkeypatch, tmp_path, capsys
+):
+    code, summary = verify(
+        monkeypatch,
+        tmp_path,
+        too_early(jobs_as_they_should_be()),
+        CHANGES="success",
+        WANTED="true",
+    )
+    assert code == 1
+    assert SLEPT == [script.PAUSE] * script.READS
+    out = capsys.readouterr().out.splitlines()
+    assert out[script.READS] == (
+        f"::warning::GitHub still lists {RAN} of the jobs without the steps that "
+        "they "
+        "ran, after 5 minutes. Where the check of such a job shows the step that "
+        "writes its plan, run this check again."
+    )
+    assert out[script.READS + 1] == (
+        f"::error::{LABELS} / {LABELS_JOB}: GitHub lists none of its steps, so none "
+        "shows the step “Create and update the labels”, which writes the plan of "
+        "its dry run."
+    )
+    assert summary.endswith(f"\n\n{RAN} of the jobs didn't run as their call has to.\n")
+
+
+def test_the_gate_reads_the_jobs_again_when_github_fails_to_list_them(
+    monkeypatch, tmp_path, capsys
+):
+    """A failed read keeps what GitHub listed before, if anything."""
+    good = jobs_as_they_should_be()
+    code, _ = verify(
+        monkeypatch,
+        tmp_path,
+        None,
+        too_early(good),
+        None,
+        good,
+        CHANGES="success",
+        WANTED="true",
+    )
+    assert code == 0
+    assert SLEPT == [script.PAUSE] * 3
+    out = capsys.readouterr().out
+    assert out.startswith(
+        "::warning::gh api repos/o/r/actions/runs/7/jobs?filter=latest&per_page=100 "
+        "failed: HTTP 502\n"
+        "GitHub didn't list the jobs of this run; reading them again in 20 s.\n"
+        f"GitHub lists {RAN} of the jobs without"
+    )
+    assert out.count(f"GitHub lists {RAN} of the jobs without") == 2
+    assert "GitHub listed every job as it ended after 60 s.\n" in out
+
+
+STEPS_RAN = [("Set up job", "success"), ("Create and update the labels", "success")]
+
+
+@pytest.mark.parametrize(
+    ("listed", "late"),
+    [
+        # Too early: passed without its plan, not completed, or ran without a step.
+        (job(LABELS, LABELS_JOB, "success"), True),
+        (job(LABELS, LABELS_JOB, "success", [("Set up job", "success")]), True),
+        ({**job(LABELS, LABELS_JOB, None), "status": "in_progress"}, True),
+        (job(LABELS, LABELS_JOB, "failure"), True),
+        (job(LABELS, LABELS_JOB, "cancelled"), True),
+        (
+            {
+                **job(LABELS, LABELS_JOB, "success"),
+                "steps": [
+                    {
+                        "name": "Set up job",
+                        "status": "completed",
+                        "conclusion": "success",
+                    },
+                    {
+                        "name": "Create and update the labels",
+                        "status": "in_progress",
+                        "conclusion": None,
+                    },
+                ],
+            },
+            True,
+        ),
+        # As it ended: with its plan, failed before its plan, skipped, or not listed.
+        (job(LABELS, LABELS_JOB, "success", STEPS_RAN), False),
+        (job(LABELS, LABELS_JOB, "failure", STEPS_RAN), False),
+        (job(LABELS, LABELS_JOB, "failure", [("Set up job", "failure")]), False),
+        (job(LABELS, LABELS_JOB, "skipped"), False),
+        (None, False),
+    ],
+)
+def test_a_job_that_has_to_run_waits_while_github_lists_it_too_early(listed, late):
+    name = f"{LABELS} / {LABELS_JOB}"
+    assert script.unsettled(replaced((name, listed))) == ([name] if late else [])
+
+
+def test_a_job_that_its_call_skips_never_waits():
+    """Its steps say nothing: whatever it did, its conclusion is the verdict."""
+    name = "reusable-issue-assistant.yml / Analyze with the AI engine"
+    ran = job("reusable-issue-assistant.yml", "Analyze with the AI engine", "success")
+    assert script.unsettled(replaced((name, ran))) == []
+    assert script.unsettled(jobs_as_they_should_be()) == []
+
+
 def test_the_gate_passes_when_nothing_had_to_run(monkeypatch, tmp_path, capsys):
     code, summary = verify(
         monkeypatch, tmp_path, None, CHANGES="success", WANTED="false"
@@ -764,7 +945,10 @@ def test_the_gate_fails_when_nothing_says_whether_the_calls_had_to_run(
 def test_the_gate_fails_when_github_lists_no_jobs(monkeypatch, tmp_path, capsys):
     code, _ = verify(monkeypatch, tmp_path, None, CHANGES="success", WANTED="true")
     assert code == 1
-    assert capsys.readouterr().out.endswith(
+    assert SLEPT == [script.PAUSE] * script.READS
+    out = capsys.readouterr().out
+    assert out.count("reading them again in 20 s.") == script.READS
+    assert out.endswith(
         "::error::GitHub didn't list the jobs of this run; run it again.\n"
     )
 

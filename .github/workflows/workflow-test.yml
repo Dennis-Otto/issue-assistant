@@ -20,9 +20,11 @@ name: Workflow test
 # A called job that its condition skips passes as well as one that runs, so the last
 # job, "reusable workflows", the check that main requires, reads the jobs of its run
 # with scripts/workflow_test.py: each job passed, with the step that writes the plan
-# of its dry run, or was skipped where its call has to skip it. A pull request that
-# changes nothing that the dry runs run or read skips the calls, and the check passes
-# in seconds. docs/architecture.md describes it.
+# of its dry run, or was skipped where its call has to skip it. GitHub lists the steps
+# of a job some time after it ends, so the script reads the jobs again for up to five
+# minutes while one is listed too early. A pull request that changes nothing that the
+# dry runs run or read skips the calls, and the check passes in seconds.
+# docs/architecture.md describes it.
 
 on:
   push:
@@ -174,7 +176,9 @@ jobs:
     needs: [changes, labels, findings, lifecycle, issues, discussions]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # The wait for Harden-Runner, for GitHub to list the steps of every job, up to five
+    # minutes in scripts/workflow_test.py, and for Harden-Runner to remove Docker.
+    timeout-minutes: 12
     permissions:
       actions: read # the jobs of this run
       checks: read # the annotations of a failed job
