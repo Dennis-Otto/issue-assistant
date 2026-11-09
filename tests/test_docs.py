@@ -1181,14 +1181,15 @@ def test_the_requirements_say_that_the_firewall_runner_is_a_preview():
         )
     )
     # The firewall runner, unless the repository names another in its variable.
-    runner = re.fullmatch(
-        r"\$\{\{ vars\.(\w+) \|\| '([\w.-]+)' \}\}",
-        workflow["jobs"]["analyze"]["runs-on"],
+    jobs = workflow["jobs"]
+    runner = jobs["analyze"]["runs-on"]
+    variable = re.fullmatch(
+        r"\$\{\{ vars\.(\w+) \}\}", jobs["analyze-in-reserve"]["runs-on"]
     )
-    assert runner, "the job analyze names no runner and no variable"
+    assert variable, "the job analyze-in-reserve names no variable"
     requirements = section("getting-started.md", "Requirements")
-    assert f"`{runner[2]}`" in requirements
-    assert f"`{runner[1]}`" in requirements
+    assert f"`{runner}`" in requirements
+    assert f"`{variable[1]}`" in requirements
     assert "technical preview" in requirements and "Linux only" in requirements
     assert (
         "(https://github.com/github-early-access/actions-native-egress-firewall)"

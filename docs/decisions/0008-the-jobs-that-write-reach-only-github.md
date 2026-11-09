@@ -1,6 +1,6 @@
 # The jobs that write reach only GitHub
 
-- Status: accepted, amended by [0026](0026-an-open-alert-fails-one-run.md)
+- Status: accepted, amended by [0026](0026-an-open-alert-fails-one-run.md) and [0029](0029-a-job-stops-when-harden-runner-doesnt-block.md)
 - Date: 2026-10-13
 
 ## Context

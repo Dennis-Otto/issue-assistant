@@ -39,7 +39,7 @@ The code is the package `issue_assistant/`, of the standard library alone ([deci
 | `issue_assistant/events.py` | `handle_event`: what a new issue, a comment or a discussion starts |
 | `issue_assistant/sweeps.py` | `sweep`: reminders, closing, locking, and what a merge or a release settles |
 | `issue_assistant/labels.py` | `sync_labels` and the routing of the issue forms |
-| `issue_assistant/code_scanning.py` | `watch_findings`: the findings that `findings.toml` accepts, and those that remain, each reported once, by the record of the alerts that earlier runs reported |
+| `issue_assistant/code_scanning.py` | `watch_findings`: the findings that `findings.toml` accepts, and those that remain, each reported once, by the record of the alerts that earlier runs reported; `accept_in_pull_requests`: those of a pull request |
 | `issue_assistant/actionlint.py` | Reading YAML, and adding to actionlint's settings without losing their comments |
 | `issue_assistant/setup_check.py` | `check`: everything it reports about a repository's set-up |
 | `issue_assistant/installation.py` | `install` and `set_up_github`: the files of a repository and its settings on GitHub |

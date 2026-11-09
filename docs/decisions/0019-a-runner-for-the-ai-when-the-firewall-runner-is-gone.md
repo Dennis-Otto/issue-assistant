@@ -1,6 +1,6 @@
 # A runner for the AI when the firewall runner is gone
 
-- Status: accepted, amended by [0025](0025-the-ai-runs-only-once-the-block-holds.md)
+- Status: accepted, amended by [0025](0025-the-ai-runs-only-once-the-block-holds.md) and [0027](0027-the-runner-in-reserve-has-a-job-of-its-own.md)
 - Date: 2026-10-25
 
 ## Context

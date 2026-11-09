@@ -365,3 +365,208 @@ def test_the_findings_command_needs_no_issue_settings(monkeypatch, tmp_path, con
     github = FakeGitHub(config)
     code, _, summary = run_main(monkeypatch, tmp_path, tmp_path, github, "findings")
     assert code == 0 and "### Findings\n\n- No open findings." in summary
+
+
+# The scans of a pull request: its accepted alerts are dismissed, and none fails.
+
+PULL_REQUEST = 12
+OPEN_IN_PULL_REQUEST = (
+    "The check of code scanning shows these alerts in the pull request: fix them "
+    "there, or accept them with a reason in .github/findings.toml of the default "
+    "branch, and the next scan of the pull request dismisses them."
+)
+
+
+REPOSITORY_ID = 41
+
+
+def scan(
+    head=REPOSITORY, branch="feature", event="pull_request", numbers=(), base=None
+):
+    """The event of the Findings workflow after a scan: workflow_run, whose
+    pull_requests GitHub fills by the head branch, each with the repository that it
+    goes into (`base`, by its id: this one unless given)."""
+    into = {"repo": {"id": REPOSITORY_ID if base is None else base}}
+    return {
+        "workflow_run": {
+            "event": event,
+            "head_branch": branch,
+            "head_repository": {"full_name": head},
+            "pull_requests": [{"number": number, "base": into} for number in numbers],
+        },
+        "repository": {
+            "id": REPOSITORY_ID,
+            "full_name": REPOSITORY,
+            "default_branch": "main",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("event", "payload", "numbers"),
+    [
+        # The runs of the default branch: every morning, by hand, after a push.
+        ("schedule", {}, None),
+        ("workflow_dispatch", {"inputs": {"dry_run": True}}, None),
+        ("push", {"repository": {"default_branch": "main"}}, None),
+        ("workflow_run", scan(branch="main", event="push"), None),
+        ("workflow_run", scan(branch="main", event="schedule"), None),
+        # The scan of a pull request of the repository itself, by its number.
+        ("workflow_run", scan(numbers=[PULL_REQUEST]), [PULL_REQUEST]),
+        ("workflow_run", scan(numbers=[14, 12, 14]), [12, 14]),
+        # Nothing to do after the scan of a fork's pull request, whose head GitHub
+        # names with the fork, not even when its branch has the default's name, or
+        # after the scan of another branch without a pull request.
+        ("workflow_run", scan(head="fork/project", numbers=[PULL_REQUEST]), []),
+        ("workflow_run", scan(head="fork/project", branch="main", event="push"), []),
+        ("workflow_run", scan(event="push"), []),
+        ("workflow_run", scan(numbers=[]), []),
+        # A pull request of another repository of the fork network, whose head is
+        # this repository's branch, isn't one of this repository's.
+        ("workflow_run", scan(numbers=[PULL_REQUEST], base=99), []),
+        ("workflow_run", {"workflow_run": {}, "repository": {}}, []),
+    ],
+)
+def test_the_run_knows_the_pull_requests_whose_scan_started_it(event, payload, numbers):
+    assert assistant.scanned_pull_requests(event, payload) == numbers
+
+
+def pull_request_findings(monkeypatch, tmp_path, root, github, capsys, payload, **env):
+    """A run of the findings command after the scan of `payload`."""
+    path = tmp_path / "event.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return findings(
+        monkeypatch,
+        tmp_path,
+        root,
+        github,
+        capsys,
+        GITHUB_EVENT_NAME="workflow_run",
+        GITHUB_EVENT_PATH=str(path),
+        **env,
+    )
+
+
+def test_the_scan_of_a_pull_request_dismisses_its_accepted_alerts_and_fails_none(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    """A pull request that moves an accepted finding to another line makes a new
+    alert, which GitHub posts as a review thread that may block the merge until it
+    is resolved; dismissing the alert resolves it (Dennis-Otto/issue-assistant#319).
+    The other alerts of the pull request show in its own check of code scanning, so
+    they fail no run, and the alerts of the default branch wait for its runs."""
+    write_findings(root)
+    github = FakeGitHub(config)
+    github.alert_store = [
+        make_alert(3),
+        make_alert(5, "CodeQL", "py/unused-import", "tests/test_x.py", pull_request=12),
+        make_alert(7, "CodeQL", "py/sql-injection", "app/db.py", pull_request=12),
+        make_alert(8, "CodeQL", "py/unused-import", "tests/test_y.py", pull_request=9),
+    ]
+    payload = scan(numbers=[PULL_REQUEST])
+    code, summary, annotations = pull_request_findings(
+        monkeypatch, tmp_path, root, github, capsys, payload
+    )
+    assert code == 0 and annotations == []
+    assert summary == (
+        f"### Findings of pull request #{PULL_REQUEST}\n\n"
+        "- Alert #5 (codeql py/unused-import) dismissed as used in tests.\n"
+        f"- Alert #7 is open in pull request #{PULL_REQUEST}: {link(7)}\n"
+        f"- {OPEN_IN_PULL_REQUEST}\n"
+    )
+    states = {alert["number"]: alert["state"] for alert in github.alert_store}
+    assert states == {3: "open", 5: "dismissed", 7: "open", 8: "open"}
+    assert github.alert_store[1]["dismissed_comment"] == (
+        "Fixtures import what they provide. (accepted in .github/findings.toml)"
+    )
+    # Nothing about the rule or the file of an open alert reaches the public run,
+    # and the record of the default branch stays as it is.
+    assert "sql" not in summary and "app/" not in summary
+    assert not (root / assistant.FINDINGS_RECORD).exists()
+
+
+def test_the_scan_of_several_pull_requests_looks_after_each(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    """GitHub names every open pull request of the scanned branch."""
+    write_findings(root)
+    github = FakeGitHub(config, dry_run=True)
+    github.alert_store = [
+        make_alert(4, pull_request=12),
+        make_alert(6, pull_request=14),
+    ]
+    payload = scan(numbers=[14, 12])
+    code, summary, _ = pull_request_findings(
+        monkeypatch, tmp_path, root, github, capsys, payload, DRY_RUN="true"
+    )
+    assert code == 0
+    assert summary.startswith(
+        "### Findings of pull request #12, #14 (dry run)\n\n"
+        "- Alert #4 (Scorecard CodeReviewID) dismissed as won't fix.\n"
+        "- Alert #6 (Scorecard CodeReviewID) dismissed as won't fix.\n"
+    )
+    # A dry run only says what it would dismiss.
+    assert github.writes == [
+        "dismiss alert #4 as won't fix",
+        "dismiss alert #6 as won't fix",
+    ]
+    assert all(alert["state"] == "open" for alert in github.alert_store)
+
+
+@pytest.mark.parametrize(
+    ("store", "line"),
+    [
+        ([], "No open findings."),
+        (None, "Code scanning isn't set up; there is nothing to check."),
+    ],
+)
+def test_a_pull_request_without_alerts_or_code_scanning(
+    monkeypatch, tmp_path, root, config, capsys, store, line
+):
+    github = FakeGitHub(config)
+    github.alert_store = store
+    payload = scan(numbers=[PULL_REQUEST])
+    code, summary, annotations = pull_request_findings(
+        monkeypatch, tmp_path, root, github, capsys, payload
+    )
+    assert (code, annotations) == (0, [])
+    assert summary == f"### Findings of pull request #{PULL_REQUEST}\n\n- {line}\n"
+
+
+def test_the_scan_of_a_fork_s_pull_request_asks_github_nothing(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    """An outsider's code could match an accepted rule in an accepted file with a
+    real finding: its thread waits for a person."""
+    write_findings(root)
+    github = FakeGitHub(config)
+    github.alert_error = "a request that the run must not make"
+    payload = scan(head="fork/project", numbers=[PULL_REQUEST])
+    code, summary, annotations = pull_request_findings(
+        monkeypatch, tmp_path, root, github, capsys, payload
+    )
+    assert (code, annotations) == (0, [])
+    assert summary == (
+        "### Findings\n\n"
+        "- GitHub names no pull request of this repository for the scan: nothing to "
+        "do.\n"
+    )
+
+
+def test_a_pull_request_without_an_analysis_keeps_none_of_the_others_from_their_turn(
+    root, config
+):
+    """A pull request of the scanned branch that the scans don't cover has no
+    analysis; the accepted alerts of the next one are still dismissed."""
+    write_findings(root)
+    github = FakeGitHub(config)
+    github.alert_store = [make_alert(6, pull_request=14)]
+    listing = github.open_alerts
+
+    def open_alerts(pull_request=0):
+        return None if pull_request == 12 else listing(pull_request=pull_request)
+
+    github.open_alerts = open_alerts
+    lines = assistant.accept_in_pull_requests(github, root, [12, 14])
+    assert lines == ["Alert #6 (Scorecard CodeReviewID) dismissed as won't fix."]
+    assert github.alert_store[0]["state"] == "dismissed"

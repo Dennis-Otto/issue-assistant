@@ -1,16 +1,16 @@
 flowchart TB
   accTitle: Which runner the AI runs on
-  accDescr: The job event reads the repository variable ISSUE_ASSISTANT_AI_RUNNER. Unset, or ubuntu-24.04-firewall, the job analyze runs on GitHub's egress-firewall runner, whose firewall blocks every host but those of .github/egress-firewall.yaml for the whole machine. For one of GitHub's runners of Ubuntu with a fixed version, such as ubuntu-24.04, the job event names the hosts of the same file with their ports; there Harden-Runner blocks every other host as the first step of analyze. On either runner, a step makes sure that the block holds before the engine runs: requests to example.com, a host of no policy, must fail and one to api.github.com must get an answer, within a minute, or the job stops. For any other runner, such as a self-hosted one or ubuntu-latest, the job event fails and the AI doesn't run.
+  accDescr: The job event reads the repository variable ISSUE_ASSISTANT_AI_RUNNER. Unset, or ubuntu-24.04-firewall, the job analyze runs on GitHub's egress-firewall runner, whose firewall blocks every host but those of .github/egress-firewall.yaml for the whole machine, without a step of Harden-Runner. For one of GitHub's runners of Ubuntu with a fixed version, such as ubuntu-24.04, the job event names the hosts of the same file with their ports; there the job analyze-in-reserve runs the same steps in place of analyze, and Harden-Runner blocks every other host as its first step. On either runner, a step makes sure that the block holds before the engine runs: requests to example.com, a host of no policy, must fail and one to api.github.com must get an answer, within a minute, or the job stops. For any other runner, such as a self-hosted one or ubuntu-latest, the job event fails and the AI doesn't run.
   variable["`the variable<br>**ISSUE_ASSISTANT_AI_RUNNER**`"]
   variable -->|"unset, or ubuntu-24.04-firewall"| firewall
   variable -->|"ubuntu-24.04 and the like"| endpoints
   variable -->|"self-hosted, ubuntu-latest, …"| refused
   subgraph preview ["ubuntu-24.04-firewall, a technical preview"]
-    firewall["`**analyze**<br>GitHub's firewall blocks every other host<br>for the whole machine`"]
+    firewall["`**analyze**<br>GitHub's firewall blocks every other host<br>for the whole machine, without Harden-Runner`"]
   end
   endpoints["`**event** names the hosts of<br>egress-firewall.yaml, on 443 and 80`"]
   subgraph plain ["ubuntu-24.04"]
-    hardened["`**analyze**<br>Harden-Runner blocks every other host<br>for the job`"]
+    hardened["`**analyze-in-reserve**<br>the steps of analyze; Harden-Runner<br>blocks every other host for the job`"]
   end
   endpoints --> hardened
   holds["`does example.com stay out of reach,<br>and does api.github.com answer,<br>within a minute?`"]
