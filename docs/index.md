@@ -78,7 +78,7 @@ hide:
 
     ---
 
-    The findings that `.github/findings.toml` accepts are dismissed with their reason. Any other open finding fails one run, the first after it opens, so GitHub mails about it once, without a public issue.
+    The findings that `.github/findings.toml` accepts are dismissed with their reason, also in a pull request, where their review threads would block the merge. Any other open finding fails one run, the first after it opens, so GitHub mails about it once, without a public issue.
 
 </div>
 

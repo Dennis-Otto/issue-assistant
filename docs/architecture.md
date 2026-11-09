@@ -20,7 +20,7 @@ The issue assistant is a composite GitHub Action. `action.yml` runs the package 
 | Writing | `apply_answer` and the `render_*` functions | Post the comment, set the labels, assign the owners of its areas, set the issue type and mark duplicates, only on the issue of the event; post the first answer to a discussion, only on the discussion of the event |
 | Lifecycle | `sweep` | Reminders after 15 days, closing after 30 days, closing duplicates after 3 days, marking fixed issues, closing them with the release and filing them under its milestone |
 | Labels | `sync_labels` | Create and update the labels of `labels.toml`, never delete one, and warn of owners that can't be assigned and of issue types the repository lacks |
-| Findings | `watch_findings` | Dismiss the findings of code scanning that `findings.toml` accepts, and fail once for each other alert |
+| Findings | `watch_findings`, `accept_in_pull_requests` | Dismiss accepted findings, also in pull requests, and fail once for each other alert |
 | Fixture | `read_fixture`, `GitHub.use_fixture` | An issue and its comments from a JSON file in place of GitHub's, for [the canary](architecture/dry-runs.md#the-canary) and for trying a prompt; `context` and `apply` then write nothing |
 | Set-up | `install`, `set_up_github`, `check` | Write the four workflows, the one of the discussions where `config.toml` names categories, the firewall policy and the starter files of `templates/` into a repository, add the notice to reporters and actionlint's ignored `queue` where they are missing, with `--setup` also create the environment `issue-assistant` and have gh ask for the engine's secret, and check that the set-up still fits the templates; only `check` needs nothing but the checkout, and both name its files with slashes on every system |
 
@@ -40,7 +40,7 @@ The code is the package `issue_assistant/`, in layers: each module imports only 
 | `issue-assistant.yml` | `event` decides the next task; `analyze` writes the context and runs the engine with a read-only token, on GitHub's egress-firewall runner; `apply` checks the answer and writes it |
 | `issue-lifecycle.yml` | `sweep`, every morning, after merged pull requests, published releases and the end of a run of the release workflow that no schedule started |
 | `labels.yml` | `sync-labels`, when `labels.toml` changes on the default branch |
-| `findings.yml` | `findings`, every morning, after each scan of code scanning on the default branch and when `findings.toml` changes |
+| `findings.yml` | `findings`, every morning, after each scan of code scanning, also of a pull request, and when `findings.toml` changes |
 
 ## One run for a new issue
 
