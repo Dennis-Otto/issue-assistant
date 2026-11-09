@@ -159,7 +159,17 @@ def scanned_pull_requests(event: str, payload: dict[str, Any]) -> list[int] | No
         return None if own and default else []
     if not own:
         return []
-    return sorted({int(item["number"]) for item in scan.get("pull_requests") or []})
+    # GitHub matches these by the head branch and its commit, and may name a pull
+    # request of another repository of the fork network whose head is this branch:
+    # only those into this repository count, by its id.
+    return sorted(
+        {
+            int(item["number"])
+            for item in scan.get("pull_requests") or []
+            if ((item.get("base") or {}).get("repo") or {}).get("id")
+            == repository.get("id")
+        }
+    )
 
 
 def accept_in_pull_requests(
@@ -185,10 +195,14 @@ def accept_in_pull_requests(
         return [NO_PULL_REQUEST]
     accepted = load_findings(root)
     done, left = [], []
+    scanned = False
     for number in numbers:
         alerts = github.open_alerts(pull_request=number)
         if alerts is None:
-            return [NO_CODE_SCANNING]
+            # No analysis of this one, such as a second pull request of the branch
+            # into a base that the scans don't cover; the others still count.
+            continue
+        scanned = True
         dismissed, others = dismiss_accepted(github, accepted, alerts)
         done += dismissed
         left += [
@@ -196,6 +210,8 @@ def accept_in_pull_requests(
             f"{alert['html_url']}"
             for alert in others
         ]
+    if not scanned:
+        return [NO_CODE_SCANNING]
     if left:
         left.append(
             "The check of code scanning shows these alerts in the pull request: fix "

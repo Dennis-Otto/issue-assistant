@@ -377,17 +377,28 @@ OPEN_IN_PULL_REQUEST = (
 )
 
 
-def scan(head=REPOSITORY, branch="feature", event="pull_request", numbers=()):
+REPOSITORY_ID = 41
+
+
+def scan(
+    head=REPOSITORY, branch="feature", event="pull_request", numbers=(), base=None
+):
     """The event of the Findings workflow after a scan: workflow_run, whose
-    pull_requests GitHub fills for a pull request of the repository itself alone."""
+    pull_requests GitHub fills by the head branch, each with the repository that it
+    goes into (`base`, by its id: this one unless given)."""
+    into = {"repo": {"id": REPOSITORY_ID if base is None else base}}
     return {
         "workflow_run": {
             "event": event,
             "head_branch": branch,
             "head_repository": {"full_name": head},
-            "pull_requests": [{"number": number} for number in numbers],
+            "pull_requests": [{"number": number, "base": into} for number in numbers],
         },
-        "repository": {"full_name": REPOSITORY, "default_branch": "main"},
+        "repository": {
+            "id": REPOSITORY_ID,
+            "full_name": REPOSITORY,
+            "default_branch": "main",
+        },
     }
 
 
@@ -410,6 +421,9 @@ def scan(head=REPOSITORY, branch="feature", event="pull_request", numbers=()):
         ("workflow_run", scan(head="fork/project", branch="main", event="push"), []),
         ("workflow_run", scan(event="push"), []),
         ("workflow_run", scan(numbers=[]), []),
+        # A pull request of another repository of the fork network, whose head is
+        # this repository's branch, isn't one of this repository's.
+        ("workflow_run", scan(numbers=[PULL_REQUEST], base=99), []),
         ("workflow_run", {"workflow_run": {}, "repository": {}}, []),
     ],
 )
@@ -537,3 +551,22 @@ def test_the_scan_of_a_fork_s_pull_request_asks_github_nothing(
         "- GitHub names no pull request of this repository for the scan: nothing to "
         "do.\n"
     )
+
+
+def test_a_pull_request_without_an_analysis_keeps_none_of_the_others_from_their_turn(
+    root, config
+):
+    """A pull request of the scanned branch that the scans don't cover has no
+    analysis; the accepted alerts of the next one are still dismissed."""
+    write_findings(root)
+    github = FakeGitHub(config)
+    github.alert_store = [make_alert(6, pull_request=14)]
+    listing = github.open_alerts
+
+    def open_alerts(pull_request=0):
+        return None if pull_request == 12 else listing(pull_request=pull_request)
+
+    github.open_alerts = open_alerts
+    lines = assistant.accept_in_pull_requests(github, root, [12, 14])
+    assert lines == ["Alert #6 (Scorecard CodeReviewID) dismissed as won't fix."]
+    assert github.alert_store[0]["state"] == "dismissed"
