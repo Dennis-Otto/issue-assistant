@@ -14,6 +14,11 @@ GitHub lists the steps of a job some time after the job ends, once minutes after
 (issue #288): while it lists a job that has to run as passed without the step that
 writes its plan, as not yet completed, or without any step though it ran, the script
 reads the jobs again, every PAUSE seconds for up to READS times, before it judges.
+It reads them again, too, after a read that may succeed when it comes again: one
+without an answer, such as on a failed connection, or with an error of GitHub's
+servers, a timeout or a rate limit. A read that GitHub refuses with any other error of
+the client, such as 403 or 404, fails the check at once (issue #327): every read
+again would repeat it.
 
 Before the calls, the job "what the reusable workflows run" runs
 `workflow_test.py changes`, which decides whether they run: on a pull request only
@@ -35,6 +40,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from typing import Any
 
@@ -116,13 +122,43 @@ PAUSE = 20
 # keeps equal.
 API_VERSION_HEADER = "X-GitHub-Api-Version: 2022-11-28"
 
+# How the GitHub CLI names the HTTP status of GitHub's answer to a call that failed,
+# such as "gh: Not Found (HTTP 404)", or "gh: HTTP 502" without a message of GitHub's;
+# it names none when no answer came, such as on a failed connection.
+STATUS = re.compile(r"\bHTTP (\d{3})\b")
+# The errors of the client that may pass: a request that timed out, and too many
+# requests. GitHub refuses a call over a rate limit with 403 or 429, and lifts it
+# later; it repeats every other error of the client, such as 401, 403 or 404.
+PASSING = frozenset({408, 429})
+RATE_LIMIT = re.compile(r"rate limit", re.IGNORECASE)
+
 Job = Mapping[str, Any]
 Annotation = Mapping[str, Any]
 
 
-def gh(*arguments: str) -> str | None:
-    """What the GitHub CLI printed; None when it failed, after a warning. Every call
-    is a call of `gh api` that asks for the version of the API."""
+@dataclass(frozen=True)
+class Failure:
+    """A call of the GitHub CLI that failed: the HTTP status of GitHub's answer, None
+    when no answer came, and what the CLI said."""
+
+    status: int | None
+    said: str
+
+    @property
+    def transient(self) -> bool:
+        """Whether the call may succeed when it comes again: without an answer, on an
+        error of GitHub's servers, a timeout or a rate limit."""
+        return (
+            self.status is None
+            or self.status >= 500
+            or self.status in PASSING
+            or RATE_LIMIT.search(self.said) is not None
+        )
+
+
+def gh(*arguments: str) -> str | Failure:
+    """What the GitHub CLI printed, or its failure, after a warning. Every call is a
+    call of `gh api` that asks for the version of the API."""
     result = subprocess.run(
         ["gh", "api", *arguments, "--header", API_VERSION_HEADER],
         capture_output=True,
@@ -131,8 +167,10 @@ def gh(*arguments: str) -> str | None:
         check=False,
     )
     if result.returncode != 0:
-        print(f"::warning::gh api {arguments[0]} failed: {result.stderr.strip()}")
-        return None
+        said = result.stderr.strip()
+        print(f"::warning::gh api {arguments[0]} failed: {said}")
+        statuses = STATUS.findall(said)
+        return Failure(int(statuses[-1]) if statuses else None, said)
     return result.stdout
 
 
@@ -177,7 +215,7 @@ def files_of(repository: str, number: str) -> list[str] | None:
         "--jq",
         ".[] | .filename, (.previous_filename // empty)",
     )
-    return None if printed is None else printed.splitlines()
+    return None if isinstance(printed, Failure) else printed.splitlines()
 
 
 def changes_command() -> int:
@@ -246,16 +284,18 @@ def unsettled(jobs: Sequence[Job]) -> list[str]:
 
 
 def settled(
-    read: Callable[[], list[Job] | None], sleep: Callable[[float], None]
-) -> tuple[list[Job] | None, list[str]]:
+    read: Callable[[], list[Job] | Failure], sleep: Callable[[float], None]
+) -> tuple[list[Job] | Failure, list[str]]:
     """The jobs of the run once GitHub lists each as it ended, read again every PAUSE
-    seconds for up to READS times, and those that it still lists too early then; None
-    for the jobs when GitHub never listed them."""
+    seconds for up to READS times, and those that it still lists too early then. A
+    read that may succeed when it comes again keeps the jobs that GitHub listed
+    before, or the failure when it never listed them; a read that GitHub refuses ends
+    the reads with its failure."""
     jobs = read()
-    late = [] if jobs is None else unsettled(jobs)
+    late = [] if isinstance(jobs, Failure) else unsettled(jobs)
     reads = 0
-    while (jobs is None or late) and reads < READS:
-        if jobs is None:
+    while ((isinstance(jobs, Failure) and jobs.transient) or late) and reads < READS:
+        if isinstance(jobs, Failure):
             print(
                 "GitHub didn't list the jobs of this run; reading them again in "
                 f"{PAUSE} s."
@@ -268,10 +308,12 @@ def settled(
         sleep(PAUSE)
         reads += 1
         again = read()
-        if again is not None:
+        if not isinstance(again, Failure):
             jobs = again
             late = unsettled(jobs)
-    if reads and jobs is not None and not late:
+        elif not again.transient:
+            return again, []
+    if reads and not isinstance(jobs, Failure) and not late:
         print(f"GitHub listed every job as it ended after {reads * PAUSE} s.")
     return jobs, late
 
@@ -349,13 +391,13 @@ def check(
     return rows, problems
 
 
-def jobs_of(repository: str, run: str) -> list[Job] | None:
+def jobs_of(repository: str, run: str) -> list[Job] | Failure:
     """The latest jobs of the run, also of a run again of its failed jobs."""
     printed = gh(
         f"repos/{repository}/actions/runs/{run}/jobs?filter=latest&per_page=100"
     )
-    if printed is None:
-        return None
+    if isinstance(printed, Failure):
+        return printed
     jobs: list[Job] = json.loads(printed)["jobs"]
     return jobs
 
@@ -365,7 +407,7 @@ def annotations_of(repository: str) -> Callable[[Job], Sequence[Annotation] | No
         printed = gh(
             f"repos/{repository}/check-runs/{job['id']}/annotations?per_page=100"
         )
-        if printed is None:
+        if isinstance(printed, Failure):
             return None
         annotations: list[Annotation] = json.loads(printed)
         return annotations
@@ -392,8 +434,15 @@ def verify_command() -> int:
     repository = os.environ["GH_REPO"]
     run = os.environ["RUN"]
     jobs, late = settled(lambda: jobs_of(repository, run), time.sleep)
-    if jobs is None:
+    if isinstance(jobs, Failure) and jobs.transient:
         print("::error::GitHub didn't list the jobs of this run; run it again.")
+        return 1
+    if isinstance(jobs, Failure):
+        print(
+            "::error::GitHub refused to list the jobs of this run with HTTP "
+            f"{jobs.status}, which every read again would repeat, so the check didn't "
+            "wait. Does the job still have the permission `actions: read`?"
+        )
         return 1
     if late:
         print(
