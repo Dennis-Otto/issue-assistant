@@ -131,6 +131,12 @@ STATUS = re.compile(r"\bHTTP (\d{3})\b")
 # later; it repeats every other error of the client, such as 401, 403 or 404.
 PASSING = frozenset({408, 429})
 RATE_LIMIT = re.compile(r"rate limit", re.IGNORECASE)
+# What to look at after GitHub refused a read with this status of the client.
+REFUSALS: dict[int | None, str] = {
+    401: "Is the token of the job still valid?",
+    403: "Does the job still have the permission `actions: read`?",
+    404: "Do `GH_REPO` and `RUN` name this run of this repository?",
+}
 
 Job = Mapping[str, Any]
 Annotation = Mapping[str, Any]
@@ -438,10 +444,12 @@ def verify_command() -> int:
         print("::error::GitHub didn't list the jobs of this run; run it again.")
         return 1
     if isinstance(jobs, Failure):
+        said = (jobs.said.strip().splitlines() or ["no message"])[0]
+        hint = REFUSALS.get(jobs.status, "Is the request of the check still valid?")
         print(
             "::error::GitHub refused to list the jobs of this run with HTTP "
-            f"{jobs.status}, which every read again would repeat, so the check didn't "
-            "wait. Does the job still have the permission `actions: read`?"
+            f"{jobs.status} ({said}), which every read again would repeat, so the "
+            f"check didn't wait. {hint}"
         )
         return 1
     if late:

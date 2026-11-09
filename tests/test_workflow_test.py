@@ -753,8 +753,9 @@ SLEPT: list[float] = []
 
 def verify(monkeypatch, tmp_path, listed, *later, **env):
     """The exit code of the gate and its summary, with `listed` as the jobs that
-    GitHub lists, or a failure of the GitHub CLI for None, and `later` as what it
-    lists when the gate reads the jobs again. The gate doesn't really wait."""
+    GitHub lists, or a failure of the GitHub CLI as in `listing()` (for None an
+    error of GitHub's servers, for a text a failure that says that text), and
+    `later` as what it lists when the gate reads the jobs again. The gate doesn't really wait."""
     monkeypatch.setattr(subprocess, "run", listing(listed, *later))
     monkeypatch.setattr(script.time, "sleep", SLEPT.append)
     SLEPT.clear()
@@ -910,11 +911,11 @@ def test_the_gate_reads_the_jobs_again_when_github_fails_to_list_them(
 REFUSED = "gh: Resource not accessible by integration (HTTP 403)"
 
 
-def refusal(status):
+def refusal(status, said, hint):
     return (
-        f"::error::GitHub refused to list the jobs of this run with HTTP {status}, "
-        "which every read again would repeat, so the check didn't wait. Does the "
-        "job still have the permission `actions: read`?\n"
+        f"::error::GitHub refused to list the jobs of this run with HTTP {status} "
+        f"({said}), which every read again would repeat, so the check didn't wait. "
+        f"{hint}\n"
     )
 
 
@@ -930,7 +931,10 @@ def test_the_gate_fails_at_once_when_github_refuses_to_list_the_jobs(
     assert SLEPT == []
     assert capsys.readouterr().out == (
         "::warning::gh api repos/o/r/actions/runs/7/jobs?filter=latest&per_page=100 "
-        f"failed: {REFUSED}\n" + refusal(403)
+        f"failed: {REFUSED}\n"
+        + refusal(
+            403, REFUSED, "Does the job still have the permission `actions: read`?"
+        )
     )
     assert summary == ""
 
@@ -950,7 +954,38 @@ def test_the_gate_stops_reading_when_github_refuses_a_read_again(
     )
     assert code == 1
     assert SLEPT == [script.PAUSE]
-    assert capsys.readouterr().out.endswith(refusal(404))
+    assert capsys.readouterr().out.endswith(
+        refusal(
+            404,
+            "gh: Not Found (HTTP 404)",
+            "Do `GH_REPO` and `RUN` name this run of this repository?",
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("said", "named", "hint"),
+    [
+        (
+            "gh: Bad credentials (HTTP 401)",
+            "gh: Bad credentials (HTTP 401)",
+            "Is the token of the job still valid?",
+        ),
+        (
+            "gh: Validation Failed (HTTP 422)\n{}",
+            "gh: Validation Failed (HTTP 422)",
+            "Is the request of the check still valid?",
+        ),
+    ],
+)
+def test_a_refusal_names_githubs_message_and_where_to_look(
+    monkeypatch, tmp_path, capsys, said, named, hint
+):
+    """A refusal other than 403 has nothing to do with `actions: read`."""
+    code, _ = verify(monkeypatch, tmp_path, said, CHANGES="success", WANTED="true")
+    assert code == 1
+    status = int(named[-4:-1])
+    assert capsys.readouterr().out.endswith(refusal(status, named, hint))
 
 
 def test_the_gate_reads_the_jobs_again_after_a_rate_limit(
