@@ -1,22 +1,26 @@
-"""How long the job analyze of the Canary waited for its runner.
+"""How long the job of the AI in the Canary waited for its runner.
 
 The AI runs on GitHub's egress-firewall runner, a technical preview. Should GitHub
 rename or end it, analyze waits in the queue for a runner, up to a day, while its
 timeout-minutes count only from its start, and every later run of the same issue
-waits behind it in every repository. The job "the AI's wait for its runner" of
+waits behind it in every repository. When the variable ISSUE_ASSISTANT_AI_RUNNER
+names another runner, the job analyze-in-reserve runs the AI there in its place and
+analyze is skipped; its runner can be missing as well, such as a version of Ubuntu
+that GitHub doesn't have yet. The job "the AI's wait for its runner" of
 .github/workflows/canary.yml runs this script beside the call of the reusable
-workflow: it reads the jobs of its own run until analyze starts and shows the
-wait in the summary of the job. Above WARN it warns, above FAIL it fails, also
-while analyze still waits. Then, on the default branch, the next step of the job
-runs `canary_queue.py alarm`, which opens the issue of the bot-health bot for the
-Canary, or comments on the open one: the run itself ends only when analyze does,
-up to a day later, and only then would GitHub mail its failure and bot-health look
-at it. The issue carries the state that bot-health keeps in its issues, so
-bot-health takes it over once the run ends, and closes it when a Canary passes.
+workflow: it reads the jobs of its own run until the job of the AI that isn't
+skipped starts and shows its wait in the summary of the job. Above WARN it warns,
+above FAIL it fails, also while the job still waits. Then, on the default branch,
+the next step of the job runs `canary_queue.py alarm`, which opens the issue of the
+bot-health bot for the Canary, or comments on the open one: the run itself ends
+only when the job of the AI does, up to a day later, and only then would GitHub
+mail its failure and bot-health look at it. The issue carries the state that
+bot-health keeps in its issues, so bot-health takes it over once the run ends, and
+closes it when a Canary passes.
 
-The wait counts from the moment analyze could start: when GitHub created it, or
-when the job event that it needs ended, whichever is later. So neither the event
-nor an earlier canary that the call waits for counts.
+The wait counts from the moment the job of the AI could start: when GitHub created
+it, or when the job event that it needs ended, whichever is later. So neither the
+event nor an earlier canary that the call waits for counts.
 
     GH_REPO=owner/name RUN=123 ATTEMPT=1 python3 scripts/canary_queue.py
     GH_REPO=owner/name RUN=123 ATTEMPT=1 BRANCH=main URL=https://… LINE=… \
@@ -38,8 +42,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 # The jobs of the reusable workflow, which GitHub names after the job of the call,
-# such as "Issue assistant / Analyze with the AI engine", and this job itself.
+# such as "Issue assistant / Analyze with the AI engine", and this job itself. The
+# two jobs of the AI, by their names, with their keys in the workflow: analyze runs
+# on the firewall runner, analyze-in-reserve on the runner that the variable
+# ISSUE_ASSISTANT_AI_RUNNER names in its place, and the run skips the other one.
 ANALYZE = "Analyze with the AI engine"
+RESERVE = "Analyze with the AI engine on the runner in reserve"
+AI = {ANALYZE: "analyze", RESERVE: "analyze-in-reserve"}
 EVENT = "Handle the event"
 WATCHER = "the AI's wait for its runner"
 WARN = timedelta(minutes=10)
@@ -58,6 +67,19 @@ ADVICE = (
     "ISSUE_ASSISTANT_AI_RUNNER, such as ubuntu-24.04, behind Harden-Runner: "
     "https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/"
     "0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md"
+)
+# The runner in reserve is one of GitHub's runners of Ubuntu with a fixed version,
+# which the job event checks: one that GitHub doesn't have, such as a version that
+# it hasn't released yet or has retired, finds no machine.
+RESERVE_ADVICE = (
+    "The variable ISSUE_ASSISTANT_AI_RUNNER names the runner of the AI in place of "
+    "GitHub's egress-firewall runner: check that it names one of GitHub's runners "
+    "of Ubuntu that exists, such as ubuntu-24.04, and look for an outage of GitHub "
+    "Actions on https://www.githubstatus.com. Once ubuntu-24.04-firewall runs "
+    "jobs again, taking the variable out of [variables] of "
+    ".github/repository.project.toml, or `gh variable delete ISSUE_ASSISTANT_AI_RUNNER` "
+    "when it isn't declared there, brings the AI back to it: https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/"
+    "decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md"
 )
 
 # The issues of the bot-health bot, as .github/blueprint/bot_health.py keeps them:
@@ -86,12 +108,14 @@ Job = Mapping[str, Any]
 
 @dataclass(frozen=True)
 class Wait:
-    """What the jobs of the run tell of analyze: how long it waited for its runner
-    and whether it started, or, without a wait, why there is none to measure."""
+    """What the jobs of the run tell of the job of the AI, analyze or
+    analyze-in-reserve: how long it waited for its runner and whether it started,
+    or, without a wait, why there is none to measure."""
 
     waited: timedelta | None
     started: bool = False
     reason: str = ""
+    job: str = AI[ANALYZE]
 
 
 def called(job: Job, name: str) -> bool:
@@ -105,12 +129,26 @@ def moment(text: object) -> datetime | None:
 
 
 def look(jobs: Sequence[Job], now: datetime) -> Wait | None:
-    """The wait of analyze as the jobs show it now; None while it can't be told
-    yet and analyze waits for less than FAIL."""
-    analyze = next((job for job in jobs if called(job, ANALYZE)), None)
+    """The wait of the job of the AI as the jobs show it now; None while it can't be
+    told yet and the job waits for less than FAIL.
+
+    The job of the AI is the one of analyze and analyze-in-reserve that the run
+    doesn't skip, and, while GitHub skips neither, the one that it lists, else
+    analyze. Should GitHub list the skipped one before the other, the other one
+    counts as not listed yet, so its wait counts from the end of the event."""
+    listed = {
+        name: next((job for job in jobs if called(job, name)), None) for name in AI
+    }
+    waiting = [
+        name
+        for name, job in listed.items()
+        if job is None or job.get("conclusion") != "skipped"
+    ]
+    if not waiting:
+        return Wait(None, reason=f"{' and '.join(AI.values())} were skipped")
+    name = next((name for name in waiting if listed[name] is not None), waiting[0])
+    analyze, key = listed[name], AI[name]
     event = next((job for job in jobs if called(job, EVENT)), None)
-    if analyze is not None and analyze.get("conclusion") == "skipped":
-        return Wait(None, reason="analyze was skipped")
     if event is not None and event.get("status") != "completed":
         return None
     if analyze is None:
@@ -120,7 +158,7 @@ def look(jobs: Sequence[Job], now: datetime) -> Wait | None:
             and all(job.get("status") == "completed" for job in others)
             and (event is None or event.get("conclusion") != "success")
         ):
-            return Wait(None, reason="no job of the run is left to start analyze")
+            return Wait(None, reason=f"no job of the run is left to start {key}")
         if event is None:
             return None
         # Not listed yet: it could start once the event ended.
@@ -132,11 +170,11 @@ def look(jobs: Sequence[Job], now: datetime) -> Wait | None:
     ready = max((time for time in times if time is not None), default=now)
     started = moment(analyze.get("started_at"))
     if analyze.get("status") in ("in_progress", "completed") and started:
-        return Wait(max(started - ready, timedelta()), started=True)
+        return Wait(max(started - ready, timedelta()), started=True, job=key)
     if analyze.get("status") == "completed":
-        return Wait(None, reason="analyze ended without a start, as when cancelled")
+        return Wait(None, reason=f"{key} ended without a start, as when cancelled")
     waited = now - ready
-    return Wait(waited) if waited > FAIL else None
+    return Wait(waited, job=key) if waited > FAIL else None
 
 
 def duration(span: timedelta) -> str:
@@ -150,15 +188,16 @@ def verdict(wait: Wait) -> tuple[int, str, str]:
         line = f"Nothing to measure: {wait.reason}."
         return 0, f"::notice::{line}", line
     limits = f"warns above {duration(WARN)}, fails above {duration(FAIL)}"
+    advice = ADVICE if wait.job == AI[ANALYZE] else RESERVE_ADVICE
     if not wait.started:
         line = (
-            f"analyze still waits for its runner after {duration(wait.waited)} "
-            f"({limits}). {ADVICE}"
+            f"{wait.job} still waits for its runner after {duration(wait.waited)} "
+            f"({limits}). {advice}"
         )
         return 1, f"::error::{line}", line
-    line = f"analyze waited {duration(wait.waited)} for its runner ({limits})."
+    line = f"{wait.job} waited {duration(wait.waited)} for its runner ({limits})."
     if wait.waited > FAIL:
-        return 1, f"::error::{line} {ADVICE}", f"{line} {ADVICE}"
+        return 1, f"::error::{line} {advice}", f"{line} {advice}"
     if wait.waited > WARN:
         return 0, f"::warning::{line}", line
     return 0, line, line
