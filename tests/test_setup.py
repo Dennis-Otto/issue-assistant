@@ -1068,7 +1068,8 @@ def test_install_writes_the_rest_without_reading_actionlint_s_settings(
     assert (
         '.github/actionlint.yaml: add \'unexpected key "queue" for "concurrency" '
         "section' to the list paths > .github/workflows/issue-assistant.yml > "
-        "ignore; Reading the workflows needs PyYAML or yq; install one of them, "
+        "ignore; Reading YAML, such as that of the workflows and the issue forms, "
+        "needs PyYAML or yq; install one of them, "
         "for example with: pip install pyyaml"
     ) in done
     assert "wrote .github/workflows/issue-assistant.yml" in done
