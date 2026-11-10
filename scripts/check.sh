@@ -236,6 +236,21 @@ else
   echo "Python 3.12 or newer is not installed here; the CI checks the fragments."
 fi
 
+step "Records of decisions"
+# Each record of docs/decisions/ with a number of its own, the next one after the last,
+# and one row for each in its index, in order: two pull requests that took the same
+# number merge without a conflict of git, and the second one fails here once main is
+# merged into it. decisions --fix fixes the index; the fix bot commits that. The Python
+# and blueprint.py of the step Pages in one column.
+if [[ -n "$python" ]]; then
+  "$python" "$tool" decisions
+elif [[ -n "${CI:-}" ]]; then
+  echo "Checking the records of decisions needs Python 3.12 or newer, which this runner lacks."
+  exit 1
+else
+  echo "Python 3.12 or newer is not installed here; the CI checks the records of decisions."
+fi
+
 step "Accepted advisories"
 # The versions that an osv-scanner.toml accepts with every advisory, such as one that
 # another package pins exactly, need a rule of Renovate in
