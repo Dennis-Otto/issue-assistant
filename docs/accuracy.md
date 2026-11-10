@@ -14,16 +14,16 @@ They come from the repositories that use the assistant, [HomeDarts for Autodarts
 
 ### [Dennis-Otto/homedarts-for-autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts)
 
-Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 2 newest of 125 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $0.35 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 46 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $6.75 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
 
 | Measure | Precision | Recall | Issues |
 | --- | ---: | ---: | ---: |
-| Type | 100 % (2 of 2) | 50 % (2 of 4) | 2 |
-| Areas | – | – | 0 |
-| Topics | – | – | 0 |
+| Type | 90 % (26 of 29) | 72 % (26 of 36) | 29 |
+| Areas | 62 % (10 of 16) | 100 % (10 of 10) | 9 |
+| Topics | 100 % (2 of 2) | 100 % (2 of 2) | 2 |
 | Duplicates | – | – | 0 |
 | Sure duplicates | – | – | 0 |
-| Asks for information | – | – | 2 |
+| Asks for information | – | – | 0 |
 
 ### [Dennis-Otto/paperless-sync](https://github.com/Dennis-Otto/paperless-sync)
 
