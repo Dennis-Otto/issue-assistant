@@ -8,35 +8,48 @@ How often the assistant's labels, duplicates and questions match what the mainta
 
 ## The numbers
 
-They come from the repositories that use the assistant, [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync) and [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), each with the day, the engine and the model of its measurement, as `evaluate` writes them into its report. [The next section](#how-the-numbers-get-here) says how they get here. They rest on few issues, and Paperless Unified Search has no table, since none of its closed issues could be replayed: [the limits](#what-the-numbers-cant-tell) say why.
+They come from the repositories that use the assistant, [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync) and [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), each with the day, the engine and the model of its measurement, as `evaluate` writes them into its report. [The next section](#how-the-numbers-get-here) says how they get here. Each table rests on 30 closed issues, all of them opened by the repository's maintainer, so they measure the labels of a maintainer's own issues, with no duplicate and no question to grade: [the limits](#what-the-numbers-cant-tell) say why.
 
 <!-- accuracy numbers: start -->
 
 ### [Dennis-Otto/homedarts-for-autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts)
 
-Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 2 newest of 125 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $0.35 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 46 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $6.75 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
 
 | Measure | Precision | Recall | Issues |
 | --- | ---: | ---: | ---: |
-| Type | 100 % (2 of 2) | 50 % (2 of 4) | 2 |
-| Areas | – | – | 0 |
-| Topics | – | – | 0 |
+| Type | 90 % (26 of 29) | 72 % (26 of 36) | 29 |
+| Areas | 62 % (10 of 16) | 100 % (10 of 10) | 9 |
+| Topics | 100 % (2 of 2) | 100 % (2 of 2) | 2 |
 | Duplicates | – | – | 0 |
 | Sure duplicates | – | – | 0 |
-| Asks for information | – | – | 2 |
+| Asks for information | – | – | 0 |
 
 ### [Dennis-Otto/paperless-sync](https://github.com/Dennis-Otto/paperless-sync)
 
-Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 1 newest of 101 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $0.25 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 43 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $7.47 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
 
 | Measure | Precision | Recall | Issues |
 | --- | ---: | ---: | ---: |
-| Type | – | – | 0 |
-| Areas | 100 % (1 of 1) | 100 % (1 of 1) | 1 |
-| Topics | – | – | 0 |
+| Type | 93 % (27 of 29) | 87 % (27 of 31) | 29 |
+| Areas | 65 % (11 of 17) | 92 % (11 of 12) | 12 |
+| Topics | 100 % (6 of 6) | 86 % (6 of 7) | 7 |
 | Duplicates | – | – | 0 |
 | Sure duplicates | – | – | 0 |
-| Asks for information | – | – | 1 |
+| Asks for information | – | – | 0 |
+
+### [Dennis-Otto/paperless-unified-search](https://github.com/Dennis-Otto/paperless-unified-search)
+
+Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 45 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $6.30 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+
+| Measure | Precision | Recall | Issues |
+| --- | ---: | ---: | ---: |
+| Type | 93 % (27 of 29) | 82 % (27 of 33) | 29 |
+| Areas | 55 % (12 of 22) | 92 % (12 of 13) | 12 |
+| Topics | 100 % (8 of 8) | 100 % (8 of 8) | 8 |
+| Duplicates | – | – | 0 |
+| Sure duplicates | – | – | 0 |
+| Asks for information | – | – | 0 |
 
 <!-- accuracy numbers: end -->
 
@@ -51,7 +64,7 @@ The workflow `.github/workflows/evaluate.yml`, which only this repository has, r
   <img src="images/diagrams/how-the-numbers-get-onto-the-accuracy-page.svg" alt="How the numbers get onto the accuracy page: A maintainer starts the workflow Evaluate by hand with a repository and a number of issues. The job replay, on the egress-firewall runner with a read-only token and the engine's secret, runs evaluate against a checkout of that repository. Without a closed issue to replay, the run passes with a notice in its summary, which says why each issue read was left out and what an issue needs to be replayed, and the page stays. Otherwise the job keeps the report as an artifact. The job publish runs no AI: accuracy-page takes only numbers and names from the report, and refuses a report that has anything else. The release app adds them to one pull request, which a person merges, and the website shows the table.">
 </picture>
 
-- **Who starts it.** A maintainer, under *Actions → Evaluate → Run workflow*, with the repository and the number of closed issues to replay, 30 by default. Nothing starts it on its own, since a run costs money: about $0.20 for each issue with Opus at the prices of the API, so about $6 for 30. It draws on the secret of the environment `issue-assistant`, which only `main` may use, so a subscription's token uses up its limits as any analysis does.
+- **Who starts it.** A maintainer, under *Actions → Evaluate → Run workflow*, with the repository and the number of closed issues to replay, 30 by default. Nothing starts it on its own, since a run costs money: about $0.20 to $0.25 for each issue with Opus at the prices of the API, so $6 to $7.50 for 30, as the runs of the numbers above cost. It draws on the secret of the environment `issue-assistant`, which only `main` may use, so a subscription's token uses up its limits as any analysis does.
 - **The job `replay` has the AI.** It runs on the egress-firewall runner, whose firewall lets through only the hosts of `.github/egress-firewall.yaml`, with a token that only reads and with the command line of Claude from the lock file in `.github/evaluate/`. The checkout of the measured repository is the root of the replays, so the engine's tools that read see nothing outside it. The report is an artifact of the run. A repository without a closed issue to replay has nothing to measure, which is no failure: the run passes without a report, the job `publish` doesn't run, and the summary of the job counts why each closed issue read was left out, as [Which issues](#measure-the-accuracy) below says.
 - **The job `publish` has no AI.** The report comes from a job with an AI, so it counts as untrusted: the command `accuracy-page` takes from it only numbers and the names of the measures, the engine, the model and the repository, recalculates each share, and refuses a report in which anything else stands there, one that names another repository than the run measured, and one in which every analysis failed, so a run that couldn't reach the engine leaves the older numbers as they are. The lines of the issues stay in the artifact.
 - **One pull request.** The release app, with a token that may write only contents and pull requests, keeps one pull request from the branch `bot/accuracy`, and each run adds its repository to it. The table of a repository replaces its older one when it comes again. Without the release app, the run warns and leaves the report in the artifact.
@@ -83,7 +96,8 @@ PYTHONPATH=path/to/issue-assistant python3 -P -m issue_assistant evaluate --issu
 - **The rest of the repository is partly that of today.** The texts and labels of the other issues, and the code, the documentation and the changelog of the checkout, which may already name the fix.
 - **The window of the other issues is that of today.** It holds the issues open now and those closed last, so for an older issue an original that was open then and closed long ago may be missing from it; the search for its words still finds the issues of that moment. The duplicates found may be a little fewer than at that moment.
 - **The labels of its form count for nothing.** A label that the form of an issue or a bot gave it is no decision of the maintainers, and the AI sees it, so only the labels that people chose count, later or as a maintainer opened their own issue. The forms are those of the checkout today: when a maintainer opened their own issue with a form whose first field has another label now, the labels of that form count as their choice. `evaluate` reads only the issue forms (`*.yml`): the labels of a Markdown template (`.md`) that a maintainer opened their own issue with count as their choice too.
-- **A maintainer's own issue is replayed as a reporter's.** The assistant gives a maintainer's own issue the labels of its form but no analysis, yet `evaluate` replays it as if a reporter had opened it, since its labels are a decision of the maintainers all the same. In a repository whose maintainer opens most issues, the numbers of the labels therefore mostly describe issues that a maintainer or their coding agent wrote.
+- **A maintainer's own issue is replayed as a reporter's.** The assistant gives a maintainer's own issue the labels of its form but no analysis, yet `evaluate` replays it as if a reporter had opened it, since its labels are a decision of the maintainers all the same. Since version 1.10.4 its question isn't graded, as no maintainer asks the reporter of their own issue for more, so it counts only for the labels.
 - **A maintainer's question is a guess.** A question mark in the first comment of a maintainer, or the label `needs-info`, counts as a question for more information, also when it asked something else.
-- **The issues above are few.** On 2026-11-08 only 2 of the 125 closed issues of HomeDarts for Autodarts could be replayed, 1 of the 101 of Paperless Sync and none of the 76 of Paperless Unified Search. Their maintainer opened most of them, many with a coding agent and with their labels set as they were opened, which `evaluate` counted for nothing then and counts as his choice now, so the next measurements replay many more of them. Bots opened most of the others, which `evaluate` leaves out, and the assistant had already analyzed most of the few that users opened, which it can't grade itself on. Three issues, two of them from one user, say little about any repository: the numbers of your own repository tell you more.
+- **An issue has one type for the AI.** The assistant chooses one type for an issue, while a maintainer may give it two, such as `maintenance` and `compatibility`: the second one counts as missed, which keeps the recall of the types below their precision.
+- **The issues above are their maintainer's own.** All 30 issues that each repository replayed on 2026-11-09 were opened by its maintainer, many with a coding agent and with their labels set as they were opened, which `evaluate` counts as his choice since version 1.10.4. Before, it counted them for nothing: on 2026-11-08 it could replay only 2 of the 125 closed issues of HomeDarts for Autodarts, 1 of the 101 of Paperless Sync and none of the 76 of Paperless Unified Search. Such an issue may say more plainly what it is about than the report of a user. None of them was closed as a duplicate, and a maintainer's own issue gets no question, so the rows of the duplicates and of the questions count none. Of the closed issues that the runs read and left out, bots opened most, which `evaluate` leaves out, and users only a few, most of which the assistant had already analyzed, which it can't grade itself on. The older closed issues, beyond the 30 newest, are mostly their maintainer's own as well, so a larger `--issues` replays more of the same kind: the numbers of your own repository, with the issues of its users, tell you more.
 - **Small numbers vary.** A repository with few closed issues has few duplicates to find, and one more found or missed moves the share a lot; the report names the counts behind each share.
