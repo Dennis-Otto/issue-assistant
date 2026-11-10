@@ -4,6 +4,12 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.10.6](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.5...v1.10.6) (2026-11-10)
+
+### Bug fixes
+
+* **deps:** update the other engines ([#311](https://github.com/Dennis-Otto/issue-assistant/issues/311)) ([759bfb1](https://github.com/Dennis-Otto/issue-assistant/commit/759bfb18f804d20ac015bb109329747a994c8ec9))
+
 ## [1.10.5](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.4...v1.10.5) (2026-11-09)
 
 ### Bug fixes
