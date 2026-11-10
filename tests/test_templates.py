@@ -1083,6 +1083,7 @@ def test_the_jobs_behind_harden_runner_are_found():
         ("action-test.yml", "egress"),
         ("canary.yml", "start"),
         ("canary.yml", "queue"),
+        ("canary.yml", "decide"),
         ("release-gate.yml", "canary"),
         ("workflow-test.yml", "changes"),
         ("workflow-test.yml", "gate"),
@@ -1217,7 +1218,7 @@ def test_the_jobs_that_make_sure_that_harden_runner_blocks_are_found():
         for workflow, name, _, block in HARDENED_JOBS
         if block["with"]["egress-policy"] == "block"
     }
-    assert len(found) == 21
+    assert len(found) == 22
 
 
 def test_the_step_that_makes_sure_that_harden_runner_blocks_is_the_blueprint_s():
@@ -1825,8 +1826,8 @@ def test_the_canary_calls_the_reusable_workflow_as_every_repository_does():
     (template,) = ASSISTANT["jobs"].values()
     jobs = CANARY["jobs"]
     # No job of the canary runs an engine or names a secret itself; queue measures
-    # the wait of analyze for its runner.
-    assert list(jobs) == ["start", "assistant", "queue"]
+    # the wait of analyze for its runner, and decide lets the release decide again.
+    assert list(jobs) == ["start", "assistant", "queue", "decide"]
     call = jobs["assistant"]
     path = reusable("issue-assistant.yml").relative_to(ROOT).as_posix()
     assert call["uses"] == f"./{path}"

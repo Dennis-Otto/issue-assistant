@@ -21,7 +21,16 @@ bot, which that push starts as well, updates its pull request, so the check neve
 decides before the canary of the change it releases started. Past DEADLINE, it
 fails and can run again.
 
+The check decides when the pull request of the release gets a new head, so a later
+Canary would leave its verdict as it is: a failure that passes when the canary runs
+again, or a pass that a failed canary should take back. The last job of every Canary
+of main that runs the AI, "the release decides again", runs this script with
+`again` and the outcome of that canary instead: when the check of the release's
+pull request ended with another verdict, it runs the check again, which waits until
+that Canary has ended and decides on it.
+
     GH_REPO=owner/name BRANCH=main python3 scripts/release_gate.py
+    GH_REPO=owner/name OUTCOME=success python3 scripts/release_gate.py again
 """
 
 from __future__ import annotations
@@ -37,6 +46,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 WORKFLOW = "canary.yml"
+# The workflow of the check, and the start of the branch of the release bot, as the
+# condition of its job names it.
+GATE = "release-gate.yml"
+RELEASE_BRANCH = "release-please--"
 # The runs that tell whether the canary passed: those that run it, every Monday and
 # by hand, and those of a push, whose job start runs it by hand and fails with it.
 EVENTS = frozenset({"push", "schedule", "workflow_dispatch"})
@@ -50,9 +63,9 @@ TITLE = "### The Canary of main"
 AGAIN = (
     "Once the cause is fixed, such as an update of an engine reverted on main, or "
     "when the canary only failed for a moment, run it again with "
-    "`gh workflow run canary.yml`; this check passes when it runs again after that, "
-    "and so does the next push to main, which updates the pull request of the "
-    "release."
+    "`gh workflow run canary.yml`; its last job runs this check again once it "
+    "passed, and so does the next push to main, which updates the pull request of "
+    "the release."
 )
 
 # The version of GitHub's REST API that every call asks for, that of the issue
@@ -177,8 +190,81 @@ def runs_of(repository: str, branch: str) -> list[Run] | None:
     return runs
 
 
-def main() -> int:
+def listed(result: subprocess.CompletedProcess[str], what: str) -> Any:
+    """The answer of `gh api` as JSON; None, with a warning, when it failed."""
+    if result.returncode != 0:
+        print(f"::warning::GitHub didn't list {what}: {result.stderr.strip()}")
+        return None
+    return json.loads(result.stdout)
+
+
+def again(
+    repository: str,
+    passed: bool,
+    api: Callable[[Sequence[str]], subprocess.CompletedProcess[str]] = gh_api,
+) -> int:
+    """Run the check of the release's pull request again when its verdict isn't
+    that of the Canary that just ran, whose outcome `passed` is."""
+    pulls = listed(
+        api([f"repos/{repository}/pulls?state=open&per_page=100"]), "the pull requests"
+    )
+    if pulls is None:
+        return 1
+    release = [
+        pull
+        for pull in pulls
+        if str(pull["head"]["ref"]).startswith(RELEASE_BRANCH)
+        and (pull["head"].get("repo") or {}).get("full_name") == repository
+    ]
+    if not release:
+        print(
+            "No pull request of a release is open; the next one waits for the Canary."
+        )
+        return 0
+    head = release[0]["head"]["sha"]
+    found = listed(
+        api(
+            [
+                f"repos/{repository}/actions/workflows/{GATE}/runs"
+                f"?head_sha={head}&event=pull_request&per_page=1"
+            ]
+        ),
+        "the runs of the check",
+    )
+    if found is None:
+        return 1
+    runs: list[Run] = found["workflow_runs"]
+    if not runs:
+        print(f"The check of {head[:7]} hasn't started yet; it decides on its own.")
+        return 0
+    latest = runs[0]
+    if latest.get("status") != "completed":
+        print(
+            f"The check still waits for the Canary and decides on its own: {latest['html_url']}"
+        )
+        return 0
+    if (latest.get("conclusion") == "success") == passed:
+        print(
+            f"The check ended as {latest.get('conclusion')} already: {latest['html_url']}"
+        )
+        return 0
+    result = api(
+        ["--method", "POST", f"repos/{repository}/actions/runs/{latest['id']}/rerun"]
+    )
+    if result.returncode != 0:
+        print(f"::warning::GitHub didn't run the check again: {result.stderr.strip()}")
+        return 1
+    print(
+        f"The check ended as {latest.get('conclusion')} and runs again, so that "
+        f"this Canary decides: {latest['html_url']}"
+    )
+    return 0
+
+
+def main(arguments: Sequence[str] = ()) -> int:
     repository = os.environ["GH_REPO"]
+    if list(arguments) == ["again"]:
+        return again(repository, os.environ.get("OUTCOME") == "success")
     branch = os.environ.get("BRANCH") or "main"
     verdict = watch(
         lambda: runs_of(repository, branch),
@@ -195,4 +281,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

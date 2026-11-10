@@ -43,12 +43,14 @@ python_version = "3.12"
 strict = true
 # The action, the script of the Canary that measures the wait for a runner, the check
 # of the names that keep each engine to reading, the script that keeps the copies of
-# GitHub's schemas, and the script of the Workflow test that checks the jobs of its run.
+# GitHub's schemas, the script of the Release gate that waits for the Canary of main, and
+# the script of the Workflow test that checks the jobs of its run.
 files = [
   "issue_assistant",
   "scripts/canary_queue.py",
   "scripts/engine_contract.py",
   "scripts/github_schemas.py",
+  "scripts/release_gate.py",
   "scripts/workflow_test.py",
 ]
 

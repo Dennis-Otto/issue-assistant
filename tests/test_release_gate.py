@@ -307,6 +307,186 @@ def test_main_tells_the_verdict_in_the_log_and_the_summary(
         assert not path.exists()
 
 
+# ---------------------------------------------------------------- deciding again
+
+
+def test_every_canary_of_main_that_runs_the_ai_lets_the_release_decide_again():
+    """A later Canary turns the check of the release's pull request green after a
+    failure, or red after a pass, without a person who runs it again."""
+    job = CANARY["jobs"]["decide"]
+    assert job["name"] == "the release decides again"
+    assert job["needs"] == ["assistant", "queue"]
+    # Also after a failed or a cancelled canary, never for a push, whose dispatched
+    # run decides, and only on main, which the check reads.
+    assert job["if"] == (
+        "always() && github.event_name != 'push' "
+        "&& github.ref_name == github.event.repository.default_branch"
+    )
+    assert job["permissions"] == {"actions": "write", "pull-requests": "read"}
+    (step,) = [
+        step
+        for step in job["steps"]
+        if step.get("run") == "python3 scripts/release_gate.py again"
+    ]
+    assert step["env"]["GH_REPO"] == "${{ github.repository }}"
+    assert step["env"]["OUTCOME"] == (
+        "${{ needs.assistant.result == 'success' && needs.queue.result == 'success' "
+        "&& 'success' || 'failure' }}"
+    )
+    assert GATE["name"] == "Release gate"
+    assert (WORKFLOWS / gate.GATE).exists()
+    assert gate.RELEASE_BRANCH in JOB["if"]
+
+
+def pull(ref="release-please--branches--main", repository="o/r", sha="abc1234def"):
+    return {"head": {"ref": ref, "sha": sha, "repo": {"full_name": repository}}}
+
+
+def check(conclusion="failure", status="completed"):
+    return {
+        "id": 77,
+        "status": status,
+        "conclusion": conclusion,
+        "html_url": f"{URL}77",
+    }
+
+
+def answers(*replies):
+    """A stand-in for gh_api that gives the replies in turn and keeps the calls."""
+    calls = []
+    queue = list(replies)
+
+    def api(arguments):
+        calls.append(list(arguments))
+        code, body = queue.pop(0)
+        out = json.dumps(body) if code == 0 else ""
+        return subprocess.CompletedProcess(arguments, code, out, "HTTP 502\n")
+
+    return api, calls
+
+
+@pytest.mark.parametrize(
+    ("passed", "conclusion", "reruns"),
+    [
+        (True, "failure", True),
+        (False, "success", True),
+        (True, "cancelled", True),
+        (True, "success", False),
+        (False, "failure", False),
+    ],
+    ids=["red to green", "green to red", "cancelled", "green", "red"],
+)
+def test_the_check_runs_again_when_its_verdict_is_not_that_of_the_canary(
+    capsys, passed, conclusion, reruns
+):
+    replies = [
+        (
+            0,
+            [
+                pull("feat/x"),
+                pull(repository="fork/r"),
+                {"head": {"ref": "release-please--x", "sha": "f", "repo": None}},
+                pull(),
+            ],
+        ),
+        (0, {"workflow_runs": [check(conclusion)]}),
+    ]
+    if reruns:
+        replies.append((0, {}))
+    api, calls = answers(*replies)
+    assert gate.again("o/r", passed, api) == 0
+    assert calls[0] == ["repos/o/r/pulls?state=open&per_page=100"]
+    assert calls[1] == [
+        "repos/o/r/actions/workflows/release-gate.yml/runs"
+        "?head_sha=abc1234def&event=pull_request&per_page=1"
+    ]
+    out = capsys.readouterr().out
+    if reruns:
+        assert calls[2] == ["--method", "POST", "repos/o/r/actions/runs/77/rerun"]
+        assert out == (
+            f"The check ended as {conclusion} and runs again, so that this Canary "
+            f"decides: {URL}77\n"
+        )
+    else:
+        assert len(calls) == 2
+        assert out == f"The check ended as {conclusion} already: {URL}77\n"
+
+
+@pytest.mark.parametrize(
+    ("replies", "code", "out"),
+    [
+        ([(1, None)], 1, "::warning::GitHub didn't list the pull requests: HTTP 502\n"),
+        (
+            [(0, [pull("feat/x")])],
+            0,
+            "No pull request of a release is open; the next one waits for the Canary.\n",
+        ),
+        (
+            [(0, [pull()]), (1, None)],
+            1,
+            "::warning::GitHub didn't list the runs of the check: HTTP 502\n",
+        ),
+        (
+            [(0, [pull()]), (0, {"workflow_runs": []})],
+            0,
+            "The check of abc1234 hasn't started yet; it decides on its own.\n",
+        ),
+        (
+            [(0, [pull()]), (0, {"workflow_runs": [check(None, "in_progress")]})],
+            0,
+            f"The check still waits for the Canary and decides on its own: {URL}77\n",
+        ),
+        (
+            [(0, [pull()]), (0, {"workflow_runs": [check()]}), (1, None)],
+            1,
+            "::warning::GitHub didn't run the check again: HTTP 502\n",
+        ),
+    ],
+    ids=["no pulls", "no release", "no runs", "not started", "unfinished", "no rerun"],
+)
+def test_the_check_is_left_alone_when_it_decides_on_its_own_or_github_fails(
+    capsys, replies, code, out
+):
+    api, _ = answers(*replies)
+    assert gate.again("o/r", True, api) == code
+    assert capsys.readouterr().out == out
+
+
+@pytest.mark.parametrize(("outcome", "passed"), [("success", True), ("failure", False)])
+def test_main_decides_again_with_the_outcome_of_the_canary(
+    monkeypatch, outcome, passed
+):
+    asked = []
+    monkeypatch.setattr(
+        gate, "again", lambda repository, ok: asked.append((repository, ok)) or 0
+    )
+    monkeypatch.setenv("GH_REPO", "o/r")
+    monkeypatch.setenv("OUTCOME", outcome)
+    assert gate.main(["again"]) == 0
+    assert asked == [("o/r", passed)]
+
+
+def test_again_asks_github_through_the_one_call_of_gh(monkeypatch, capsys):
+    calls = []
+
+    def fake(arguments, **options):
+        calls.append(arguments)
+        return subprocess.CompletedProcess(arguments, 0, "[]", "")
+
+    monkeypatch.setattr(gate.subprocess, "run", fake)
+    assert gate.again("o/r", True) == 0
+    assert calls == [
+        [
+            "gh",
+            "api",
+            "repos/o/r/pulls?state=open&per_page=100",
+            "--header",
+            assistant.API_VERSION_HEADER,
+        ]
+    ]
+    capsys.readouterr()
+
+
 def test_the_script_runs_as_a_program(monkeypatch, capsys):
     listed = {"workflow_runs": [run(2)]}
     monkeypatch.setattr(
@@ -319,6 +499,7 @@ def test_the_script_runs_as_a_program(monkeypatch, capsys):
     monkeypatch.setenv("GH_REPO", "o/r")
     monkeypatch.setenv("BRANCH", "trunk")
     monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.setattr(sys, "argv", ["release_gate.py"])
     with pytest.raises(SystemExit) as stop:
         runpy.run_path(str(ROOT / "scripts" / "release_gate.py"), run_name="__main__")
     assert stop.value.code == 0

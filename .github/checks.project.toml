@@ -583,15 +583,15 @@ repository that uses the action with the release, and analyze no more issues the
 fix = """Open the run of the Canary that the summary names. When the update of an
 engine broke it, revert that update on `main`: the push of the revert runs the Canary
 again and updates this pull request, and this check passes once that Canary passed.
-When the Canary only failed for a moment, run it again, then this check:"""
+When the Canary only failed for a moment, run it again: its last job runs this check
+again once it passed."""
 commands = [
   "gh workflow run canary.yml --repo {repo}",
-  "gh run rerun <run of this check> --failed --repo {repo}",
 ]
 docs = "docs/architecture/dry-runs.md#the-canary-before-the-release"
 autofix = """Whether an update of an engine is reverted, or the Canary only needs
-another run, is for a person who reads its log; the check passes on its own once a
-Canary of main passed and it runs again."""
+another run, is for a person who reads its log; the check runs again and passes on
+its own once a Canary of main passed."""
 
 # ---------------------------------------------------------------- the Evaluate workflow
 
