@@ -1,6 +1,6 @@
 # A patch version of an engine merges on its own once the check of its contracts passed
 
-- Status: accepted
+- Status: replaced by [0030](0030-every-update-of-an-engine-merges-on-its-own-and-the-release-waits-for-the-canary.md)
 - Date: 2026-10-25
 
 ## Context

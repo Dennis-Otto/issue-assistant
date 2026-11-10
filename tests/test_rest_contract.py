@@ -566,6 +566,7 @@ def test_every_call_of_gh_in_the_scripts_asks_for_the_version_of_the_api():
     assert {name: len(calls) for name, calls in commands.items() if calls} == {
         "scripts/canary_queue.py": 1,
         "scripts/engine_contract.py": 1,
+        "scripts/release_gate.py": 1,
         "scripts/workflow_test.py": 1,
     }
     without = [

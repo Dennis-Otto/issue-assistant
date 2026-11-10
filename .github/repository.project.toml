@@ -25,12 +25,14 @@ topics = [
 
 # Checks that only this project runs: the dry runs of the reusable workflows that
 # every repository calls (.github/workflows/workflow-test.yml), whose last job
-# reports also when a pull request changes nothing that they run, and the names
-# that keep each engine to reading (.github/workflows/action-test.yml), which
-# reports on every pull request and runs when one changes an engine. A patch
-# version of an engine merges on its own once it passed (decision 0020).
+# reports also when a pull request changes nothing that they run; the names that
+# keep each engine to reading (.github/workflows/action-test.yml), which reports on
+# every pull request and runs when one changes an engine, so that an update of an
+# engine merges on its own once it passed; and the Canary of main
+# (.github/workflows/release-gate.yml), which the pull request of the release waits
+# for and GitHub skips on every other one (decision 0030).
 [branch]
-required_checks = ["reusable workflows", "engine contracts"]
+required_checks = ["reusable workflows", "engine contracts", "the Canary of main"]
 
 # Actions that only the workflows of this project run; `blueprint.py settings check`
 # names each one that the list lacks. The Codex engine runs openai/codex-action in

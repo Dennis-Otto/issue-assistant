@@ -1,0 +1,31 @@
+flowchart TB
+  accTitle: How an update of an engine reaches the repositories
+  accDescr: Renovate opens a pull request for each engine, a week after the release of its new version, a minor or major one too. Its required checks, engine contracts among them, run the engine without a key; when one fails, the update doesn't merge, and no other engine waits for it. When they pass, the update merges on its own. The push to main starts the Canary, which runs the AI's whole path with the engine's action and its secret, and the release bot updates its pull request. That pull request's required check, the Canary of main, waits while a Canary of main runs. When the latest one passed, the release merges and reaches every repository that uses the action. When it failed, the release waits, the bot-health bot opens an issue, and a revert of the update or another run of the Canary lets the release go.
+  renovate(["`**Renovate**: a pull request for each engine,<br>a week after its release, a major one too`"])
+  checks{"`**the required checks**,<br>engine contracts among them:<br>the engine without a key`"}
+  stays(["the update doesn't merge,<br>and no other engine waits for it"])
+  merge["`**auto-merge** onto main`"]
+  canary["`**the Canary** on main: the AI's<br>whole path with the engine's<br>action and its secret`"]
+  release["`**the release bot** updates<br>its pull request`"]
+  gate{"`**the Canary of main**, a required<br>check: waits while a Canary runs;<br>did the latest one pass?`"}
+  ships(["the release merges and reaches<br>every repository that uses the action"])
+  held(["the release waits: an issue of bot-health;<br>a revert or another run of the Canary<br>lets it go"])
+  renovate --> checks
+  checks -- "red" --> stays
+  checks -- "green" --> merge
+  merge --> canary
+  merge --> release
+  canary --> gate
+  release --> gate
+  gate -- "passed" --> ships
+  gate -- "failed" --> held
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  class renovate,checks,gate trigger
+  class canary ai
+  class merge,release job
+  class ships safe
+  class stays,held untrusted
