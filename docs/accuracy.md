@@ -27,16 +27,16 @@ Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 2 newest of 125 cl
 
 ### [Dennis-Otto/paperless-sync](https://github.com/Dennis-Otto/paperless-sync)
 
-Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 1 newest of 101 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $0.25 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 43 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $7.47 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
 
 | Measure | Precision | Recall | Issues |
 | --- | ---: | ---: | ---: |
-| Type | – | – | 0 |
-| Areas | 100 % (1 of 1) | 100 % (1 of 1) | 1 |
-| Topics | – | – | 0 |
+| Type | 93 % (27 of 29) | 87 % (27 of 31) | 29 |
+| Areas | 65 % (11 of 17) | 92 % (11 of 12) | 12 |
+| Topics | 100 % (6 of 6) | 86 % (6 of 7) | 7 |
 | Duplicates | – | – | 0 |
 | Sure duplicates | – | – | 0 |
-| Asks for information | – | – | 1 |
+| Asks for information | – | – | 0 |
 
 ### [Dennis-Otto/paperless-unified-search](https://github.com/Dennis-Otto/paperless-unified-search)
 
