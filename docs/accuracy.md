@@ -38,6 +38,19 @@ Measured on 2026-11-08 with Claude, `claude-opus-5-5`, on the 1 newest of 101 cl
 | Sure duplicates | – | – | 0 |
 | Asks for information | – | – | 1 |
 
+### [Dennis-Otto/paperless-unified-search](https://github.com/Dennis-Otto/paperless-unified-search)
+
+Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 45 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $6.30 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+
+| Measure | Precision | Recall | Issues |
+| --- | ---: | ---: | ---: |
+| Type | 93 % (27 of 29) | 82 % (27 of 33) | 29 |
+| Areas | 55 % (12 of 22) | 92 % (12 of 13) | 12 |
+| Topics | 100 % (8 of 8) | 100 % (8 of 8) | 8 |
+| Duplicates | – | – | 0 |
+| Sure duplicates | – | – | 0 |
+| Asks for information | – | – | 0 |
+
 <!-- accuracy numbers: end -->
 
 A number of your own repository is welcome in the [discussions](https://github.com/Dennis-Otto/issue-assistant/discussions): the table of measures of the report, with the day, the engine and the model that it names.
