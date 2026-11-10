@@ -15,6 +15,17 @@ git config core.hooksPath .githooks
 if [[ "$(git config --type=bool core.fileMode || true)" == false ]]; then
   chmod +x .githooks/*
 fi
+# What scripts/check.sh skips where it is missing, and the CI never does, comes after
+# the hook, so that the checks and their hook are ready even if it fails to install.
+# ShellCheck, which the image lacks, for the step Shell scripts: the hash-pinned
+# package shellcheck-py of .devcontainer/shellcheck-requirements.txt, in a venv of
+# its own, so that its pins never meet those of the project. Only its binary stays,
+# on the PATH.
+shellcheck_venv="$(mktemp -d)"
+python3 -m venv "$shellcheck_venv"
+"$shellcheck_venv/bin/pip" install --require-hashes -r .devcontainer/shellcheck-requirements.txt
+sudo install -m 0755 "$shellcheck_venv/bin/shellcheck" /usr/local/bin/shellcheck
+rm -rf "$shellcheck_venv"
 # The tools of the website go into .venv-docs: for its preview with
 # .venv-docs/bin/mkdocs serve, and for scripts/check.sh, which builds it then. They
 # come last, so that the checks and their hook are ready even if they fail.
