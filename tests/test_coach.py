@@ -249,6 +249,13 @@ def test_each_explanation_of_the_project_is_for_a_check_that_exists():
         )
     )["jobs"]["gate"]
     assert explain_step(gate)["env"] == {"CHECK": gate["name"]}
+    # The Release gate explains the Canary of main, which the release waits for.
+    release = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "release-gate.yml").read_text(
+            encoding="utf-8"
+        )
+    )["jobs"]["canary"]
+    assert explain_step(release)["env"] == {"CHECK": release["name"]}
     # The Evaluate workflow explains each of its jobs by its name.
     evaluate = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "evaluate.yml").read_text(encoding="utf-8")
@@ -257,7 +264,10 @@ def test_each_explanation_of_the_project_is_for_a_check_that_exists():
     for job in evaluate.values():
         assert {"CHECK": job["name"]} in [step.get("env") for step in job["steps"]]
     assert sorted(CATALOG) == sorted(
-        jobs | parts | explained | {fuzz["name"], queue["name"], gate["name"]}
+        jobs
+        | parts
+        | explained
+        | {fuzz["name"], queue["name"], gate["name"], release["name"]}
     )
 
 

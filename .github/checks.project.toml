@@ -565,6 +565,34 @@ autofix = """Which runner the AI may use instead is a decision of the security o
 every repository that uses the action, for a person; a wait for a runner has no fix
 in the code."""
 
+# ---------------------------------------------------------------- the Release gate
+
+[check."the Canary of main"]
+title = "The Canary of main before the release"
+problem = """The latest run of the Canary on `main` didn't pass, so the release waits:
+the summary of the job names the run and the commit that it ran. Most often an update
+of an engine merged on its own and broke the path of an issue through the AI, or the
+canary failed for a moment, such as when its runner wasn't there. When the job waited
+for longer than 100 minutes, a Canary still ran.
+When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
+had no agent that blocks, mostly because an outage of GitHub kept it from downloading
+it: that is no problem of the release, and the check passes when it runs again."""
+why = """The Canary is the one run of the AI with the engine's secret, and only `main`
+runs it. Updates of the engines merge on their own, so a broken one would reach every
+repository that uses the action with the release, and analyze no more issues there."""
+fix = """Open the run of the Canary that the summary names. When the update of an
+engine broke it, revert that update on `main`: the push of the revert runs the Canary
+again and updates this pull request, and this check passes once that Canary passed.
+When the Canary only failed for a moment, run it again, then this check:"""
+commands = [
+  "gh workflow run canary.yml --repo {repo}",
+  "gh run rerun <run of this check> --failed --repo {repo}",
+]
+docs = "docs/architecture/dry-runs.md#the-canary-before-the-release"
+autofix = """Whether an update of an engine is reverted, or the Canary only needs
+another run, is for a person who reads its log; the check passes on its own once a
+Canary of main passed and it runs again."""
+
 # ---------------------------------------------------------------- the Evaluate workflow
 
 [check."replay closed issues"]

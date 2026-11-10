@@ -188,13 +188,33 @@ ENGINE_DEPENDENCIES = {
     step.uses.partition("@")[0] for step in STEPS if step.uses != contract.TOOL
 } | {pin.package for pin in contract.cli_pins(STEPS)}
 RENOVATE = json5((ROOT / ".github" / "renovate.json5").read_text(encoding="utf-8"))
-DECISION = "0020-patch-versions-of-the-engines-merge-on-their-own.md"
+DECISION = (
+    "0030-every-update-of-an-engine-merges-on-its-own-and-the-release-waits-for-the-"
+    "canary.md"
+)
+REPLACED = "0020-patch-versions-of-the-engines-merge-on-their-own.md"
 
 
-def test_a_patch_of_an_engine_merges_on_its_own_and_the_rest_waits():
-    """Decision 0020: Renovate merges a patch version of an engine once every
-    required check, engine contracts too, passed, in a pull request of its own; a
-    minor or major version and a new commit of a tag wait for the maintainer."""
+def renovate_settings(name):
+    """What the rules of .github/renovate.json5 set for the dependency, as Renovate
+    merges them: each rule that names it, a later one over an earlier one; and
+    whether a rule keeps to some kinds of updates."""
+    rules = [
+        rule
+        for rule in RENOVATE["packageRules"]
+        if name in rule.get("matchDepNames", ())
+    ]
+    settings = {}
+    for rule in rules:
+        settings |= rule
+    return settings, any("matchUpdateTypes" in rule for rule in rules)
+
+
+def test_every_update_of_an_engine_merges_on_its_own():
+    """Decision 0030: Renovate merges every update of an engine, a minor or major
+    version and a new commit of a tag too, once every required check, engine
+    contracts too, passed, in a pull request of each engine; the release waits for
+    the Canary of main."""
     assert {
         "anthropics/claude-code-action",
         "openai/codex-action",
@@ -202,37 +222,35 @@ def test_a_patch_of_an_engine_merges_on_its_own_and_the_rest_waits():
         "@google/gemini-cli",
         "@github/copilot",
     } == ENGINE_DEPENDENCIES
-    rules = [
-        rule
-        for rule in RENOVATE["packageRules"]
-        if set(rule.get("matchDepNames", ())) & ENGINE_DEPENDENCIES
-    ]
-    patches = [rule for rule in rules if rule.get("matchUpdateTypes") == ["patch"]]
-    others = [rule for rule in rules if rule.get("matchUpdateTypes") == ["!patch"]]
-    # Every rule of an engine is one of the two, and every engine has both.
-    assert len(patches) + len(others) == len(rules) == 4
-    for kind in (patches, others):
-        names = [name for rule in kind for name in rule["matchDepNames"]]
-        assert sorted(names) == sorted(ENGINE_DEPENDENCIES)
-    for rule in patches:
-        assert rule["automerge"] is True
-        assert rule["groupName"].endswith(" to a new patch version")
-        (note,) = rule["prBodyNotes"]
-        assert note.startswith("**This patch version merges on its own**")
+    groups = {}
+    for name in ENGINE_DEPENDENCIES:
+        settings, some_kinds = renovate_settings(name)
+        assert not some_kinds, name
+        assert settings["automerge"] is True, name
+        groups.setdefault(settings["groupName"], set()).add(name)
+        (note,) = settings["prBodyNotes"]
+        assert note.startswith("**This update merges on its own**"), name
         assert "required check *engine contracts*" in note
         assert f"docs/decisions/{DECISION})" in note
         assert "revert this update" in note
-    for rule in others:
-        assert rule["automerge"] is False
-        (note,) = rule["prBodyNotes"]
-        assert note.startswith("**This update waits for you.**")
-        assert "*engine contracts*" in note
-    # A patch comes in a pull request of its own, so a minor version of another
-    # engine never holds it back, nor does it take one along.
-    assert {rule["groupName"] for rule in patches}.isdisjoint(
-        rule["groupName"] for rule in others
+        assert "waits for you" not in note
+    # A pull request for each engine, so an update that fails its checks holds back
+    # no other one; the action of Codex and its command line move together.
+    assert sorted(map(sorted, groups.values())) == sorted(
+        [
+            ["anthropics/claude-code-action"],
+            ["@openai/codex", "openai/codex-action"],
+            ["@google/gemini-cli"],
+            ["@github/copilot"],
+        ]
     )
+    # The Canary runs the engine's action, and the release waits for it.
+    (note,) = renovate_settings("anthropics/claude-code-action")[0]["prBodyNotes"]
+    assert "*the Canary of main*" in note
     assert (ROOT / "docs" / "decisions" / DECISION).is_file()
+    # The record of the patch versions alone says which replaced it.
+    replaced = ROOT / "docs" / "decisions" / REPLACED
+    assert f"- Status: replaced by [0030]({DECISION})" in replaced.read_text("utf-8")
 
 
 def test_the_check_of_the_engines_is_required_and_reports_on_every_pull_request():

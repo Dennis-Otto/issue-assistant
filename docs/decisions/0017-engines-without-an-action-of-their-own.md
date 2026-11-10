@@ -1,6 +1,6 @@
 # Four engines, and the command lines without a fitting action run in the action
 
-- Status: accepted, amended by [0020](0020-patch-versions-of-the-engines-merge-on-their-own.md)
+- Status: accepted, amended by [0020](0020-patch-versions-of-the-engines-merge-on-their-own.md) and [0030](0030-every-update-of-an-engine-merges-on-its-own-and-the-release-waits-for-the-canary.md)
 - Date: 2026-10-17
 
 ## Context

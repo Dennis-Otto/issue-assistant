@@ -22,8 +22,10 @@ name: Canary
 #
 # Every Monday, after every change on main of what the path runs, and by hand. Only
 # main may use the secret of the environment, so no pull request runs the canary;
-# an update of the engine's action waits for the maintainer, who watches its run
-# after the merge (.github/renovate.json5). docs/architecture.md describes it.
+# an update of the engine's action merges on its own once its checks passed
+# (.github/renovate.json5), and the pull request of the next release waits until the
+# latest canary of main passed (.github/workflows/release-gate.yml, decision 0030).
+# docs/architecture.md describes it.
 
 on:
   schedule:
