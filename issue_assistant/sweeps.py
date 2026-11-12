@@ -623,19 +623,20 @@ def sweep_duplicate(
         return [f"#{number}: stays open, exempt ({exempt})."]
     # A comment of anyone objects, other than a command, and a thumbs down of the reporter or of anyone
     # who may push to the repository: in the repository of an organization, the
-    # owner is the organization, which never reacts.
+    # owner is the organization, which never reacts. The thumbs down of an account
+    # that no longer exists has no user and objects to nothing, as in learning.py.
     objected = any(
         created(comment) > created(notice)
         and not is_bot(comment.get("user"))
         and conversing(issue, comment)
         for comment in comments
     ) or any(
-        reaction["content"] == "-1"
-        and (
-            login(reaction.get("user")) == author
-            or github.may_push(login(reaction.get("user")))
+        user and (user == author or github.may_push(user))
+        for user in (
+            login(reaction.get("user"))
+            for reaction in github.reactions(notice["id"])
+            if reaction["content"] == "-1"
         )
-        for reaction in github.reactions(notice["id"])
     )
     kind, said = marker(notice)  # type: ignore[misc]
     original = other_issue(github, int(said["duplicate"]), number)

@@ -7132,6 +7132,20 @@ def test_other_reactions_do_not_object(config):
     ]
 
 
+@pytest.mark.parametrize("reporter", ["reporter", None], ids=["reporter", "deleted"])
+def test_a_thumbs_down_of_a_deleted_account_objects_to_nothing(config, reporter):
+    """GitHub gives the reaction of an account that no longer exists without a
+    user, and has no permission for an empty login. Such a reaction neither fails
+    the sweep of the issue, every day again, nor stops the closing, also when the
+    reporter's account is gone as well."""
+    github = possible_duplicate(config)
+    github.store[12]["user"] = reporter and {"login": reporter, "type": "User"}
+    github.reaction_store[50] = [{"content": "-1", "user": None}]
+    assert assistant.sweep(github, NOW) == ["#12: closed as a duplicate of #7."]
+    assert github.store[12]["state"] == "closed"
+    assert not [call for call in github.calls if "/permission" in call[1]]
+
+
 def test_a_notice_against_an_untriaged_original_closes_nothing(config):
     """A notice posted before an original had to be triaged or a maintainer's."""
     github = possible_duplicate(config, original_labels=("bug", "needs-triage"))

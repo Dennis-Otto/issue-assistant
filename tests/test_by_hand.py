@@ -195,9 +195,12 @@ def test_an_account_that_github_doesn_t_know_has_no_role(config):
     github = FakeGitHub(config)
     github.fail(r"^GET collaborators/ghost/permission$", not_found())
     assert github.role("ghost") == "none"
+    assert github.may_push("ghost") is False
     github.fail(r"^GET collaborators/down/permission$", server_error())
     with pytest.raises(assistant.GitHubError):
         github.role("down")
+    with pytest.raises(assistant.GitHubError):
+        github.may_push("down")
 
 
 def run_by_hand(monkeypatch, tmp_path, root, github, command, inputs, **env):
