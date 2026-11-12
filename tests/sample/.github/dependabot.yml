@@ -1,0 +1,10 @@
+# The updates that bring the sample each release of the issue assistant, as the
+# page of the set-up shows them.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7

@@ -11,6 +11,7 @@ What a repository needs for the issue assistant, how to set it up there, and how
 - **A repository on GitHub.com with issues turned on,** public or private. Issue forms are optional; their answers choose labels when the repository has them.
 - **GitHub-hosted runners.** The jobs without AI run on `ubuntu-24.04`, the AI on `ubuntu-24.04-firewall`, the runner with GitHub's [native egress firewall](https://github.com/github-early-access/actions-native-egress-firewall). That runner is a **technical preview**: it exists for Linux only, and GitHub expects a workflow on it to take roughly 15 to 20 % longer. The analysis runs on this runner, so that the AI reaches no host but those of `.github/egress-firewall.yaml`, unless the repository variable `ISSUE_ASSISTANT_AI_RUNNER` names one of GitHub's runners of Ubuntu with a fixed version in its place, such as `ubuntu-24.04`, where Harden-Runner blocks the other hosts: [What if the firewall runner is gone?](faq.md#what-if-the-firewall-runner-is-gone)
 - **An engine and its secret,** in the environment `issue-assistant`: for Claude, the default engine, a token of a Claude subscription, which `claude setup-token` creates, as `CLAUDE_CODE_OAUTH_TOKEN`, or an API key as `ANTHROPIC_API_KEY`; for Codex, Gemini or Copilot, the secret that [Engines](engines.md) names. Gemini starts for free, within the daily limits of the free tier of the Gemini API. Without the secret, everything that needs the AI pauses: the first analysis, the follow-ups, and deciding whether a comment waits for the reporter or says that a fix didn't help. Labels from the forms, reminders, closing and the closing of fixed issues with the release keep working, and each run notes that no credentials are configured.
+- **Dependabot or Renovate,** whose pull requests bring each new release: [Turn on updates](#turn-on-updates).
 - **For the set-up:** Python 3.12 or newer with PyYAML (`pip install pyyaml`) or `yq`, git and the GitHub CLI on your computer, and the right to manage environments and secrets of the repository.
 
 ## Set up a repository
@@ -44,6 +45,8 @@ A set-up has three parts: what `install` writes, what you edit, and what you set
 3. **Let the release close fixed issues:** under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**, so that a fixed issue stays open until the release that ships the fix. GitHub has no API for this setting. A repository without releases sets `close_with_release = false` in `config.toml` instead.
 
     **Turn on what the chooser links to,** when `install` wrote `.github/ISSUE_TEMPLATE/config.yml`, as both links lead nowhere until then: *Settings → General → Features → Discussions*, and *Settings → Advanced Security → Private vulnerability reporting*. GitHub offers private vulnerability reporting only for public repositories, so a private repository removes that link.
+
+    **[Turn on updates](getting-started.md#turn-on-updates)** by Dependabot or Renovate, if neither looks after the repository yet.
 
 4. **Try it:** commit the set-up, push it to the default branch, and under *Actions → Issue assistant → Run workflow*, enter the number of an existing issue. A run by hand starts as a dry run, which writes nothing; the summary of its `apply` job shows the labels and the comment that it would post:
 
@@ -117,7 +120,24 @@ gh secret set CLAUDE_CODE_OAUTH_TOKEN --env issue-assistant --repo OWNER/REPO
 
 Without the secret, labels, reminders, closing and reopening keep working. The repository variable `ISSUE_ASSISTANT_AI` set to `off` switches the AI off.
 
+### Turn on updates
+
 Updates arrive as pull requests of Dependabot or Renovate that move the commit hash of the issue assistant in the workflows, and that is the whole update: the jobs are those of the release that the workflows pin. Only a release that changes a template needs the commands of step 1 again, and its release notes say so.
+
+Dependabot moves them only once `.github/dependabot.yml` names the ecosystem `github-actions`:
+
+```yaml
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+```
+
+The cooldown waits a week before a new release, as zizmor asks; security updates come at once. Renovate moves them by its defaults, once a configuration such as `renovate.json`, or the key `renovate` of `package.json`, is there. Without either, the repository keeps the release of its set-up and gets no fix, while the [security policy](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md) supports only the latest release. So `install` names the step, and `check` warns without failing: Renovate may also run from elsewhere, such as with a preset of the organization.
 
 ## Check that it works
 

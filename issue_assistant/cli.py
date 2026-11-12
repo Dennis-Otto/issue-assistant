@@ -53,7 +53,7 @@ from .installation import (
 )
 from .issues import command_of
 from .labels import sync_labels
-from .paths import FIREWALL, SETTINGS, TOOL
+from .paths import FIREWALL, SETTINGS, TOOL, UPDATES_GUIDE
 from .running import (
     analyze,
     choose_engine,
@@ -63,7 +63,13 @@ from .running import (
     summary,
 )
 from .settings import Config, load_config, task_run
-from .setup_check import check, firewall_endpoints, runner_problems, runner_trade_off
+from .setup_check import (
+    check,
+    firewall_endpoints,
+    runner_problems,
+    runner_trade_off,
+    updates_missing,
+)
 from .sweeps import sweep
 from .values import command, login
 
@@ -345,10 +351,17 @@ def install_command(root: Path, arguments: argparse.Namespace) -> int:
         config = load_config(root, repository, lenient=True)
         for line in set_up_github(github, config, ask=sys.stdin.isatty()):
             print(line)
+    # Without updates, the repository stays on this release for good.
+    updates = (
+        f"turn on updates by Dependabot or Renovate, as {UPDATES_GUIDE} shows, "
+        if updates_missing(root)
+        else ""
+    )
     print(
         f"next: describe the project in {SETTINGS / 'project.md'}, run "
-        f"PYTHONPATH={TOOL.as_posix()} python3 -P -m issue_assistant check, commit, "
-        "push, and try it under Actions > Issue assistant > Run workflow"
+        f"PYTHONPATH={TOOL.as_posix()} python3 -P -m issue_assistant check, "
+        f"{updates}commit, push, and try it under Actions > Issue assistant > Run "
+        "workflow"
     )
     return 0
 
@@ -363,6 +376,9 @@ def check_command(root: Path, repository: str) -> int:
         command("error", problem)
     if not problems and runner not in ("", FIREWALL_RUNNER):
         command("notice", runner_trade_off(runner))
+    # A warning that doesn't fail: Renovate may run from elsewhere.
+    if missing := updates_missing(root):
+        command("warning", missing)
     summary("Issue assistant set-up", problems or ["Everything fits."], False)
     return 1 if problems else 0
 

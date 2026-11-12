@@ -70,3 +70,30 @@ TEMPLATE_WORKFLOWS = (
 # issue-assistant.yml doesn't grant, so the discussions have a reusable workflow of
 # their own; decision 0018 says why.
 DISCUSSION_WORKFLOW = "discussion-assistant.yml"
+# The files that turn on the updates of a repository's pins, which bring it each
+# release of the issue assistant: Dependabot's, with the ecosystem github-actions,
+# and every configuration of Renovate, whose defaults move pinned actions and
+# reusable workflows. The page of the set-up says how to add one.
+DEPENDABOT_FILES = (
+    PurePosixPath(".github/dependabot.yml"),
+    PurePosixPath(".github/dependabot.yaml"),
+)
+RENOVATE_FILES = tuple(
+    PurePosixPath(name)
+    for name in (
+        "renovate.json",
+        "renovate.json5",
+        ".github/renovate.json",
+        ".github/renovate.json5",
+        ".gitlab/renovate.json",
+        ".gitlab/renovate.json5",
+        ".renovaterc",
+        ".renovaterc.json",
+        ".renovaterc.json5",
+    )
+)
+# Renovate also reads its configuration from the key "renovate" of package.json.
+RENOVATE_PACKAGE = PurePosixPath("package.json")
+UPDATES_GUIDE = (
+    "https://dennis-otto.github.io/issue-assistant/getting-started.html#turn-on-updates"
+)
