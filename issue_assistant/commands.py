@@ -409,21 +409,27 @@ def objected_to_closing(github: GitHub, issue: dict[str, Any]) -> Plan:
 
 
 def reopen_if_answered(
-    github: GitHub, issue: dict[str, Any], comment: dict[str, Any], config: Config
+    github: GitHub,
+    issue: dict[str, Any],
+    at: datetime,
+    config: Config,
+    *,
+    edited: bool = False,
 ) -> Plan:
     """Reopen an issue the assistant closed once its reporter answers.
 
-    An issue closed unanswered reopens at once; for one that a release closed, the
+    The reporter wrote at `at`: a comment, or with `edited` an edit of the text of
+    the issue. An issue closed unanswered reopens at once, after either, as the
+    questions and the closing comment promise; for one that a release closed, the
     engine decides whether the comment says that the problem persists, up to
     release_replies times after each release. The marker of the assistant's
     comment about the release counts these runs, so a reporter who deletes their
     comments gets no more of them. One closed as a duplicate goes to the
-    maintainers (objected_to_closing).
+    maintainers (objected_to_closing). Those two closings ask for a comment, so an
+    edit leaves them as they are.
     """
     number = issue["number"]
     author = login(issue.get("user"))
-    if login(comment.get("user")) != author:
-        return Plan(number, notes=["Comment on a closed issue."])
     events = github.events(number)
     closes = [event for event in events if event["event"] == "closed"]
     if not closes or login(closes[-1].get("actor")) != BOT:
@@ -438,10 +444,13 @@ def reopen_if_answered(
         if kind_of(item) in CLOSINGS
         and (not reopenings or created(item) > reopenings[-1])
     ]
+    if edited and closings and kind_of(closings[-1]) != "closed-unanswered":
+        # A release or a duplicate closed it, and their comments ask for a comment.
+        return Plan(number, notes=["Not closed for a missing answer."])
     if closings and kind_of(closings[-1]) == "released":
         released = closings[-1]
         window = timedelta(days=config.lifecycle.reopen_after_release_days)
-        if created(comment) - created(released) > window:
+        if at - created(released) > window:
             return Plan(number, notes=["The release closed this issue long ago."])
         replies = limit(config, "release_replies")
         if len(runs_of(released)) >= replies:

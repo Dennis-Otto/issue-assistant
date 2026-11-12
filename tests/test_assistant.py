@@ -967,6 +967,78 @@ def test_an_answer_reopens_an_issue_closed_without_one(config):
     assert "I reopened the issue" in reopened and "@reporter" in reopened
 
 
+def test_an_edit_reopens_an_issue_closed_without_an_answer(config):
+    """The questions offer an answer by an edit of the issue, and the closing
+    comment promises that an answer reopens it: an edit of the text does, as a
+    comment does."""
+    github = closed_unanswered(config)
+    changes = github.edit(12, "reporter", body=f"{BUG_BODY}\nVersion 1.9.0")
+    plan = assistant.handle_event(
+        github, "issues", event("edited", github.issue(12), changes=changes), config
+    )
+    assert (plan.issue, plan.mode, plan.notes) == (
+        12,
+        "follow-up",
+        ["Reopened after the reporter's answer."],
+    )
+    # The follow-up answers the questions of the analysis.
+    assert plan.answers["id"] == 1
+    assert github.store[12]["state"] == "open"
+    assert github.labels_of(12) == {"bug", "needs-triage"}
+    (reopened,) = github.posted(12)
+    assert "I reopened the issue" in reopened and "@reporter" in reopened
+
+
+def test_an_answer_saved_with_a_tick_reopens_the_issue_without_the_ai(config):
+    """An edit that adds the answer and ticks the box of the form reopens the issue
+    closed without an answer, and the mute stops its follow-up."""
+    github = closed_unanswered(config)
+    github.store[12]["body"] = BOX_UNTICKED
+    changes = github.edit(12, "reporter", body=f"The log says this.\n\n{BOX_TICKED}")
+    plan = assistant.handle_event(
+        github, "issues", event("edited", github.issue(12), changes=changes), config
+    )
+    assert plan.mode == "none"
+    assert plan.notes[:2] == [TICKED_NOTE, "Reopened after the reporter's answer."]
+    assert github.store[12]["state"] == "open"
+    assert github.labels_of(12) == {"bug", "needs-triage", "assistant-muted"}
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["other person", "closed by a person", "no marker", "released", "duplicate"],
+)
+def test_other_edits_of_closed_issues_leave_them_closed(config, case):
+    """Only the closing for a missing answer promises that an edit of the reporter
+    reopens the issue; after a release or as a duplicate, a comment does."""
+    github = closed_unanswered(config)
+    editor = "someone" if case == "other person" else "reporter"
+    if case == "closed by a person":
+        github.event_store[12][-1]["actor"] = {"login": "maintainer", "type": "User"}
+    if case == "no marker":
+        github.comment_store[12] = github.comment_store[12][:1]
+    for kind in ("released", "duplicate"):
+        if case == kind:
+            name = "closed-duplicate" if kind == "duplicate" else kind
+            closing = f"{assistant.render_marker(name, lang='en')}\nClosed"
+            github.comment_store[12][-1] = make_comment(2, "bot", closing, 0.5)
+    changes = github.edit(12, editor, body=f"{BUG_BODY}\nVersion 1.9.0")
+    plan = assistant.handle_event(
+        github,
+        "issues",
+        event("edited", github.issue(12), editor, changes=changes),
+        config,
+    )
+    why = {
+        "other person": "Edit without a pending question.",
+        "closed by a person": "Closed by a person: stays closed.",
+    }.get(case, "Not closed for a missing answer.")
+    assert (plan.issue, plan.mode, plan.notes) == (12, "none", [why])
+    assert github.store[12]["state"] == "closed"
+    assert github.labels_of(12) == {"bug", "needs-info", "stale"}
+    assert not github.writes_made()
+
+
 def test_a_reopened_issue_without_the_assistant_s_questions_goes_to_the_maintainer(
     config,
 ):
