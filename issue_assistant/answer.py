@@ -23,6 +23,13 @@ SECRET = re.compile(
     r"|(?<![A-Za-z0-9])sk-(?:proj-)?[A-Za-z0-9_-]{20,}"
     r"|xox[abposr]-[A-Za-z0-9-]{10,}"
     r"|AKIA[0-9A-Z]{16}"
+    # Keys of the Google APIs, which an engine may hold, and the tokens of GitLab,
+    # Stripe, Hugging Face and Telegram bots, also not at the end of a word.
+    r"|(?<![A-Za-z0-9])AIza[0-9A-Za-z_-]{35}"
+    r"|(?<![A-Za-z0-9])glpat-[A-Za-z0-9_-]{20,}"
+    r"|(?<![A-Za-z0-9])[sr]k_live_[A-Za-z0-9]{20,}"
+    r"|(?<![A-Za-z0-9])hf_[A-Za-z0-9]{30,}"
+    r"|(?<![A-Za-z0-9])[0-9]{8,10}:[A-Za-z0-9_-]{35}"
     r"|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
     # Webhooks, whose address alone lets anyone post as their owner: up to the secret
@@ -32,7 +39,21 @@ SECRET = re.compile(
     r"|\.webhook\.office\.com/webhookb2/[\w@-]+/IncomingWebhook/[0-9a-f]{20,}/"
     r"[0-9a-f-]{20,}"
 )
-LONG_TOKEN = re.compile(r"(?<![\w+/=-])[\w+/=-]{40,}(?![\w+/=-])")
+TOKEN = re.compile(r"[\w+/=-]+")
+# Runs of one case and digits: hex of 64 or more characters, as long as a SHA-256 or
+# longer, but not the 40 of a commit, and 40 or more characters of Base32 or of lower
+# case and digits, with a letter beyond those of hex.
+SINGLE_CASE = re.compile(
+    r"(?<![A-Za-z0-9])(?:[0-9A-Fa-f]{64,}"
+    r"|(?=[a-z0-9]*[g-z])(?=[a-z0-9]*[0-9])[a-z0-9]{40,}"
+    r"|(?=[A-Z0-9]*[G-Z])(?=[A-Z0-9]*[0-9])[A-Z0-9]{40,})(?![A-Za-z0-9])"
+)
+# A digest that its algorithm names, as in `sha256:` of an image or a hash of pip, or in
+# "SHA-256: " before the checksum of a release, which is public.
+NAMED_DIGEST = re.compile(
+    r"(?<![A-Za-z0-9])(?i:sha-?(?:256|384|512))[:=\s-]\s*`?[0-9A-Fa-f]{64,}"
+    r"(?![A-Za-z0-9])"
+)
 # A link to a repository on GitHub, whose owner and name people choose, up to the
 # path of a file or folder in it after the commit or branch. A name or a branch of 32
 # or more characters is checked like any other text, so that no key hides as one; a
@@ -344,21 +365,34 @@ def looks_secret(text: str, files: Collection[str] = ()) -> bool:
 
     A known kind of token counts wherever it is. Any other run of 40 or more letters,
     digits and `+/=_-` counts when it mixes lower case, upper case and digits, and
-    either has the `+` or `=` of Base64, or its letters read like noise. It doesn't
-    count when it is a part of the path of one of `files`, the files of the
-    repository, which are public. In a link to GitHub, the owner and the name of the
-    repository, and the commit or branch of a file, are never keys.
+    either has the `+` or `=` of Base64, or its letters read like noise. So does a run
+    of one case and digits in it, as `SINGLE_CASE` describes, but for a digest that
+    its algorithm names. Neither counts when it is a part of the path of one of
+    `files`, the files of the repository, which are public. In a link to GitHub, the
+    owner and the name of the repository, and the commit or branch of a file, are
+    never keys.
     """
     if SECRET.search(text):
         return True
     paths = "\n".join(files)
     return any(
-        re.search("[a-z]", token)
+        (mixes_like_a_key(token) or SINGLE_CASE.search(token))
+        and not names_a_file(token, paths)
+        for token in TOKEN.findall(
+            GITHUB_REPOSITORY.sub(" ", NAMED_DIGEST.sub(" ", text))
+        )
+    )
+
+
+def mixes_like_a_key(token: str) -> bool:
+    """Whether a run of 40 or more characters mixes lower case, upper case and digits
+    as a random key does."""
+    return bool(
+        len(token) >= 40
+        and re.search("[a-z]", token)
         and re.search("[A-Z]", token)
         and re.search("[0-9]", token)
         and ("+" in token or "=" in token or reads_like_noise(token))
-        and not names_a_file(token, paths)
-        for token in LONG_TOKEN.findall(GITHUB_REPOSITORY.sub(" ", text))
     )
 
 

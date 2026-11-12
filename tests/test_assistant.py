@@ -2946,6 +2946,21 @@ def test_an_answer_that_is_no_json_is_refused(config):
             ]
         ),
         "-----BEGIN OPENSSH PRIVATE KEY-----",
+        # A key of the Google APIs, as the Gemini engine holds, and the tokens of
+        # GitLab, Stripe, Hugging Face and Telegram bots. Each is split, so that no
+        # scanner of secrets takes the test for a leak.
+        "AI" + "zaSy" + "a1B2c3D4e5" * 3 + "_-x",
+        "gl" + "pat-" + "a1B2c3D4e5" * 2,
+        "sk_" + "live_" + "a1B2" * 6,
+        "rk_" + "live_" + "a1B2" * 6,
+        "hf" + "_" + "a1B2c3D4e5" * 3 + "f6G7",
+        "1234567890" + ":AA" + "a1B2c3D4e5" * 3 + "f6_",
+        # Runs of one case and digits: hex as long as a SHA-256, lower case and
+        # digits, and Base32.
+        "9f86d081884c7d65" * 4,
+        "k3j9x2m7q1z8w4v6" * 4,
+        "JBSWY3DPEHPK3PXP" * 3 + "MFRG",
+        "AWS_SECRET=" + "9f86d081884c7d65" * 4,
         "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p",
         # Secret keys of AWS: with a slash alone, with a slash and a plus, and as
         # the value of a variable.
@@ -3007,6 +3022,18 @@ def test_an_answer_with_something_like_a_secret_is_never_posted(config, secret):
         # Words that end in "sk" before a dash, unlike the keys that start with sk-.
         "flask-sqlalchemy-integration-tests",
         "the task-continuation-guidance-by-default capture",
+        # A word that ends in "hf" before an underscore, unlike the tokens of
+        # Hugging Face.
+        "shelf_" + "a1B2c3D4e5" * 3,
+        # Digests that their algorithm names: of an image, a hash of pip and the
+        # checksum of a release; a fingerprint of a signing key and a commit, which are
+        # 40 characters of hex in one case.
+        "ghcr.io/dennis-otto/issue-assistant@sha256:" + "9f86d081884c7d65" * 4,
+        "--hash=sha256:" + "9f86d081884c7d65" * 4,
+        "SHA-256: `" + "9F86D081884C7D65" * 4 + "`",
+        "sha512-" + "9f86d081884c7d65" * 8,
+        "fingerprint 4AEE18F83AFDEB23ABCDEF0123456789ABCDEF01",
+        "commit 677b136666dc555b19b50d237c5234f66d2847e8",
         # Placeholders for the address of a webhook, without its secret.
         "Set SLACK_WEBHOOK_URL to https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
         "https://hooks.slack.com/services/T000/B000/XXXX",
@@ -3028,6 +3055,7 @@ FIXTURES = "tests/components/tuya/fixtures"
 RANDOM_NAME = f"{FIXTURES}/cl_rD7uqAAgQOpSA2RxV9eKw3Lm.json"
 RANDOM_FOLDER = f"{FIXTURES}/eb_Kq2mP9vL4tR7wY1bN6cJ"
 COMMIT = "677b136666dc555b19b50d237c5234f66d2847e8"
+LOWER_CASE_NAME = f"dist/chunk-{'k3j9x2m7q1z8w4v6' * 3}.js"
 
 
 @pytest.mark.parametrize(
@@ -3043,11 +3071,14 @@ COMMIT = "677b136666dc555b19b50d237c5234f66d2847e8"
         (f"{FIXTURES}/cl_rD7uqAAgQOpSA2RxV9eKw3Lm2", True),
         (f"{FIXTURES}/xcl_rD7uqAAgQOpSA2RxV9eKw3Lm", True),
         (f"{FIXTURES}/" + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p", True),
+        # Names of one case and digits, as a bundler gives its chunks.
+        (LOWER_CASE_NAME, False),
+        (f"dist/{'k3j9x2m7q1z8w4v6' * 3}.js", True),
     ],
 )
 def test_a_file_that_git_tracks_is_no_secret(text, secret):
     """A path of the repository is public, whatever its name looks like."""
-    files = {RANDOM_NAME, f"{RANDOM_FOLDER}/device.json", "src/app.py"}
+    files = {RANDOM_NAME, f"{RANDOM_FOLDER}/device.json", "src/app.py", LOWER_CASE_NAME}
     assert assistant.looks_secret(text)
     assert assistant.looks_secret(text, files) is secret
 
