@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from collections.abc import Callable
@@ -38,6 +39,7 @@ from .paths import (
     FORMS,
     LABELS_FILE,
     RENOVATE_FILES,
+    RENOVATE_PACKAGE,
     SETTINGS,
     TEMPLATE_WORKFLOWS,
     TEMPLATES,
@@ -709,6 +711,19 @@ def check_project(config: Config) -> list[str]:
     return []
 
 
+def renovate_in_package(root: Path) -> bool:
+    """Whether package.json in `root` holds a configuration of Renovate under its
+    key "renovate", which Renovate reads as well as a file of its own."""
+    path = root / RENOVATE_PACKAGE
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except ValueError:
+        return False
+    return isinstance(data, dict) and "renovate" in data
+
+
 def updates_missing(root: Path) -> str:
     """Why the pins of the issue assistant in the workflows of the repository in
     `root` never move to a new release, for `install` and a warning of `check`;
@@ -718,7 +733,9 @@ def updates_missing(root: Path) -> str:
     A warning, never a problem: a repository may run Renovate from elsewhere, such
     as an app of its organization with a shared preset, without a file of its own.
     """
-    if any((root / name).is_file() for name in RENOVATE_FILES):
+    if any((root / name).is_file() for name in RENOVATE_FILES) or renovate_in_package(
+        root
+    ):
         return ""
     dependabot = [name for name in DEPENDABOT_FILES if (root / name).is_file()]
     if any(

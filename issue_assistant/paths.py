@@ -92,6 +92,8 @@ RENOVATE_FILES = tuple(
         ".renovaterc.json5",
     )
 )
+# Renovate also reads its configuration from the key "renovate" of package.json.
+RENOVATE_PACKAGE = PurePosixPath("package.json")
 UPDATES_GUIDE = (
     "https://dennis-otto.github.io/issue-assistant/getting-started.html#turn-on-updates"
 )

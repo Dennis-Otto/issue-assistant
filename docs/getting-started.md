@@ -133,9 +133,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
 ```
 
-Renovate moves them by its defaults, once a configuration such as `renovate.json` is there. Without either, the repository keeps the release of its set-up and gets no fix, while the [security policy](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md) supports only the latest release. So `install` names the step, and `check` warns without failing: Renovate may also run from elsewhere, such as with a preset of the organization.
+The cooldown waits a week before a new release, as zizmor asks; security updates come at once. Renovate moves them by its defaults, once a configuration such as `renovate.json`, or the key `renovate` of `package.json`, is there. Without either, the repository keeps the release of its set-up and gets no fix, while the [security policy](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md) supports only the latest release. So `install` names the step, and `check` warns without failing: Renovate may also run from elsewhere, such as with a preset of the organization.
 
 ## Check that it works
 

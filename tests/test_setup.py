@@ -2296,6 +2296,21 @@ def test_check_is_content_with_renovate_or_dependabot_for_the_actions(
     assert capsys.readouterr().out.startswith("::stop-commands::")
 
 
+@pytest.mark.parametrize(
+    ("text", "missing"),
+    [
+        ('{"name": "app", "renovate": {"extends": ["config:recommended"]}}', False),
+        ('{"name": "app"}', True),
+        ("[]", True),
+        ("{not json", True),
+    ],
+)
+def test_renovate_counts_in_the_key_of_package_json(root, text, missing):
+    (root / ".github/dependabot.yml").unlink()
+    (root / "package.json").write_text(text, "utf-8")
+    assert bool(assistant.updates_missing(root)) is missing
+
+
 def test_renovate_wins_over_a_dependabot_that_leaves_the_actions_alone(root):
     (root / ".github/dependabot.yml").write_text("updates: []\n", "utf-8")
     (root / "renovate.json").write_text("{}", "utf-8")
