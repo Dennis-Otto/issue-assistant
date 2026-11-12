@@ -85,6 +85,13 @@ STARTING_ROLES = frozenset({"admin", "maintain", "write"})
 OVERRIDING_ROLES = frozenset({"admin", "maintain"})
 STEERED = ("triage", "follow-up")
 MAX_INSTRUCTION = 500
+# The task of a run by hand that takes the open issues without an analysis, the
+# oldest first, which a repository brings along when it starts with the assistant:
+# not one of MODES, as the AI gets each of them as a first analysis, triage.
+BACKLOG = "backlog"
+# The environment variable of the job event in which the reusable workflow names
+# the issue of the backlog that its call analyzes; without it, the job chooses them.
+BACKLOG_VARIABLE = "ISSUE_ASSISTANT_BACKLOG_ISSUE"
 
 # The label of an issue on which the assistant starts no AI run of its own; the
 # commands mute and unmute set and remove it, and a maintainer can too.

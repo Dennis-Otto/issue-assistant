@@ -306,12 +306,14 @@ def test_install_writes_the_workflows_with_the_release(sample_root):
     workflow = (sample_root / ".github/workflows/issue-assistant.yml").read_text(
         "utf-8"
     )
-    # One pin of the release, of the reusable workflow that has the jobs.
-    assert workflow.count(f"@{REF} # v1.0.0") == 1
-    assert (
+    # The pins of the release, of the reusable workflow that has the jobs: of its
+    # call, and of its calls for the issues of the task backlog.
+    assert workflow.count(f"@{REF} # v1.0.0") == 2
+    pin = (
         "uses: Dennis-Otto/issue-assistant/.github/workflows/"
         f"reusable-issue-assistant.yml@{REF} # v1.0.0"
-    ) in workflow
+    )
+    assert workflow.count(pin) == 2
     for name in ("issue-lifecycle.yml", "labels.yml", "findings.yml"):
         text = (sample_root / ".github/workflows" / name).read_text("utf-8")
         assert f"/reusable-{name}@{REF} # v1.0.0" in text
@@ -2003,6 +2005,7 @@ def test_config_problems_are_found(config, root):
         max_per_day=-1,
         max_per_author_per_day=True,
         release_replies="2",
+        backlog_per_run=300,
         max_issues=-5,
     )
     assert assistant.check_config(broken) == [
@@ -2014,6 +2017,8 @@ def test_config_problems_are_found(config, root):
         "number, 0 or more",
         ".github/issue-assistant/config.toml: release_replies must be a whole number, "
         "0 or more",
+        ".github/issue-assistant/config.toml: backlog_per_run may be at most 256, "
+        "the most jobs of a matrix that GitHub runs",
         ".github/issue-assistant/config.toml: max_issues must be a whole number, "
         "0 or more",
     ]

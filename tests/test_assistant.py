@@ -2333,6 +2333,12 @@ def test_a_limit_that_is_no_whole_number_stops_the_run(config, key, value):
     with pytest.raises(assistant.AssistantError, match=f"{key} must be a whole number"):
         if key == "release_replies":
             comment_after_release(github, broken)
+        elif key == "backlog_per_run":
+            inputs = {"issue": "0", "mode": assistant.BACKLOG}
+            payload = {"inputs": inputs}
+            assistant.handle_event(
+                github, "workflow_dispatch", payload, broken, "owner"
+            )
         else:
             opened(github, broken)
 

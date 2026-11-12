@@ -1786,6 +1786,7 @@ SETTINGS = {
     "[engine] max_per_day": ("max_per_day", 5),
     "[engine] max_per_author_per_day": ("max_per_author_per_day", 1),
     "[engine] release_replies": ("release_replies", 0),
+    "[engine] backlog_per_run": ("backlog_per_run", 50),
     "[context] max_issues": ("max_issues", 300),
     "[context] max_discussions": ("max_discussions", 0),
     "[context] max_analyzed": ("max_analyzed", 0),

@@ -1,0 +1,22 @@
+flowchart TB
+  accTitle: How a run on the backlog analyzes the open issues
+  accDescr: A maintainer runs issue-assistant.yml by hand with the task backlog and the number of the issue after which it starts, 0 for the oldest. Someone without the role admin or maintain fails the run before anything is written and before the AI. The job assistant chooses up to backlog_per_run open issues after that number, the oldest first, and names each issue that it leaves out with the reason: a first analysis already, opened by a maintainer or a bot, locked or muted. The job backlog calls the reusable workflow once for each chosen issue, two at a time; the AI gives each its first analysis, and apply checks the answer. Without comment, apply sets the labels alone, and the summary shows the possible duplicate and the missing information as a table; with comment, apply posts the analysis with its labels. The next run goes on after the last issue chosen.
+  start(["a maintainer runs the task<br>backlog after issue N"]) --> role{"admin or<br>maintain?"}
+  role -- "no" --> refused["the run fails:<br>nothing written,<br>no AI"]
+  role -- "yes" --> choose["the job assistant chooses<br>up to backlog_per_run open<br>issues after N, oldest first"]
+  choose -.-> left["left out, with the reason:<br>an analysis already, a<br>maintainer's or a bot's,<br>locked or muted"]
+  choose --> each["the job backlog calls the<br>workflow for each issue,<br>two at a time"]
+  each --> ai["`**the AI** gives the issue<br>its first analysis`"]
+  ai --> comment{"comment<br>ticked?"}
+  comment -- "no" --> labels["apply sets the labels alone;<br>the summary shows duplicate<br>and missing information"]
+  comment -- "yes" --> posted["apply posts the<br>analysis with<br>its labels"]
+  labels --> next(["the next run goes on<br>after the last issue"])
+  posted --> next
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef question fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  class start,next trigger
+  class role,comment question
+  class ai ai
+  class refused,choose,left,each,labels,posted job

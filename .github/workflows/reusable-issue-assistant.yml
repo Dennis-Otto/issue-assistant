@@ -7,7 +7,9 @@ name: Issue assistant
 #
 # event    no AI: labels, the /assistant commands of a comment and the next task;
 #          for a run by hand, the role of the person who started it, and the
-#          override of the one-comment rule that only a maintainer may give
+#          override of the one-comment rule that only a maintainer may give; for
+#          the task backlog, the issues that the caller's job backlog analyzes,
+#          one call of this workflow with the input backlog_issue for each
 # analyze  the AI engine of .github/issue-assistant/config.toml reads the checkout and
 #          a context folder and answers with JSON; read-only token, read-only tools,
 #          egress-firewall runner (the caller's .github/egress-firewall.yaml)
@@ -52,6 +54,14 @@ on:
         description: Only for the Workflow test of the issue assistant, in its own repository; check the answer of tests/fixtures/smoke-answer.json for the issue of tests/fixtures/canary-issue.json as a dry run, without the AI
         type: boolean
         default: false
+      backlog_issue:
+        description: Only for a run by hand with the task backlog; the issue of the backlog that this call gives its first analysis, one of those that the output backlog of the call before named
+        type: number
+        default: 0
+    outputs:
+      backlog:
+        description: The issues that a run by hand with the task backlog chose, as a JSON list, for a call of this workflow for each; empty for every other run
+        value: ${{ jobs.event.outputs.backlog }}
     # The caller passes the engine's secrets by name. Only the job analyze sees their
     # values, those of the caller's environment issue-assistant.
     secrets:
@@ -98,6 +108,7 @@ jobs:
       # their file.
       issue: ${{ steps.event.outputs.issue }}
       mode: ${{ steps.event.outputs.mode || steps.canary.outputs.mode || steps.smoke.outputs.mode }}
+      backlog: ${{ steps.event.outputs.backlog }}
       # The endpoints of Harden-Runner for analyze-in-reserve, on the runner of
       # ISSUE_ASSISTANT_AI_RUNNER alone.
       endpoints: ${{ steps.endpoints.outputs.endpoints }}
@@ -249,6 +260,8 @@ jobs:
         id: event
         if: ${{ !inputs.canary && !inputs.smoke }}
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
+        env:
+          ISSUE_ASSISTANT_BACKLOG_ISSUE: ${{ inputs.backlog_issue }}
         with:
           command: event
           dry-run: ${{ inputs.dry_run }}

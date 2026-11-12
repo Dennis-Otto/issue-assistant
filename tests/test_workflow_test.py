@@ -71,7 +71,9 @@ def test_every_reusable_workflow_has_a_call_with_the_permissions_of_its_template
                 / name.removeprefix(assistant.REUSABLE_PREFIX)
             ).read_text("utf-8")
         )
-        (caller,) = template["jobs"].values()
+        # The first job of a template calls its workflow; that of the issues calls it
+        # again for the task backlog, with the same permissions.
+        caller = next(iter(template["jobs"].values()))
         assert job["permissions"] == caller["permissions"], key
         # No secret: the engine is the Canary's.
         assert "secrets" not in job, key
