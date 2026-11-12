@@ -5,8 +5,8 @@ flowchart TB
   role -- "no" --> refused["the run fails:<br>nothing written,<br>no AI"]
   role -- "yes" --> choose["the job assistant chooses<br>up to backlog_per_run open<br>issues after N, oldest first"]
   choose -.-> left["left out, with the reason:<br>an analysis already, a<br>maintainer's or a bot's,<br>locked or muted"]
-  choose --> call["the job backlog calls the<br>workflow for each issue,<br>two at a time"]
-  call --> ai["`**the AI** gives the issue<br>its first analysis`"]
+  choose --> each["the job backlog calls the<br>workflow for each issue,<br>two at a time"]
+  each --> ai["`**the AI** gives the issue<br>its first analysis`"]
   ai --> comment{"comment<br>ticked?"}
   comment -- "no" --> labels["apply sets the labels alone;<br>the summary shows duplicate<br>and missing information"]
   comment -- "yes" --> posted["apply posts the<br>analysis with<br>its labels"]
@@ -19,4 +19,4 @@ flowchart TB
   class start,next trigger
   class role,comment question
   class ai ai
-  class refused,choose,left,call,labels,posted job
+  class refused,choose,left,each,labels,posted job
