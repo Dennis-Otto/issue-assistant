@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 import tomllib
 from collections.abc import Callable
-from pathlib import Path
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .actionlint import load_yaml
@@ -26,7 +27,7 @@ from .constants import (
 from .engines import DEFAULT_ENGINE, ENGINES
 from .errors import AssistantError, SettingsError
 from .issues import labels_of_form
-from .languages import LANGUAGES, LOCALES
+from .languages import LANGUAGES, LOCALES, texts
 from .paths import (
     CHOOSER_REPOSITORY,
     CONTEXT,
@@ -469,7 +470,122 @@ def check_config(config: Config) -> list[str]:
                 problems.append(
                     f"{name}: say that {engine.name} by {engine.vendor} reads the issues"
                 )
+            problems += [
+                notice_problem(name, line)
+                for line in stale_notice(content, config, notice_language(name))
+            ]
     return problems
+
+
+# The section that tells reporters what happens with their issue, which install adds
+# to each file of [transparency] that doesn't name the engine yet, in English or, for
+# a file such as SUPPORT.de.md, in German.
+NOTICE = PurePosixPath("SUPPORT-notice.md")
+NOTICE_DE = PurePosixPath("SUPPORT-notice.de.md")
+# The placeholders of the notice for the periods of [lifecycle], as Lifecycle.text
+# names them.
+PERIODS = ("remind_days", "close_days", "grace_days", "reopen_days", "lock_days")
+PERIOD = re.compile(rf"\{{({'|'.join(PERIODS)})\}}")
+
+
+def notice_language(name: str) -> str:
+    """The language of the notice in a file of [transparency]: German for a file
+    such as SUPPORT.de.md, English for the others."""
+    return "de" if name.casefold().endswith(".de.md") else "en"
+
+
+def notice_template(language: str) -> str:
+    """The notice of the templates in the language, with its placeholders."""
+    return (TEMPLATES / (NOTICE_DE if language == "de" else NOTICE)).read_text(
+        encoding="utf-8"
+    )
+
+
+def turned_off(line: str, config: Config) -> str:
+    """The setting that turns off the step that a line of the notice's template
+    describes, such as "[lifecycle] lock_closed_after_days = 0"; empty while the
+    step is on."""
+    # Without releases, GitHub closes a fixed issue with the merge.
+    if FIXED in line and not config.releases:
+        return "[releases] close_with_release = false"
+    if "{lock_days}" in line and not config.lifecycle.lock_closed_after_days:
+        return "[lifecycle] lock_closed_after_days = 0"
+    return ""
+
+
+@dataclass(frozen=True)
+class StaleLine:
+    """A line of a notice that still reads as a line of the template, but names
+    other periods than [lifecycle] or a step that the settings turn off."""
+
+    number: int  # from 1
+    line: str  # as the file has it, without the end of the line
+    said: tuple[str, ...]  # the periods that the line names, such as "15 days"
+    wanted: tuple[str, ...]  # the periods of the settings in their place
+    fixed: str  # the line as the settings want it, empty to take it out
+    off: str  # the setting that turns off its step, see turned_off()
+
+
+def days_pattern(language: str) -> str:
+    """A pattern of any number of days in the words of the language, as days()
+    writes them, such as "1 day" or "15 days"."""
+    forms = sorted(
+        (form for key, form in texts(language).items() if key.startswith("days.")),
+        key=len,
+        reverse=True,
+    )
+    return "|".join(
+        r"\d+".join(re.escape(part) for part in form.split("{count}")) for form in forms
+    )
+
+
+def stale_notice(text: str, config: Config, language: str) -> list[StaleLine]:
+    """The lines of a notice in the language that match a line of its template with
+    a period, by the template's fixed words, but not the periods that [lifecycle]
+    sets, or that describe a step that the settings turn off. A line that the
+    maintainer rewrote so that it no longer matches is left alone."""
+    lifecycle = config.lifecycle.text(language)
+    days = days_pattern(language)
+    templates = []
+    for template in notice_template(language).splitlines():
+        parts = PERIOD.split(template.strip())
+        if len(parts) > 1:
+            source = "".join(
+                f"({days})" if index % 2 else re.escape(part)
+                for index, part in enumerate(parts)
+            )
+            templates.append((template.strip(), parts[1::2], re.compile(source)))
+    found = []
+    for number, line in enumerate(text.splitlines(), 1):
+        for template, names, pattern in templates:
+            match = pattern.fullmatch(line.strip())
+            if match is None:
+                continue
+            off = turned_off(template, config)
+            fixed = "" if off else PERIOD.sub(lambda m: lifecycle[m[1]], template)
+            if fixed != line.strip():
+                wanted = tuple(lifecycle[name] for name in names)
+                found.append(
+                    StaleLine(number, line, match.groups(), wanted, fixed, off)
+                )
+            break
+    return found
+
+
+def notice_problem(name: str, stale: StaleLine) -> str:
+    """What `check` says about a line of a notice that the settings left behind."""
+    where = f"{name}, line {stale.number}"
+    if stale.off:
+        return (
+            f"{where}: describes a step that {stale.off} in "
+            f"{SETTINGS / 'config.toml'} turns off; install takes the line out"
+        )
+    said = " and ".join(f'"{period}"' for period in stale.said)
+    wanted = " and ".join(f'"{period}"' for period in stale.wanted)
+    return (
+        f"{where}: says {said}, {SETTINGS / 'config.toml'} says {wanted}; install "
+        "writes them into the line"
+    )
 
 
 def category_problems(config: Config) -> list[tuple[str, str]]:
