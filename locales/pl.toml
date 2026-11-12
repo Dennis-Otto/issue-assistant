@@ -19,9 +19,11 @@ months = [
   "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia",
   "września", "października", "listopada", "grudnia",
 ]
-# Words that are frequent in the language and in no other catalog. A reporter
-# writes in the language of whose stopwords their words have the most, in
-# English when no other language has more, or fewer than two.
+# Words that are frequent in the language and in no other language of the
+# catalogs: a word that two of them write often, such as the "una" of Spanish and
+# Italian, counts for neither. A reporter writes in the language of whose
+# stopwords their words have the most, in English when no other language has
+# more, or fewer than two.
 stopwords = [
   "nie", "się", "jest", "że", "jak", "ale", "mam", "przy", "dla", "bo", "już",
   "tylko", "bardzo", "co", "czy", "gdy", "kiedy", "jeśli", "mój", "moja", "działa",

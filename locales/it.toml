@@ -19,13 +19,19 @@ months = [
   "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto",
   "settembre", "ottobre", "novembre", "dicembre",
 ]
-# Words that are frequent in the language and in no other catalog. A reporter
-# writes in the language of whose stopwords their words have the most, in
-# English when no other language has more, or fewer than two.
+# Words that are frequent in the language and in no other language of the
+# catalogs: a word that two of them write often, such as the "una" of Spanish and
+# Italian, counts for neither. A reporter writes in the language of whose
+# stopwords their words have the most, in English when no other language has
+# more, or fewer than two.
+# The letters ì and ò, which only Italian writes, count as well, as OWN_LETTERS
+# of issue_assistant/languages.py describes.
 stopwords = [
-  "il", "non", "che", "di", "una", "gli", "nel", "della", "questo", "anche", "ma",
-  "funziona", "sono", "ho", "mi", "lo", "del", "al", "dopo", "perché", "molto",
-  "ancora", "ogni", "grazie", "versione", "è",
+  "non", "che", "di", "gli", "nel", "della", "questo", "anche", "funziona", "sono",
+  "ho", "dopo", "perché", "molto", "ancora", "ogni", "grazie", "versione", "è",
+  "aggiornamento", "errore", "più", "niente", "tutto", "nella", "nelle", "delle", "dei",
+  "questa", "però", "già", "ciao", "mio", "mia", "miei", "riesco", "quindi", "invece",
+  "sul", "sulla", "alla", "nulla", "risponde", "caricato", "configurazione",
 ]
 
 sample = "La scheda non mostra niente quando lancio una freccetta: non è normale."

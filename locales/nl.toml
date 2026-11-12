@@ -19,13 +19,16 @@ months = [
   "januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus",
   "september", "oktober", "november", "december",
 ]
-# Words that are frequent in the language and in no other catalog. A reporter
-# writes in the language of whose stopwords their words have the most, in
-# English when no other language has more, or fewer than two.
+# Words that are frequent in the language and in no other language of the
+# catalogs: a word that two of them write often, such as the "una" of Spanish and
+# Italian, counts for neither. A reporter writes in the language of whose
+# stopwords their words have the most, in English when no other language has
+# more, or fewer than two.
 stopwords = [
   "het", "een", "van", "niet", "ik", "dat", "maar", "ook", "voor", "wordt", "werkt",
   "geen", "nog", "mijn", "bij", "deze", "dit", "wel", "kan", "zijn", "heb", "hebben",
-  "wanneer", "omdat", "bedankt", "versie", "moet", "zou",
+  "wanneer", "omdat", "bedankt", "versie", "moet", "zou", "opstarten", "sinds", "meer",
+  "niets", "naar", "om", "altijd", "wat", "hoe", "zonder",
 ]
 
 sample = "De kaart toont niets als ik een pijl gooi, en dat is niet goed."
