@@ -54,7 +54,7 @@ hide:
 
     ---
 
-    Open questions mark an issue `needs-info`. After 15 days the reporter gets a reminder that names the day the issue closes, and after 30 days it closes on that day. An answer, in a comment or by an edit, ends the waiting, and a comment reopens a closed issue.
+    Open questions mark an issue `needs-info`. After 15 days the reporter gets a reminder that names the day the issue closes, and after 30 days it closes on that day. An answer, in a comment or by an edit, ends the waiting, and reopens an issue closed for a missing one.
 
 - :material-tag-check-outline:{ .lg .middle } **From the fix to the release**
 
