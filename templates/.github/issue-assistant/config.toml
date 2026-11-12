@@ -88,7 +88,8 @@ close_with_release = true
 # the closing on the day that the reminder names, the closing of a sure duplicate
 # after its notice, and the window after a release in which the reporter's comment
 # reopens the issue. The descriptions of needs-info, stale and possible-duplicate in
-# labels.toml name the same days, which the check command makes sure of.
+# labels.toml and the notice of [transparency] name the same days, which the check
+# command makes sure of; install writes them into the notice.
 remind_after_days = 15
 close_after_days = 30
 duplicate_grace_days = 3

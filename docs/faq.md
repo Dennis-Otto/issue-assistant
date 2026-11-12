@@ -38,7 +38,7 @@ Yes, with `model` under `[engine]` in `.github/issue-assistant/config.toml`, suc
 
 ## Can I change when issues are reminded, closed or locked?
 
-Yes, with `[lifecycle]` in `.github/issue-assistant/config.toml`: the days until the reminder, the closing and the closing of a duplicate, the window after a release, the follow-ups of the AI, the issues that are exempt by label, assignee or 👍, and the locking of issues closed long ago, which is off by default. The comments name the days that you set. Say the same days in the descriptions of `needs-info`, `stale` and `possible-duplicate` in `labels.toml`, or none, and in your `SUPPORT.md`; `check` fails on a label that names other days.
+Yes, with `[lifecycle]` in `.github/issue-assistant/config.toml`: the days until the reminder, the closing and the closing of a duplicate, the window after a release, the follow-ups of the AI, the issues that are exempt by label, assignee or 👍, and the locking of issues closed long ago, which is off by default. The comments name the days that you set. Say the same days in the descriptions of `needs-info`, `stale` and `possible-duplicate` in `labels.toml`, or none, and in your `SUPPORT.md`; `check` fails on a label that names other days, and on a line of the notice in `SUPPORT.md` that still reads as the one `install` wrote but names other days or a step that you turned off. Running `install` again writes the days into such a line, or takes it out; a line in your own words stays as it is.
 
 ## Which languages does it answer in?
 

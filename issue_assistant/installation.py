@@ -8,11 +8,11 @@ import shutil
 import subprocess
 from collections.abc import Iterator
 from fnmatch import fnmatchcase
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from .actionlint import add_to_actionlint
 from .cleaning import notice_link
-from .constants import ACTION, FIXED, REPOSITORY_NAME
+from .constants import ACTION, REPOSITORY_NAME
 from .engines import ENGINES, Engine, engine_named
 from .errors import AssistantError, GitHubError
 from .github import GitHub
@@ -32,13 +32,14 @@ from .paths import (
 )
 from .patterns import SHA
 from .settings import Config, lifecycle_problems, load_config
-from .setup_check import configured_engine, firewall_policy
-
-# The section that tells reporters what happens with their issue, which install adds
-# to each file of [transparency] that doesn't name the engine yet, in English or, for
-# a file such as SUPPORT.de.md, in German.
-NOTICE = PurePosixPath("SUPPORT-notice.md")
-NOTICE_DE = PurePosixPath("SUPPORT-notice.de.md")
+from .setup_check import (
+    configured_engine,
+    firewall_policy,
+    notice_language,
+    notice_template,
+    stale_notice,
+    turned_off,
+)
 
 # The environment that holds the engine's secret, limited to the default branch.
 ENVIRONMENT = "issue-assistant"
@@ -227,15 +228,10 @@ def notice(config: Config, engine: Engine, language: str) -> str:
     """What happens with an issue, for reporters: the notice of the templates in
     the language, with the engine, the periods of the repository and the categories
     of the discussions that get a first answer."""
-    lifecycle = config.lifecycle
     lines = [
         line
-        for line in (TEMPLATES / (NOTICE_DE if language == "de" else NOTICE))
-        .read_text(encoding="utf-8")
-        .splitlines(keepends=True)
-        # Without releases, GitHub closes a fixed issue with the merge.
-        if (config.releases or FIXED not in line)
-        and (lifecycle.lock_closed_after_days or "{lock_days}" not in line)
+        for line in notice_template(language).splitlines(keepends=True)
+        if not turned_off(line, config)
         and (config.answer_categories or "{categories}" not in line)
     ]
     return filled("".join(lines), config, engine, language)
@@ -256,18 +252,54 @@ def filled(text_: str, config: Config, engine: Engine, language: str) -> str:
 def discussions_line(text_: str, config: Config, engine: Engine, language: str) -> str:
     """The line of the notice about the answers in Discussions, for a notice that
     was written before the repository named categories; empty where it has one."""
-    template = (TEMPLATES / (NOTICE_DE if language == "de" else NOTICE)).read_text(
-        encoding="utf-8"
-    )
+    template = notice_template(language)
     line = next(line for line in template.splitlines() if "{categories}" in line)
     if not config.answer_categories or line.split("{categories}")[0] in text_:
         return ""
     return filled(line, config, engine, language)
 
 
+def numbered_lines(numbers: list[int]) -> str:
+    """The lines of a file by their numbers, such as "lines 8 and 10"."""
+    if len(numbers) == 1:
+        return f"line {numbers[0]}"
+    return f"lines {', '.join(map(str, numbers[:-1]))} and {numbers[-1]}"
+
+
+def updated_notice(text: str, config: Config, name: str) -> tuple[str, list[str]]:
+    """The notice of a file of [transparency] with the periods of [lifecycle] in each
+    line that still reads as a line of the template, and without those whose step
+    the settings turn off, as `check` asks; with what changed, by the numbers of the
+    lines in the text."""
+    lines = text.splitlines(keepends=True)
+    changed, removed = [], []
+    for stale in stale_notice(text, config, notice_language(name)):
+        line = lines[stale.number - 1]
+        if stale.fixed:
+            indent = line[: len(line) - len(line.lstrip())]
+            lines[stale.number - 1] = indent + stale.fixed + line[len(stale.line) :]
+            changed.append(stale.number)
+        else:
+            lines[stale.number - 1] = ""
+            removed.append(stale.number)
+    said = []
+    if changed:
+        said.append(
+            f"wrote the periods of [lifecycle] into {numbered_lines(changed)} of {name}"
+        )
+    if removed:
+        said.append(
+            f"took {numbered_lines(removed)} out of {name}, whose steps the settings "
+            "turn off"
+        )
+    return "".join(lines), said
+
+
 def add_notices(root: Path) -> list[str]:
     """Tell reporters what happens with their issue, and which AI reads it, in each
-    file of [transparency] that doesn't name the engine yet, as `check` asks."""
+    file of [transparency] that doesn't name the engine yet, as `check` asks; in a
+    file that names it, bring the lines of the notice that still read as those of
+    the template in line with the settings."""
     config = load_config(root, "", lenient=True)
     engine = ENGINES.get(config.engine)
     if engine is None or lifecycle_problems(config.lifecycle):
@@ -281,14 +313,19 @@ def add_notices(root: Path) -> list[str]:
             done.append(f"kept {name}, which is outside the repository")
             continue
         text = path.read_text(encoding="utf-8") if path.is_file() else "# Support\n"
-        language = "de" if name.casefold().endswith(".de.md") else "en"
+        language = notice_language(name)
         if engine.name in text and engine.vendor in text:
-            line = discussions_line(text, config, engine, language)
+            # As the file has it, with the ends of its lines.
+            raw = path.read_bytes().decode("utf-8")
+            end = "\r\n" if "\r\n" in raw else "\n"
+            updated, changes = updated_notice(raw, config, name)
+            done += changes
+            line = discussions_line(updated, config, engine, language)
             if line:
-                path.write_text(
-                    f"{text.rstrip()}\n\n{line}\n", encoding="utf-8", newline="\n"
-                )
+                updated = f"{updated.rstrip()}{end}{end}{line}{end}"
                 done.append(f"added the answers in Discussions to {name}; adapt it")
+            if updated != raw:
+                path.write_bytes(updated.encode("utf-8"))
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(

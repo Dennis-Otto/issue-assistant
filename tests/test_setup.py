@@ -942,6 +942,144 @@ def test_the_notice_says_when_the_assistant_acts(config, language, phrases, lock
     assert sum(assistant.FIXED in line for line in text.splitlines()) == 1
 
 
+def set_lifecycle(root, **values):
+    """config.toml of an installed repository with other values of [lifecycle] and
+    [releases]."""
+    settings = root / assistant.SETTINGS / "config.toml"
+    text = settings.read_text("utf-8")
+    for key, value in values.items():
+        text = re.sub(rf"(?m)^{key} = .*$", f"{key} = {value}", text)
+    settings.write_text(text, encoding="utf-8")
+    return assistant.load_config(root, REPOSITORY)
+
+
+def test_check_and_install_keep_the_notice_in_line_with_the_periods(tmp_path):
+    assistant.install(tmp_path, REF, "v1.0.0")
+    support = tmp_path / "SUPPORT.md"
+    support.write_text(
+        support.read_text("utf-8")
+        # A German notice beside it, and the duplicates in the maintainer's words.
+        .replace("so the conversation stays in one place", "to keep the talk together"),
+        encoding="utf-8",
+    )
+    set_lifecycle(tmp_path, files='["SUPPORT.md", "SUPPORT.de.md"]')
+    assert assistant.add_notices(tmp_path) == [
+        "added what happens with an issue to SUPPORT.de.md; adapt it"
+    ]
+    config = set_lifecycle(
+        tmp_path,
+        remind_after_days=7,
+        close_after_days=14,
+        duplicate_grace_days=1,
+        reopen_after_release_days=60,
+    )
+    where = assistant.SETTINGS / "config.toml"
+    assert assistant.check_config(config) == [
+        f'SUPPORT.md, line 8: says "15 days" and "30 days", {where} says "7 days" '
+        'and "14 days"; install writes them into the line',
+        f'SUPPORT.md, line 10: says "30 days", {where} says "60 days"; install '
+        "writes them into the line",
+        f'SUPPORT.de.md, line 8: says "15 Tagen" and "30 Tagen", {where} says '
+        '"7 Tagen" and "14 Tagen"; install writes them into the line',
+        f'SUPPORT.de.md, line 9: says "3 Tagen", {where} says "1 Tag"; install '
+        "writes them into the line",
+        f'SUPPORT.de.md, line 10: says "30 Tagen", {where} says "60 Tagen"; '
+        "install writes them into the line",
+    ]
+    before = support.read_text("utf-8")
+    assert assistant.add_notices(tmp_path) == [
+        "wrote the periods of [lifecycle] into lines 8 and 10 of SUPPORT.md",
+        "wrote the periods of [lifecycle] into lines 8, 9 and 10 of SUPPORT.de.md",
+    ]
+    text = support.read_text("utf-8")
+    assert "a reminder follows after 7 days and the issue closes after 14 days;" in text
+    assert "write a comment within 60 days and" in text
+    # The line that the maintainer rewrote stays as it is, with its days.
+    assert "closes 3 days later, to keep the talk together" in text
+    assert text.splitlines()[:7] == before.splitlines()[:7]
+    german = (tmp_path / "SUPPORT.de.md").read_text("utf-8")
+    assert "Ohne Antwort folgt nach 7 Tagen eine Erinnerung, nach 14 Tagen" in german
+    assert "wird nach 1 Tag geschlossen," in german
+    assert assistant.check_config(config) == []
+    assert assistant.add_notices(tmp_path) == []
+
+
+def test_check_and_install_take_out_the_steps_that_the_settings_turn_off(tmp_path):
+    assistant.install(tmp_path, REF, "v1.0.0")
+    support = tmp_path / "SUPPORT.md"
+    support.unlink()
+    set_lifecycle(tmp_path, lock_closed_after_days=60)
+    assistant.add_notices(tmp_path)
+    # A notice indented in a list of its own, with the ends of the lines of Windows.
+    support.write_text(
+        "".join(
+            f"  {line}" if line.startswith("- ") else line
+            for line in support.read_text("utf-8").splitlines(keepends=True)
+        ),
+        encoding="utf-8",
+        newline="\r\n",
+    )
+    config = set_lifecycle(tmp_path, close_with_release="false")
+    where = assistant.SETTINGS / "config.toml"
+    assert assistant.check_config(config) == [
+        "SUPPORT.md, line 10: describes a step that [releases] close_with_release "
+        f"= false in {where} turns off; install takes the line out",
+    ]
+    assert assistant.add_notices(tmp_path) == [
+        "took line 10 out of SUPPORT.md, whose steps the settings turn off"
+    ]
+    config = set_lifecycle(tmp_path, lock_closed_after_days=0)
+    assert assistant.check_config(config) == [
+        "SUPPORT.md, line 10: describes a step that [lifecycle] "
+        f"lock_closed_after_days = 0 in {where} turns off; install takes the line out",
+    ]
+    assert assistant.add_notices(tmp_path) == [
+        "took line 10 out of SUPPORT.md, whose steps the settings turn off"
+    ]
+    text = support.read_bytes().decode("utf-8")
+    assert assistant.FIXED not in text and "locked" not in text
+    assert "\r\n  - **A likely duplicate** of an open issue" in text
+    assert "\r\n  - **Questions in Discussions**" in text
+    assert assistant.check_config(config) == []
+    # Locking again with other days: the line, which is gone, stays gone.
+    assert assistant.add_notices(tmp_path) == []
+    config = set_lifecycle(tmp_path, lock_closed_after_days=90)
+    assert assistant.check_config(config) == []
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_every_period_of_the_notice_reads_as_its_template(config, language):
+    engine = assistant.ENGINES["claude"]
+    on = dataclasses.replace(
+        config,
+        lifecycle=dataclasses.replace(config.lifecycle, lock_closed_after_days=1),
+    )
+    text = assistant.notice(on, engine, language)
+    assert assistant.stale_notice(text, on, language) == []
+    # One day, in the singular, for every period that can be one.
+    once = dataclasses.replace(
+        on,
+        lifecycle=dataclasses.replace(
+            on.lifecycle,
+            remind_after_days=1,
+            duplicate_grace_days=1,
+            reopen_after_release_days=1,
+        ),
+    )
+    stale = assistant.stale_notice(text, once, language)
+    assert [line.said for line in stale] == [
+        (on.lifecycle.text(language)["remind_days"],
+         on.lifecycle.text(language)["close_days"]),
+        (on.lifecycle.text(language)["grace_days"],),
+        (on.lifecycle.text(language)["reopen_days"],),
+    ]  # fmt: skip
+    name = "SUPPORT.de.md" if language == "de" else "SUPPORT.md"
+    fixed, said = assistant.updated_notice(text, once, name)
+    assert said == [f"wrote the periods of [lifecycle] into lines 6, 7 and 8 of {name}"]
+    assert assistant.stale_notice(fixed, once, language) == []
+    assert assistant.stale_notice(fixed, on, language) != []
+
+
 # actionlint's settings
 
 
