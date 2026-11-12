@@ -327,9 +327,11 @@ def pinned_label(config: Config) -> Label:
 @dataclass
 class Visible:
     """Takes the characters that GitHub shows as nothing out of texts, and counts
-    them."""
+    them; `definitions` counts the link reference definitions and footnotes that
+    GitHub shows as nothing, which the context takes out of the same texts."""
 
     removed: int = 0
+    definitions: int = 0
 
     def __call__(self, text: str) -> str:
         text, count = INVISIBLE.subn("", text)
