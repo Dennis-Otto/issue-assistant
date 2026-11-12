@@ -7354,17 +7354,47 @@ def test_an_issue_that_someone_unlocked_stays_unlocked(config):
     assert not github.writes_made()
 
 
-def test_an_objection_to_a_duplicate_closing_keeps_the_issue_unlocked(config):
-    """The reporter was told that a comment is enough: the issue stays open to the
-    conversation until a maintainer answered it."""
-    github = FakeGitHub(config, closed_long_ago(labels=("bug", "duplicate")))
-    github.comment_store[12] = [
+def objected_duplicate(**changes):
+    """An issue closed long ago as a duplicate, whose reporter objected since."""
+    issue = closed_long_ago(
+        labels=("bug", "duplicate", "needs-triage"), state_reason="duplicate"
+    )
+    return {**issue, **changes}
+
+
+def objection_comments():
+    return [
         make_comment(1, "bot", assistant.render_closed_duplicate(7, "en"), 91),
         make_comment(2, "reporter", "This is another bug.", 80),
     ]
+
+
+def test_an_objection_to_a_duplicate_closing_keeps_the_issue_unlocked(config):
+    """The reporter was told that a comment is enough: the issue stays open to the
+    conversation until a maintainer answered it."""
+    github = FakeGitHub(config, objected_duplicate())
+    github.comment_store[12] = objection_comments()
     assert assistant.sweep(github, NOW, lifecycle=LOCKING) == []
     assert not github.writes_made()
     github.comment_store[12].append(make_comment(3, "owner", "Same.", 70, "MEMBER"))
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == [
+        "#12: locked, closed for more than 90 days."
+    ]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"labels": [{"name": "bug"}, {"name": "duplicate"}]},
+        {"state_reason": "completed"},
+    ],
+    ids=["needs-triage removed", "closed again as completed"],
+)
+def test_a_maintainers_decision_on_an_objection_lets_the_lock_come(config, changes):
+    """A maintainer who removed `needs-triage`, or reopened the issue and closed it
+    for another reason, decided without a comment: the issue locks as any other."""
+    github = FakeGitHub(config, objected_duplicate(**changes))
+    github.comment_store[12] = objection_comments()
     assert assistant.sweep(github, NOW, lifecycle=LOCKING) == [
         "#12: locked, closed for more than 90 days."
     ]

@@ -215,6 +215,23 @@ def objected_closing(
     return objection
 
 
+def awaits_reopening(
+    issue: dict[str, Any], comments: list[dict[str, Any]]
+) -> datetime | None:
+    """When the reporter objected to the issue's closing as a duplicate, while it
+    still waits on the maintainers; None otherwise.
+
+    It waits while the issue is closed as a duplicate and keeps `needs-triage`: a
+    maintainer who reopens the issue, closes it for another reason or removes the
+    label has decided, as well as one who answers.
+    """
+    if issue.get("state_reason") != "duplicate" or NEEDS_TRIAGE not in label_names(
+        issue
+    ):
+        return None
+    return objected_closing(issue, comments)
+
+
 def marks_newcomer(comment: dict[str, Any]) -> bool:
     """Whether the comment is an analysis that marks its issue as a candidate."""
     found = marker(comment)
@@ -279,13 +296,9 @@ def objected_closings(github: GitHub, now: datetime) -> list[Waiting]:
     found = []
     for issue in github.closed_issues_labeled(NEEDS_TRIAGE):
         number = issue["number"]
-        if (
-            issue.get("state_reason") != "duplicate"
-            or waits_on_others(issue)
-            or is_maintainer(issue)
-        ):
+        if waits_on_others(issue) or is_maintainer(issue):
             continue
-        if since := objected_closing(issue, github.comments(number)):
+        if since := awaits_reopening(issue, github.comments(number)):
             why = (
                 f"the reporter objected to the closing as a duplicate {ago(since, now)}"
             )

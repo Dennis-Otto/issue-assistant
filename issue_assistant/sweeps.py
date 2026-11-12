@@ -26,7 +26,7 @@ from .constants import (
     POSSIBLE_DUPLICATE,
     STALE,
 )
-from .digests import asked_since, asking, closing_day, objected_closing
+from .digests import asked_since, asking, awaits_reopening, closing_day
 from .errors import GitHubError, SweepIncomplete
 from .github import GitHub
 from .issues import (
@@ -713,13 +713,14 @@ def lock_issue(
     The line comes once, also when GitHub failed the lock after it. An issue that
     someone unlocked stays unlocked: they want its conversation to go on. So does
     one whose reporter objected to its closing as a duplicate, until a maintainer
-    answered: the closing comment promised them that a comment is enough.
+    answered or decided otherwise: the closing comment promised them that a comment
+    is enough.
     """
     number = issue["number"]
     if any(event["event"] == "unlocked" for event in github.events(number)):
         return []
     comments = github.comments(number)
-    if objected_closing(issue, comments):
+    if awaits_reopening(issue, comments):
         return []
     if not any(kind_of(comment) == "locked" for comment in comments):
         language = issue_language(issue, comments)
