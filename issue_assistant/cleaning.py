@@ -6,6 +6,7 @@ import html
 import re
 import subprocess
 from collections.abc import Callable, Iterable
+from functools import cache
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote, unquote, urlsplit
@@ -135,9 +136,21 @@ def names_a_ref(rest: str, config: Config) -> bool:
     the repository's files. GitHub reads the path decoded, and so does this check.
     """
     named = unquote(rest)
+    # A ref ends at a slash or at the end of the path, and no ref is longer than the
+    # longest one: so only a few prefixes are looked up, each in constant time, however
+    # many refs a deep history gives and however long the path is.
+    reach = max(len("HEAD"), longest(config.refs))
+    ends = [end for end, char in enumerate(named[: reach + 1]) if char == "/"]
     return any(
-        named == ref or named.startswith(f"{ref}/") for ref in {"HEAD", *config.refs}
+        named[:end] == "HEAD" or named[:end] in config.refs
+        for end in [*ends, len(named)]
     )
+
+
+@cache
+def longest(refs: frozenset[str]) -> int:
+    """The length of the longest of `refs`, read once for each set of them."""
+    return max(map(len, refs), default=0)
 
 
 def clean_prose(

@@ -3597,6 +3597,45 @@ def test_links_lead_only_to_the_allowed_places(config, url, allowed):
     assert assistant.allowed_url(url, config) is allowed
 
 
+class CountedRefs(frozenset[str]):
+    """Refs that count how often they are read in full and looked up."""
+
+    def __init__(self, refs):
+        super().__init__()
+        self.reads = 0
+        self.lookups = 0
+
+    def __iter__(self):
+        self.reads += 1
+        return super().__iter__()
+
+    def __contains__(self, ref):
+        self.lookups += 1
+        return super().__contains__(ref)
+
+    __hash__ = frozenset.__hash__
+
+
+def test_a_deep_history_keeps_the_check_of_a_link_quick(config):
+    """The refs of a checkout with a long history: a link names one of them, or a
+    prefix that only looks like one, and the check reads the refs in full only once
+    and looks up only the few prefixes that end at a slash, however long the path."""
+    history = {f"{number:040x}" for number in range(10_000)}
+    refs = CountedRefs({*history, "release/1.x", "main"})
+    config = dataclasses.replace(config, refs=refs)
+    base = f"https://github.com/{config.repository}"
+    assert assistant.allowed_url(f"{base}/blob/release/1.x/a.py", config)
+    assert assistant.allowed_url(f"{base}/tree/{10:040x}", config)
+    assert assistant.allowed_url(f"{base}/blob/HEAD/a/b.py", config)
+    assert not assistant.allowed_url(f"{base}/blob/release/1.xa/b.py", config)
+    assert not assistant.allowed_url(f"{base}/blob/release/a.py", config)
+    refs.lookups = 0
+    for _ in range(100):
+        assert not assistant.allowed_url(f"{base}/blob/{'x/' * 5_000}a.py", config)
+    assert refs.reads == 1
+    assert refs.lookups <= 100 * 2 * 22
+
+
 @pytest.mark.parametrize(("text", "numbers"), ESCAPES)
 def test_the_whole_comment_mentions_nobody_and_links_nowhere_else(
     config, text, numbers
