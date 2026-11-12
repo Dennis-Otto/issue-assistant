@@ -68,15 +68,33 @@ CLOSING_KEYWORD = re.compile(
     re.IGNORECASE,
 )
 # GitHub links the issue also where the words before the keyword say the opposite,
-# as in "This doesn't close #12" or "Partly fixes #12": a negation or a part among
-# the last DENIAL_WORDS words of the clause before it, which a mark such as a comma
-# ends, within the DENIAL_REACH characters before the keyword. A negation that the
-# next word makes an emphasis, as in "Not only fixes #12", doesn't deny it.
+# as in "This doesn't close #12" or "Partly fixes #12": a negation or a part that
+# governs the keyword, right before it or with only fillers of DENIAL_FILLERS in
+# between, as in "does not yet fully resolve #12", within the clause before it,
+# which a mark such as a comma or a dash ends, and the DENIAL_REACH characters
+# before the keyword. Any other word in between, such as "and", "which", "this" or
+# the "only" of "Not only fixes #12", belongs to another thought: "The cache didn't
+# refresh and this fixes #12" describes the bug and fixes it.
 DENIAL = re.compile(r"not|never|cannot|partially|partly|\w+n['’]t", re.IGNORECASE)
-EMPHASIS = re.compile(r"only|just|merely|simply", re.IGNORECASE)
-CLAUSE_END = re.compile(r"[.,;:!?()\[\]\n]")
+DENIAL_FILLERS = tuple(
+    tuple(filler.split())
+    for filler in (
+        "actually",
+        "alone",
+        "by itself",
+        "completely",
+        "entirely",
+        "fully",
+        "necessarily",
+        "on its own",
+        "quite",
+        "really",
+        "totally",
+        "yet",
+    )
+)
+CLAUSE_END = re.compile(r"[.,;:!?()\[\]\n–—]|\s-\s")
 CLAUSE_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?")
-DENIAL_WORDS = 4
 DENIAL_REACH = 80
 
 # Runs a step of the sweep, named for the log, and returns what it did.
@@ -198,13 +216,24 @@ def denies_closing(text: str, repository: str, number: int) -> bool:
             continue
         start = match.start()
         clause = CLAUSE_END.split(text[max(0, start - DENIAL_REACH) : start])[-1]
-        words = CLAUSE_WORD.findall(clause)[-DENIAL_WORDS:]
-        if any(
-            DENIAL.fullmatch(word) and not EMPHASIS.fullmatch(after)
-            for word, after in zip(words, [*words, ""][1:], strict=True)
-        ):
+        if governs(CLAUSE_WORD.findall(clause)):
             return True
     return False
+
+
+def governs(words: list[str]) -> bool:
+    """Whether the words before a keyword end with a negation of it.
+
+    That is a negation or a part, followed by nothing but the fillers of
+    DENIAL_FILLERS, such as "yet" and "fully" in "does not yet fully resolve".
+    """
+    words = [word.lower() for word in words]
+    while filler := next(
+        (filler for filler in DENIAL_FILLERS if tuple(words[-len(filler) :]) == filler),
+        None,
+    ):
+        del words[-len(filler) :]
+    return bool(words) and bool(DENIAL.fullmatch(words[-1]))
 
 
 def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> list[str]:
@@ -229,11 +258,14 @@ def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> li
             if not github.owns(reference) or reference["state"] == "CLOSED":
                 continue
             if denies_closing(pull["body"], github.repository, number):
-                command(
-                    "notice",
+                # In the summary of the sweep as well, where a maintainer sees an
+                # issue that a reworded description would label.
+                denied = (
                     f"#{number}: #{pull['number']} names it after words against"
-                    " the fix; it stays open.",
+                    " the fix; it stays open."
                 )
+                command("notice", denied)
+                done.append(denied)
                 continue
             done += isolate(
                 f"#{number}",

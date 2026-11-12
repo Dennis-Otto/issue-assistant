@@ -7861,11 +7861,13 @@ def test_a_release_closes_only_the_issue_that_a_pull_request_closes(
     github = merged(config, labels=("bug",), days_ago=10)
     github.store[13] = make_issue(13, labels=("bug",), days_ago=10)
     github.pull_store = [make_pull(), make_pull(41, linked, body=body)]
-    assert assistant.mark_fixed(github, NOW) == [
-        "#12: fixed by #40; closes with the next release."
-    ]
-    # The log says why a listed fix left the issue alone.
+    # The summary and the log of the sweep say why a listed fix left the issue
+    # alone.
     note = "#13: #41 names it after words against the fix; it stays open."
+    assert assistant.mark_fixed(github, NOW) == [
+        "#12: fixed by #40; closes with the next release.",
+        *([note] if linked else []),
+    ]
     assert (f"::notice::{note}" in capsys.readouterr().out) is bool(linked)
     github.release_store = [make_release()]
     github.contained = {(f"{pull:040x}", "v1.10.0") for pull in (40, 41)}
@@ -7897,6 +7899,9 @@ def test_a_pull_request_that_denies_the_fix_is_neither_awaited_nor_named(config)
         ("It won’t close owner/project#12", True),
         ("Never closes https://github.com/owner/project/issues/12", True),
         ("Cannot fix #12 alone", True),
+        ("It doesn't really fix #12", True),
+        ("Does not by itself close #12", True),
+        ("This won't completely – fix #12", False),
         # One denial decides, wherever it is.
         ("Fixes #12.\n\nThis doesn't fix #12 on Windows.", True),
         # Another issue or repository, another clause, words too far before.
@@ -7904,6 +7909,15 @@ def test_a_pull_request_that_denies_the_fix_is_neither_awaited_nor_named(config)
         ("Doesn't close someone/else#12. Fixes #12", False),
         ("Not a breaking change, fixes #12", False),
         ("Not a refactor but also fixes #12", False),
+        # A negation in the description of the bug doesn't deny the fix after it.
+        ("So it doesn't crash anymore - fixes #12", False),
+        ("The cache didn't refresh and this fixes #12", False),
+        ("Makes sure the sync never hangs and closes #12", False),
+        ("The button wasn't shown on phones – fixes #12", False),
+        ("Now the retry is not skipped which fixes #12", False),
+        ("Never — closes #12", False),
+        ("Never - closes #12", False),
+        ("The sync did not start. Fixes #12", False),
         # A negation as an emphasis doesn't deny the fix.
         ("Not only fixes #12, but also speeds up the sweep.", False),
         ("This not only closes #12 but also #13", False),
