@@ -657,9 +657,95 @@ def subsequence(part, whole):
     return all(char in rest for char in part)
 
 
+# Text made of the pieces of link reference definitions and footnotes, and of the
+# blocks around them.
+DEFINITIONS = st.lists(
+    st.sampled_from(
+        [
+            "[x]:",
+            "[^x]:",
+            "[^x]",
+            "[",
+            "]",
+            "\\",
+            "#",
+            "/url",
+            "<>",
+            '"t"',
+            "'",
+            '"',
+            "(",
+            ")",
+            "\n",
+            "\n\n",
+            "\r\n",
+            " ",
+            "    ",
+            "\t",
+            "> ",
+            "- ",
+            "1. ",
+            "2) ",
+            "# ",
+            "===",
+            "```",
+            "~~~",
+            "<!--",
+            "-->",
+            "<div>",
+            "\u200b",
+            "x",
+        ]
+    ),
+    max_size=40,
+).map("".join)
+
+
+@hypothesis.settings(suppress_health_check=[hypothesis.HealthCheck.too_slow])
+@hypothesis.example('[x]: <> "hidden"')
+@hypothesis.example(" ```\n```\n[x]: # (hidden)")
+@hypothesis.example('[x]: #\n"hidden\n2. hidden"')
+@hypothesis.example('x\n\n[a]: <> "[^x]"\n\n[^x]: hidden')
+@given(st.one_of(st.text(), STRUCTURE, DEFINITIONS))
+def test_a_commonmark_parser_finds_no_definition_in_what_the_engine_reads(text):
+    """What is left of a text after the definitions went holds none, as a CommonMark
+    parser reads it, and only notes take their places. The parser reads a footnote
+    as a definition: one that a reference shows stays."""
+    shown, removed = assistant.shown_text(text)
+    environment = {}
+    tokens = PARSER.parse(shown, environment)
+    labels = environment.get("references", {})
+    assert not [label for label in labels if not label.startswith("^")]
+    # Each footnote that stays has a reference that the parser reads as a link.
+    assert {
+        label for label in labels if label[1:].isalnum() and label[1:].isascii()
+    } <= set(references(tokens))
+    notes = (assistant.DEFINITION_NOTE, assistant.FOOTNOTE_NOTE)
+    assert sum(shown.count(note) for note in notes) >= removed
+    for note in notes:
+        shown = shown.replace(note, "")
+    assert subsequence(shown, assistant.strip_html(text))
+
+
+def references(tokens):
+    """The text of each link and image, as the parser writes the label of one."""
+    for token in tokens:
+        text = None
+        for child in token.children or ():
+            if child.type == "link_open":
+                text = ""
+            elif child.type == "link_close":
+                yield " ".join(text.split()).upper()
+                text = None
+            elif text is not None:
+                text += child.content
+            elif child.type == "image":
+                yield " ".join(child.content.split()).upper()
+
+
 @hypothesis.example("<!-- -\u200b->\nhidden")
 @hypothesis.example("<!-- x -\u200b-> hidden -->")
-@given(st.one_of(st.text(), STRUCTURE))
+@given(st.one_of(st.text(), STRUCTURE, DEFINITIONS))
 def test_the_engine_reads_no_text_that_github_hides(text):
     """What a fence of issue.md holds is what GitHub shows of the text, without its
     invisible characters: taken out before the HTML, one could end an HTML comment
@@ -667,7 +753,7 @@ def test_the_engine_reads_no_text_that_github_hides(text):
     rendered = assistant.rendered_text(text, assistant.Visible())
     marks, _, rest = rendered.partition("\n")
     inner = rest[: rest.rfind("\n" + marks)]
-    assert subsequence(inner, assistant.strip_html(text))
+    assert subsequence(inner, assistant.shown_text(text)[0])
     assert not assistant.INVISIBLE.search(inner)
 
 
