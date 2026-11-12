@@ -16,6 +16,9 @@ from .settings import Acceptance, load_findings
 # error for one that fails the run, a warning for one that an earlier run reported.
 ALERT_OPEN = " is open: "
 ALERT_STILL_OPEN = " is still open: "
+# The words of a line about an alert that this run's record lacks, while a newer
+# record is in the cache: a warning, as the run before may have reported it.
+ALERT_LEFT = " is open, and the newer record may hold it: "
 # The line of a run whose repository has no code scanning.
 NO_CODE_SCANNING = "Code scanning isn't set up; there is nothing to check."
 # The line of a run after a scan for which GitHub names no pull request of the
@@ -27,6 +30,14 @@ NO_PULL_REQUEST = (
 BROKEN_RECORD = (
     f"{FINDINGS_RECORD} holds no record of the alerts that earlier runs reported, so "
     "every open alert counts as new."
+)
+# The line of a run whose record is older than the newest one in the cache, also a
+# warning: another run kept that one after this run read its own (decision 0026).
+NEWER_RECORD = (
+    "A run that ended while this one waited for it kept a newer record of the "
+    "reported alerts than the one that this run read, so this run fails for none of "
+    "them and keeps no record: the next run fails for each open alert that the newer "
+    "record lacks."
 )
 
 
@@ -50,6 +61,18 @@ def reported_alerts(root: Path) -> tuple[dict[int, str], list[str]]:
     ):
         return {int(key): value for key, value in data.items()}, []
     return {}, [BROKEN_RECORD]
+
+
+def newer_record(read: str, newest: str) -> bool:
+    """Whether the cache holds a newer record than the one that this run read: the
+    key of the record that the job record read, and that of the newest record in the
+    cache once the run's turn came, after the run ahead kept its own (decision 0026).
+
+    Only when the job record read one: without one, as in the first run or when the
+    cache failed there, every open alert fails the run, so a cache that keeps failing
+    in that job can never keep every run from failing.
+    """
+    return read != "" and newest not in ("", read)
 
 
 def alert_opened(alert: dict[str, Any]) -> str:
@@ -91,7 +114,9 @@ def dismiss_accepted(
     return done, left
 
 
-def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
+def watch_findings(
+    github: GitHub, root: Path, superseded: bool = False
+) -> tuple[list[str], int]:
     """Dismiss the accepted findings, report each other open alert once, and say how
     many opened since the record of FINDINGS_RECORD, which fail the run.
 
@@ -100,6 +125,12 @@ def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
     that finds it, and again only once it opens again, with a later time. The runs
     after it name it as still open. Only a run that finds a new alert writes the
     record, of the alerts open then, and a dry run never does, as it writes nothing.
+
+    With `superseded`, another run kept a record in the cache after this run read
+    its own, while this one waited for it: an alert that this record lacks may be in
+    that one, reported already, so none fails the run, and the run writes no record,
+    which would take the place of the newer one. The next run reads the newer one and
+    fails for each alert that it lacks, so an alert waits for it but never hides.
 
     The summary of a public repository's run is public, while code scanning alerts
     are only shown to maintainers: the lines name an open alert by its number and
@@ -111,14 +142,15 @@ def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
     if alerts is None:
         return [NO_CODE_SCANNING], 0
     reported, done = reported_alerts(root)
+    if superseded:
+        done.insert(0, NEWER_RECORD)
     dismissed, left = dismiss_accepted(github, accepted, alerts)
     done += dismissed
     new = [
         alert for alert in left if reported.get(alert["number"]) != alert_opened(alert)
     ]
-    done += [
-        f"Alert #{alert['number']}{ALERT_OPEN}{alert['html_url']}" for alert in new
-    ]
+    words = ALERT_LEFT if superseded else ALERT_OPEN
+    done += [f"Alert #{alert['number']}{words}{alert['html_url']}" for alert in new]
     done += [
         f"Alert #{alert['number']}{ALERT_STILL_OPEN}{alert['html_url']}"
         for alert in left
@@ -133,6 +165,8 @@ def watch_findings(github: GitHub, root: Path) -> tuple[list[str], int]:
         done.append(
             f"Fix these findings, or accept them with a reason in {FINDINGS_FILE}."
         )
+    if superseded:
+        return done, 0
     if new and not github.dry_run:
         keep_reported(root, left)
     return done, len(new)

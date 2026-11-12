@@ -300,6 +300,28 @@ jobs:
             /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      # The runs after the scans of a push overlap: the job record of one reads the
+      # record as the run starts, while this job waits in the group for the run
+      # ahead, which may keep a newer record at its end. So once this job's turn has
+      # come, it asks the cache for the key of the newest record, by the same keys,
+      # without downloading or unpacking anything; when another record than the one
+      # read is there, the issue assistant fails for no alert that the record read
+      # lacks and leaves them to the newer one, so that one new alert fails one run
+      # (decision 0026). Only after a record was read: without one, every open alert
+      # fails the run, as before.
+      - name: Look up the newest record of the reported alerts
+        id: newest
+        if: needs.record.outputs.key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # A cache that fails or hangs stops neither the findings nor the job, which
+        # then take the record read as the newest.
+        timeout-minutes: 1
+        continue-on-error: true
+        with:
+          path: .issue-assistant/findings.json
+          key: issue-assistant-findings-${{ github.run_id }}
+          restore-keys: issue-assistant-findings-
+          lookup-only: true
       # The record that the job record checked, after the checkouts, which would
       # remove it, in the form in which the issue assistant writes it: its hash is
       # the key under which the cache holds it. A run fails only for an alert that
@@ -313,6 +335,9 @@ jobs:
           /usr/bin/python3 -I -c 'import json, os, pathlib; pathlib.Path(".issue-assistant/findings.json").write_text(json.dumps(json.loads(os.environ["RECORD"]), indent=2) + "\n", encoding="utf-8", newline="\n")'
       - name: Dismiss accepted findings and report the others
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
+        env:
+          RECORD_KEY: ${{ needs.record.outputs.key }}
+          NEWEST_RECORD_KEY: ${{ steps.newest.outputs.cache-matched-key }}
         with:
           command: findings
           dry-run: ${{ inputs.dry_run }}

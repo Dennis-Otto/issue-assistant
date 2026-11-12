@@ -1463,6 +1463,9 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
     monkeypatch.setenv("GH_REPO", REPOSITORY)
     for key in (
         "DRY_RUN",
+        # The keys of the records of the findings, which the Findings workflow sets.
+        "RECORD_KEY",
+        "NEWEST_RECORD_KEY",
         "ISSUE",
         "MODE",
         "RESULT",
