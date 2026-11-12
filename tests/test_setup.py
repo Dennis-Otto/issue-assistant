@@ -1747,6 +1747,65 @@ def test_firewall_problems_are_found(config, root):
     )
 
 
+# A policy of the firewall in a shape other than the template's, as a person who
+# edits it by hand may leave it, and the lines that `check` names it with.
+WRONG_POLICIES = [
+    pytest.param(
+        "", [f".github/egress-firewall.yaml is empty; {REINSTALL}"], id="empty"
+    ),
+    pytest.param(
+        "- api.github.com\n",
+        [
+            f".github/egress-firewall.yaml must be a mapping of mode, allow and the other keys of "
+            f"the template; {REINSTALL}"
+        ],
+        id="list",
+    ),
+    pytest.param(
+        "mode: enforce\nallow:\n  - host: api.github.com\n",
+        [
+            '.github/egress-firewall.yaml: allow lists {"host": "api.github.com"}, where it '
+            "takes a host name such as api.github.com"
+        ],
+        id="mapping-as-host",
+    ),
+    pytest.param(
+        "mode: enforce\nallow:\n  - api.github.com\n  - 8080\n",
+        [
+            ".github/egress-firewall.yaml: allow lists 8080, where it takes a host name such as "
+            "api.github.com"
+        ],
+        id="number-as-host",
+    ),
+    pytest.param(
+        "mode: enforce\nallow: api.github.com\n",
+        [
+            ".github/egress-firewall.yaml: allow must be a list, with each host on a line of its "
+            "own after a dash"
+        ],
+        id="string-as-list",
+    ),
+]
+
+
+@pytest.mark.parametrize(("policy", "problems"), WRONG_POLICIES)
+def test_check_names_a_policy_of_the_wrong_shape(
+    monkeypatch, tmp_path, root, policy, problems, capsys
+):
+    """A policy of the wrong shape is one problem of the set-up among the others,
+    not a traceback that hides them."""
+    (root / ".github/egress-firewall.yaml").write_text(policy, encoding="utf-8")
+    (root / ".gitignore").unlink()
+    code, _, _ = run_main(monkeypatch, tmp_path, root, None, "check")
+    out = capsys.readouterr().out
+    assert code == 1 and "Traceback" not in out
+    errors = [line for line in out.splitlines() if line.startswith("::error::")]
+    assert errors == [
+        *(f"::error::{problem}" for problem in problems),
+        f"::error::.gitignore: add /{assistant.CONTEXT}/",
+    ]
+
+
 # The runner that a repository may name for the AI in place of GitHub's
 # egress-firewall runner, behind Harden-Runner.
 HARDENED = "ubuntu-24.04"
@@ -1918,16 +1977,8 @@ def test_check_says_nothing_of_the_firewall_runner(
             [f".github/egress-firewall.yaml allows no host; {REINSTALL}"],
         ),
         (
-            "- api.github.com\n",
-            [f".github/egress-firewall.yaml allows no host; {REINSTALL}"],
-        ),
-        (
-            "allow: api.github.com\n",
-            [f".github/egress-firewall.yaml allows no host; {REINSTALL}"],
-        ),
-        (
             "allow:\n  - api.github.com\n  - '*.example.com'\n  - example.com:8443\n"
-            "  - example.com/path\n  - localhost\n  - [nested]\n",
+            "  - example.com/path\n  - localhost\n",
             [
                 f".github/egress-firewall.yaml: name the host {host} in full"
                 for host in (
@@ -1935,10 +1986,18 @@ def test_check_says_nothing_of_the_firewall_runner(
                     "example.com:8443",
                     "example.com/path",
                     "localhost",
-                    "['nested']",
                 )
             ],
         ),
+        (
+            "allow:\n  - api.github.com\n  - [nested]\n",
+            [
+                '.github/egress-firewall.yaml: allow lists ["nested"], where it takes '
+                "a host name such as api.github.com"
+            ],
+        ),
+        # A policy of the wrong shape: the same lines as those of check.
+        *WRONG_POLICIES,
     ],
 )
 def test_harden_runner_gets_only_hosts_named_in_full(
