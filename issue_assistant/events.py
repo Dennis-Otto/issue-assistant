@@ -131,6 +131,13 @@ def handle_event(
             # A click answers no question, and unticking the box starts nothing.
             plan.notes = plan.notes or ["Unticking the box alone starts nothing."]
             return plan
+        if issue["state"] != "open" and by_reporter:
+            # The questions offer an answer by an edit, and the closing comment
+            # promises that an answer reopens the issue.
+            at = moment(issue["updated_at"])
+            reopened = reopen_if_answered(github, issue, at, config, edited=True)
+            reopened.notes[:0] = plan.notes
+            return limited(github, reopened, issue, at, config)
         if issue["state"] == "open" and by_reporter and current & {NEEDS_INFO, STALE}:
             # A follow-up of an edit that also ticked the box stops at the mute here.
             plan = answered(github, issue, config, plan)
@@ -474,7 +481,9 @@ def handle_comment(
     author = login(issue.get("user"))
     current = label_names(issue)
     if issue["state"] != "open":
-        plan = reopen_if_answered(github, issue, comment, config)
+        if login(comment.get("user")) != author:
+            return Plan(number, notes=["Comment on a closed issue."])
+        plan = reopen_if_answered(github, issue, created(comment), config)
         return limited(github, plan, comment, created(comment), config)
     plan = Plan(number)
     if POSSIBLE_DUPLICATE in current:
