@@ -18,7 +18,7 @@ from .errors import AssistantError, GitHubError
 from .github import GitHub
 from .issues import (
     Visible,
-    form_fields,
+    form_parts,
     is_digest,
     is_maintainer,
     judged_comment,
@@ -89,7 +89,9 @@ def shown(text: str, visible: Visible) -> str:
 
 def excerpt(text: str, limit: int, visible: Visible | None = None) -> str:
     """The text of an issue in short: what GitHub shows of it, with form answers as
-    lines and without empty answers; `visible` counts what went.
+    lines and without empty answers; `visible` counts what went. The words above
+    the first field come first, and a field that comes twice keeps each answer, so
+    that no words of the reporter go, such as an error message above a form.
 
     The whole text is read, because comments and empty answers can come before the
     words that count, such as the instructions of an issue template; each step takes
@@ -98,9 +100,10 @@ def excerpt(text: str, limit: int, visible: Visible | None = None) -> str:
     of its field, it would no longer start one, nor would a definition.
     """
     text = shown((text or "")[:MAX_TEXT], visible or Visible())
-    fields = form_fields(text)
+    before, fields = form_parts(text)
     if fields:
-        text = "\n".join(f"{key}: {value}" for key, value in fields.items() if value)
+        answers = (f"{key}: {value}" for key, value in fields if value)
+        text = "\n".join(filter(None, (before.strip(), *answers)))
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"

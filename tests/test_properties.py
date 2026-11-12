@@ -30,7 +30,7 @@ from support import (
     REPOSITORY,
     answer_of,
     at,
-    earlier_form_fields,
+    earlier_form_fields_outside_code,
     make_answer,
     make_comment,
     make_discussion_answer,
@@ -568,8 +568,9 @@ def headings_have_labels(body):
 
 @given(FORM)
 def test_any_form_reads_as_it_always_did(body):
-    hypothesis.assume(headings_have_labels(body))
-    assert assistant.form_fields(body) == earlier_form_fields(body)
+    # Only a heading in fenced code reads differently now: as text.
+    hypothesis.assume(headings_have_labels(body) and "\0" not in body)
+    assert assistant.form_fields(body) == earlier_form_fields_outside_code(body)
 
 
 HTML_TEXT = st.lists(

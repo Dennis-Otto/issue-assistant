@@ -116,6 +116,28 @@ def test_a_form_heading_is_one_whole_line():
     assert assistant.form_fields("Some text\n\n### Thanks") == {}
 
 
+def test_a_form_reads_in_its_parts():
+    body = "Before\r\n\r\n### A\r\n\r\none\r\n\r\n### B\r\n\r\ntwo\r\n\r\n### A\r\n\r\nthree"
+    assert assistant.form_parts(body) == (
+        "Before\r\n\r\n",
+        [("A", "one"), ("B", "two"), ("A", "three")],
+    )
+    assert assistant.form_fields(body) == {"A": "three", "B": "two"}
+    assert assistant.form_parts("Just text") == ("Just text", [])
+    assert assistant.form_parts("") == ("", [])
+    # A heading in fenced code is part of the answer around it, also with the line
+    # breaks of Windows, up to the fence that closes the code.
+    code = "### Logs\r\n\r\n~~~\r\n### Fixed\r\n~~~\r\n### Version\r\n\r\n1.2\r\n"
+    assert assistant.form_fields(code) == {
+        "Logs": "~~~\r\n### Fixed\r\n~~~",
+        "Version": "1.2",
+    }
+    # Code that the text doesn't close runs to its end, as GitHub shows it.
+    assert assistant.form_fields("### Logs\n\n```\n### Version\n\n1.2\n") == {
+        "Logs": "```\n### Version\n\n1.2"
+    }
+
+
 def test_only_as_much_of_a_text_as_github_keeps_is_read():
     assert assistant.text_of({"body": "x" * 70_000}) == "x" * assistant.MAX_TEXT
     assert assistant.text_of({"body": None}) == ""
@@ -2570,6 +2592,24 @@ def test_excerpts_are_short_and_without_empty_answers():
     text = assistant.excerpt("word " * 1000, 100)
     assert len(text) == 100 and text.endswith("…")
     assert assistant.excerpt("a   b\n\n\n\nc", 100) == "a b\n\nc"
+    # The words above the first heading stay, as the first lines.
+    assert assistant.excerpt(
+        "The sync stops with ECONNREFUSED after the update to 2.3 when the server "
+        "uses a proxy.\n\n### Logs\n\nnothing useful\n",
+        400,
+    ) == (
+        "The sync stops with ECONNREFUSED after the update to 2.3 when the server "
+        "uses a proxy.\nLogs: nothing useful"
+    )
+    # A heading that comes twice keeps both answers; an empty answer goes.
+    assert assistant.excerpt(
+        "### Step\n\nfirst\n\n### Step\n\nsecond\n\n### Empty\n\n_No response_", 400
+    ) == ("Step: first\nStep: second")
+    # A heading in fenced code is code that the reporter pasted, not a field.
+    pasted = (
+        "Crash at start, see the changelog I pasted:\n\n```md\n### Fixed\n\n- x\n```"
+    )
+    assert assistant.excerpt(pasted + "\n", 400) == pasted
 
 
 def test_an_excerpt_reads_the_whole_text():
