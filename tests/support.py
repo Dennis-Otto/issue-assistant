@@ -37,17 +37,22 @@ PACKAGE = Path(assistant.__file__).parent
 REPOSITORY = "owner/project"
 # When the alerts of make_alert opened.
 OPENED = "2026-11-08T04:08:48Z"
+# The commit hash that the sample repository installs the assistant with, and that
+# the tests analyze.
+REF = "0123456789abcdef0123456789abcdef01234567"
+# A commit that the repository's checkout doesn't have, such as one of a fork.
+FORK_COMMIT = "fedcba9876543210fedcba9876543210fedcba98"
 # The settings that the property tests and the fuzzers clean with: a repository, a
-# kind of issue and one site besides GitHub that links may lead to.
+# kind of issue, one site besides GitHub that links may lead to, and the refs of the
+# checkout that a link into the repository may name.
 CONFIG = assistant.Config(
     root=Path("."),
     repository=REPOSITORY,
     labels=(assistant.Label("bug", "d73a4a", "Bug", "type"),),
     project="A project.",
     hosts=frozenset({"docs.example.com"}),
+    refs=frozenset({"main", "release/1.x", "v1.0.0", REF}),
 )
-# The commit hash that the sample repository installs the assistant with.
-REF = "0123456789abcdef0123456789abcdef01234567"
 NOW = datetime(2026, 10, 7, 12, tzinfo=UTC)
 BOT_USER = {"login": "github-actions[bot]", "type": "Bot"}
 BUG_BODY = """### What happened?

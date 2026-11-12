@@ -26,6 +26,7 @@ from support import (
     CONFIG,
     EARLIER_HTML,
     ESCAPES,
+    FORK_COMMIT,
     REPOSITORY,
     answer_of,
     at,
@@ -78,6 +79,9 @@ PIECES = st.sampled_from(
         "https://evil.example/x",
         "https://docs.example.com/page",
         f"https://github.com/{REPOSITORY}/blob/main/README.md",
+        # A commit that the checkout doesn't have, such as one of a fork.
+        f"https://github.com/{REPOSITORY}/blob/{FORK_COMMIT}/install.sh",
+        f"https://github.com/{REPOSITORY}/tree/{FORK_COMMIT}",
         "https://github.com/other/repo/blob/main/x",
         "HTTPS://evil.example",
         "www.evil.example",
