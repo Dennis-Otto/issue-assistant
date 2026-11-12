@@ -92,6 +92,22 @@ def earlier_form_fields(body):
     return fields
 
 
+def earlier_form_fields_outside_code(body):
+    """The earlier reading of a form, with the headings in fenced code as text: a
+    NUL before each keeps the earlier pattern from taking it for one, and goes again
+    from the answers. The body must hold no NUL of its own."""
+    rows = body.split("\n")
+    code = assistant.fenced([row.removesuffix("\r") for row in rows])
+    masked = "\n".join(
+        "\0" + row if in_code and row.startswith("###") else row
+        for row, in_code in zip(rows, code, strict=True)
+    )
+    return {
+        label: value.replace("\0", "")
+        for label, value in earlier_form_fields(masked).items()
+    }
+
+
 def at(days_ago: float = 0) -> str:
     return (NOW - timedelta(days=days_ago)).isoformat().replace("+00:00", "Z")
 

@@ -23,6 +23,7 @@ import issue_assistant as assistant
 from oracle import PARSER, problems
 from support import (
     BOT_USER,
+    BOX,
     CONFIG,
     EARLIER_HTML,
     ESCAPES,
@@ -31,6 +32,7 @@ from support import (
     answer_of,
     at,
     earlier_form_fields,
+    earlier_form_fields_outside_code,
     make_answer,
     make_comment,
     make_discussion_answer,
@@ -570,6 +572,19 @@ def headings_have_labels(body):
 def test_any_form_reads_as_it_always_did(body):
     hypothesis.assume(headings_have_labels(body))
     assert assistant.form_fields(body) == earlier_form_fields(body)
+
+
+@given(FORM)
+def test_an_excerpt_reads_a_form_as_before_but_for_headings_in_code(body):
+    # Only a heading in fenced code reads differently for an excerpt: as text.
+    hypothesis.assume(headings_have_labels(body) and "\0" not in body)
+    fields = dict(assistant.form_parts(body, outside_code=True)[1])
+    assert fields == earlier_form_fields_outside_code(body)
+
+
+@given(FORM)
+def test_no_text_before_a_ticked_box_hides_it(body):
+    assert assistant.box_ticked(body + BOX.format("X"), CONFIG)
 
 
 HTML_TEXT = st.lists(

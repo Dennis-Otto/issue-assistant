@@ -78,3 +78,25 @@ ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)", re.IGNORECASE)
 HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 
 SHA = re.compile(r"[0-9a-f]{40}")
+
+# The fence that opens a fenced block of code: three backticks or more, with no other
+# backtick on its line, or three tildes or more, indented by at most three blanks.
+FENCE = re.compile(r" {0,3}(`{3,}(?!.*`)|~{3,})")
+
+
+def fenced(rows: list[str]) -> list[bool]:
+    """Which rows are fenced code outside quotes and list items: from its fence to
+    the one that closes it, or to the end of the text without one."""
+    code, fence = [], ""
+    for row in rows:
+        if fence:
+            code.append(True)
+            body = row.lstrip(" ")
+            marks = len(body) - len(body.lstrip(fence[0]))
+            if len(row) - len(body) <= 3 and marks >= len(fence):
+                fence = fence if body[marks:].strip(" \t") else ""
+            continue
+        opening = FENCE.match(row)
+        fence = opening[1] if opening else ""
+        code.append(bool(fence))
+    return code

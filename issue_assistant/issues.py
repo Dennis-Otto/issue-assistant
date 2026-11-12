@@ -12,7 +12,7 @@ from typing import Any
 from .constants import BOT, DIGEST, MAX_TEXT, MUTED, PINNED
 from .github import GitHub
 from .languages import ANSWER_LANGUAGES, detect_language
-from .patterns import INVISIBLE
+from .patterns import INVISIBLE, fenced
 from .settings import DEFAULT_LIFECYCLE, Config, Label, Lifecycle, label_names
 from .values import created, login
 
@@ -76,25 +76,54 @@ def render_marker(kind: str, **attributes: object) -> str:
     return f"<!-- issue-assistant:{kind}{parts} -->"
 
 
-def form_fields(body: str) -> dict[str, str]:
-    """The answers of an issue form, by the label of their field.
+def form_parts(
+    body: str, outside_code: bool = False
+) -> tuple[str, list[tuple[str, str]]]:
+    """The text of an issue before the first heading of a form, and the label and
+    the answer of each field in their order, a label that comes twice with each of
+    its answers.
 
-    An answer is the text between its heading and the next one. Each heading is
-    found once and the answers are cut out between them, so the time grows with the
-    length of the text and no faster. GitHub writes an answer under every heading of
-    a form, so a heading on the last line, with no line break after it, is a heading
-    of free text and starts no field.
+    An answer is the text between its heading and the next one. A heading is a row
+    of its own; with `outside_code` only one outside fenced code, where `### ` is
+    code that a reporter pasted, such as a changelog. Only the excerpt reads so: a
+    fence that a reporter leaves open would hide every later field, the box of the
+    opt-out as well, so what decides reads every heading. Each row is read a bounded number of times and the answers
+    are cut out between the headings, so the time grows with the length of the text
+    and no faster. GitHub writes an answer under every heading of a form, so a
+    heading on the last line, with no line break after it, is a heading of free
+    text and starts no field; it still ends the answer before it.
     """
     body = body or ""
-    headings = list(FORM_HEADING.finditer(body))
-    starts = [heading.start() for heading in headings] + [len(body)]
-    fields = {}
-    for heading, end in zip(headings, starts[1:], strict=True):
-        if heading.end() == len(body):
+    rows = body.split("\n")
+    if outside_code:
+        code = fenced([row.removesuffix("\r") for row in rows])
+    else:
+        code = [False] * len(rows)
+    headings = []
+    start = 0
+    for row, in_code in zip(rows, code, strict=True):
+        heading = None if in_code else FORM_HEADING.match(row)
+        if heading:
+            headings.append((start, start + len(row), heading[1].strip()))
+        start += len(row) + 1
+    if not headings:
+        return body, []
+    ends = [heading[0] for heading in headings[1:]] + [len(body)]
+    fields = []
+    for (_, end_of_heading, label), end in zip(headings, ends, strict=True):
+        if end_of_heading == len(body):
             continue
-        value = body[heading.end() : end].strip()
-        fields[heading[1].strip()] = "" if value == "_No response_" else value
-    return fields
+        value = body[end_of_heading:end].strip()
+        fields.append((label, "" if value == "_No response_" else value))
+    return body[: headings[0][0]], fields
+
+
+def form_fields(body: str) -> dict[str, str]:
+    """The answers of an issue form, by the label of their field, as `form_parts`
+    reads them with every heading, also one in fenced code, so that no fence of a
+    reporter hides the box of the opt-out; a label that comes twice keeps its last
+    answer, in the place of the first."""
+    return dict(form_parts(body)[1])
 
 
 def form_labels(issue: dict[str, Any], config: Config) -> list[str]:
