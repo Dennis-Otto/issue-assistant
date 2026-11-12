@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection, Iterable
+from dataclasses import dataclass, field
 from typing import Any
 
 from .answer import parse_answer
@@ -50,6 +51,37 @@ from .paths import LABELS_FILE
 from .patterns import CROSS_REFERENCE, ISSUE_REFERENCE, Checked
 from .settings import Config, answers_category, label_names, siblings
 from .values import command, created, login
+
+
+@dataclass
+class BacklogRow:
+    """The first analysis of an issue of the backlog, for the table in the summary
+    of its run: the labels that it set, a possible duplicate and the information
+    that it would ask for. With `comment` off, it sets labels alone, as the
+    maintainer who started the run asked."""
+
+    comment: bool = False
+    labels: list[str] = field(default_factory=list)
+    duplicate: int | None = None
+    missing: list[str] = field(default_factory=list)
+
+
+def render_backlog_row(number: int, row: BacklogRow, config: Config) -> str:
+    """The table of the issue of the backlog that one call of the reusable workflow
+    analyzed, for the summary of its job: the AI's questions on one line each, as
+    plain text, and no | that would end a cell."""
+    missing = "; ".join(plain(ask, config) for ask in row.missing)
+    cells = [
+        f"#{number}",
+        ", ".join(row.labels) or "none",
+        f"#{row.duplicate}" if row.duplicate else "none",
+        missing.replace("|", "\\|") or "none",
+    ]
+    return (
+        "| Issue | Labels | Possible duplicate | Missing information |\n"
+        "| --- | --- | --- | --- |\n"
+        f"| {' | '.join(cells)} |"
+    )
 
 
 def other_issue(github: GitHub, number: int, current: int) -> dict[str, Any] | None:
@@ -502,9 +534,13 @@ def apply_answer(
     repeat: bool = False,
     engine: str = DEFAULT_ENGINE,
     comment_id: int | None = None,
+    backlog: BacklogRow | None = None,
 ) -> list[str]:
     """Check the engine's answer and post it; `repeat` allows another analysis: the
-    override of a run by hand, /assistant again, or a run by hand of the discussions. A reply task acts on the comment `comment_id`, which its context judged."""
+    override of a run by hand, /assistant again, or a run by hand of the discussions. A reply task acts on the comment `comment_id`, which its context judged.
+
+    The first analysis of an issue of the backlog fills in `backlog`, and posts its
+    comment only when the run asked for it."""
     engine = engine_named(engine)
     answer = parse_answer(mode, raw, config)
     if mode in DISCUSSION_MODES:
@@ -551,6 +587,8 @@ def apply_answer(
             ]
     if answer["kind"] == "spam":
         github.add_explained_labels(issue, [INVALID], label_rationale(answer, config))
+        if backlog is not None:
+            backlog.labels = [INVALID]
         return [f"#{number} looks like spam: marked invalid, no comment."]
     asks = questions(answer, config)
     # The labels come before the comment, so that a run that GitHub stops leaves no
@@ -584,13 +622,46 @@ def apply_answer(
         if asks and NEEDS_INFO not in label_names(issue):
             github.add_labels(number, [NEEDS_INFO])
         return [f"Follow-up on #{number}; labels added: {', '.join(added) or 'none'}."]
+    return apply_analysis(github, issue, answer, asks, config, engine, sha, backlog)
+
+
+def apply_analysis(
+    github: GitHub,
+    issue: dict[str, Any],
+    answer: dict[str, Any],
+    asks: list[str],
+    config: Config,
+    engine: str,
+    sha: str,
+    backlog: BacklogRow | None,
+) -> list[str]:
+    """The first analysis: its labels, and its comment with what it found.
+
+    An issue of the backlog without `comment` gets its labels alone, and neither
+    `possible-duplicate` nor `needs-info`, which belong to the comment that tells the
+    reporter: without it, the sweep would close the issue as a duplicate that nobody
+    named, or remind its reporter of a question that nobody asked. Nor does it assign
+    anyone: the maintainer asked for labels, and an assignment notifies people.
+    """
+    number = issue["number"]
+    author = login(issue.get("user"))
     if answer["security_report"]:
         # Nothing about a possible vulnerability is discussed in public.
         asks = []
         findings = Findings()
     else:
         findings = check_findings(github, issue, answer, sha, config)
-    planned = apply_labels(github, issue, answer, config, assign=True)
+    labels_only = backlog is not None and not backlog.comment
+    planned = apply_labels(github, issue, answer, config, assign=not labels_only)
+    if backlog is not None:
+        backlog.labels = list(planned)
+        backlog.duplicate = findings.duplicate["number"] if findings.duplicate else None
+        backlog.missing = asks
+    if labels_only:
+        return [
+            f"Labels of the first analysis on #{number}, without a comment: "
+            f"{', '.join(planned) or 'none'}."
+        ]
     # Without its notice, `possible-duplicate` closes nothing.
     duplicate = [POSSIBLE_DUPLICATE] if findings.duplicate else []
     github.add_labels(number, duplicate)
@@ -601,6 +672,8 @@ def apply_answer(
     waiting = [NEEDS_INFO] if asks and NEEDS_INFO not in label_names(issue) else []
     github.add_labels(number, waiting)
     lifecycle = waiting + duplicate
+    if backlog is not None:
+        backlog.labels += lifecycle
     done = [
         f"Analysis on #{number}; labels added: {', '.join(planned + lifecycle) or 'none'}."
     ]

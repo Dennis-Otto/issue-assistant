@@ -52,6 +52,7 @@ from .settings import (
     Config,
     Label,
     Lifecycle,
+    backlog_size,
     engine_problems,
     is_repository,
     lifecycle_problems,
@@ -77,7 +78,12 @@ HOST_NAME = re.compile(
 # The reasons GitHub accepts for dismissing a code scanning alert.
 DISMISS_REASONS = ("false positive", "won't fix", "used in tests")
 
-LIMITS = ("max_per_day", "max_per_author_per_day", "release_replies")
+LIMITS = (
+    "max_per_day",
+    "max_per_author_per_day",
+    "release_replies",
+    "backlog_per_run",
+)
 
 CONTEXT_LIMITS = ("max_issues", "max_discussions", "max_analyzed")
 
@@ -467,7 +473,11 @@ def check_config(config: Config) -> list[str]:
     problems += engine_problems(config)
     for key in (*LIMITS, *CONTEXT_LIMITS):
         try:
-            limit(config, key)
+            # The backlog has a top as well: the size of a matrix.
+            if key == "backlog_per_run":
+                backlog_size(config)
+            else:
+                limit(config, key)
         except AssistantError as error:
             problems.append(str(error))
     if config.engine in ENGINES:

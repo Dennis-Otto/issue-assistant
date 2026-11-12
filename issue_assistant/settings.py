@@ -30,6 +30,10 @@ MAX_DAYS = 3650
 MAX_PER_DAY = 20
 MAX_PER_AUTHOR_PER_DAY = 3
 RELEASE_REPLIES = 2
+# The most issues of the backlog that one run by hand with the task backlog takes,
+# by default and at most: GitHub runs at most 256 jobs of one matrix.
+BACKLOG_PER_RUN = 20
+MAX_BACKLOG_PER_RUN = 256
 
 # What one run of the engine may spend, unless [engine] in config.toml sets more or
 # less: the turns of a first analysis and of a maintainer's question, of which the
@@ -284,6 +288,7 @@ class Config:
     max_per_day: int = MAX_PER_DAY
     max_per_author_per_day: int = MAX_PER_AUTHOR_PER_DAY
     release_replies: int = RELEASE_REPLIES
+    backlog_per_run: int = BACKLOG_PER_RUN
     lifecycle: Lifecycle = DEFAULT_LIFECYCLE
     # What the engine reads of the other issues and the discussions; see
     # CONTEXT_LIMITS.
@@ -377,6 +382,7 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
         "max_per_day": Key("max_per_day", int),
         "max_per_author_per_day": Key("max_per_author_per_day", int),
         "release_replies": Key("release_replies", int),
+        "backlog_per_run": Key("backlog_per_run", int),
     },
     "context": {
         "max_issues": Key("max_issues", int),
@@ -625,6 +631,18 @@ def limit(config: Config, key: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise AssistantError(
             f"{SETTINGS / 'config.toml'}: {key} must be a whole number, 0 or more"
+        )
+    return value
+
+
+def backlog_size(config: Config) -> int:
+    """How many issues one run by hand with the task backlog takes at most:
+    [engine] backlog_per_run, which GitHub's matrix of the analyses bounds."""
+    value = limit(config, "backlog_per_run")
+    if value > MAX_BACKLOG_PER_RUN:
+        raise AssistantError(
+            f"{SETTINGS / 'config.toml'}: backlog_per_run may be at most "
+            f"{MAX_BACKLOG_PER_RUN}, the most jobs of a matrix that GitHub runs"
         )
     return value
 

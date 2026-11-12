@@ -24,6 +24,10 @@ max_budget_usd = 1.00
 max_per_day = 20
 max_per_author_per_day = 3
 release_replies = 2
+# The most open issues that a maintainer's run by hand with the task backlog gives a
+# first analysis, the oldest first; the next run goes on after the last of them. Up
+# to 256; runs by hand count toward none of the limits above.
+backlog_per_run = 20
 
 [context]
 # What the AI reads besides the issue, for an analysis and a follow-up: every open

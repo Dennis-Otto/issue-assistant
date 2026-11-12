@@ -47,6 +47,7 @@ max_budget_usd = 1.00           # the dollars at which one run stops; more than 
 max_per_day = 20                # analyses, follow-ups and replies after a release in 24 hours; 0: only maintainers, by hand
 max_per_author_per_day = 3      # analyses of one reporter's new issues in 24 hours
 release_replies = 2             # comments of the reporter after each release that the AI reads
+backlog_per_run = 20            # open issues that a maintainer's run on the backlog analyzes at most, the oldest first; 0 to 256
 
 [context]
 max_issues = 1000               # closed issues that an analysis reads besides every open one: those that changed last

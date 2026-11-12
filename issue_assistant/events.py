@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from .applying import acted_on, assign_owners, earlier_post, has_its_answer
@@ -16,6 +17,7 @@ from .commands import (
     within_limits,
 )
 from .constants import (
+    BACKLOG,
     MAX_INSTRUCTION,
     MODES,
     MUTED,
@@ -38,16 +40,26 @@ from .issues import (
     is_bot,
     is_digest,
     is_maintainer,
+    kind_of,
     refusal,
     text_of,
     without_box,
 )
-from .settings import Config, answers_category, label_names
+from .settings import Config, answers_category, backlog_size, label_names
 from .values import command, created, login, moment
 
 # What an event on the issue of the digest does: comments and commands there start
 # nothing, and the AI never reads it.
 DIGEST_NOTE = "The issue of the digest: nothing to do."
+
+
+@dataclass
+class BacklogPlan(Plan):
+    """What the first call of a run by hand with the task backlog chose: the issues,
+    the lowest numbers first, each of which a call of the reusable workflow of its
+    own gives its first analysis."""
+
+    backlog: list[int] = field(default_factory=list)
 
 
 def handle_event(
@@ -56,15 +68,24 @@ def handle_event(
     payload: dict[str, Any],
     config: Config,
     actor: str | None = None,
+    backlog_issue: int = 0,
 ) -> Plan:
     """What the event starts. `actor` is the person who started the run, or who
-    ran it again; without one, the sender of the event."""
+    ran it again; without one, the sender of the event. `backlog_issue` is the
+    issue of the backlog that a call of the reusable workflow analyzes."""
     if name == "workflow_dispatch":
         inputs = payload.get("inputs") or {}
         if "discussion" in inputs:
             return discussion_by_hand(github, int(inputs["discussion"]))
         if actor is None:
             actor = login(payload.get("sender"))
+        if inputs.get("mode") == BACKLOG:
+            return backlog_by_hand(github, inputs, actor, config, backlog_issue)
+        if backlog_issue:
+            raise AssistantError(
+                f"The call names #{backlog_issue} of the backlog, but the run has "
+                f"the task {inputs.get('mode') or 'triage'}, not {BACKLOG}."
+            )
         return issue_by_hand(github, inputs, actor, config)
     if name == "discussion":
         return handle_discussion(github, payload, config)
@@ -189,6 +210,144 @@ def issue_by_hand(
         )
         return Plan(number, notes=notes)
     return Plan(number, mode, notes)
+
+
+def backlog_by_hand(
+    github: GitHub,
+    inputs: dict[str, Any],
+    actor: str,
+    config: Config,
+    number: int,
+) -> Plan:
+    """A run by hand with the task backlog, which a maintainer starts on the issues
+    that were open before the assistant came: the first call of the reusable
+    workflow chooses them, and one call for each analyzes it, `number`.
+
+    Only a maintainer starts it, as it may start many runs of the AI, none of which
+    counts toward [engine] max_per_day: that limit is there for the runs that others
+    start. The input issue is the issue after which it starts, so that each run goes
+    on where the last one stopped.
+    """
+    role = github.role(actor) if actor else "none"
+    if role not in OVERRIDING_ROLES:
+        raise AssistantError(
+            "Only a maintainer, with the role admin or maintain, may start the "
+            f"assistant on the {BACKLOG}; @{actor or 'nobody'} has the role {role}."
+        )
+    if " ".join(str(inputs.get("instruction") or "").split()) or ticked(
+        inputs.get("override")
+    ):
+        raise AssistantError(
+            f"The task {BACKLOG} takes no instruction and no override: it gives each "
+            "issue its first analysis, once. Run it again without them."
+        )
+    given = str(inputs.get("issue") or "0").strip()
+    if not given.isdecimal():
+        raise AssistantError(
+            f"The task {BACKLOG} starts after the issue that the input issue names, "
+            f"a whole number, 0 or more, not {given!r}."
+        )
+    after = int(given)
+    if number:
+        return backlog_issue(github, number, after, actor, config)
+    return choose_backlog(github, after, actor, config)
+
+
+def choose_backlog(
+    github: GitHub, after: int, actor: str, config: Config
+) -> BacklogPlan:
+    """The open issues after #`after` that a first analysis would have taken when
+    they were new, the lowest numbers first, up to [engine] backlog_per_run; the
+    summary names each one that it leaves out, with the reason."""
+    size = backlog_size(config)
+    plan = BacklogPlan(
+        notes=[
+            f"Started by hand by @{actor}: {BACKLOG} after #{after}, at most {size}."
+        ]
+    )
+    left_out: dict[str, list[int]] = {}
+    for issue in sorted(github.every_open_issue(), key=lambda item: item["number"]):
+        if len(plan.backlog) == size:
+            break
+        if issue["number"] <= after:
+            continue
+        reason = left_out_of_backlog(github, issue, config)
+        if reason:
+            left_out.setdefault(reason, []).append(issue["number"])
+        else:
+            plan.backlog.append(issue["number"])
+    plan.notes.append(f"Chosen for a first analysis: {numbered(plan.backlog)}.")
+    plan.notes += [
+        f"Left out, {reason}: {numbered(numbers)}."
+        for reason, numbers in left_out.items()
+    ]
+    if not size:
+        plan.notes.append(
+            f"[engine] backlog_per_run is 0, so the {BACKLOG} analyzes no issue."
+        )
+    elif len(plan.backlog) == size:
+        plan.notes.append(
+            f"The next run of the {BACKLOG} goes on after #{plan.backlog[-1]}: give "
+            "that number as the issue."
+        )
+    else:
+        plan.notes.append(
+            f"That is the whole {BACKLOG}: no other open issue after #{after} waits "
+            "for a first analysis."
+        )
+    return plan
+
+
+def numbered(numbers: list[int]) -> str:
+    return ", ".join(f"#{number}" for number in numbers) or "none"
+
+
+def left_out_of_backlog(github: GitHub, issue: dict[str, Any], config: Config) -> str:
+    """Why the backlog leaves the open issue out; empty for one that it analyzes.
+
+    It leaves out what a new issue would not have had analyzed either, such as the
+    issue of the digest, which the assistant's bot opened, and an issue with a first
+    analysis already: GitHub counts the comments of an issue, so only one with
+    comments costs a request.
+    """
+    if is_bot(issue.get("user")):
+        return "opened by a bot"
+    if is_maintainer(issue):
+        return "opened by a maintainer"
+    if issue.get("locked"):
+        return "locked"
+    if MUTED in label_names(issue) or box_ticked(text_of(issue), config):
+        return "muted, or its reporter keeps the AI out"
+    if issue.get("comments") and any(
+        kind_of(comment) == "analysis" for comment in github.comments(issue["number"])
+    ):
+        return "with a first analysis already"
+    return ""
+
+
+def backlog_issue(
+    github: GitHub, number: int, after: int, actor: str, config: Config
+) -> Plan:
+    """The call of the reusable workflow for one issue of the backlog: a run by hand
+    of its first analysis, as `issue_by_hand` starts one, while the issue is still
+    one that the backlog chooses; it may have changed since."""
+    if number <= after:
+        raise AssistantError(
+            f"#{number} is no issue of the {BACKLOG} after #{after}, which this run "
+            "chose."
+        )
+    issue = github.issue(number)
+    if "pull_request" in issue:
+        raise AssistantError(f"#{number} is a pull request, not an issue.")
+    reason = "closed" if issue["state"] != "open" else ""
+    reason = reason or left_out_of_backlog(github, issue, config)
+    if reason:
+        return Plan(
+            number, notes=[f"The {BACKLOG} leaves #{number} out now: {reason}."]
+        )
+    plan = issue_by_hand(github, {"issue": number, "mode": "triage"}, actor, config)
+    plan.notes.insert(0, f"#{number} of the {BACKLOG} after #{after}.")
+    return plan
 
 
 def nothing_to_post(

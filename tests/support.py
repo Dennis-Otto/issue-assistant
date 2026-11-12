@@ -1475,6 +1475,7 @@ def run_main(monkeypatch, tmp_path, root, github, *argv, **env):
         "ISSUE_ASSISTANT_ROOT",
         "ISSUE_ASSISTANT_FIXTURE",
         "ISSUE_ASSISTANT_AI_RUNNER",
+        "ISSUE_ASSISTANT_BACKLOG_ISSUE",
         "GITHUB_EVENT_NAME",
         # The person who started the CI run that runs the tests.
         "GITHUB_TRIGGERING_ACTOR",

@@ -147,6 +147,10 @@ CANARY_ISSUE = "tests/fixtures/canary-issue.json"
 SMOKE_INPUT = "smoke"
 SMOKE_ANSWER = "tests/fixtures/smoke-answer.json"
 OWN_INPUTS = (CANARY_INPUT, SMOKE_INPUT)
+# The template of the issues calls its reusable workflow once more for each issue
+# that a run by hand with the task backlog chose, with the input backlog_issue, in
+# its job backlog.
+BACKLOG_INPUT = "backlog_issue"
 
 
 def only_in_the_canary(value):
@@ -457,7 +461,12 @@ def test_each_template_calls_its_reusable_workflow_with_what_its_jobs_need(name)
     a called job gets at most the permissions of the job that calls it."""
     workflow = load(TEMPLATES / name)
     assert workflow["permissions"] == {}
-    ((job_name, job),) = workflow["jobs"].items()
+    jobs = dict(workflow["jobs"])
+    if name == "issue-assistant.yml":
+        # The second call of the task backlog, which a test of its own checks.
+        assert list(jobs) == ["assistant", "backlog"]
+        del jobs["backlog"]
+    ((job_name, job),) = jobs.items()
     path = f"{assistant.ACTION}/{assistant.WORKFLOWS}/{reusable(name).name}"
     uses, _, ref = job["uses"].partition("@")
     assert uses == path and assistant.SHA.fullmatch(ref), job_name
@@ -481,6 +490,10 @@ def test_each_template_calls_its_reusable_workflow_with_what_its_jobs_need(name)
         assistant.DISCUSSION_WORKFLOW: (SMOKE_INPUT,),
     }.get(name, ())
     callers = {CANARY_INPUT: "Canary", SMOKE_INPUT: "Workflow test"}
+    if name == "issue-assistant.yml":
+        assert inputs.pop(BACKLOG_INPUT)["description"].startswith(
+            "Only for a run by hand with the task backlog"
+        )
     for own in own_inputs:
         given = inputs.pop(own)
         assert given["type"] == "boolean" and given["default"] is False
@@ -515,11 +528,12 @@ def test_only_the_job_of_the_ai_gets_the_engine_s_secrets():
     and no other job names them."""
     secrets = [secret for rules in ENGINE_RULES.values() for secret in rules["secrets"]]
     for name in WITH_ENGINE:
-        (job,) = load(TEMPLATES / name)["jobs"].values()
         declared = load(reusable(name))[True]["workflow_call"]["secrets"]
-        assert job["secrets"] == {
-            secret: f"${{{{ secrets.{secret} }}}}" for secret in secrets
-        }
+        # Each call, also those of the task backlog.
+        for job in load(TEMPLATES / name)["jobs"].values():
+            assert job["secrets"] == {
+                secret: f"${{{{ secrets.{secret} }}}}" for secret in secrets
+            }
         assert list(declared) == secrets
         assert all(declared[secret]["required"] is False for secret in secrets)
     for name in NAMES:
@@ -1828,7 +1842,7 @@ def test_the_canary_calls_the_reusable_workflow_as_every_repository_does():
     it to every repository. Only the path of the workflow, at the commit of the
     run, and the input canary differ.
     """
-    (template,) = ASSISTANT["jobs"].values()
+    template = ASSISTANT["jobs"]["assistant"]
     jobs = CANARY["jobs"]
     # No job of the canary runs an engine or names a secret itself; queue measures
     # the wait of analyze for its runner, and decide lets the release decide again.
@@ -1943,6 +1957,7 @@ def test_the_job_event_takes_the_canary_s_issue():
         "mode": "${{ steps.event.outputs.mode || steps.canary.outputs.mode || "
         "steps.smoke.outputs.mode }}",
         "endpoints": "${{ steps.endpoints.outputs.endpoints }}",
+        "backlog": "${{ steps.event.outputs.backlog }}",
     }
 
 
@@ -2650,12 +2665,23 @@ def test_the_answer_reaches_github_only_through_the_checks():
 def test_the_manual_run_offers_every_task_and_starts_as_a_dry_run():
     inputs = ASSISTANT[True]["workflow_dispatch"]["inputs"]
     assert inputs["mode"]["options"] == [
-        mode for mode in assistant.MODES if mode not in assistant.DISCUSSION_MODES
+        *(mode for mode in assistant.MODES if mode not in assistant.DISCUSSION_MODES),
+        assistant.BACKLOG,
     ]
     assert inputs["dry_run"]["default"] is True
     # An instruction and the override of the one-comment rule, which a run by hand
-    # leaves out unless someone gives them.
-    assert list(inputs) == ["issue", "mode", "instruction", "override", "dry_run"]
+    # leaves out unless someone gives them, and the comments of the task backlog,
+    # which sets labels only unless someone ticks them.
+    assert list(inputs) == [
+        "issue",
+        "mode",
+        "instruction",
+        "override",
+        "comment",
+        "dry_run",
+    ]
+    assert inputs["comment"]["type"] == "boolean"
+    assert inputs["comment"]["default"] is False
     assert inputs["instruction"]["type"] == "string"
     assert inputs["instruction"]["default"] == ""
     assert inputs["override"]["type"] == "boolean"
@@ -2666,6 +2692,40 @@ def test_the_manual_run_offers_every_task_and_starts_as_a_dry_run():
     assert inputs["discussion"]["type"] == "number"
     assert inputs["dry_run"]["default"] is True
     assert LIFECYCLE[True]["workflow_dispatch"]["inputs"]["dry_run"]["default"] is True
+
+
+def test_the_task_backlog_calls_the_workflow_once_for_each_issue_that_it_chose():
+    """The job assistant chooses the issues of the backlog; the job backlog calls the
+    same workflow at the same commit for each, with the same permissions and
+    secrets, two at a time, and only when it chose any: GitHub runs no matrix of
+    none. A call that fails leaves the others running."""
+    jobs = ASSISTANT["jobs"]
+    first, backlog = jobs["assistant"], jobs["backlog"]
+    for key in ("permissions", "uses", "secrets"):
+        assert backlog[key] == first[key], key
+    assert backlog["needs"] == "assistant"
+    assert backlog["if"] == "needs.assistant.outputs.backlog != ''"
+    assert backlog["strategy"] == {
+        "fail-fast": False,
+        "max-parallel": 2,
+        "matrix": {"issue": "${{ fromJSON(needs.assistant.outputs.backlog) }}"},
+    }
+    assert backlog["with"] == {
+        "dry_run": first["with"]["dry_run"],
+        BACKLOG_INPUT: "${{ matrix.issue }}",
+    }
+    called = load(reusable("issue-assistant.yml"))[True]["workflow_call"]
+    given = called["inputs"][BACKLOG_INPUT]
+    assert (given["type"], given["default"]) == ("number", 0)
+    assert called["outputs"]["backlog"]["value"] == "${{ jobs.event.outputs.backlog }}"
+    assert list(called["outputs"]) == ["backlog"]
+    # Only the step of the job event that chooses the task reads the input, from
+    # the environment.
+    (step,) = [step for step in JOBS["event"]["steps"] if step.get("id") == "event"]
+    assert step["env"] == {
+        assistant.BACKLOG_VARIABLE: f"${{{{ inputs.{BACKLOG_INPUT} }}}}"
+    }
+    assert json.dumps(JOBS).count(BACKLOG_INPUT) == 1
 
 
 def test_the_events_the_assistant_handles_trigger_it():
@@ -2761,8 +2821,8 @@ def test_only_the_apply_job_of_the_discussions_writes_to_discussions():
     }
     # The event job of the issues counts the new discussions for the limits.
     assert JOBS["event"]["permissions"]["discussions"] == "read"
-    (caller,) = ASSISTANT["jobs"].values()
-    assert caller["permissions"]["discussions"] == "read"
+    for caller in ASSISTANT["jobs"].values():
+        assert caller["permissions"]["discussions"] == "read"
 
 
 def test_a_new_discussion_triggers_the_workflow_of_the_discussions():
@@ -2795,8 +2855,11 @@ def test_the_events_of_an_issue_wait_their_turn_instead_of_being_dropped():
     comment written while an analysis ran could be lost: an answer of the reporter
     without a follow-up, or a "still broken" after a release that reopens nothing.
     """
+    # The runs on the backlog wait for each other, not for the runs of the issue
+    # whose number they start after.
     assert ASSISTANT["concurrency"] == {
-        "group": "issue-assistant-${{ github.event.issue.number || inputs.issue }}",
+        "group": "issue-assistant-${{ github.event.issue.number || "
+        "(inputs.mode == 'backlog' && 'backlog') || inputs.issue }}",
         # GitHub refuses a queue together with cancel-in-progress.
         "cancel-in-progress": False,
         "queue": "max",

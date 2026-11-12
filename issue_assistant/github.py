@@ -266,6 +266,11 @@ class GitHub:
         )
         return [item for item in items if "pull_request" not in item]
 
+    def every_open_issue(self) -> list[dict[str, Any]]:
+        """Every open issue, never a pull request, for the task backlog."""
+        items = self.rest("issues?state=open&per_page=100", pages=True)
+        return [item for item in items if "pull_request" not in item]
+
     def closed_issues_labeled(self, label: str) -> list[dict[str, Any]]:
         items = self.rest(
             f"issues?state=closed&labels={quote(label, safe='')}&per_page=100",

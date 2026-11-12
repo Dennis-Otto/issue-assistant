@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .accuracy import ACCURACY_PAGE, measurement_of, page_with_numbers
-from .applying import apply_answer
+from .applying import BacklogRow, apply_answer, render_backlog_row
 from .cleaning import repository_refs
 from .code_scanning import (
     ALERT_LEFT,
@@ -28,6 +28,8 @@ from .code_scanning import (
     watch_findings,
 )
 from .constants import (
+    BACKLOG,
+    BACKLOG_VARIABLE,
     DISCUSSION_MODES,
     EVALUATED,
     FIREWALL_RUNNER,
@@ -41,7 +43,13 @@ from .digests import report
 from .engines import ENGINES
 from .errors import AssistantError, GitHubError, SettingsError, SweepIncomplete
 from .evaluation import LOCAL_ENGINES, evaluate, evaluated_config, local_engine
-from .events import handle_event, instruction_of, may_answer_again
+from .events import (
+    BacklogPlan,
+    handle_event,
+    instruction_of,
+    may_answer_again,
+    ticked,
+)
 from .fixture import FIXTURE_VARIABLE, read_fixture
 from .github import GitHub
 from .installation import (
@@ -102,10 +110,13 @@ def event_payload(number: int) -> dict[str, Any]:
 
 def inputs_by_hand(number: int) -> dict[str, Any]:
     """The inputs of a run by hand of issue-assistant.yml on the issue; empty for
-    every other event, a run by hand of another issue among them."""
+    every other event, a run by hand of another issue among them, and for the task
+    backlog, whose input issue is the one after which it starts."""
     if os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
         return {}
     inputs: dict[str, Any] = run_event().get("inputs") or {}
+    if inputs.get("mode") == BACKLOG:
+        return {}
     # As the job event reads it, which a number such as 042 passes too.
     given = str(inputs.get("issue", "")).strip()
     return inputs if given.isdecimal() and int(given) == number else {}
@@ -592,10 +603,19 @@ def event_command(run: CommandRun, github: GitHub, config: Config) -> int:
     payload = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text("utf-8"))
     # The person who started the run, or who ran it again; else its sender.
     actor = os.environ.get("GITHUB_TRIGGERING_ACTOR") or None
-    plan = handle_event(github, name, payload, config, actor)
+    given = os.environ.get(BACKLOG_VARIABLE, "").strip() or "0"
+    if not given.isdecimal():
+        raise AssistantError(f"{BACKLOG_VARIABLE} is no issue number: {given!r}.")
+    plan = handle_event(github, name, payload, config, actor, int(given))
     output("issue", str(plan.issue or ""))
     output("mode", plan.mode)
     run.title = f"Issue assistant: #{plan.issue}, next task {plan.mode}"
+    if isinstance(plan, BacklogPlan):
+        run.title = f"Issue assistant: the {BACKLOG}"
+        # The issues for the matrix of the calls that analyze them; none without
+        # any, as GitHub runs no matrix of none.
+        if plan.backlog:
+            output("backlog", json.dumps(plan.backlog))
     summary(run.title, plan.notes + github.writes, run.dry_run, github.previews)
     return 0
 
@@ -611,6 +631,12 @@ def apply_command(
     # Workflow test, in a repository whose settings name no category.
     discussion = arguments.mode in DISCUSSION_MODES
     overrider = "" if discussion else overrider_of(github, arguments.issue)
+    # A call for an issue of the backlog posts the comment only when the maintainer
+    # ticked the input comment.
+    inputs = (run_event().get("inputs") or {}) if by_hand else {}
+    backlog = None
+    if inputs.get("mode") == BACKLOG and arguments.mode == "triage":
+        backlog = BacklogRow(comment=ticked(inputs.get("comment")))
     done = apply_answer(
         github,
         arguments.mode,
@@ -623,10 +649,12 @@ def apply_command(
         or asked_again(arguments.issue),
         engine=os.environ.get("ENGINE", ""),
         comment_id=event_comment(arguments.issue),
+        backlog=backlog,
     )
     if overrider:
         done.insert(0, f"Override of the one-comment rule by @{overrider}.")
-    summary(run.title, done + github.writes, run.dry_run, github.previews)
+    table = render_backlog_row(arguments.issue, backlog, config) if backlog else ""
+    summary(run.title, done + github.writes, run.dry_run, github.previews, table)
     return 0
 
 

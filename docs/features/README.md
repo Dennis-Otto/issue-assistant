@@ -15,7 +15,7 @@ Every feature of the issue assistant has a page of its own, which opens with a p
 - **[Related repositories](related-repositories.md):** also searches the issues of projects that share your users, and says when an issue may belong there.
 - **[Questions in Discussions](discussions.md):** a first answer to a new question, with the same AI and the same checks, never marked as the answer.
 - **[Slash commands](slash-commands.md):** steer the assistant from the issue, such as `/assistant again` or `/assistant ask <question>`.
-- **[Runs by hand](runs-by-hand.md):** start it on one issue with an instruction, such as "ask for the logs"; only a maintainer has it answer again.
+- **[Runs by hand](runs-by-hand.md):** start it on one issue with an instruction, such as "ask for the logs", or on the backlog; only a maintainer has it answer again.
 - **[From the fix to the release](fix-to-release.md):** a fixed issue stays open until a release ships the fix, then closes with a link to it.
 - **[What the AI reads](what-the-ai-reads.md):** each task reads what it needs and no more, and a first analysis learns from the maintainers' corrections.
 - **[Saying no to the AI](opt-out.md):** a box in the issue form keeps the AI out of an issue, and all that runs without AI goes on.
