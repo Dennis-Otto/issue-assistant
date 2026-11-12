@@ -6,6 +6,7 @@ import html
 import re
 import subprocess
 from collections.abc import Callable, Iterable
+from functools import cache
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote, unquote, urlsplit
@@ -114,12 +115,42 @@ def allowed_url(url: str, config: Config) -> bool:
     if "%2e" in parts.path.lower() or "." in segments or ".." in segments:
         return False
     if hostname == "github.com":
-        return bool(
-            re.match(
-                rf"^/{re.escape(config.repository)}/(?:blob|tree|releases)/", parts.path
-            )
+        place = re.match(
+            rf"^/{re.escape(config.repository)}/(?:(releases)|blob|tree)/(.*)",
+            parts.path,
         )
+        if not place:
+            return False
+        # A release is the repository's own at any tag.
+        return bool(place[1]) or names_a_ref(place[2], config)
     return hostname in config.hosts
+
+
+def names_a_ref(rest: str, config: Config) -> bool:
+    """Whether the part of a path after /blob/ or /tree/ starts with a ref that the
+    checkout vouches for: HEAD, which GitHub reads as the default branch, or one of
+    `config.refs`.
+
+    The address of the repository alone doesn't make a file the repository's: what
+    a link shows depends on its ref, and only a ref of the repository's own shows
+    the repository's files. GitHub reads the path decoded, and so does this check.
+    """
+    named = unquote(rest)
+    # A ref ends at a slash or at the end of the path, and no ref is longer than the
+    # longest one: so only a few prefixes are looked up, each in constant time, however
+    # many refs a deep history gives and however long the path is.
+    reach = max(len("HEAD"), longest(config.refs))
+    ends = [end for end, char in enumerate(named[: reach + 1]) if char == "/"]
+    return any(
+        named[:end] == "HEAD" or named[:end] in config.refs
+        for end in [*ends, len(named)]
+    )
+
+
+@cache
+def longest(refs: frozenset[str]) -> int:
+    """The length of the longest of `refs`, read once for each set of them."""
+    return max(map(len, refs), default=0)
 
 
 def clean_prose(
@@ -417,6 +448,39 @@ def tracked_files(root: Path) -> set[str]:
         ["git", "ls-files", "-z"], cwd=root, capture_output=True, check=True
     )
     return {name for name in result.stdout.decode("utf-8").split("\0") if name}
+
+
+# The most commits of the checkout's history that a link may name: a shallow
+# checkout, as that of the job apply, has fewer, and a long history needn't be read
+# whole for links that the engine is asked not to write at all.
+MAX_COMMITS = 10_000
+# The refs whose names GitHub serves for the repository: its branches and tags, and
+# the branches of the remote that the checkout came from. Not refs/pull/ or other
+# remotes, whose heads may be anyone's.
+OWN_REFS = re.compile(r"refs/(?:heads|tags|remotes/origin)/(.+)")
+
+
+def repository_refs(root: Path) -> frozenset[str]:
+    """The refs of the repository in `root` that a link into it may name, for
+    Config.refs: its branches and tags, and the full hashes of the commits of HEAD's
+    history. A commit of a fork or of a pull request is no ancestor of HEAD, so a
+    link to it stays code; so does every link when `root` is no checkout.
+    """
+
+    def read(*arguments: str) -> list[str]:
+        result = subprocess.run(
+            ["git", *arguments], cwd=root, capture_output=True, check=False
+        )
+        if result.returncode:
+            return []
+        return result.stdout.decode("utf-8", "replace").splitlines()
+
+    names = read("for-each-ref", "--format=%(refname)")
+    commits = read("rev-list", f"--max-count={MAX_COMMITS}", "HEAD")
+    return frozenset(
+        {match[1] for name in names if (match := OWN_REFS.fullmatch(name))}
+        | set(commits)
+    )
 
 
 def slug(heading: str) -> str:

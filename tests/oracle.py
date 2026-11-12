@@ -372,9 +372,23 @@ def allowed(url: str, config: Config) -> bool:
             [segment.lower() for segment in segments[:2]]
             == config.repository.lower().split("/")
             and len(segments) > 3
-            and segments[2] in {"blob", "tree", "releases"}
+            and (
+                segments[2] == "releases"
+                or (segments[2] in {"blob", "tree"} and own_ref(segments[3:], config))
+            )
         )
     return host in {name.lower() for name in config.hosts}
+
+
+def own_ref(segments: list[str], config: Config) -> bool:
+    """Whether the segments after /blob/ or /tree/ start with a ref of the
+    repository: HEAD, which GitHub reads as the default branch, or a branch, a tag
+    or a commit of its history, as `config.refs` names them. A link with any other
+    ref leaves the repository's own files, whatever its address."""
+    return any(
+        segments[: len(ref.split("/"))] == ref.split("/")
+        for ref in {"HEAD", *config.refs}
+    )
 
 
 def resolved(path: str) -> list[str]:

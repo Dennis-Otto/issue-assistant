@@ -306,6 +306,9 @@ class Config:
     # What `check` reports of labels.toml and config.toml beyond its own checks: the
     # values that the assistant can't use and the keys that it doesn't know.
     problems: tuple[str, ...] = ()
+    # The branches, tags and commits of the checkout that a link into the repository
+    # may name besides HEAD, read once from git; see repository_refs and names_a_ref.
+    refs: frozenset[str] = frozenset()
 
     @property
     def blob(self) -> str:
