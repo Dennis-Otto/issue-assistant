@@ -9087,6 +9087,49 @@ def test_a_read_that_github_failed_runs_again_after_2_4_and_8_seconds(
     assert len(commands) == 4 and waits == [2, 4, 8]
 
 
+@pytest.mark.parametrize(
+    ("message", "again"),
+    [
+        # The words of gh, from Go's net/http, when the connection broke off.
+        ('Get "https://api.github.com/x": read: connection reset by peer', True),
+        ('Get "https://api.github.com/x": EOF', True),
+        ('Post "https://api.github.com/graphql": unexpected EOF', True),
+        ("dial tcp 140.82.121.6:443: connect: connection refused", True),
+        ("dial tcp 140.82.121.6:443: connect: connection timed out", True),
+        ("dial tcp: lookup api.github.com: no such host", True),
+        ("dial tcp: lookup api.github.com on 127.0.0.53:53: server misbehaving", True),
+        ("lookup api.github.com: i/o timeout", True),
+        ("net/http: TLS handshake timeout", True),
+        ("net/http: timeout awaiting response headers", True),
+        (
+            'Get "https://api.github.com/x": context deadline exceeded'
+            " (Client.Timeout exceeded while awaiting headers)",
+            True,
+        ),
+        ("http2: server sent GOAWAY and closed the connection", True),
+        # No moment of GitHub: the same read would fail again.
+        ("To get started with GitHub CLI, please run:  gh auth login", False),
+        ("no EOFs here, as a word of its own", False),
+    ],
+)
+def test_a_read_runs_again_after_each_kind_of_broken_connection(
+    monkeypatch, tmp_path, message, again
+):
+    error = assistant.GitHubError.of(["api", "x"], "", f"gh: {message}\n")
+    assert (error.status, error.transient()) == (None, again)
+    # Whether a write happened is open, so it never runs again.
+    assert error.wait(1, False) is None
+    broken = Completed("", f"gh: {message}\n", 1)
+    commands, waits = gh_answers(monkeypatch, tmp_path, broken, DONE)
+    if again:
+        assert assistant.GitHub(REPOSITORY).issue(1) == {"number": 1}
+        assert len(commands) == 2 and waits == [2]
+    else:
+        with pytest.raises(assistant.GitHubError, match=re.escape(message)):
+            assistant.GitHub(REPOSITORY).issue(1)
+        assert len(commands) == 1 and waits == []
+
+
 def test_a_write_runs_again_only_when_github_refused_it(monkeypatch, tmp_path):
     github = assistant.GitHub(REPOSITORY)
     # After a server error, GitHub may have posted the comment all the same.
