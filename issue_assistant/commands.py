@@ -426,9 +426,12 @@ def reopen_if_answered(
     comment about the release counts these runs, so a reporter who deletes their
     comments gets no more of them. One closed as a duplicate goes to the
     maintainers (objected_to_closing). Those two closings ask for a comment, so an
-    edit leaves them as they are.
+    edit leaves them as they are, as it leaves a locked issue: its reporter may
+    still edit its text, but could answer no question in a comment.
     """
     number = issue["number"]
+    if edited and issue.get("locked"):
+        return Plan(number, notes=["Locked: stays closed."])
     author = login(issue.get("user"))
     events = github.events(number)
     closes = [event for event in events if event["event"] == "closed"]

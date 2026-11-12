@@ -1006,7 +1006,14 @@ def test_an_answer_saved_with_a_tick_reopens_the_issue_without_the_ai(config):
 
 @pytest.mark.parametrize(
     "case",
-    ["other person", "closed by a person", "no marker", "released", "duplicate"],
+    [
+        "other person",
+        "closed by a person",
+        "no marker",
+        "released",
+        "duplicate",
+        "locked",
+    ],
 )
 def test_other_edits_of_closed_issues_leave_them_closed(config, case):
     """Only the closing for a missing answer promises that an edit of the reporter
@@ -1022,6 +1029,9 @@ def test_other_edits_of_closed_issues_leave_them_closed(config, case):
             name = "closed-duplicate" if kind == "duplicate" else kind
             closing = f"{assistant.render_marker(name, lang='en')}\nClosed"
             github.comment_store[12][-1] = make_comment(2, "bot", closing, 0.5)
+    if case == "locked":
+        # The sweep locked it; its reporter may still edit its text.
+        github.store[12]["locked"] = True
     changes = github.edit(12, editor, body=f"{BUG_BODY}\nVersion 1.9.0")
     plan = assistant.handle_event(
         github,
@@ -1032,6 +1042,7 @@ def test_other_edits_of_closed_issues_leave_them_closed(config, case):
     why = {
         "other person": "Edit without a pending question.",
         "closed by a person": "Closed by a person: stays closed.",
+        "locked": "Locked: stays closed.",
     }.get(case, "Not closed for a missing answer.")
     assert (plan.issue, plan.mode, plan.notes) == (12, "none", [why])
     assert github.store[12]["state"] == "closed"
