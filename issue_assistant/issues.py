@@ -76,14 +76,18 @@ def render_marker(kind: str, **attributes: object) -> str:
     return f"<!-- issue-assistant:{kind}{parts} -->"
 
 
-def form_parts(body: str) -> tuple[str, list[tuple[str, str]]]:
+def form_parts(
+    body: str, outside_code: bool = False
+) -> tuple[str, list[tuple[str, str]]]:
     """The text of an issue before the first heading of a form, and the label and
     the answer of each field in their order, a label that comes twice with each of
     its answers.
 
     An answer is the text between its heading and the next one. A heading is a row
-    of its own outside fenced code, where `### ` is code that a reporter pasted,
-    such as a changelog. Each row is read a bounded number of times and the answers
+    of its own; with `outside_code` only one outside fenced code, where `### ` is
+    code that a reporter pasted, such as a changelog. Only the excerpt reads so: a
+    fence that a reporter leaves open would hide every later field, the box of the
+    opt-out as well, so what decides reads every heading. Each row is read a bounded number of times and the answers
     are cut out between the headings, so the time grows with the length of the text
     and no faster. GitHub writes an answer under every heading of a form, so a
     heading on the last line, with no line break after it, is a heading of free
@@ -91,7 +95,10 @@ def form_parts(body: str) -> tuple[str, list[tuple[str, str]]]:
     """
     body = body or ""
     rows = body.split("\n")
-    code = fenced([row.removesuffix("\r") for row in rows])
+    if outside_code:
+        code = fenced([row.removesuffix("\r") for row in rows])
+    else:
+        code = [False] * len(rows)
     headings = []
     start = 0
     for row, in_code in zip(rows, code, strict=True):
@@ -113,8 +120,9 @@ def form_parts(body: str) -> tuple[str, list[tuple[str, str]]]:
 
 def form_fields(body: str) -> dict[str, str]:
     """The answers of an issue form, by the label of their field, as `form_parts`
-    reads them; a label that comes twice keeps its last answer, in the place of the
-    first."""
+    reads them with every heading, also one in fenced code, so that no fence of a
+    reporter hides the box of the opt-out; a label that comes twice keeps its last
+    answer, in the place of the first."""
     return dict(form_parts(body)[1])
 
 

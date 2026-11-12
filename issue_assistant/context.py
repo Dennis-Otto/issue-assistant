@@ -100,7 +100,7 @@ def excerpt(text: str, limit: int, visible: Visible | None = None) -> str:
     of its field, it would no longer start one, nor would a definition.
     """
     text = shown((text or "")[:MAX_TEXT], visible or Visible())
-    before, fields = form_parts(text)
+    before, fields = form_parts(text, outside_code=True)
     if fields:
         answers = (f"{key}: {value}" for key, value in fields if value)
         text = "\n".join(filter(None, (before.strip(), *answers)))

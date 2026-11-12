@@ -23,9 +23,11 @@ import issue_assistant as assistant
 from oracle import problems
 from support import (
     BOT_USER,
+    BOX,
     BOX_TICKED,
     BOX_UNTICKED,
     BUG_BODY,
+    CONFIG,
     ESCAPES,
     FORK_COMMIT,
     NOW,
@@ -125,17 +127,44 @@ def test_a_form_reads_in_its_parts():
     assert assistant.form_fields(body) == {"A": "three", "B": "two"}
     assert assistant.form_parts("Just text") == ("Just text", [])
     assert assistant.form_parts("") == ("", [])
-    # A heading in fenced code is part of the answer around it, also with the line
-    # breaks of Windows, up to the fence that closes the code.
+    # For the excerpt, a heading in fenced code is part of the answer around it, also
+    # with the line breaks of Windows, up to the fence that closes the code.
     code = "### Logs\r\n\r\n~~~\r\n### Fixed\r\n~~~\r\n### Version\r\n\r\n1.2\r\n"
+    assert assistant.form_parts(code, outside_code=True)[1] == [
+        ("Logs", "~~~\r\n### Fixed\r\n~~~"),
+        ("Version", "1.2"),
+    ]
+    # Code that the text doesn't close runs to its end, as GitHub shows it.
+    unclosed = "### Logs\n\n```\n### Version\n\n1.2\n"
+    assert assistant.form_parts(unclosed, outside_code=True)[1] == [
+        ("Logs", "```\n### Version\n\n1.2")
+    ]
+    # What decides, such as the box of the opt-out, reads every heading.
     assert assistant.form_fields(code) == {
-        "Logs": "~~~\r\n### Fixed\r\n~~~",
+        "Logs": "~~~",
+        "Fixed": "~~~",
         "Version": "1.2",
     }
-    # Code that the text doesn't close runs to its end, as GitHub shows it.
-    assert assistant.form_fields("### Logs\n\n```\n### Version\n\n1.2\n") == {
-        "Logs": "```\n### Version\n\n1.2"
-    }
+    assert assistant.form_fields(unclosed) == {"Logs": "```", "Version": "1.2"}
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        # A fence that the reporter never closes.
+        "```yaml\nkey: value",
+        # A pasted line of three backticks in a field with `render: shell`, which
+        # GitHub fences itself: its closing fence then opens a new one.
+        "```shell\n$ make\n```\nmore\n```",
+    ],
+)
+def test_no_fence_of_a_reporter_hides_the_box_of_the_opt_out(answer):
+    body = f"### Logs\n\n{answer}\n{BOX.format('X')}"
+    assert assistant.box_ticked(body, CONFIG)
+    assert assistant.opted_out(
+        {"body": body, "labels": [{"name": assistant.MUTED}]}, CONFIG
+    )
+    assert "[X]" not in assistant.without_box(body, CONFIG)
 
 
 def test_only_as_much_of_a_text_as_github_keeps_is_read():
