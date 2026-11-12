@@ -7902,6 +7902,19 @@ def test_a_pull_request_that_denies_the_fix_is_neither_awaited_nor_named(config)
         ("It doesn't really fix #12", True),
         ("Does not by itself close #12", True),
         ("This won't completely – fix #12", False),
+        # A negation that governs the keyword through an infinitive.
+        ("Not meant to fix #12", True),
+        ("This is not intended to close #12", True),
+        ("It does not attempt to resolve #12", True),
+        ("This PR will not be able to close #12", True),
+        ("Isn't supposed to close #12", True),
+        ("Doesn't try to fix #12", True),
+        ("It is not really going to fully fix #12", True),
+        ("Remember not to close #12", True),
+        ("The job didn't start and this is meant to fix #12", False),
+        ("It didn't work, so this tries to fix #12", False),
+        ("Nothing is to close #12", False),
+        ("to fix #12", False),
         # One denial decides, wherever it is.
         ("Fixes #12.\n\nThis doesn't fix #12 on Windows.", True),
         # Another issue or repository, another clause, words too far before.

@@ -70,8 +70,10 @@ CLOSING_KEYWORD = re.compile(
 # GitHub links the issue also where the words before the keyword say the opposite,
 # as in "This doesn't close #12" or "Partly fixes #12": a negation or a part that
 # governs the keyword, right before it or with only fillers of DENIAL_FILLERS in
-# between, as in "does not yet fully resolve #12", within the clause before it,
-# which a mark such as a comma or a dash ends, and the DENIAL_REACH characters
+# between, as in "does not yet fully resolve #12", or through an infinitive, as in
+# "is not meant to close #12" or "will not be able to fix #12" (DENIAL_INFINITIVES),
+# within the clause before it, which a mark such as a comma or a dash ends, and the
+# DENIAL_REACH characters
 # before the keyword. Any other word in between, such as "and", "which", "this" or
 # the "only" of "Not only fixes #12", belongs to another thought: "The cache didn't
 # refresh and this fixes #12" describes the bug and fixes it.
@@ -91,6 +93,27 @@ DENIAL_FILLERS = tuple(
         "really",
         "totally",
         "yet",
+    )
+)
+# The verbs of an intent or an ability before the "to" of an infinitive through
+# which a negation governs the keyword, as in "doesn't try to fix #12".
+DENIAL_INFINITIVES = frozenset(
+    (
+        "able",
+        "aim",
+        "aims",
+        "attempt",
+        "attempting",
+        "attempts",
+        "designed",
+        "expected",
+        "going",
+        "intended",
+        "meant",
+        "planned",
+        "supposed",
+        "try",
+        "trying",
     )
 )
 CLAUSE_END = re.compile(r"[.,;:!?()\[\]\n–—]|\s-\s")
@@ -225,15 +248,27 @@ def governs(words: list[str]) -> bool:
     """Whether the words before a keyword end with a negation of it.
 
     That is a negation or a part, followed by nothing but the fillers of
-    DENIAL_FILLERS, such as "yet" and "fully" in "does not yet fully resolve".
+    DENIAL_FILLERS, such as "yet" and "fully" in "does not yet fully resolve", or
+    by an infinitive, such as "meant to" or "be able to", with fillers in between.
     """
-    words = [word.lower() for word in words]
+    words = without_fillers([word.lower() for word in words])
+    if words[-1:] == ["to"]:
+        words = without_fillers(words[:-1])
+        if words and words[-1] in DENIAL_INFINITIVES:
+            words = without_fillers(words[:-1])
+            if words and words[-1] in ("be", "being"):
+                words = without_fillers(words[:-1])
+    return bool(words) and bool(DENIAL.fullmatch(words[-1]))
+
+
+def without_fillers(words: list[str]) -> list[str]:
+    """The words without the fillers of DENIAL_FILLERS at their end."""
     while filler := next(
         (filler for filler in DENIAL_FILLERS if tuple(words[-len(filler) :]) == filler),
         None,
     ):
-        del words[-len(filler) :]
-    return bool(words) and bool(DENIAL.fullmatch(words[-1]))
+        words = words[: -len(filler)]
+    return words
 
 
 def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> list[str]:
