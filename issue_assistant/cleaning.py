@@ -21,6 +21,7 @@ from .patterns import (
     INVISIBLE,
     ISSUE_REFERENCE,
     Checked,
+    fenced,
 )
 from .settings import Config
 
@@ -367,7 +368,6 @@ ROW_END = re.compile(r"(\r\n|\r|\n)")
 CONTAINER = re.compile(r"(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)))*[ \t]*")
 LIST_MARK = re.compile(r"(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)")
 QUOTE_MARK = re.compile(r" {0,3}>[ \t]?")
-FENCE = re.compile(r" {0,3}(`{3,}(?!.*`)|~{3,})")
 # A row after which the next one starts a block of its own, where a definition can
 # begin: a heading, a fence, a rule or the line under a heading. More rows count
 # than in CommonMark, which only removes more.
@@ -549,24 +549,6 @@ def run(pattern: re.Pattern[str], row: str, position: int) -> int:
     match = pattern.match(row, position)
     assert match is not None  # It matches the empty text, or any character there.
     return match.end()
-
-
-def fenced(rows: list[str]) -> list[bool]:
-    """Which rows are fenced code outside quotes and list items: from its fence to
-    the one that closes it, or to the end of the text without one."""
-    code, fence = [], ""
-    for row in rows:
-        if fence:
-            code.append(True)
-            body = row.lstrip(" ")
-            marks = len(body) - len(body.lstrip(fence[0]))
-            if len(row) - len(body) <= 3 and marks >= len(fence):
-                fence = fence if body[marks:].strip(" \t") else ""
-            continue
-        opening = FENCE.match(row)
-        fence = opening[1] if opening else ""
-        code.append(bool(fence))
-    return code
 
 
 def definition(
