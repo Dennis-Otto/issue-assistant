@@ -3025,6 +3025,8 @@ def test_an_answer_with_something_like_a_secret_is_never_posted(config, secret):
         # A word that ends in "hf" before an underscore, unlike the tokens of
         # Hugging Face.
         "shelf_" + "a1B2c3D4e5" * 3,
+        # A date before a name longer than the secret of a token of a Telegram bot.
+        "20261112:" + "handle_the_event_of_the_issue_assistant_now",
         # Digests that their algorithm names: of an image, a hash of pip and the
         # checksum of a release; a fingerprint of a signing key and a commit, which are
         # 40 characters of hex in one case.

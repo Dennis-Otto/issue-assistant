@@ -29,7 +29,7 @@ SECRET = re.compile(
     r"|(?<![A-Za-z0-9])glpat-[A-Za-z0-9_-]{20,}"
     r"|(?<![A-Za-z0-9])[sr]k_live_[A-Za-z0-9]{20,}"
     r"|(?<![A-Za-z0-9])hf_[A-Za-z0-9]{30,}"
-    r"|(?<![A-Za-z0-9])[0-9]{8,10}:[A-Za-z0-9_-]{35}"
+    r"|(?<![A-Za-z0-9])[0-9]{8,10}:[A-Za-z0-9_-]{35}(?![A-Za-z0-9_-])"
     r"|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
     # Webhooks, whose address alone lets anyone post as their owner: up to the secret
