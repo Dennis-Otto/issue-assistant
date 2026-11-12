@@ -115,7 +115,7 @@ def dismiss_accepted(
 
 
 def watch_findings(
-    github: GitHub, root: Path, newer_record: bool = False
+    github: GitHub, root: Path, superseded: bool = False
 ) -> tuple[list[str], int]:
     """Dismiss the accepted findings, report each other open alert once, and say how
     many opened since the record of FINDINGS_RECORD, which fail the run.
@@ -126,7 +126,7 @@ def watch_findings(
     after it name it as still open. Only a run that finds a new alert writes the
     record, of the alerts open then, and a dry run never does, as it writes nothing.
 
-    With `newer_record`, another run kept a record in the cache after this run read
+    With `superseded`, another run kept a record in the cache after this run read
     its own, while this one waited for it: an alert that this record lacks may be in
     that one, reported already, so none fails the run, and the run writes no record,
     which would take the place of the newer one. The next run reads the newer one and
@@ -142,14 +142,14 @@ def watch_findings(
     if alerts is None:
         return [NO_CODE_SCANNING], 0
     reported, done = reported_alerts(root)
-    if newer_record:
+    if superseded:
         done.insert(0, NEWER_RECORD)
     dismissed, left = dismiss_accepted(github, accepted, alerts)
     done += dismissed
     new = [
         alert for alert in left if reported.get(alert["number"]) != alert_opened(alert)
     ]
-    words = ALERT_LEFT if newer_record else ALERT_OPEN
+    words = ALERT_LEFT if superseded else ALERT_OPEN
     done += [f"Alert #{alert['number']}{words}{alert['html_url']}" for alert in new]
     done += [
         f"Alert #{alert['number']}{ALERT_STILL_OPEN}{alert['html_url']}"
@@ -165,7 +165,7 @@ def watch_findings(
         done.append(
             f"Fix these findings, or accept them with a reason in {FINDINGS_FILE}."
         )
-    if newer_record:
+    if superseded:
         return done, 0
     if new and not github.dry_run:
         keep_reported(root, left)
