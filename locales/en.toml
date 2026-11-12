@@ -18,9 +18,11 @@ months = [
   "January", "February", "March", "April", "May", "June", "July", "August", "September",
   "October", "November", "December",
 ]
-# Words that are frequent in the language and in no other catalog. A reporter
-# writes in the language of whose stopwords their words have the most, in
-# English when no other language has more, or fewer than two.
+# Words that are frequent in the language and in no other language of the
+# catalogs: a word that two of them write often, such as the "una" of Spanish and
+# Italian, counts for neither. A reporter writes in the language of whose
+# stopwords their words have the most, in English when no other language has
+# more, or fewer than two.
 stopwords = [
   "the", "and", "is", "not", "with", "when", "it", "this", "that", "does", "have",
   "can", "an", "of", "to", "works", "but", "how", "after", "my", "on", "for", "what",

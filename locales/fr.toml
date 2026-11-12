@@ -19,13 +19,19 @@ months = [
   "janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre",
   "octobre", "novembre", "décembre",
 ]
-# Words that are frequent in the language and in no other catalog. A reporter
-# writes in the language of whose stopwords their words have the most, in
-# English when no other language has more, or fewer than two.
+# Words that are frequent in the language and in no other language of the
+# catalogs: a word that two of them write often, such as the "una" of Spanish and
+# Italian, counts for neither. A reporter writes in the language of whose
+# stopwords their words have the most, in English when no other language has
+# more, or fewer than two.
+# The letter œ, which only French writes, counts as well, as OWN_LETTERS of
+# issue_assistant/languages.py describes.
 stopwords = [
-  "les", "est", "pas", "une", "des", "avec", "dans", "mais", "sur", "quand", "cette",
+  "les", "est", "pas", "une", "des", "avec", "dans", "sur", "quand", "cette",
   "fonctionne", "être", "été", "avoir", "aussi", "très", "après", "mon", "elle", "nous",
-  "vous", "rien", "toujours", "ça", "fait", "peut", "depuis",
+  "vous", "rien", "toujours", "ça", "fait", "peut", "depuis", "au", "aux", "jour",
+  "plus", "erreur", "pour", "sans", "sont", "ces", "bonjour", "merci", "leur", "même",
+  "chez", "seulement", "votre", "marche",
 ]
 
 sample = "La carte reste vide quand je lance une fléchette, et ce n'est pas normal."

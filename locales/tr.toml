@@ -19,9 +19,11 @@ months = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül",
   "Ekim", "Kasım", "Aralık",
 ]
-# Words that are frequent in the language and in no other catalog. A reporter
-# writes in the language of whose stopwords their words have the most, in
-# English when no other language has more, or fewer than two.
+# Words that are frequent in the language and in no other language of the
+# catalogs: a word that two of them write often, such as the "una" of Spanish and
+# Italian, counts for neither. A reporter writes in the language of whose
+# stopwords their words have the most, in English when no other language has
+# more, or fewer than two.
 stopwords = [
   "ve", "bir", "bu", "için", "ile", "çok", "ama", "değil", "gibi", "daha", "sonra",
   "olarak", "kadar", "yok", "şu", "benim", "hiçbir", "neden", "nasıl", "eğer",

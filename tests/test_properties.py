@@ -478,7 +478,12 @@ KANA = letters_named("HIRAGANA LETTER", "KATAKANA LETTER", "HALFWIDTH KATAKANA L
 HAN = letters_named("CJK UNIFIED IDEOGRAPH", "CJK COMPATIBILITY IDEOGRAPH-")
 HANGUL = letters_named("HANGUL SYLLABLE")
 SCRIPTS = {
+    "de": list("ßẞ"),
+    "es": list("ñÑ¿¡"),
+    "fr": list("œŒ"),
+    "it": list("ìòÌÒ"),
     "ko": HANGUL,
+    "pt": list("ãõÃÕ"),
     "ru": list("ёъыэЁЪЫЭ"),
     "uk": list("ґєіїҐЄІЇ"),
     "zh": HAN,
