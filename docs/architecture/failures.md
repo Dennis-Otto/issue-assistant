@@ -14,7 +14,7 @@ Every call goes through `gh api`, in `GitHub._gh`. When it fails, the `GitHubErr
 | --- | --- |
 | `missing()`: status 404 or 410, or the type `NOT_FOUND` | the thing doesn't exist: no other issue, discussion or release, a commit that no release contains, an issue that was deleted or moved |
 | `rate_limited()`: a secondary rate limit | GitHub refused the call before doing anything, so it runs again after a minute, a write too, up to 3 times; gh never shows the header Retry-After, and a minute is what GitHub asks for without it |
-| `transient()`: a status of 500 or more, or a broken connection | a read runs again after 2, 4 and 8 seconds; a write doesn't, since GitHub may have done it anyway |
+| `transient()`: a status of 500 or more, or a broken connection, in the words of gh such as `connection reset`, `connection refused`, `EOF`, `no such host` or a timeout (`NETWORK_FAILURE` lists them all) | a read runs again after 2, 4 and 8 seconds; a write doesn't, since GitHub may have done it anyway |
 | any other, such as the rate limit of the hour | the error goes up to the command |
 
 Only the places that look a thing up catch an error, and only when it is `missing()`. Every other error stops the command: `main` prints it as one escaped `::error::` and the summary lists the writes of the run before it, and the write that failed. A run again repeats nothing, because every step checks first what is done:

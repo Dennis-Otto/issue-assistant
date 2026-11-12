@@ -22,9 +22,14 @@ class SettingsError(AssistantError):
 # gh writes `gh: <message> (HTTP <status>)` for a failed REST call, and `gh: HTTP
 # <status>` when GitHub answered without JSON, such as in an incident.
 HTTP_STATUS = re.compile(r"\bHTTP (\d{3})\b")
-# The words of gh when the connection to GitHub broke off, for a moment.
+# The words of gh, from Go's net/http, when the connection to GitHub broke off
+# or never came about, for a moment: a connection that was reset, refused or
+# closed early (EOF, GOAWAY of HTTP/2), a name that DNS didn't resolve, and each
+# timeout. Only a read runs again, so a match too many costs 14 seconds at most.
 NETWORK_FAILURE = re.compile(
-    r"connection reset|i/o timeout|TLS handshake timeout|unexpected EOF",
+    r"connection reset|connection refused|connection timed out|\bEOF\b|GOAWAY"
+    r"|no such host|server misbehaving|i/o timeout|TLS handshake timeout"
+    r"|timeout awaiting response headers|context deadline exceeded|Client\.Timeout",
     re.IGNORECASE,
 )
 # The waits before a read runs again after a server error, one for each try.
