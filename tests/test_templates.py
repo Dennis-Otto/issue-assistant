@@ -2096,32 +2096,61 @@ def start_script():
 
 
 # The GitHub CLI of the job start, as a shell function: it notes its arguments and
-# answers with the run that GitHub started and that run's conclusion.
+# answers with the run that GitHub started, with 404 to the first MISSING questions
+# for that run, as GitHub does in the first moments after the dispatch, and with
+# that run's conclusion. sleep only notes how long the step would wait.
 FAKE_GH = """
 gh() {
   echo "gh $*" >> "$CALLS"
-  case "$1 $2" in
-    "api --header") [[ -z "$RUN" ]] || echo "$RUN" ;;
-    "run view") echo "$CONCLUSION" ;;
+  case "$*" in
+    *" --method POST "*) [[ -z "$RUN" ]] || echo "$RUN" ;;
+    "api --header "*" repos/$GH_REPO/actions/runs/"*)
+      if ((MISSING > 0)); then
+        MISSING=$((MISSING - 1))
+        echo "failed to get run: HTTP 404: Not Found" >&2
+        return 1
+      fi
+      ;;
+    "run view "*) echo "$CONCLUSION" ;;
   esac
+}
+sleep() {
+  echo "sleep $*" >> "$CALLS"
 }
 """
 
+# How often the step asks for the run before it gives up, and how long it waits
+# between two questions: about a minute in all.
+CANARY_LOOKUPS = 12
+CANARY_LOOKUP_PAUSE = "sleep 5"
+
 
 @pytest.mark.parametrize(
-    ("run", "conclusion", "code", "says"),
+    ("run", "missing", "conclusion", "code", "says"),
     [
-        ("42", "success", 0, "The canary passed."),
+        ("42", 0, "success", 0, "The canary passed."),
         # A later push's canary took the place of its waiting analysis.
-        ("42", "cancelled", 0, "::notice::The canary was cancelled"),
-        ("42", "failure", 1, "::error::The canary ended as failure: "),
-        ("42", "timed_out", 1, "::error::The canary ended as timed_out: "),
+        ("42", 0, "cancelled", 0, "::notice::The canary was cancelled"),
+        ("42", 0, "failure", 1, "::error::The canary ended as failure: "),
+        ("42", 0, "timed_out", 1, "::error::The canary ended as timed_out: "),
+        # GitHub may not serve the run that it just named for a moment.
+        ("42", 2, "success", 0, "The canary passed."),
+        ("42", CANARY_LOOKUPS - 1, "failure", 1, "::error::The canary ended as "),
+        # Nor for a minute, and then the run's page has its result.
+        (
+            "42",
+            CANARY_LOOKUPS,
+            "",
+            0,
+            "::warning::GitHub doesn't show the canary's run after a minute; "
+            "its result is at https://github.com/octo/assistant/actions/runs/42",
+        ),
         # GitHub may start a run without naming it.
-        ("", "", 0, "::warning::GitHub started the canary without naming its run"),
+        ("", 0, "", 0, "::warning::GitHub started the canary without naming its run"),
     ],
 )
 def test_the_push_fails_when_the_canary_that_it_started_fails(
-    tmp_path, run, conclusion, code, says
+    tmp_path, run, missing, conclusion, code, says
 ):
     """GitHub mails a failed run to the person who started it, and nobody started
     the canary's run after a push but the job's token: the push's own run, which
@@ -2130,6 +2159,7 @@ def test_the_push_fails_when_the_canary_that_it_started_fails(
     env = {
         "CALLS": str(calls),
         "RUN": run,
+        "MISSING": str(missing),
         "CONCLUSION": conclusion,
         "GH_REPO": "octo/assistant",
         "GITHUB_REF_NAME": "main",
@@ -2154,10 +2184,20 @@ def test_the_push_fails_when_the_canary_that_it_started_fails(
     if run:
         url = "https://github.com/octo/assistant/actions/runs/42"
         assert f"The canary runs at {url}" in result.stdout
-        assert rest == [
-            "gh run watch 42 --interval 60",
-            "gh run view 42 --json conclusion --jq .conclusion",
-        ]
+        lookup = (
+            f"gh api --header {assistant.API_VERSION_HEADER} "
+            "repos/octo/assistant/actions/runs/42 --silent"
+        )
+        lookups = min(missing + 1, CANARY_LOOKUPS)
+        waited = [lookup, CANARY_LOOKUP_PAUSE] * (lookups - 1) + [lookup]
+        if missing < CANARY_LOOKUPS:
+            assert rest == [
+                *waited,
+                "gh run watch 42 --interval 60",
+                "gh run view 42 --json conclusion --jq .conclusion",
+            ]
+        else:
+            assert rest == waited
         if code:
             assert result.stdout.rstrip().endswith(url)
     else:

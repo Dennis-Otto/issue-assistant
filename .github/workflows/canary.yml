@@ -147,6 +147,16 @@ jobs:
           fi
           url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run"
           echo "The canary runs at $url"
+          # GitHub may answer 404 for the run that it just named in the first moments
+          # after the dispatch, and gh run watch fails on that: ask for about a minute.
+          lookups=12
+          until gh api --header "$API_VERSION_HEADER" "repos/$GH_REPO/actions/runs/$run" --silent; do
+            if ((--lookups == 0)); then
+              echo "::warning::GitHub doesn't show the canary's run after a minute; its result is at $url"
+              exit 0
+            fi
+            sleep 5
+          done
           gh run watch "$run" --interval 60 > /dev/null
           conclusion=$(gh run view "$run" --json conclusion --jq .conclusion)
           case "$conclusion" in
