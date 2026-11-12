@@ -21,7 +21,7 @@ The issue assistant is a composite GitHub Action. `action.yml` runs the package 
 | Lifecycle | `sweep` | Reminders after 15 days, closing after 30 days, closing duplicates after 3 days, marking fixed issues, closing them with the release and filing them under its milestone |
 | Labels | `sync_labels` | Create and update the labels of `labels.toml`, never delete one, and warn of owners that can't be assigned and of issue types the repository lacks |
 | Findings | `watch_findings`, `accept_in_pull_requests` | Dismiss accepted findings, also in pull requests, and fail once for each other alert |
-| Fixture | `read_fixture`, `GitHub.use_fixture` | An issue and its comments from a JSON file in place of GitHub's, for [the canary](architecture/dry-runs.md#the-canary) and for trying a prompt; `context` and `apply` then write nothing |
+| Fixture | `read_fixture`, `GitHub.use_fixture` | An issue and its comments, or a discussion, from a JSON file in place of GitHub's, for [the canary](architecture/dry-runs.md#the-canary), [the Workflow test](architecture/dry-runs.md#the-workflow-test) and for trying a prompt; `context` and `apply` then write nothing |
 | Set-up | `install`, `set_up_github`, `check` | Write the four workflows, the one of the discussions where `config.toml` names categories, the firewall policy and the starter files of `templates/` into a repository, add the notice to reporters and actionlint's ignored `queue` where they are missing, with `--setup` also create the environment `issue-assistant` and have gh ask for the engine's secret, and check that the set-up still fits the templates; only `check` needs nothing but the checkout, and both name its files with slashes on every system |
 
 ## The modules of the package

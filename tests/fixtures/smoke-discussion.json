@@ -1,0 +1,38 @@
+{
+  "discussion": {
+    "id": "D_smoke",
+    "number": 1000001,
+    "title": "Can the assistant answer questions in our Discussions too?",
+    "body": "We use the issue assistant for our issues and like the first analyses. Our Q&A category gets a few questions a week, and most of them are answered in the documentation. Can the assistant give those a first answer as well, and what do we have to change for it?",
+    "createdAt": "2026-11-12T07:00:00Z",
+    "closed": false,
+    "locked": false,
+    "isAnswered": false,
+    "authorAssociation": "NONE",
+    "author": {
+      "__typename": "User",
+      "login": "smoke-asker"
+    },
+    "category": {
+      "name": "Q&A",
+      "isAnswerable": true
+    },
+    "comments": {
+      "totalCount": 1,
+      "nodes": [
+        {
+          "body": "Same question here: we turned on Discussions last week.",
+          "createdAt": "2026-11-12T07:05:00Z",
+          "authorAssociation": "NONE",
+          "author": {
+            "__typename": "User",
+            "login": "smoke-neighbor"
+          },
+          "replies": {
+            "nodes": []
+          }
+        }
+      ]
+    }
+  }
+}

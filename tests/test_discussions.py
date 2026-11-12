@@ -6,6 +6,7 @@ the day. Without a category, nothing changes."""
 import dataclasses
 import json
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 
@@ -665,22 +666,268 @@ def test_the_event_command_plans_the_answer_of_a_new_discussion(
     assert len(github.answers_posted(5)) == 1
 
 
-def test_a_fixture_holds_an_issue_and_no_discussion(monkeypatch, tmp_path, sample_root):
-    github = with_discussions(assistant_config(), make_discussion())
+# A fixture: a discussion from a file, which the smoke test of the Workflow test
+# answers
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+
+def discussion_fixture(path, discussion):
+    path.write_text(json.dumps({"discussion": discussion}), encoding="utf-8")
+    return path
+
+
+def test_context_reads_the_discussion_of_a_fixture_instead_of_github(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    question = make_discussion(
+        1000001, comments=[discussion_comment("neighbor", "Same question here.")]
+    )
+    # Named relative to the checkout, as the Workflow test names it.
+    discussion_fixture(root / "question.json", question)
+    # GitHub has the other discussions and issues of the repository.
+    github = with_discussions(
+        config, make_discussion(104, title="Testers"), issues=[make_issue(7)]
+    )
     code, _, _ = run_main(
         monkeypatch,
         tmp_path,
-        sample_root,
+        root,
         github,
         "context",
-        "--issue",
-        "5",
-        "--mode",
-        MODE,
-        ISSUE_ASSISTANT_FIXTURE="tests/fixtures/canary-issue.json",
+        MODE=MODE,
+        ISSUE_ASSISTANT_FIXTURE="question.json",
     )
+    assert code == 0
+    assert (
+        "::notice::Discussion #1000001 comes from the fixture question.json; "
+        "nothing is written.\n"
+    ) in capsys.readouterr().out
+    folder = root / assistant.CONTEXT
+    text = (folder / "discussion.md").read_text("utf-8")
+    assert text.startswith("# Discussion #1000001: How do I hide the live card?\n")
+    assert "Same question here." in text
+    lines = (folder / "discussions.jsonl").read_text("utf-8").splitlines()
+    assert [json.loads(line)["number"] for line in lines] == [104]
+    # Nothing about the fixture's discussion was asked of GitHub.
+    assert not [call for call in github.calls if "1000001" in str(call)]
+
+
+def test_apply_answers_the_discussion_of_a_fixture_as_a_run_by_hand(
+    monkeypatch, tmp_path, sample_root, config
+):
+    """No event chose the discussion of a fixture, so its category and its comments
+    don't hold the answer back, as in a run by hand; the settings of the sample
+    answer no category at all. The fixture makes apply a dry run."""
+    assert config.answer_categories == ()
+    question = make_discussion(
+        1000001,
+        category="General",
+        answerable=False,
+        comments=[discussion_comment("owner", "See the FAQ.", association="OWNER")],
+    )
+    fixture = discussion_fixture(tmp_path / "question.json", question)
+    github = with_discussions(config, issues=[make_issue(7)])
+
+    def answered():
+        return run_main(
+            monkeypatch,
+            tmp_path,
+            sample_root,
+            github,
+            "apply",
+            MODE=MODE,
+            RESULT=json.dumps(make_discussion_answer()),
+            ENGINE="claude",
+            GITHUB_SHA=REF,
+            ISSUE_ASSISTANT_FIXTURE=str(fixture),
+        )
+
+    code, _, summary = answered()
+    assert code == 0, summary
+    assert github.dry_run and github.writes_made() == []
+    assert f"### Issue assistant: {MODE} of #1000001 (dry run)" in summary
+    assert "- First answer on discussion #1000001: question.\n" in summary
+    assert "- comment on discussion #1000001\n" in summary
+    assert "<details><summary>Comment</summary>" in summary
+    assert not [call for call in github.calls if "1000001" in str(call)]
+    # Never a closed one, as in a run by hand.
+    discussion_fixture(fixture, dict(question, closed=True))
+    code, _, summary = answered()
+    assert code == 0, summary
+    assert "- Discussion #1000001 is closed or locked; nothing posted.\n" in summary
+
+
+@pytest.mark.parametrize(
+    ("argv", "env", "problem"),
+    [
+        (
+            ["context", "--mode", MODE],
+            {"ISSUE_ASSISTANT_FIXTURE": str(FIXTURES / "canary-issue.json")},
+            "holds issue #1000000, but discussion-answer reads discussions.",
+        ),
+        (
+            ["apply", "--mode", "triage"],
+            {"ISSUE_ASSISTANT_FIXTURE": str(FIXTURES / "smoke-discussion.json")},
+            "holds discussion #1000001, but triage reads issues.",
+        ),
+        (
+            ["apply", "--issue", "5", "--mode", MODE],
+            {"ISSUE_ASSISTANT_FIXTURE": str(FIXTURES / "smoke-discussion.json")},
+            "holds discussion #1000001, not #5.",
+        ),
+    ],
+    ids=["an issue for a discussion", "a discussion for an issue", "another number"],
+)
+def test_a_fixture_holds_what_the_task_reads(
+    monkeypatch, tmp_path, sample_root, capsys, argv, env, problem
+):
+    github = with_discussions(assistant_config(), make_discussion())
+    code, _, _ = run_main(monkeypatch, tmp_path, sample_root, github, *argv, **env)
     assert code == 1
+    fixture = env["ISSUE_ASSISTANT_FIXTURE"]
+    assert capsys.readouterr().out == f"::error::The fixture {fixture} {problem}\n"
     assert github.calls == []
+
+
+def test_the_discussion_of_a_fixture_stands_in_for_github_s_alone(tmp_path):
+    question = make_discussion(12, comments=[discussion_comment(None, "Hi")])
+    discussion_fixture(tmp_path / "question.json", question)
+    fixture = assistant.read_fixture(tmp_path, "question.json")
+    assert (fixture.kind, fixture.number, fixture.issue, fixture.comments) == (
+        "discussion",
+        12,
+        None,
+        [],
+    )
+    # Issues and discussions share their numbers: issue #12 is another one.
+    github = FakeGitHub(assistant_config(), make_issue(12, title="Another"))
+    github.use_fixture(fixture)
+    assert github.dry_run
+    expected = assistant.discussion_as_rest(question)
+    # Each read is a copy, as GitHub sends a new one for every request.
+    github.discussion(12)["comments"].clear()
+    assert github.discussion(12) == expected
+    assert expected["comments"][0]["user"] == {"login": "ghost", "type": "User"}
+    assert github.discussion_exists(12)
+    assert github.calls == []
+    assert github.issue(12)["title"] == "Another"
+    assert github.comments(12) == []
+    assert github.last_edit(12) is None
+    assert github.discussion(13) is None
+    assert not github.discussion_exists(13)
+    assert [call[0] for call in github.calls] == ["GET", "GET", *["GRAPHQL"] * 3]
+
+
+DISCUSSION = make_discussion(12)
+
+
+def without(item, *keys):
+    return {key: value for key, value in item.items() if key not in keys}
+
+
+@pytest.mark.parametrize(
+    ("content", "problem"),
+    [
+        (
+            {"discussion": DISCUSSION, "issue": make_issue(12), "comments": []},
+            "issue doesn't go with a discussion, which holds its comments; "
+            "comments doesn't go with a discussion, which holds its comments",
+        ),
+        ({"discussion": [DISCUSSION]}, "discussion must be an object"),
+        (
+            {
+                "discussion": dict(
+                    DISCUSSION,
+                    id=12,
+                    number=0,
+                    title=None,
+                    closed="no",
+                    isAnswered=None,
+                    author={"login": 5},
+                    authorAssociation=None,
+                    body=5,
+                    createdAt="today",
+                    category={"name": "Q&A"},
+                )
+            },
+            "discussion.author must be an object with a login, or null; "
+            "discussion.authorAssociation must be a string; "
+            "discussion.body must be a string; "
+            "discussion.createdAt must be a moment, such as 2026-10-13T07:23:00Z; "
+            "discussion.id must be a string, the ID of its node; "
+            "discussion.number must be a whole number, 1 or more; "
+            "discussion.title must be a string; "
+            "discussion.closed must be true or false; "
+            "discussion.isAnswered must be true or false; "
+            "discussion.category must be an object with a name and isAnswerable",
+        ),
+        (
+            {"discussion": without(DISCUSSION, "comments")},
+            "discussion.comments must be an object with totalCount and a list of nodes",
+        ),
+        (
+            {"discussion": dict(DISCUSSION, comments={"nodes": []})},
+            "discussion.comments must be an object with totalCount and a list of nodes",
+        ),
+        (
+            {"discussion": dict(DISCUSSION, comments={"totalCount": 1, "nodes": {}})},
+            "discussion.comments must be an object with totalCount and a list of nodes",
+        ),
+        (
+            {
+                "discussion": make_discussion(
+                    12,
+                    comments=[
+                        "Hi",
+                        without(discussion_comment("asker", "Hi"), "replies"),
+                        discussion_comment(
+                            "asker",
+                            "Hi",
+                            replies=[
+                                5,
+                                discussion_reply("owner", None) | {"author": []},
+                            ],
+                        ),
+                    ],
+                )
+            },
+            "discussion.comments.nodes[0] must be an object; "
+            "discussion.comments.nodes[1].replies must be an object with a list of "
+            "nodes; "
+            "discussion.comments.nodes[2].replies.nodes[0] must be an object; "
+            "discussion.comments.nodes[2].replies.nodes[1].author must be an object "
+            "with a login, or null",
+        ),
+    ],
+    ids=[
+        "an issue too",
+        "no object",
+        "wrong values",
+        "no comments",
+        "comments without their number",
+        "comments without a list",
+        "comments and replies of wrong kinds",
+    ],
+)
+def test_a_discussion_that_github_would_not_send_is_refused(tmp_path, content, problem):
+    (tmp_path / "question.json").write_text(json.dumps(content), encoding="utf-8")
+    with pytest.raises(assistant.AssistantError) as refused:
+        assistant.read_fixture(tmp_path, "question.json")
+    assert str(refused.value) == f"The fixture question.json doesn't fit: {problem}."
+
+
+def test_the_discussion_of_the_smoke_test_fits():
+    """The Workflow test answers it on every pull request that changes what the
+    reusable workflow of the discussions runs."""
+    fixture = assistant.read_fixture(FIXTURES, "smoke-discussion.json")
+    discussion = assistant.discussion_as_rest(fixture.discussion)
+    assert (fixture.kind, discussion["state"], discussion["locked"]) == (
+        "discussion",
+        "open",
+        False,
+    )
+    assert discussion["category"] == {"name": "Q&A", "is_answerable": True}
 
 
 # The set-up

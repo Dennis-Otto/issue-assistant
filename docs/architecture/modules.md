@@ -25,7 +25,7 @@ The code is the package `issue_assistant/`, of the standard library alone ([deci
 | `issue_assistant/languages.py` | The catalogs of `locales/`, and the guess of a text's language |
 | `issue_assistant/engines.py` | The table `ENGINES`, with the command line and the limits of each |
 | `issue_assistant/settings.py` | `labels.toml`, `config.toml` and `findings.toml`, read and checked |
-| `issue_assistant/fixture.py` | An issue from a file, for the canary and for trying a prompt |
+| `issue_assistant/fixture.py` | An issue or a discussion from a file, for the canary, the Workflow test and for trying a prompt |
 | `issue_assistant/github.py` | The class `GitHub`: every request, through `gh`, and GraphQL's answers as REST's |
 | `issue_assistant/issues.py` | Who wrote an issue or a comment, the marks of the assistant, the issue forms and the commands in a comment |
 | `issue_assistant/cleaning.py` | The cleaning of what the engine wrote: `sanitize`, `plain` and the links to files |

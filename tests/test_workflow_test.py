@@ -40,6 +40,8 @@ JOBS = TEST["jobs"]
 CALLERS = {key: job for key, job in JOBS.items() if "uses" in job}
 CANARY_ISSUE = "tests/fixtures/canary-issue.json"
 SMOKE_ANSWER = "tests/fixtures/smoke-answer.json"
+SMOKE_DISCUSSION = "tests/fixtures/smoke-discussion.json"
+SMOKE_DISCUSSION_ANSWER = "tests/fixtures/smoke-discussion-answer.json"
 LEVELS = ("none", "read", "write")
 
 
@@ -74,7 +76,7 @@ def test_every_reusable_workflow_has_a_call_with_the_permissions_of_its_template
         # No secret: the engine is the Canary's.
         assert "secrets" not in job, key
         expected = {"dry_run": True}
-        if name == "reusable-issue-assistant.yml":
+        if name in SMOKED:
             expected = {"smoke": True, "dry_run": True}
         assert job["with"] == expected, key
 
@@ -86,7 +88,10 @@ def test_only_the_workflow_test_passes_the_input_smoke():
         for key, job in load(path.name)["jobs"].items()
         if "smoke" in (job.get("with") or {})
     ]
-    assert callers == [("workflow-test.yml", "issues")]
+    assert callers == [
+        ("workflow-test.yml", "issues"),
+        ("workflow-test.yml", "discussions"),
+    ]
 
 
 def test_the_script_knows_every_job_and_the_step_that_writes_its_plan():
@@ -99,8 +104,8 @@ def test_the_script_knows_every_job_and_the_step_that_writes_its_plan():
             plan = expected[job["name"]]
             if plan is not None:
                 assert plan in [step.get("name") for step in job["steps"]], plan
-    # Of the issues, the two jobs of the AI alone are skipped: the smoke test runs no
-    # engine. A pull request is no event of the discussions.
+    # The two jobs of the AI alone are skipped: the smoke tests of the issues and of
+    # the discussions run no engine.
     skipped = {
         f"{call} / {name}"
         for call, expected in script.CALLS.items()
@@ -111,11 +116,9 @@ def test_the_script_knows_every_job_and_the_step_that_writes_its_plan():
         "reusable-issue-assistant.yml / Analyze with the AI engine",
         "reusable-issue-assistant.yml / Analyze with the AI engine on the runner in "
         "reserve",
-        "reusable-discussion-assistant.yml / Handle the event",
         "reusable-discussion-assistant.yml / Analyze with the AI engine",
         "reusable-discussion-assistant.yml / Analyze with the AI engine on the runner "
         "in reserve",
-        "reusable-discussion-assistant.yml / Check and post the answer",
     }
 
 
@@ -185,6 +188,9 @@ def test_the_calls_run_for_every_file_that_the_dry_runs_run_or_read():
         "scripts/workflow_test.py",
         CANARY_ISSUE,
         SMOKE_ANSWER,
+        SMOKE_DISCUSSION,
+        SMOKE_DISCUSSION_ANSWER,
+        ".github/workflows/reusable-discussion-assistant.yml",
         ".github/issue-assistant/config.toml",
         ".github/labels.toml",
         ".github/findings.toml",
@@ -196,15 +202,26 @@ def test_the_calls_run_for_every_file_that_the_dry_runs_run_or_read():
 
 # ---------------------------------------------------------------- the smoke test
 
-ISSUES = load("reusable-issue-assistant.yml")["jobs"]
+# The workflows that the Workflow test calls with the input smoke, by their file,
+# with the task of their smoke test, its fixture and the answer of its file.
+SMOKED = {
+    "reusable-issue-assistant.yml": ("triage", CANARY_ISSUE, SMOKE_ANSWER),
+    "reusable-discussion-assistant.yml": (
+        "discussion-answer",
+        SMOKE_DISCUSSION,
+        SMOKE_DISCUSSION_ANSWER,
+    ),
+}
 
 
-def smoke_step(job):
-    (step,) = [step for step in ISSUES[job]["steps"] if step.get("id") == "smoke"]
+def smoke_step(job, workflow):
+    jobs = load(workflow)["jobs"]
+    (step,) = [step for step in jobs[job]["steps"] if step.get("id") == "smoke"]
     assert step["if"] == "inputs.smoke"
     return step
 
 
+@pytest.mark.parametrize("workflow", SMOKED)
 @pytest.mark.parametrize(
     ("caller", "code", "says"),
     [
@@ -218,12 +235,14 @@ def smoke_step(job):
         ),
     ],
 )
-def test_the_job_event_takes_the_issue_of_the_smoke_test_in_this_repository_alone(
-    tmp_path, caller, code, says
+def test_the_job_event_takes_the_item_of_the_smoke_test_in_this_repository_alone(
+    tmp_path, workflow, caller, code, says
 ):
     """Only this repository has the files of the smoke test; the job sets no
     labels, and analyze, which needs a mode, is skipped by its condition."""
-    step = smoke_step("event")
+    mode, fixture, answer = SMOKED[workflow]
+    jobs = load(workflow)["jobs"]
+    step = smoke_step("event", workflow)
     assert step["env"] == {
         "CALLER": "${{ github.repository }}",
         "WORKFLOW": "${{ fromJSON(toJSON(job)).workflow_repository }}",
@@ -243,19 +262,42 @@ def test_the_job_event_takes_the_issue_of_the_smoke_test_in_this_repository_alon
     )
     assert result.returncode == code, result.stdout + result.stderr
     assert says in result.stdout
-    assert output.read_text(encoding="utf-8") == ("mode=triage\n" if code == 0 else "")
-    condition = " ".join(ISSUES["analyze"]["if"].split())
-    assert condition.startswith("!inputs.smoke && ")
+    if code == 0:
+        assert f"{answer} for the " in result.stdout and fixture in result.stdout
+    assert output.read_text(encoding="utf-8") == (f"mode={mode}\n" if code == 0 else "")
+    for name in ("analyze", "analyze-in-reserve"):
+        condition = " ".join(jobs[name]["if"].split())
+        assert condition.startswith("!inputs.smoke && "), name
+    # The event of the action, which would read the event of the pull request, is
+    # skipped, and the job hands on the task of the smoke test.
+    (event,) = [step for step in jobs["event"]["steps"] if step.get("id") == "event"]
+    assert event["if"].startswith("${{ !inputs.")
+    assert event["if"].endswith("!inputs.smoke }}")
+    assert jobs["event"]["outputs"]["mode"].endswith(" || steps.smoke.outputs.mode }}")
+    condition = " ".join(jobs["event"]["if"].split())
+    assert condition.startswith("!github.event.repository.fork && (inputs.")
+    assert "(inputs.smoke || " in condition or " inputs.smoke || " in condition
 
 
-def test_apply_takes_the_answer_of_the_smoke_test_in_place_of_the_engine_s():
-    step = smoke_step("apply")
+@pytest.mark.parametrize("workflow", SMOKED)
+def test_apply_takes_the_answer_of_the_smoke_test_in_place_of_the_engine_s(workflow):
+    _, fixture, answer = SMOKED[workflow]
+    jobs = load(workflow)["jobs"]
+    step = smoke_step("apply", workflow)
     assert step["run"].splitlines() == [
-        'answer="$(jq --compact-output . tests/fixtures/smoke-answer.json)"',
+        f'answer="$(jq --compact-output . {answer})"',
         'echo "answer=$answer" >> "$GITHUB_OUTPUT"',
     ]
-    steps = ISSUES["apply"]["steps"]
+    steps = jobs["apply"]["steps"]
     assert steps.index(step) == len(steps) - 3
+    apply = steps[steps.index(step) + 1]
+    assert apply["with"]["command"] == "apply"
+    assert apply["with"]["answer"].endswith(" || steps.smoke.outputs.answer }}")
+    assert fixture in apply["env"][assistant.FIXTURE_VARIABLE]
+    # apply runs in the smoke test, which skips both jobs of the AI.
+    assert " ".join(jobs["apply"]["if"].split()).startswith(
+        "!cancelled() && needs.event.result == 'success' && (inputs.smoke || "
+    )
 
 
 def test_apply_accepts_the_answer_of_the_smoke_test_for_the_canary_s_issue(
@@ -284,6 +326,40 @@ def test_apply_accepts_the_answer_of_the_smoke_test_for_the_canary_s_issue(
     assert "### Issue assistant: triage of #1000000 (dry run)" in summary
     assert "- comment on #1000000\n" in summary
     assert "<details><summary>Comment</summary>" in summary
+
+
+def test_apply_accepts_the_answer_of_the_smoke_test_for_its_discussion(
+    monkeypatch, tmp_path
+):
+    """apply checks the answer of the file as that of an engine, for the discussion
+    of the smoke test, with the settings of this repository, which answer no
+    discussions: the discussion of a fixture is answered as one that a maintainer
+    runs by hand, and the fixture makes it a dry run that asks GitHub nothing about
+    it."""
+    repository = "Dennis-Otto/issue-assistant"
+    config = assistant.load_config(ROOT, repository)
+    assert config.answer_categories == ()
+    github = FakeGitHub(config, repository=repository)
+    code, _, summary = run_main(
+        monkeypatch,
+        tmp_path,
+        ROOT,
+        github,
+        "apply",
+        MODE="discussion-answer",
+        RESULT=(ROOT / SMOKE_DISCUSSION_ANSWER).read_text(encoding="utf-8"),
+        ENGINE="claude",
+        GITHUB_SHA="0" * 40,
+        GH_REPO=repository,
+        ISSUE_ASSISTANT_FIXTURE=SMOKE_DISCUSSION,
+    )
+    assert code == 0, summary
+    assert github.dry_run and github.writes_made() == []
+    assert "### Issue assistant: discussion-answer of #1000001 (dry run)" in summary
+    assert "- First answer on discussion #1000001: question.\n" in summary
+    assert "- comment on discussion #1000001\n" in summary
+    assert "<details><summary>Comment</summary>" in summary
+    assert not [call for call in github.calls if "1000001" in str(call)]
 
 
 # ---------------------------------------------------------------- the script
@@ -633,10 +709,9 @@ def test_a_job_that_did_not_run_as_it_has_to_fails_the_check(jobs, result, probl
 
 
 def test_a_job_that_its_call_has_to_skip_fails_the_check_when_it_runs():
-    name = "reusable-discussion-assistant.yml / Handle the event"
-    jobs = replaced(
-        (name, job("reusable-discussion-assistant.yml", "Handle the event", "failure"))
-    )
+    call, called = "reusable-discussion-assistant.yml", "Analyze with the AI engine"
+    name = f"{call} / {called}"
+    jobs = replaced((name, job(call, called, "failure")))
     rows, problems = script.check(jobs, no_annotations)
     assert f"| {name} | skipped | failure |" in rows
     assert problems == [f"{name}: it ended as failure, but the call has to skip it."]

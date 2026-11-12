@@ -58,14 +58,15 @@ class GitHub:
         # The comments and events read in this run, by their path, once remember()
         # turned it on: a sweep reads them for its steps and again for its digest.
         self._memo: dict[str, list[dict[str, Any]]] | None = None
-        # The issue that a file holds in place of GitHub.
+        # The issue or the discussion that a file holds in place of GitHub.
         self.fixture: Fixture | None = None
         # The related repositories read in this run, by their name; see sibling().
         self._siblings: dict[str, GitHub | None] = {}
 
     def use_fixture(self, fixture: Fixture) -> None:
-        """Read the issue of the fixture and its comments from it, not from GitHub,
-        and from now on write nothing, as in a dry run: the issue exists nowhere."""
+        """Read the issue of the fixture and its comments, or its discussion, from
+        it, not from GitHub, and from now on write nothing, as in a dry run: the
+        issue or the discussion exists nowhere."""
         self.fixture = fixture
         self.dry_run = True
 
@@ -198,16 +199,24 @@ class GitHub:
 
     # Reads
 
+    def from_fixture(self, kind: str, number: int) -> Fixture | None:
+        """The fixture when it holds the issue or the discussion `number`, which
+        GitHub then isn't asked for; issues and discussions share their numbers."""
+        fixture = self.fixture
+        if fixture and fixture.kind == kind and fixture.number == number:
+            return fixture
+        return None
+
     def issue(self, number: int) -> dict[str, Any]:
-        if self.fixture and number == self.fixture.number:
+        if fixture := self.from_fixture("issue", number):
             # A copy, as GitHub sends a new one for every request.
-            return deepcopy(self.fixture.issue)
+            return deepcopy(fixture.issue or {})
         issue: dict[str, Any] = self.rest(f"issues/{number}")
         return issue
 
     def comments(self, number: int) -> list[dict[str, Any]]:
-        if self.fixture and number == self.fixture.number:
-            return deepcopy(self.fixture.comments)
+        if fixture := self.from_fixture("issue", number):
+            return deepcopy(fixture.comments)
         return self._remembered(f"issues/{number}/comments?per_page=100")
 
     def events(self, number: int) -> list[dict[str, Any]]:
@@ -639,6 +648,8 @@ class GitHub:
         return nodes
 
     def discussion_exists(self, number: int) -> bool:
+        if self.from_fixture("discussion", number):
+            return True
         try:
             data = self.graphql(
                 """
@@ -662,8 +673,11 @@ class GitHub:
 
         The first 50 comments, each with its first 20 replies, and the number of
         all: the first answer comes within minutes of the question, among the
-        first comments.
+        first comments. The discussion of a fixture comes from its file, a copy, as
+        GitHub sends a new one for every request.
         """
+        if fixture := self.from_fixture("discussion", number):
+            return discussion_as_rest(deepcopy(fixture.discussion or {}))
         try:
             data = self.graphql(
                 """
@@ -757,7 +771,7 @@ class GitHub:
         GitHub keeps the history of the text alone, so a new title is no edit. The
         issue of a fixture has no history.
         """
-        if self.fixture and number == self.fixture.number:
+        if self.from_fixture("issue", number):
             return None
         data = self.graphql(
             """

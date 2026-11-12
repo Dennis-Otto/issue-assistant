@@ -60,3 +60,16 @@ gh api repos/OWNER/REPO/issues/12 | jq '{issue: ., comments: []}' > issue.json  
 export ISSUE_ASSISTANT_FIXTURE=issue.json
 PYTHONPATH=path/to/issue-assistant python3 -P -m issue_assistant context --mode triage
 ```
+
+A file may hold a discussion instead, under the key `discussion`, with its comments and their replies, as GitHub's GraphQL API gives it; `context` and `apply` read it for the task `discussion-answer`, and only for that task. No event chose it, so `apply` answers it as a run by hand does, whatever its category and its comments, but never when it is closed or locked. The discussion of the project's own [Workflow test](architecture/dry-runs.md#the-workflow-test), `tests/fixtures/smoke-discussion.json`, is an example:
+
+```sh
+gh api graphql -F number=12 --jq '{discussion: .data.repository.discussion}' -f query='
+  query($number: Int!) { repository(owner: "OWNER", name: "REPO") { discussion(number: $number) {
+    id number title body createdAt closed locked isAnswered authorAssociation
+    author { __typename login } category { name isAnswerable }
+    comments(first: 50) { totalCount nodes { body createdAt authorAssociation author { __typename login }
+      replies(first: 20) { nodes { body createdAt authorAssociation author { __typename login } } } } } } } }' > discussion.json
+export ISSUE_ASSISTANT_FIXTURE=discussion.json
+PYTHONPATH=path/to/issue-assistant python3 -P -m issue_assistant context --mode discussion-answer
+```

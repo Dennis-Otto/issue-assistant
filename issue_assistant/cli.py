@@ -521,24 +521,26 @@ def issue_command(
 ) -> int:
     """The commands of an event and of the issues: event, context, apply, sweep and
     sync-labels."""
-    if fixture_name and arguments.mode in DISCUSSION_MODES:
-        raise AssistantError(
-            f"A fixture holds an issue; {arguments.mode} reads a discussion of "
-            "GitHub, so unset it."
-        )
     if fixture_name:
         fixture = read_fixture(root, fixture_name)
+        # The tasks of the discussions read a discussion, every other an issue.
+        wanted = "discussion" if arguments.mode in DISCUSSION_MODES else "issue"
+        if fixture.kind != wanted:
+            raise AssistantError(
+                f"The fixture {fixture_name} holds {fixture.kind} "
+                f"#{fixture.number}, but {arguments.mode} reads {wanted}s."
+            )
         if arguments.issue not in {None, fixture.number}:
             raise AssistantError(
-                f"The fixture {fixture_name} holds issue #{fixture.number}, "
+                f"The fixture {fixture_name} holds {fixture.kind} #{fixture.number}, "
                 f"not #{arguments.issue}."
             )
         arguments.issue = fixture.number
         github.use_fixture(fixture)
         command(
             "notice",
-            f"Issue #{fixture.number} comes from the fixture {fixture_name}; "
-            "nothing is written.",
+            f"{fixture.kind.capitalize()} #{fixture.number} comes from the fixture "
+            f"{fixture_name}; nothing is written.",
         )
     if arguments.command in {"context", "apply"} and not (
         arguments.issue and arguments.mode
@@ -588,7 +590,9 @@ def apply_command(
     run.title = f"Issue assistant: {arguments.mode} of #{arguments.issue}"
     by_hand = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
     # A run by hand of the discussions answers again, as one of an issue does only
-    # with override.
+    # with override. So does the discussion of a fixture, which no event chose and
+    # which exists nowhere, whatever its category: as in the smoke test of the
+    # Workflow test, in a repository whose settings name no category.
     discussion = arguments.mode in DISCUSSION_MODES
     overrider = "" if discussion else overrider_of(github, arguments.issue)
     done = apply_answer(
@@ -599,7 +603,7 @@ def apply_command(
         config,
         os.environ.get("GITHUB_SHA", "HEAD"),
         repeat=bool(overrider)
-        or (by_hand and discussion)
+        or (discussion and (by_hand or github.fixture is not None))
         or asked_again(arguments.issue),
         engine=os.environ.get("ENGINE", ""),
         comment_id=event_comment(arguments.issue),

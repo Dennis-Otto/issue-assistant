@@ -474,12 +474,17 @@ def test_each_template_calls_its_reusable_workflow_with_what_its_jobs_need(name)
     dry_run = workflow[True]["workflow_dispatch"]["inputs"]["dry_run"]
     inputs = dict(load(reusable(name))[True]["workflow_call"]["inputs"])
     # Only the Canary of this repository passes the input canary, to the issues',
-    # and only its Workflow test the input smoke.
-    if name == "issue-assistant.yml":
-        for own, caller in zip(OWN_INPUTS, ("Canary", "Workflow test"), strict=True):
-            given = inputs.pop(own)
-            assert given["type"] == "boolean" and given["default"] is False
-            assert given["description"].startswith(f"Only for the {caller}")
+    # and only its Workflow test the input smoke, to the issues' and the
+    # discussions'.
+    own_inputs = {
+        "issue-assistant.yml": OWN_INPUTS,
+        assistant.DISCUSSION_WORKFLOW: (SMOKE_INPUT,),
+    }.get(name, ())
+    callers = {CANARY_INPUT: "Canary", SMOKE_INPUT: "Workflow test"}
+    for own in own_inputs:
+        given = inputs.pop(own)
+        assert given["type"] == "boolean" and given["default"] is False
+        assert given["description"].startswith(f"Only for the {callers[own]}")
     assert inputs == {
         "dry_run": {
             "description": dry_run["description"],
@@ -2636,36 +2641,54 @@ def test_the_discussions_analyze_as_the_issues_do():
     """The jobs analyze and analyze-in-reserve of the discussions are those of the
     issues, as YAML: every rule above that keeps the engine to reading holds for
     both."""
-    assert DISCUSSION_JOBS["analyze"] == without_the_canary(ANALYZE)
-    assert DISCUSSION_JOBS[RESERVE] == without_the_canary(JOBS[RESERVE])
+    for name in ("analyze", RESERVE):
+        # Both skip the engine in their smoke test, and only the issues have a
+        # Canary.
+        assert DISCUSSION_JOBS[name]["if"] == JOBS[name]["if"], name
+        assert without_the_canary(DISCUSSION_JOBS[name]) == without_the_canary(
+            JOBS[name]
+        ), name
+        assert not [
+            step
+            for step in DISCUSSION_JOBS[name]["steps"]
+            if CANARY_INPUT in json.dumps(step)
+        ], name
     issues = load(reusable("issue-assistant.yml"))[True]["workflow_call"]
-    inputs = {
-        name: value
-        for name, value in issues["inputs"].items()
-        if name not in OWN_INPUTS
-    }
-    assert load(reusable(assistant.DISCUSSION_WORKFLOW))[True] == {
-        "workflow_call": dict(issues, inputs=inputs)
-    }
+    discussions = load(reusable(assistant.DISCUSSION_WORKFLOW))[True]["workflow_call"]
+    # The same inputs and secrets, but no canary; the smoke test of each reads its
+    # own files.
+    assert discussions["secrets"] == issues["secrets"]
+    assert list(discussions["inputs"]) == ["dry_run", SMOKE_INPUT]
+    assert discussions["inputs"]["dry_run"] == issues["inputs"]["dry_run"]
+    assert discussions["inputs"][SMOKE_INPUT]["description"] == (
+        issues["inputs"][SMOKE_INPUT]["description"]
+        .replace("smoke-answer.json", "smoke-discussion-answer.json")
+        .replace(
+            "the issue of tests/fixtures/canary-issue.json",
+            "the discussion of tests/fixtures/smoke-discussion.json",
+        )
+    )
+    assert set(discussions) == {"inputs", "secrets"}
     assert list(DISCUSSION_JOBS) == ["event", "analyze", RESERVE, "apply"]
     assert DISCUSSION_JOBS["apply"]["needs"] == ["event", "analyze", RESERVE]
     # apply runs after an answer of the engine on either runner. It writes out what
     # GitHub otherwise adds, that the jobs that ran passed: one of the two jobs of the
-    # AI is always skipped, and the smoke test of the issues skips both.
+    # AI is always skipped, and the smoke tests skip both.
     answered = (
         "(needs.analyze.result == 'success' && needs.analyze.outputs.answer != '') || "
         f"(needs.{RESERVE}.result == 'success' && "
         f"needs.{RESERVE}.outputs.answer != '')"
     )
-    assert words(DISCUSSION_JOBS["apply"]["if"]) == (
-        f"!cancelled() && needs.event.result == 'success' && ({answered})"
+    assert (
+        words(DISCUSSION_JOBS["apply"]["if"])
+        == words(JOBS["apply"]["if"])
+        == (
+            "!cancelled() && needs.event.result == 'success' && "
+            f"(inputs.{SMOKE_INPUT} || {answered})"
+        )
     )
-    assert words(JOBS["apply"]["if"]) == (
-        "!cancelled() && needs.event.result == 'success' && "
-        f"(inputs.{SMOKE_INPUT} || {answered})"
-    )
-    # Their event and apply jobs run the same commands of the action; only the
-    # smoke test gives apply the answer of its file.
+    # Their event and apply jobs run the same commands of the action; the smoke
+    # test of each gives apply the answer of its file.
     for name in ("event", "apply"):
         ours = [
             step["with"]
@@ -2673,12 +2696,7 @@ def test_the_discussions_analyze_as_the_issues_do():
             if step.get("uses") == TOOL
         ]
         theirs = [
-            {
-                key: value.replace(" || steps.smoke.outputs.answer }}", " }}")
-                for key, value in step["with"].items()
-            }
-            for step in JOBS[name]["steps"]
-            if step.get("uses") == TOOL
+            step["with"] for step in JOBS[name]["steps"] if step.get("uses") == TOOL
         ]
         assert ours == theirs, name
 
@@ -2711,11 +2729,12 @@ def test_a_new_discussion_triggers_the_workflow_of_the_discussions():
     assert DISCUSSIONS[True]["discussion"] == {"types": ["created"]}
     assert set(DISCUSSIONS[True]) == {"discussion", "workflow_dispatch"}
     condition = " ".join(DISCUSSION_JOBS["event"]["if"].split())
-    # A call for another event, such as a pull request of the Workflow test, skips
-    # every job: the event of the action reads a discussion or a manual run alone.
+    # A call for another event, such as a pull request, skips every job: the event of
+    # the action reads a discussion or a manual run alone. The smoke test of the
+    # Workflow test alone takes the discussion of its file.
     assert condition == (
-        "!github.event.repository.fork && "
-        "(github.event_name == 'workflow_dispatch' || "
+        f"!github.event.repository.fork && (inputs.{SMOKE_INPUT} || "
+        "github.event_name == 'workflow_dispatch' || "
         "(github.event_name == 'discussion' && "
         "github.event.sender.type != 'Bot'))"
     )
