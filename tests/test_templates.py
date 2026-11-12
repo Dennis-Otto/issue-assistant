@@ -2846,7 +2846,7 @@ def test_the_findings_workflow_may_only_dismiss_alerts_and_runs_no_ai():
     assert "head_repository.full_name == github.repository" in condition
     assert "head_branch == github.event.repository.default_branch" in condition
     assert "workflow_run.event == 'pull_request'" in condition
-    _, _, _, guard, checkout, tool, record, step, keep, _ = job["steps"]
+    _, _, _, guard, checkout, tool, newest, record, step, keep, _ = job["steps"]
     assert guard["name"] == GUARD["name"]
     assert checkout["with"] == {"persist-credentials": False}
     assert tool["with"] == TOOL_CHECKOUT and step["uses"] == TOOL
@@ -2864,15 +2864,17 @@ def test_the_findings_keep_the_record_of_the_reported_alerts_in_the_cache():
     names = [step.get("name") for step in job["steps"]]
     restore = step_named(reader, "Restore the record of the reported alerts")
     check = step_named(reader, "Check the record of the reported alerts")
+    newest = step_named(job, "Look up the newest record of the reported alerts")
     put = step_named(job, "Put the record of the reported alerts in place")
     keep = step_named(job, "Keep the record of the reported alerts")
     findings = names.index("Dismiss accepted findings and report the others")
     # After the checkouts, whose clean would remove the record, around the findings.
+    assert names.index(newest["name"]) == findings - 2
     assert names.index(put["name"]) == findings - 1
     assert names.index(keep["name"]) == findings + 1
     record = assistant.FINDINGS_RECORD.as_posix()
     hashed = f"hashFiles('{record}')"
-    for step, part in ((restore, "restore"), (keep, "save")):
+    for step, part in ((restore, "restore"), (newest, "restore"), (keep, "save")):
         action, _, ref = step["uses"].partition("@")
         assert action == f"actions/cache/{part}" and assistant.SHA.fullmatch(ref)
         # A cache that fails or hangs stops neither the findings nor the job.
@@ -2883,6 +2885,21 @@ def test_the_findings_keep_the_record_of_the_reported_alerts_in_the_cache():
     assert restore["with"]["key"] == FINDINGS_CACHE + "${{ github.run_id }}"
     assert restore["with"]["restore-keys"] == FINDINGS_CACHE
     assert "if" not in restore
+    # The runs after the scans of a push overlap, and the job record of one reads the
+    # record before the run ahead keeps a newer one at its end: once the findings'
+    # turn has come in their group, after the run ahead, they look up the key of the
+    # newest record by the same keys, without downloading it, and the issue assistant
+    # fails for no alert of a record that a newer one replaced.
+    assert newest["id"] == "newest"
+    assert newest["with"] == {**restore["with"], "lookup-only": True}
+    assert newest["if"] == "needs.record.outputs.key != ''"
+    assert "concurrency" in job and "concurrency" not in reader
+    assert step_named(job, "Dismiss accepted findings and report the others")[
+        "env"
+    ] == {
+        "RECORD_KEY": "${{ needs.record.outputs.key }}",
+        "NEWEST_RECORD_KEY": "${{ steps.newest.outputs.cache-matched-key }}",
+    }
     assert reader["outputs"] == {
         "record": "${{ steps.check.outputs.record }}",
         "key": "${{ steps.restore.outputs.cache-matched-key }}",
@@ -2929,11 +2946,13 @@ def test_no_job_that_may_write_unpacks_a_cache():
     assistant and hands on only a record that it checked (decision 0026)."""
     for name in NAMES:
         for job_name, job in load(reusable(name))["jobs"].items():
+            # A lookup asks for the key alone, and downloads and unpacks nothing.
             restores = [
                 step
                 for step in job["steps"]
                 if step.get("uses", "").startswith("actions/cache")
                 and not step["uses"].startswith("actions/cache/save@")
+                and step.get("with", {}).get("lookup-only") is not True
             ]
             if (name, job_name) == ("findings.yml", RECORD_JOB):
                 assert job["permissions"] == {}
