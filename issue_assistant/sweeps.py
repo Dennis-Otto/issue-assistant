@@ -405,6 +405,28 @@ def close_issue_released(
     return [f"#{number}: closed, released in {release['tag_name']}."]
 
 
+def reopened_by_hand(
+    github: GitHub, number: int, comments: list[dict[str, Any]], since: datetime
+) -> bool:
+    """Whether someone other than the assistant reopened the issue after the sweep
+    closed it for a missing answer, since the waiting began.
+
+    Such an issue keeps its labels, which only the reporter's answer takes away, and
+    a reopening is no question that starts a new waiting.
+    """
+    closings = [
+        created(comment)
+        for comment in comments
+        if kind_of(comment) == "closed-unanswered" and created(comment) >= since
+    ]
+    return bool(closings) and any(
+        event["event"] == "reopened"
+        and login(event.get("actor")) != BOT
+        and created(event) > closings[-1]
+        for event in github.events(number)
+    )
+
+
 def sweep_waiting(
     github: GitHub, issue: dict[str, Any], now: datetime, lifecycle: Lifecycle
 ) -> list[str]:
@@ -413,7 +435,8 @@ def sweep_waiting(
 
     An answer is a comment or an edit of the text by the reporter after the last
     question. The closing comes on the day that the reminder named. An exempt issue
-    goes on waiting without a reminder and never closes.
+    goes on waiting without a reminder and never closes, and one that someone
+    reopened by hand after its closing waits no longer.
     """
     number = issue["number"]
     author = login(issue.get("user"))
@@ -431,6 +454,13 @@ def sweep_waiting(
             if name in current:
                 github.remove_label(number, name)
         return [f"#{number}: the reporter answered; no longer waiting."]
+    if reopened_by_hand(github, number, comments, since):
+        # Whoever reopened it takes it over; their next question waits anew.
+        for name in (NEEDS_INFO, STALE):
+            if name in current:
+                github.remove_label(number, name)
+        github.add_labels(number, [NEEDS_TRIAGE])
+        return [f"#{number}: reopened by hand; no longer waiting."]
     exempt = exemption(issue, lifecycle)
     if exempt:
         if STALE not in current:

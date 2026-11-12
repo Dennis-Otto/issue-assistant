@@ -6,7 +6,7 @@ description: How an issue moves from its first analysis to its closing with the 
 
 [← All features](README.md)
 
-Questions of the assistant or the maintainer mark an issue `needs-info`; after 15 days the reporter gets a reminder that names the day the issue closes, and after 30 days it closes on that day. An answer, in a comment or by an edit of the issue, ends the waiting, and a comment reopens a closed issue.
+Questions of the assistant or the maintainer mark an issue `needs-info`; after 15 days the reporter gets a reminder that names the day the issue closes, and after 30 days it closes on that day. An answer, in a comment or by an edit of the issue, ends the waiting, and a comment reopens a closed issue. A maintainer who reopens it by hand ends the waiting as well.
 
 Labels say where an issue stands, and the lifecycle moves it on; each box has the colour of its label:
 
@@ -20,4 +20,5 @@ An issue that waits for its reporter keeps what the comments of the assistant pr
 - **An answer is a comment or an edit of the text,** as the questions offer. Either ends the waiting, also when the event job missed it, since the sweep reads the comments and the history of the text. A new title alone answers nothing, and the AI gets no follow-up to write for it.
 - **The reminder names the day, and the issue closes on it.** The waiting counts days of the calendar in UTC, and the hidden marker of the reminder records the day, so the sweep of that morning closes the issue, whatever minute it starts.
 - **A comment of the reporter reopens the issue** that the sweep closed for a missing answer, as the closing comment promises, whatever its labels say: also when an answer came in while the sweep closed it and took them.
+- **A reopening by hand ends the waiting.** When a maintainer, or anyone else who may, reopens an issue that the sweep closed for a missing answer, the next sweep takes away `needs-info` and `stale`, adds `needs-triage` and leaves the issue open, instead of closing it again. A new question, or `/assistant waiting`, starts a new waiting from then on.
 - **A follow-up waits for no maintainer.** The AI writes for a minute or two; the job that posts its follow-up checks again, and posts nothing once a maintainer joined the conversation.

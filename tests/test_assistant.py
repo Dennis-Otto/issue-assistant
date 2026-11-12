@@ -6449,6 +6449,92 @@ def test_a_late_reminder_still_gives_15_days(config):
     assert github.store[12]["state"] == "open"
 
 
+def reopened_by_hand(config, actor=None, *, reopened=0.2):
+    """An issue that the sweep closed 5 days ago for a missing answer, with its
+    labels, and that the actor, a maintainer by default, reopened since."""
+    github = reminded(config, 35, 20)
+    github.comment_store[12].append(
+        make_comment(3, "bot", assistant.render_closed_unanswered("reporter", "en"), 5)
+    )
+    github.event_store[12] += [
+        {"event": "closed", "actor": BOT_USER, "created_at": at(5)},
+        {
+            "event": "reopened",
+            "actor": actor or {"login": "maintainer", "type": "User"},
+            "created_at": at(reopened),
+        },
+    ]
+    return github
+
+
+@pytest.mark.parametrize("stale", [True, False])
+def test_a_reopening_by_hand_ends_the_waiting(config, stale):
+    """A maintainer who reopens an issue that the sweep closed for a missing answer
+    takes it over: the next sweep doesn't close it again without a word, also when
+    they took away `stale` but not `needs-info`."""
+    github = reopened_by_hand(config)
+    if not stale:
+        github.remove_label(12, "stale")
+    assert assistant.sweep(github, NOW) == ["#12: reopened by hand; no longer waiting."]
+    assert github.store[12]["state"] == "open"
+    assert github.labels_of(12) == {"bug", "needs-triage"}
+    assert not github.posted(12)
+    # The labels are gone, so the next sweep doesn't see the issue.
+    assert assistant.sweep(github, NOW) == []
+
+
+def test_a_new_question_after_a_reopening_by_hand_starts_a_new_waiting(config):
+    """The maintainer reopens the issue and asks again, or labels it needs-info,
+    as `/assistant waiting` does: it waits anew, from that question."""
+    github = reopened_by_hand(config, reopened=0.3)
+    github.event_store[12].append(
+        {
+            "event": "labeled",
+            "label": {"name": "needs-info"},
+            "actor": {"login": "maintainer", "type": "User"},
+            "created_at": at(0.1),
+        }
+    )
+    assert assistant.sweep(github, NOW) == []
+    assert github.store[12]["state"] == "open"
+    # The reminder of the earlier waiting no longer counts.
+    assert github.labels_of(12) == {"bug", "needs-info"}
+    assert not github.posted(12)
+
+
+def test_a_reopening_by_the_assistant_itself_ends_no_waiting(config):
+    """The assistant reopens an issue only for the reporter's answer, which ends the
+    waiting by itself; its own reopening is no maintainer's."""
+    github = reopened_by_hand(config, BOT_USER)
+    assert assistant.sweep(github, NOW) == [
+        "#12: closed after 35 days without an answer."
+    ]
+    assert github.store[12]["state"] == "closed"
+
+
+def test_a_reopening_before_the_closing_ends_no_waiting(config):
+    """A reopening after an earlier closing, before the question of this waiting,
+    leaves it as it is."""
+    github = reminded(config, 35, 20)
+    github.event_store[12].insert(
+        0,
+        {
+            "event": "reopened",
+            "actor": {"login": "maintainer", "type": "User"},
+            "created_at": at(50),
+        },
+    )
+    github.comment_store[12].insert(
+        0,
+        make_comment(
+            9, "bot", assistant.render_closed_unanswered("reporter", "en"), 60
+        ),
+    )
+    assert assistant.sweep(github, NOW) == [
+        "#12: closed after 35 days without an answer."
+    ]
+
+
 def test_one_issue_waits_from_the_question_to_the_day_that_the_reminder_named(
     config,
 ):
