@@ -863,6 +863,10 @@ def without(item, *keys):
             "discussion.category must be an object with a name and isAnswerable",
         ),
         (
+            {"discussion": without(DISCUSSION, "author")},
+            "discussion.author must be an object with a login, or null",
+        ),
+        (
             {"discussion": without(DISCUSSION, "comments")},
             "discussion.comments must be an object with totalCount and a list of nodes",
         ),
@@ -904,6 +908,7 @@ def without(item, *keys):
         "an issue too",
         "no object",
         "wrong values",
+        "no author",
         "no comments",
         "comments without their number",
         "comments without a list",

@@ -100,9 +100,10 @@ def post_problems(item: object, where: str) -> list[str]:
         return [f"{where} must be an object"]
     problems = []
     author = item.get("author")
-    # GraphQL names no author for a deleted account.
-    if author is not None and not (
-        isinstance(author, dict) and fits(author.get("login"), str)
+    # GraphQL always sends the key, with null for a deleted account.
+    if "author" not in item or (
+        author is not None
+        and not (isinstance(author, dict) and fits(author.get("login"), str))
     ):
         problems.append(f"{where}.author must be an object with a login, or null")
     if not fits(item.get("authorAssociation"), str):
