@@ -358,8 +358,10 @@ def firewall_endpoints(root: Path) -> str:
     if not path.is_file():
         raise AssistantError(f"{FIREWALL} is missing; {reinstall()}")
     policy = load_yaml(path, str(FIREWALL))
-    hosts = policy.get("allow") if isinstance(policy, dict) else None
-    if not isinstance(hosts, list) or not hosts:
+    if shape := policy_shape(policy):
+        raise SettingsError(shape)
+    hosts = policy.get("allow")
+    if not hosts:
         raise AssistantError(f"{FIREWALL} allows no host; {reinstall()}")
     wrong = [host for host in hosts if not full_host(host)]
     if wrong:
@@ -368,6 +370,33 @@ def firewall_endpoints(root: Path) -> str:
         )
     every = dict.fromkeys(host.lower() for host in [*FIREWALL_DEFAULT_HOSTS, *hosts])
     return " ".join(f"{host}:{port}" for host in every for port in ENDPOINT_PORTS)
+
+
+def policy_shape(policy: object) -> list[str]:
+    """What keeps a firewall policy from the shape of the template, which `check`
+    and the endpoints of Harden-Runner read: a mapping whose allow, where it has
+    one, is a list of host names, each a string."""
+    if not isinstance(policy, dict):
+        what = (
+            "is empty"
+            if policy is None
+            else "must be a mapping of mode, allow and the other keys of the template"
+        )
+        return [f"{FIREWALL} {what}; {reinstall()}"]
+    hosts = policy.get("allow")
+    if hosts is None:
+        return []
+    if not isinstance(hosts, list):
+        return [
+            f"{FIREWALL}: allow must be a list, with each host on a line of its own "
+            "after a dash"
+        ]
+    return [
+        f"{FIREWALL}: allow lists {json.dumps(host, default=str)}, where it takes a "
+        "host name such as api.github.com"
+        for host in hosts
+        if not isinstance(host, str)
+    ]
 
 
 def full_host(host: object) -> bool:
@@ -410,22 +439,31 @@ def check_workflows(config: Config) -> list[str]:
         problems.append(f"{FIREWALL} is missing; {reinstall()}")
     else:
         policy = load_yaml(firewall, str(FIREWALL))
-        engine = config.engine if config.engine in ENGINES else DEFAULT_ENGINE
-        needed = allowed_hosts(firewall_policy(engine))
-        hosts = set(policy.get("allow") or [])
-        if policy.get("mode") != "enforce":
-            problems.append(f"{FIREWALL}: mode must be enforce")
-        if policy.get("no-default-urls"):
-            problems.append(f"{FIREWALL}: the assistant needs GitHub's default hosts")
-        for host in sorted(needed - hosts):
-            problems.append(f"{FIREWALL}: the engine needs the host {host}")
-        # Harden-Runner takes the same hosts on a runner without the firewall.
-        for host in sorted(hosts):
-            if not full_host(host):
-                problems.append(f"{FIREWALL}: name the host {host} in full")
+        shape = policy_shape(policy)
+        problems += shape or policy_problems(policy, config.engine)
     ignore = config.root / ".gitignore"
     if not ignore.is_file() or f"/{CONTEXT}/" not in ignore.read_text("utf-8"):
         problems.append(f".gitignore: add /{CONTEXT}/")
+    return problems
+
+
+def policy_problems(policy: dict[str, Any], engine: str) -> list[str]:
+    """What a firewall policy in the shape of the template lacks for the assistant
+    and its engine."""
+    problems: list[str] = []
+    engine = engine if engine in ENGINES else DEFAULT_ENGINE
+    needed = allowed_hosts(firewall_policy(engine))
+    hosts: set[str] = set(policy.get("allow") or [])
+    if policy.get("mode") != "enforce":
+        problems.append(f"{FIREWALL}: mode must be enforce")
+    if policy.get("no-default-urls"):
+        problems.append(f"{FIREWALL}: the assistant needs GitHub's default hosts")
+    for host in sorted(needed - hosts):
+        problems.append(f"{FIREWALL}: the engine needs the host {host}")
+    # Harden-Runner takes the same hosts on a runner without the firewall.
+    for host in sorted(hosts):
+        if not full_host(host):
+            problems.append(f"{FIREWALL}: name the host {host} in full")
     return problems
 
 
