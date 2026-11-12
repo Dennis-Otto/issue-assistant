@@ -2933,6 +2933,15 @@ HIDDEN_DEFINITIONS = [
     ('[x]: \x01Xyzzy "Xyzzy"', LINK),
     # A space before the caret makes a link reference definition of a footnote.
     ("Card\n\n[ ^x]: Xyzzy\n\nsee [^x]", f"Card\n\n{LINK}\n\nsee [^x]"),
+    # What GitHub shows as no reference keeps no footnote: one in a definition, an
+    # escaped one, one in indented code, one in the target of a link and one in the
+    # footnote itself.
+    ('Card\n\n[a]: <> "[^n]"\n\n[^n]: Xyzzy', f"Card\n\n{LINK}\n\n{FOOTNOTE}"),
+    ("Card \\[^n]\n\n[^n]: Xyzzy", f"Card \\[^n]\n\n{FOOTNOTE}"),
+    ("Card\n\n    code [^n]\n\n[^n]: Xyzzy", f"Card\n\n    code [^n]\n\n{FOOTNOTE}"),
+    ("Card [a](x[^n])\n\n[^n]: Xyzzy", f"Card [a](x[^n])\n\n{FOOTNOTE}"),
+    ('Card [a](x "[^n]")\n\n[^n]: Xyzzy', f'Card [a](x "[^n]")\n\n{FOOTNOTE}'),
+    ("Card\n\n[^n]: [^n] Xyzzy", f"Card\n\n{FOOTNOTE}"),
 ]
 
 
@@ -2965,12 +2974,22 @@ SHOWN_DEFINITIONS = [
     "```\n[x]: # (code)\n```",
     "```\n[x]: # (code without the end of its fence)",
     "See the log[^1].\n\n[^1]: The log",
+    # A reference after an escaped backslash is one.
+    "See the log \\\\[^1].\n\n[^1]: The log",
 ]
 
 
 @pytest.mark.parametrize("text", SHOWN_DEFINITIONS)
 def test_what_github_shows_of_a_definition_stays(text):
     assert assistant.shown_text(text) == (text, 0)
+
+
+def test_a_footnote_that_only_another_footnote_refers_to_goes():
+    """GitHub shows it, but a reference in a footnote doesn't count, so that none in
+    a footnote that GitHub hides keeps one: the safe side."""
+    text = "Card[^a]\n\n[^a]: see [^b]\n\n[^b]: The log"
+    shown = f"Card[^a]\n\n[^a]: see [^b]\n\n{FOOTNOTE}"
+    assert assistant.shown_text(text) == (shown, 1)
 
 
 def test_no_definition_reaches_the_engine(config, root, capsys):

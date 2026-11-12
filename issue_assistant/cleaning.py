@@ -392,7 +392,10 @@ TITLES = {
     "'": (re.compile(r"(?:[^'\\]|\\.?)*+"), "'"),
     "(": (re.compile(r"(?:[^()\\]|\\.?)*+"), ")"),
 }
-FOOTNOTE_REFERENCE = re.compile(r"\[\^([^\]\s]+)\](?!:)")
+# A reference to a footnote that no backslash escapes.
+FOOTNOTE_REFERENCE = re.compile(r"(?<!\\)(?:\\\\)*+\[\^([^\]\s]+)\](?!:)")
+# The target and title of an inline link, in which a `[^1]` is no reference.
+LINK_TARGET = re.compile(r"\]\([^()\n]*\)")
 # The start of each row on which a definition or a footnote could begin: its label,
 # over any rows, reaches a `]:`. The quantifiers give nothing back, so each attempt
 # ends at the first bracket.
@@ -443,16 +446,51 @@ def strip_definitions(text: str, anywhere: bool = False) -> tuple[str, int]:
     parts = ROW_END.split(text)
     rows, ends = parts[::2], [*parts[1::2], ""]
     code = [False] * len(rows) if anywhere else fenced(rows)
-    referenced = {
-        match[1].casefold()
+    # A reference counts only where GitHub surely shows it: not in code, in an
+    # indented row, which may be code, in a definition or a footnote, after a
+    # backslash or in the target of a link. A footnote without one goes: the safe
+    # side. Taking a footnote out can let a definition after it start a block, so
+    # the references are counted again until the rows found stay the same.
+    masked = LINK_TARGET.sub(blank, flat)
+    shown = [
+        (index, match[1].casefold())
         for index, match in zip(
-            rows_of(FOOTNOTE_REFERENCE, flat),
-            FOOTNOTE_REFERENCE.finditer(flat),
+            rows_of(FOOTNOTE_REFERENCE, masked),
+            FOOTNOTE_REFERENCE.finditer(masked),
             strict=True,
         )
-        if not code[index] and "`" not in rows[index]
-    }
+        if not code[index]
+        and "`" not in rows[index]
+        and not INDENTED.match(rows[index])
+    ]
+    hidden: set[int] = set()
+    while True:
+        referenced = {name for index, name in shown if index not in hidden}
+        removals, found = scan(rows, code, candidates, referenced, anywhere)
+        if found <= hidden:
+            break
+        hidden |= found
+    offsets = [0, *accumulate(map(len, parts))]
+    pieces, cursor = [], 0
+    for first, final, note in removals:
+        pieces += [text[cursor : offsets[2 * first]], note, ends[final]]
+        cursor = offsets[2 * final + 1] + len(ends[final])
+    pieces.append(text[cursor:])
+    return "".join(pieces), len(removals)
+
+
+def scan(
+    rows: list[str],
+    code: list[bool],
+    candidates: list[int],
+    referenced: set[str],
+    anywhere: bool,
+) -> tuple[list[tuple[int, int, str]], set[int]]:
+    """The first row, the last row and the note of each definition, and of each
+    footnote whose label isn't `referenced`, that starts on a candidate row; and
+    the rows of every definition and footnote found, also those that stay."""
     removals: list[tuple[int, int, str]] = []
+    found: set[int] = set()
     last = -1
     for index in candidates:
         if index <= last or code[index]:
@@ -466,17 +504,19 @@ def strip_definitions(text: str, anywhere: bool = False) -> tuple[str, int]:
             or opens(rows[index - 1], code[index - 1], depth)
             or bool(LIST_MARK.search(row, 0, prefix))
         )
-        found = definition(rows, code, index, prefix, depth, starts)
-        if found and found[2] not in referenced:
-            removals.append((index, found[0], row[:prefix] + found[1]))
-            last = found[0]
-    offsets = [0, *accumulate(map(len, parts))]
-    pieces, cursor = [], 0
-    for first, final, note in removals:
-        pieces += [text[cursor : offsets[2 * first]], note, ends[final]]
-        cursor = offsets[2 * final + 1] + len(ends[final])
-    pieces.append(text[cursor:])
-    return "".join(pieces), len(removals)
+        hit = definition(rows, code, index, prefix, depth, starts)
+        if not hit:
+            continue
+        found.update(range(index, hit[0] + 1))
+        if hit[2] not in referenced:
+            removals.append((index, hit[0], row[:prefix] + hit[1]))
+            last = hit[0]
+    return removals, found
+
+
+def blank(match: re.Match[str]) -> str:
+    """As many spaces as the match is long, so that every row keeps its place."""
+    return " " * len(match[0])
 
 
 def rows_of(pattern: re.Pattern[str], text: str) -> Iterator[int]:
