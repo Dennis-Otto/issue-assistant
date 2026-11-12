@@ -8,13 +8,14 @@ import os
 import shutil
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from .accuracy import ACCURACY_PAGE, measurement_of, page_with_numbers
 from .applying import apply_answer
+from .cleaning import repository_refs
 from .code_scanning import (
     ALERT_OPEN,
     ALERT_STILL_OPEN,
@@ -296,6 +297,9 @@ def main(argv: list[str] | None = None) -> int:
         config = load_config(root, repository)
         if arguments.command == "evaluate":
             return evaluate_command(github, config, root, repository, arguments)
+        # What the engine wrote may link into the repository only at a ref that the
+        # checkout vouches for, never at a commit of a fork; see names_a_ref.
+        config = replace(config, refs=repository_refs(root))
         return issue_command(run, github, config, root, arguments, fixture_name)
     except SettingsError as error:
         for problem in error.problems:

@@ -74,7 +74,13 @@ def sample_root(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
 
 @pytest.fixture(scope="session")
 def sample_config(sample_root: Path) -> assistant.Config:
-    return assistant.load_config(sample_root, REPOSITORY)
+    """The settings of the sample, with the refs that repository_refs would read
+    from its checkout: its branch, and the commits that the tests analyze, which the
+    links of the assistant's own references name."""
+    return dataclasses.replace(
+        assistant.load_config(sample_root, REPOSITORY),
+        refs=frozenset({"main", REF, "abc"}),
+    )
 
 
 @pytest.fixture

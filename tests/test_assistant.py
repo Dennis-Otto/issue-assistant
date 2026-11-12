@@ -27,7 +27,9 @@ from support import (
     BOX_UNTICKED,
     BUG_BODY,
     ESCAPES,
+    FORK_COMMIT,
     NOW,
+    REF,
     REPOSITORY,
     WEB,
     FakeGitHub,
@@ -3158,6 +3160,114 @@ def test_only_links_to_known_places_stay_links(config):
     )
 
 
+def test_a_link_to_a_commit_that_the_checkout_lacks_becomes_code(config):
+    """A link of the engine's text into the repository stays a link only at a ref
+    that the checkout has; one at another commit, such as one of a fork, is text."""
+    fork = f"https://github.com/{REPOSITORY}/blob/{FORK_COMMIT}/install.sh"
+    own = f"https://github.com/{REPOSITORY}/blob/{REF}/README.md"
+    assert assistant.sanitize(f"[the fix]({fork})", config) == "the fix"
+    assert assistant.sanitize(f"Run: {fork}", config) == f"Run: `{fork}`"
+    assert assistant.sanitize(f"[the file]({own})", config) == f"[the file]({own})"
+    assert assistant.sanitize(f"See {own}", config) == f"See {own}"
+    # Without the refs of a checkout, only HEAD leads into the repository.
+    bare = dataclasses.replace(config, refs=frozenset())
+    assert assistant.sanitize(f"[the file]({own})", bare) == "the file"
+    head = f"https://github.com/{REPOSITORY}/blob/HEAD/README.md"
+    assert assistant.sanitize(f"[the file]({head})", bare) == f"[the file]({head})"
+
+
+def commit_all(root, message="Start"):
+    """A commit of the files in git's index, unsigned and by a test author."""
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            message,
+        ],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    return (
+        subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True
+        )
+        .stdout.decode()
+        .strip()
+    )
+
+
+def test_the_refs_of_a_checkout_are_its_branches_tags_and_history(root, tmp_path):
+    """The branches and tags of the repository and of its remote origin, and the
+    commits of HEAD's history; not the head of a pull request or another remote's
+    branch, and nothing of a folder that is no checkout."""
+    first = commit_all(root, "First")
+    second = commit_all(root, "Second")
+    git = ["git", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"]
+    for ref, commit in (
+        ("refs/tags/v1.0.0", first),
+        ("refs/heads/release/1.x", first),
+        ("refs/remotes/origin/feature", first),
+        ("refs/remotes/origin/HEAD", second),
+    ):
+        subprocess.run([*git, "update-ref", ref, commit], cwd=root, check=True)
+    # A commit that only a pull request or a fork has, beside HEAD's history.
+    subprocess.run(
+        [*git, "checkout", "-q", "--orphan", "elsewhere"], cwd=root, check=True
+    )
+    elsewhere = commit_all(root, "Elsewhere")
+    for ref in ("refs/pull/1/head", "refs/remotes/fork/install", "refs/notes/x"):
+        subprocess.run([*git, "update-ref", ref, elsewhere], cwd=root, check=True)
+    subprocess.run([*git, "checkout", "-q", "main"], cwd=root, check=True)
+    subprocess.run([*git, "branch", "-q", "-D", "elsewhere"], cwd=root, check=True)
+    refs = assistant.repository_refs(root)
+    assert refs == {"main", "release/1.x", "v1.0.0", "feature", "HEAD", first, second}
+    assert elsewhere not in refs
+    assert assistant.repository_refs(tmp_path) == frozenset()
+
+
+def test_the_apply_command_links_only_commits_that_the_checkout_has(
+    monkeypatch, tmp_path, root, config
+):
+    """The engine's link to a commit of HEAD's history stays a link in the comment;
+    one to a commit that the checkout doesn't have, as of a fork, becomes code."""
+    head = commit_all(root)
+    own = f"https://github.com/{REPOSITORY}/blob/{head}/README.md"
+    fork = f"https://github.com/{REPOSITORY}/blob/{FORK_COMMIT}/install.sh"
+    analysis = (
+        f"See [the file]({own}), not [the fix]({fork}), and never run {fork} at all."
+    )
+    github = FakeGitHub(config, make_issue())
+    code, _, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        root,
+        github,
+        "apply",
+        "--issue",
+        "12",
+        "--mode",
+        "triage",
+        RESULT=json.dumps(make_answer(analysis=analysis)),
+        GITHUB_EVENT_NAME="workflow_dispatch",
+        GITHUB_SHA=head,
+        ENGINE="claude",
+    )
+    (body,) = github.posted(12)
+    assert code == 0
+    assert f"See [the file]({own}), not the fix, and never run `{fork}` at all." in body
+    assert stray_problems(body, set(), dataclasses.replace(config, refs={head})) == []
+
+
 def test_only_checked_issue_numbers_stay_links(config):
     text = "Like #7 and #8, see other/repo#3 and the color #fff."
     assert assistant.sanitize(text, config, {7}) == (
@@ -3455,6 +3565,23 @@ def test_no_table_cuts_code_in_two(config, text, cleaned):
         ("https://github.com/owner/project/blob/../../../evil/repo/issues/1", False),
         ("https://github.com/owner/project/blob/%2e%2e/%2E%2E/evil/repo", False),
         ("https://github.com/owner/project/tree/main/./x", False),
+        # Only HEAD and the refs of the checkout lead to the repository's own files,
+        # not a commit or a branch that the checkout doesn't have.
+        (f"https://github.com/owner/project/blob/{REF}/README.md", True),
+        (f"https://github.com/owner/project/tree/{REF}", True),
+        ("https://github.com/owner/project/blob/HEAD/README.md", True),
+        ("https://github.com/owner/project/tree/main", True),
+        ("https://github.com/owner/project/blob/ma%69n/README.md", True),
+        ("https://github.com/owner/project/releases/tag/v9.9.9", True),
+        (f"https://github.com/owner/project/blob/{FORK_COMMIT}/install.sh", False),
+        (f"https://github.com/owner/project/tree/{FORK_COMMIT}", False),
+        (f"https://github.com/owner/project/blob/{REF.upper()}/README.md", False),
+        (f"https://github.com/owner/project/blob/{REF[:7]}/README.md", False),
+        ("https://github.com/owner/project/blob/someones-branch/install.sh", False),
+        ("https://github.com/owner/project/blob/mainly/README.md", False),
+        ("https://github.com/owner/project/blob/head/README.md", False),
+        ("https://github.com/owner/project/blob/", False),
+        ("https://github.com/owner/project/tree/", False),
         # A user, a password or a port hides where a link leads.
         ("https://user:secret@docs.autodarts.io/", False),
         ("https://@docs.autodarts.io/", False),
