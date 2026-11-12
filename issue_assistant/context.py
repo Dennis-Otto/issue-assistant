@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .answer import schema_json
-from .cleaning import comment_parts, one_line, strip_html
+from .cleaning import one_line, strip_html
 from .constants import BOT, DISCUSSION_MODES, MAX_TEXT, MODES
 from .engines import ENGINES, IN_PROMPT, STRICT, Engine, engine_named
 from .errors import AssistantError, GitHubError
@@ -29,7 +29,6 @@ from .issues import (
 from .languages import COMMON_WORDS, LOCALES
 from .learning import plural, render_learned
 from .paths import CONTEXT, PROMPTS
-from .patterns import HTML_COMMENT
 from .settings import Config, label_names, limit, maintainers, siblings
 from .values import command, fence, login
 
@@ -74,18 +73,19 @@ ERROR_CODE = re.compile(r"E[A-Z]{3,}")
 
 
 def excerpt(text: str, limit: int) -> str:
-    """The text of an issue in short: form answers as lines, without empty answers.
+    """The text of an issue in short: what GitHub shows of it, with form answers as
+    lines and without empty answers.
 
     The whole text is read, because comments and empty answers can come before the
     words that count, such as the instructions of an issue template; each step takes
-    time linear in its length.
+    time linear in its length. The HTML goes first, as it goes for issue.md: a
+    comment that starts a line hides the rest of the text, and joined to the label of
+    its field, it would no longer start one.
     """
-    text = (text or "")[:MAX_TEXT]
+    text = strip_html((text or "")[:MAX_TEXT])
     fields = form_fields(text)
     if fields:
         text = "\n".join(f"{key}: {value}" for key, value in fields.items() if value)
-    comments, rest = comment_parts(text)
-    text = HTML_COMMENT.sub("", comments) + rest
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
