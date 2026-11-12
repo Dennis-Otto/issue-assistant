@@ -17,10 +17,13 @@ from .accuracy import ACCURACY_PAGE, measurement_of, page_with_numbers
 from .applying import apply_answer
 from .cleaning import repository_refs
 from .code_scanning import (
+    ALERT_LEFT,
     ALERT_OPEN,
     ALERT_STILL_OPEN,
     BROKEN_RECORD,
+    NEWER_RECORD,
     accept_in_pull_requests,
+    newer_record,
     scanned_pull_requests,
     watch_findings,
 )
@@ -421,7 +424,8 @@ def usage_command(root: Path, repository: str, arguments: argparse.Namespace) ->
 
 def findings_command(github: GitHub, root: Path, dry_run: bool) -> int:
     """Fail on the alerts that opened since the run before, which GitHub mails the
-    maintainer about, and warn of those that an earlier run reported; after the scan
+    maintainer about, and warn of those that an earlier run reported, or may have
+    reported when a newer record than this run's is in the cache; after the scan
     of a pull request, dismiss its accepted alerts alone, and fail on none."""
     numbers = scanned_pull_requests(
         os.environ.get("GITHUB_EVENT_NAME", ""), run_event()
@@ -432,12 +436,18 @@ def findings_command(github: GitHub, root: Path, dry_run: bool) -> int:
         lines = accept_in_pull_requests(github, root, numbers)
         summary(title, lines or ["No open findings."], dry_run)
         return 0
-    lines, new = watch_findings(github, root)
+    # The keys of the record that the job record read and of the newest one in the
+    # cache, which the workflow looks up once the run ahead has kept its own.
+    newer = newer_record(
+        os.environ.get("RECORD_KEY", ""), os.environ.get("NEWEST_RECORD_KEY", "")
+    )
+    lines, new = watch_findings(github, root, newer)
     for line in lines:
         if line.startswith("Alert #") and ALERT_OPEN in line:
             command("error", line)
-        elif line == BROKEN_RECORD or (
-            line.startswith("Alert #") and ALERT_STILL_OPEN in line
+        elif line in (BROKEN_RECORD, NEWER_RECORD) or (
+            line.startswith("Alert #")
+            and (ALERT_STILL_OPEN in line or ALERT_LEFT in line)
         ):
             command("warning", line)
     summary("Findings", lines or ["No open findings."], dry_run)

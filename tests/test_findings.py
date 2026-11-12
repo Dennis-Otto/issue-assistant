@@ -325,6 +325,131 @@ def test_a_dry_run_follows_the_record_of_the_real_runs(
     assert record(root) == {"4": OPENED}
 
 
+# The keys under which the workflow keeps two records in the cache.
+OLDER_KEY = "issue-assistant-findings-" + "1" * 64
+NEWER_KEY = "issue-assistant-findings-" + "2" * 64
+NEWER = (
+    "A run that ended while this one waited for it kept a newer record of the "
+    "reported alerts than the one that this run read, so this run fails for none of "
+    "them and keeps no record: the next run fails for each open alert that the newer "
+    "record lacks."
+)
+
+
+def test_of_two_overlapping_runs_only_the_first_fails_for_a_new_alert(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    """The runs after the scans of a push overlap: each reads the record as it
+    starts, and waits for the run ahead before its findings. A run that read its
+    record before the run ahead kept a newer one fails for none of the alerts that
+    its record lacks, and leaves them to the newer record (decision 0026)."""
+    github = FakeGitHub(config)
+    github.alert_store = [make_alert(4)]
+    findings(monkeypatch, tmp_path, root, github, capsys)
+    path = root / assistant.FINDINGS_RECORD
+    read = path.read_bytes()
+    # The scans open alert 5; the first run fails for it and keeps a newer record,
+    # while the second one waits with the record from before.
+    github.alert_store = [make_alert(4), make_alert(5)]
+    code, _, annotations = findings(
+        monkeypatch, tmp_path, root, github, capsys, RECORD_KEY=OLDER_KEY
+    )
+    assert code == 1
+    assert annotations == [
+        f"::error::Alert #5 is open: {link(5)}",
+        f"::warning::Alert #4 is still open: {link(4)}",
+    ]
+    path.write_bytes(read)
+    code, summary, annotations = findings(
+        monkeypatch,
+        tmp_path,
+        root,
+        github,
+        capsys,
+        RECORD_KEY=OLDER_KEY,
+        NEWEST_RECORD_KEY=NEWER_KEY,
+    )
+    assert code == 0
+    left = f"Alert #5 is open, and the newer record may hold it: {link(5)}"
+    assert annotations == [
+        f"::warning::{NEWER}",
+        f"::warning::{left}",
+        f"::warning::Alert #4 is still open: {link(4)}",
+    ]
+    assert summary == (
+        f"### Findings\n\n- {NEWER}\n- {left}\n"
+        f"- Alert #4 is still open: {link(4)}\n- {STILL_OPEN}\n- {FIX}\n"
+    )
+    # It keeps no record, which would take the place of the newer one.
+    assert path.read_bytes() == read
+    # The accepted findings are dismissed all the same.
+    write_findings(root)
+    github.alert_store = [make_alert(3), make_alert(5)]
+    code, summary, _ = findings(
+        monkeypatch,
+        tmp_path,
+        root,
+        github,
+        capsys,
+        RECORD_KEY=OLDER_KEY,
+        NEWEST_RECORD_KEY=NEWER_KEY,
+    )
+    assert code == 0
+    assert "- Alert #3 (Scorecard CodeReviewID) dismissed as won't fix.\n" in summary
+    assert path.read_bytes() == read
+
+
+@pytest.mark.parametrize(
+    ("read", "newest"),
+    [
+        # The run ahead kept no newer record, or GitHub's cache didn't answer.
+        (OLDER_KEY, OLDER_KEY),
+        (OLDER_KEY, ""),
+        # The job record read none: the cache may have failed there, and a cache that
+        # keeps failing in that job must not keep every run from failing.
+        ("", NEWER_KEY),
+        ("", ""),
+    ],
+)
+def test_a_run_without_a_newer_record_fails_for_a_new_alert(
+    monkeypatch, tmp_path, root, config, capsys, read, newest
+):
+    github = FakeGitHub(config)
+    github.alert_store = [make_alert(4)]
+    code, summary, annotations = findings(
+        monkeypatch,
+        tmp_path,
+        root,
+        github,
+        capsys,
+        RECORD_KEY=read,
+        NEWEST_RECORD_KEY=newest,
+    )
+    assert code == 1
+    assert annotations == [f"::error::Alert #4 is open: {link(4)}"]
+    assert NEWER not in summary
+    assert record(root) == {"4": OPENED}
+
+
+def test_a_dry_run_with_a_newer_record_fails_for_no_alert(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    github = FakeGitHub(config, dry_run=True)
+    github.alert_store = [make_alert(4)]
+    code, summary, _ = findings(
+        monkeypatch,
+        tmp_path,
+        root,
+        github,
+        capsys,
+        DRY_RUN="true",
+        RECORD_KEY=OLDER_KEY,
+        NEWEST_RECORD_KEY=NEWER_KEY,
+    )
+    assert code == 0 and summary.startswith(f"### Findings (dry run)\n\n- {NEWER}")
+    assert not (root / assistant.FINDINGS_RECORD).exists()
+
+
 @pytest.mark.parametrize(
     "text",
     [
