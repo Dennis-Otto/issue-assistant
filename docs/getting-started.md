@@ -155,8 +155,8 @@ Issues that were open before get a first analysis by the task [backlog](features
 <details markdown="1">
 <summary>Three steps, for a maintainer</summary>
 
-1. **See what it would do.** Under *Actions → Issue assistant → Run workflow*, choose the task `backlog` and enter `0` as the issue, or run `gh workflow run issue-assistant.yml -f mode=backlog -f issue=0`. As a dry run, it chooses the oldest open issues without a first analysis, up to `backlog_per_run` of `config.toml`, 20 by default, and the summary of the job `apply` of each shows its labels, a possible duplicate and the missing information as a table.
-2. **Set the labels.** Run it again with *dry_run* off. It sets the labels of each analysis and posts no comment on the old issues, unless you tick *comment*.
+1. **See what it would do.** Under *Actions → Issue assistant → Run workflow*, choose the task `backlog` and enter `0` as the issue, or run `gh workflow run issue-assistant.yml -f mode=backlog -f issue=0`. As a dry run, it chooses the oldest open issues without a first analysis, up to `backlog_per_run` of `config.toml`, 20 by default; it runs the AI for each, so set it low for a first look. The summary of the job `apply` of each shows its labels, a possible duplicate and the missing information as a table.
+2. **Set the labels.** Run it again from the same number with *dry_run* off. It sets the labels of each analysis and posts no comment on the old issues, unless you tick *comment*.
 3. **Go on.** The summary of the job `assistant` names the last issue that it chose: enter that number as the issue of the next run, until it says that the backlog is done.
 
 Each issue costs a first analysis, which counts toward no daily limit.

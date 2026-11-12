@@ -88,6 +88,9 @@ outputs:
   answer:
     description: The engine's answer, from analyze
     value: ${{ steps.run.outputs.answer }}
+  backlog:
+    description: The issues that a run by hand with the task backlog chose, as a JSON list; empty for every other run
+    value: ${{ steps.run.outputs.backlog }}
 
 runs:
   using: composite

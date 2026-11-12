@@ -3389,3 +3389,22 @@ def test_a_change_of_what_install_writes_is_labeled_setup():
     for path in [*(f"{templates}/{path}" for path in written), *jobs, "action.yml"]:
         assert (ROOT / path).is_file(), path
         assert any(matches(glob, path) for glob in globs), path
+
+
+def test_every_output_of_the_action_that_a_workflow_reads_is_declared():
+    # A composite action passes on only the outputs that action.yml declares:
+    # an output that only its inner step writes reaches the workflow empty.
+    declared = set(ACTION["outputs"])
+    pattern = re.compile(r"steps\.([\w-]+)\.outputs\.([\w-]+)")
+    read = set()
+    for path in OWN.glob(f"{assistant.REUSABLE_PREFIX}*.yml"):
+        for job in load(path)["jobs"].values():
+            local = {
+                step["id"]
+                for step in job.get("steps", [])
+                if step.get("uses") == "./.issue-assistant/action" and "id" in step
+            }
+            text = json.dumps(job)
+            read |= {name for step, name in pattern.findall(text) if step in local}
+    assert read
+    assert read <= declared, sorted(read - declared)
