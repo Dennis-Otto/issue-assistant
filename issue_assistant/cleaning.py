@@ -5,7 +5,8 @@ from __future__ import annotations
 import html
 import re
 import subprocess
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
+from itertools import accumulate
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote, unquote, urlsplit
@@ -320,6 +321,295 @@ def strip_html(text: str) -> str:
 def open_tag(match: re.Match[str]) -> str:
     """What stays of an HTML match: a tag start that no `>` closes, or nothing."""
     return match["open"] or ""
+
+
+# Besides HTML, GitHub shows nothing of a link reference definition, such as
+# `[//]: # (a comment)` or `[x]: <> "a comment"`, the usual ways to write a comment
+# in Markdown, and of a footnote that nothing refers to, such as `[^1]: a comment`.
+# A note takes the place of each in the text for the engine, so that it doesn't
+# wonder about the missing target of a [text][label] link.
+DEFINITION_NOTE = "(link definition removed)"
+FOOTNOTE_NOTE = "(footnote removed)"
+
+ROW_END = re.compile(r"(\r\n|\r|\n)")
+# The marks of the quotes and list items that hold a row, before its text.
+CONTAINER = re.compile(r"(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)))*[ \t]*")
+LIST_MARK = re.compile(r"(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)")
+QUOTE_MARK = re.compile(r" {0,3}>[ \t]?")
+FENCE = re.compile(r" {0,3}(`{3,}(?!.*`)|~{3,})")
+# A row after which the next one starts a block of its own, where a definition can
+# begin: a heading, a fence, a rule or the line under a heading. More rows count
+# than in CommonMark, which only removes more.
+BOUNDARY = re.compile(r"#{1,6}(?:[ \t]|$)|`{3}|~{3}|([-*_=])(?:[ \t]*\1)*[ \t]*$")
+# A row that ends the paragraph of a definition, so that its label or its title
+# can't go on into it: a blank row, and the blocks that can interrupt a paragraph.
+# Fewer rows count than in CommonMark, which only removes more.
+STOP = re.compile(
+    r"[ \t]*$| {0,3}(?:>|#{1,6}(?:[ \t]|$)|`{3,}[^`]*$|~{3}"
+    r"|([-*_])(?:[ \t]*\1){2,}[ \t]*$|(?:=+|-+)[ \t]*$|(?:[-+*]|0*1[.)])[ \t]+\S)"
+)
+INDENTED = re.compile(r" {0,3}\t| {4}")
+# The pieces of a definition within a row, each up to the character that ends it.
+# A backslash takes the character after it, if there is one, in two ways that the
+# quantifiers, which give nothing back, never try again one after the other: each
+# backslash would double the tries. GitHub shows a control character as U+FFFD,
+# also in a destination.
+LABEL = re.compile(r"(?:[^\\\[\]]|\\.?)*+")
+DESTINATION = re.compile(r"<(?:[^<>\\]|\\.?)*+>|[^ \t]+")
+TITLES = {
+    '"': (re.compile(r'(?:[^"\\]|\\.?)*+'), '"'),
+    "'": (re.compile(r"(?:[^'\\]|\\.?)*+"), "'"),
+    "(": (re.compile(r"(?:[^()\\]|\\.?)*+"), ")"),
+}
+FOOTNOTE_REFERENCE = re.compile(r"\[\^([^\]\s]+)\](?!:)")
+# The start of each row on which a definition or a footnote could begin: its label,
+# over any rows, reaches a `]:`. The quantifiers give nothing back, so each attempt
+# ends at the first bracket.
+CANDIDATE = re.compile(
+    r"^(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)))*+[ \t]*+"
+    r"\[(?:[^\\\[\]]|\\[\s\S])*+\]:",
+    re.MULTILINE,
+)
+# HTML after which other rows start a block than strip_html leaves to see: a row
+# that starts an HTML block, in which a fence is no fence, and text after the end
+# of a comment, whose row ends the block that the comment started.
+HTML_BLOCK = re.compile(r"^[ \t]*<(?!!--)[A-Za-z/?!]|-->[ \t]*\S", re.MULTILINE)
+
+
+def shown_text(text: str) -> tuple[str, int]:
+    """The text as GitHub shows it, without HTML, link reference definitions and
+    footnotes that nothing refers to, each of those with a note in its place; and
+    the number of definitions and footnotes that went.
+
+    The definitions go after the HTML, so that taking one out can't end a comment
+    that hides text. Where the HTML could have started a block, every row counts as
+    the start of one, and no fence as code.
+    """
+    return strip_definitions(strip_html(text), bool(HTML_BLOCK.search(text)))
+
+
+def strip_definitions(text: str, anywhere: bool = False) -> tuple[str, int]:
+    """The text without the link reference definitions and the footnotes without a
+    reference that GitHub shows as nothing, outside code, with a note in the place
+    of each; and their number.
+
+    A definition starts a block: at the beginning of the text, after a blank row or
+    a heading, or with a quote or a list item. It can go on over the rows of its
+    paragraph. A footnote can also interrupt a paragraph, and takes the rows of it
+    and the indented ones after it. Fenced code outside quotes and list items is
+    code up to its end, or to the end of the text, as GitHub shows it. `anywhere`
+    counts every row as the start of a block and nothing as code. Where CommonMark
+    is hard to follow exactly, such as in an indented row, which may be code or
+    belong to a list item, a row counts as one in which a definition can start: the
+    safe side. One pattern finds the rows whose label reaches a `]:`, and only those
+    are read further; each row is read a bounded number of times, so the time is
+    linear in the length of the text.
+    """
+    flat = text.replace("\r\n", "\n").replace("\r", "\n")
+    candidates = list(rows_of(CANDIDATE, flat))
+    if not candidates:
+        return text, 0
+    parts = ROW_END.split(text)
+    rows, ends = parts[::2], [*parts[1::2], ""]
+    code = [False] * len(rows) if anywhere else fenced(rows)
+    referenced = {
+        match[1].casefold()
+        for index, match in zip(
+            rows_of(FOOTNOTE_REFERENCE, flat),
+            FOOTNOTE_REFERENCE.finditer(flat),
+            strict=True,
+        )
+        if not code[index] and "`" not in rows[index]
+    }
+    removals: list[tuple[int, int, str]] = []
+    last = -1
+    for index in candidates:
+        if index <= last or code[index]:
+            continue
+        row = rows[index]
+        prefix = run(CONTAINER, row, 0)
+        depth = row[:prefix].count(">")
+        starts = (
+            anywhere
+            or index == last + 1
+            or opens(rows[index - 1], code[index - 1], depth)
+            or bool(LIST_MARK.search(row, 0, prefix))
+        )
+        found = definition(rows, code, index, prefix, depth, starts)
+        if found and found[2] not in referenced:
+            removals.append((index, found[0], row[:prefix] + found[1]))
+            last = found[0]
+    offsets = [0, *accumulate(map(len, parts))]
+    pieces, cursor = [], 0
+    for first, final, note in removals:
+        pieces += [text[cursor : offsets[2 * first]], note, ends[final]]
+        cursor = offsets[2 * final + 1] + len(ends[final])
+    pieces.append(text[cursor:])
+    return "".join(pieces), len(removals)
+
+
+def rows_of(pattern: re.Pattern[str], text: str) -> Iterator[int]:
+    """The row of each match of a pattern in a text whose rows end in line feeds."""
+    row = position = 0
+    for match in pattern.finditer(text):
+        row += text.count("\n", position, match.start())
+        position = match.start()
+        yield row
+
+
+def opens(row: str, code: bool, depth: int) -> bool:
+    """Whether the row before one `depth` quotes deep lets that one start a block:
+    code, a blank row, an indented one, which may be code, one in BOUNDARY, or one
+    in fewer quotes, after which a quote starts."""
+    prefix = run(CONTAINER, row, 0)
+    marks = row[:prefix]
+    indent = marks[len(marks.rstrip(" \t")) :].expandtabs(4)
+    return (
+        code
+        or depth > marks.count(">")
+        or not row[prefix:].strip(" \t")
+        or len(indent) >= 4
+        or bool(BOUNDARY.match(row, prefix))
+    )
+
+
+def run(pattern: re.Pattern[str], row: str, position: int) -> int:
+    """Where a pattern ends from `position`, at which it always matches."""
+    match = pattern.match(row, position)
+    assert match is not None  # It matches the empty text, or any character there.
+    return match.end()
+
+
+def fenced(rows: list[str]) -> list[bool]:
+    """Which rows are fenced code outside quotes and list items: from its fence to
+    the one that closes it, or to the end of the text without one."""
+    code, fence = [], ""
+    for row in rows:
+        if fence:
+            code.append(True)
+            body = row.lstrip(" ")
+            marks = len(body) - len(body.lstrip(fence[0]))
+            if len(row) - len(body) <= 3 and marks >= len(fence):
+                fence = fence if body[marks:].strip(" \t") else ""
+            continue
+        opening = FENCE.match(row)
+        fence = opening[1] if opening else ""
+        code.append(bool(fence))
+    return code
+
+
+def definition(
+    rows: list[str], code: list[bool], start: int, column: int, depth: int, starts: bool
+) -> tuple[int, str, str] | None:
+    """The last row, the note and, for a footnote, the label of the definition or
+    the footnote whose `[` stands at `column` of row `start`, or None.
+
+    A link reference definition only starts a block, which `starts` says; a footnote
+    can also interrupt a paragraph. The rows after the first are read without the
+    marks of the `depth` quotes around it.
+    """
+
+    def follow(index: int) -> str | None:
+        """Row `index` without its quote marks, if the paragraph goes on into it."""
+        if index >= len(rows) or code[index]:
+            return None
+        row, position = rows[index], 0
+        for _ in range(depth):
+            mark = QUOTE_MARK.match(row, position)
+            if not mark:
+                break
+            position = mark.end()
+        return None if STOP.match(row, position) else row[position:]
+
+    if not starts and not rows[start].startswith("[^", column):
+        return None
+    index, row, position, label = start, rows[start], column + 1, []
+    while True:
+        end = run(LABEL, row, position)
+        label.append(row[position:end])
+        if end < len(row):
+            break
+        index += 1
+        following = follow(index)
+        if following is None:
+            return None
+        row, position = following, 0
+    # CANDIDATE found the same first bracket that no backslash escapes.
+    assert row.startswith("]:", end)
+    if label[0].startswith("^"):
+        # Only such a row gets here without `starts`.
+        name = " ".join(" ".join(label)[1:].split()).casefold()
+        return footnote(rows, code, index, follow), FOOTNOTE_NOTE, name
+    position = spaces(row, end + 2)
+    if position == len(row):
+        index += 1
+        following = follow(index)
+        if following is None:
+            return None
+        row, position = following, spaces(following, 0)
+    target = run(DESTINATION, row, position)
+    position = spaces(row, target)
+    if position == len(row):
+        # Complete without a title; one may follow on the next row.
+        titled = title(follow, index + 1, follow(index + 1), 0)
+        return (index if titled is None else titled), DEFINITION_NOTE, ""
+    if position == target:
+        return None
+    last = title(follow, index, row, position)
+    return None if last is None else (last, DEFINITION_NOTE, "")
+
+
+def spaces(row: str, position: int) -> int:
+    """Where the spaces and tabs from `position` of a row end."""
+    return len(row) - len(row[position:].lstrip(" \t"))
+
+
+def title(
+    follow: Callable[[int], str | None], index: int, row: str | None, position: int
+) -> int | None:
+    """The last row of the title of a definition that starts at `position` of row
+    `index`, if a title starts there and nothing but spaces follow it on its row."""
+    if row is None:
+        return None
+    position = spaces(row, position)
+    if position == len(row) or row[position] not in TITLES:
+        return None
+    text, closing = TITLES[row[position]]
+    position += 1
+    while True:
+        position = run(text, row, position)
+        if position < len(row):
+            break
+        index += 1
+        following = follow(index)
+        if following is None:
+            return None
+        row, position = following, 0
+    if row[position] != closing or row[position + 1 :].strip(" \t"):
+        return None
+    return index
+
+
+def footnote(
+    rows: list[str], code: list[bool], index: int, follow: Callable[[int], str | None]
+) -> int:
+    """The last row of a footnote whose label ends on row `index`: the rows of its
+    paragraph, and after blank rows each indented one with the rows of its own."""
+    last = index
+    while True:
+        while follow(last + 1) is not None:
+            last += 1
+        after = last + 1
+        while after < len(rows) and not code[after] and not rows[after].strip(" \t>"):
+            after += 1
+        if (
+            after == last + 1
+            or after == len(rows)
+            or code[after]
+            or not INDENTED.match(rows[after])
+        ):
+            return last
+        last = after
 
 
 def joined(pieces: Iterable[str]) -> str:

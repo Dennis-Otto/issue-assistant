@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .answer import schema_json
-from .cleaning import one_line, strip_html
+from .cleaning import one_line, shown_text
 from .constants import BOT, DISCUSSION_MODES, MAX_TEXT, MODES
 from .engines import ENGINES, IN_PROMPT, STRICT, Engine, engine_named
 from .errors import AssistantError, GitHubError
@@ -72,17 +72,32 @@ WORD = re.compile(r"\w+")
 ERROR_CODE = re.compile(r"E[A-Z]{3,}")
 
 
-def excerpt(text: str, limit: int) -> str:
+def shown(text: str, visible: Visible) -> str:
+    """What GitHub shows of a text, as the engine reads it: without HTML, link
+    reference definitions, footnotes without a reference and invisible characters,
+    which `visible` counts.
+
+    The HTML goes first, as GitHub hides it: an invisible character in the end of an
+    HTML comment keeps it from ending on GitHub, and taken out first, it would end
+    the comment and show the text after it to the engine. The definitions go before
+    the invisible characters, which can keep a row from being one on GitHub.
+    """
+    text, definitions = shown_text(text)
+    visible.definitions += definitions
+    return visible(text)
+
+
+def excerpt(text: str, limit: int, visible: Visible | None = None) -> str:
     """The text of an issue in short: what GitHub shows of it, with form answers as
-    lines and without empty answers.
+    lines and without empty answers; `visible` counts what went.
 
     The whole text is read, because comments and empty answers can come before the
     words that count, such as the instructions of an issue template; each step takes
-    time linear in its length. The HTML goes first, as it goes for issue.md: a
-    comment that starts a line hides the rest of the text, and joined to the label of
-    its field, it would no longer start one.
+    time linear in its length. What GitHub hides goes first, as it goes for issue.md:
+    a comment that starts a line hides the rest of the text, and joined to the label
+    of its field, it would no longer start one, nor would a definition.
     """
-    text = strip_html((text or "")[:MAX_TEXT])
+    text = shown((text or "")[:MAX_TEXT], visible or Visible())
     fields = form_fields(text)
     if fields:
         text = "\n".join(f"{key}: {value}" for key, value in fields.items() if value)
@@ -189,16 +204,13 @@ def render_discussion(
 
 
 def rendered_text(text: str, visible: Visible) -> str:
-    """A text for issue.md: without HTML and invisible characters, cut off after
-    MAX_RENDERED_TEXT, and in a code fence that nothing in it can close.
+    """A text for issue.md: what GitHub shows of it, cut off after MAX_RENDERED_TEXT,
+    and in a code fence that nothing in it can close.
 
-    The HTML goes first, as GitHub hides it: an invisible character in the end of
-    an HTML comment keeps it from ending on GitHub, and taken out first, it would end
-    the comment and show the text after it to the engine. The invisible characters
-    go before the fence is chosen, so that none can split a run of backticks that
-    would close it.
+    What GitHub hides goes before the fence is chosen, so that no invisible
+    character can split a run of backticks that would close it.
     """
-    text = visible(strip_html(text)).strip()
+    text = shown(text, visible).strip()
     if not text:
         return "(empty)"
     note = ""
@@ -328,7 +340,7 @@ def issue_line(
         "closed": (item.get("closed_at") or "")[:10] or None,
         "comments": item.get("comments", 0),
         **more,
-        "excerpt": visible(excerpt(item.get("body") or "", EXCERPT)),
+        "excerpt": excerpt(item.get("body") or "", EXCERPT, visible),
     }
 
 
@@ -406,10 +418,11 @@ def write_context(
         shutil.rmtree(folder / texts, ignore_errors=True)
     for name in CONTEXT_FILES:
         (folder / name).unlink(missing_ok=True)
-    # The invisible characters of the issue, and of the texts that every analysis
-    # reads, in which anyone could plant instructions for later issues. They go after
-    # the HTML comments, as in rendered_text, so that the engine reads no text that
-    # GitHub hides.
+    # The invisible characters, link reference definitions and footnotes without a
+    # reference of the issue, and of the texts that every analysis reads, in which
+    # anyone could plant instructions for later issues. They go after the HTML
+    # comments, as in rendered_text, so that the engine reads no text that GitHub
+    # hides.
     own, elsewhere = Visible(), Visible()
     if mode in DISCUSSION_MODES:
         # The discussion and what an analysis reads of the repository; no labels,
@@ -436,8 +449,17 @@ def write_context(
                     encoding="utf-8",
                 )
                 write_siblings(github, folder, issue, config, elsewhere)
+    subject = "discussion" if mode in DISCUSSION_MODES else "issue"
+    if own.definitions or elsewhere.definitions:
+        command(
+            "notice",
+            f"Removed {own.definitions + elsewhere.definitions} link reference "
+            "definitions and footnotes without a reference, which GitHub shows as "
+            f"nothing, from the texts for the engine: {own.definitions} from "
+            f"{subject} #{number}, {elsewhere.definitions} from other issues and "
+            "discussions.",
+        )
     if own.removed or elsewhere.removed:
-        subject = "discussion" if mode in DISCUSSION_MODES else "issue"
         command(
             "notice",
             f"Removed {own.removed + elsewhere.removed} invisible characters, such "
@@ -587,9 +609,9 @@ def write_related(
                 "category": (item.get("category") or {}).get("name"),
                 "answered": item.get("isAnswered"),
                 "closed": item.get("closed"),
-                "excerpt": visible(excerpt(item.get("body") or "", 1000)),
-                "answer": visible(
-                    excerpt((item.get("answer") or {}).get("body") or "", 1000)
+                "excerpt": excerpt(item.get("body") or "", 1000, visible),
+                "answer": excerpt(
+                    (item.get("answer") or {}).get("body") or "", 1000, visible
                 )
                 or None,
             }
