@@ -18,13 +18,18 @@ months = [
   "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September",
   "Oktober", "November", "Dezember",
 ]
-# Words that are frequent in the language and in no other catalog. A reporter
-# writes in the language of whose stopwords their words have the most, in
-# English when no other language has more, or fewer than two.
+# Words that are frequent in the language and in no other language of the
+# catalogs: a word that two of them write often, such as the "una" of Spanish and
+# Italian, counts for neither. A reporter writes in the language of whose
+# stopwords their words have the most, in English when no other language has
+# more, or fewer than two.
+# The letter ß, which only German writes, counts as well, as OWN_LETTERS of
+# issue_assistant/languages.py describes.
 stopwords = [
   "und", "der", "die", "das", "nicht", "ich", "ist", "mit", "auf", "wenn", "bei",
   "wird", "kann", "ein", "eine", "habe", "auch", "noch", "dass", "funktioniert",
-  "keine", "aber", "wie", "nach", "mein", "meine",
+  "keine", "aber", "wie", "nach", "mein", "meine", "sich", "oder", "für", "beim",
+  "seit", "mehr", "fehler", "fehl", "nur", "immer", "jetzt", "danke",
 ]
 
 sample = "Die Karte zeigt nichts an, wenn ich einen Dart werfe und das ist komisch."

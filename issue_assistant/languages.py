@@ -69,8 +69,18 @@ LETTERS = re.compile(r"[^\W\d_]+")
 # most of the Cyrillic alphabet, each have four that the other lacks. Hangul is
 # Korean only and kana are Japanese only; a Chinese character counts for Japanese
 # in a text with at least one kana for every ten of them, and for Chinese otherwise.
+# The languages of the Latin script share most of their letters as well, and a
+# short report has few words: ñ and the marks ¿ and ¡ are Spanish only, ß is
+# German, ã and õ are Portuguese, œ is French, and ì and ò are Italian. A letter
+# that two of them write, such as the ç of French and Portuguese or the ù of
+# Italian and of the French "où", counts for none.
 OWN_LETTERS = {
+    "de": re.compile("ß"),
+    "es": re.compile("[ñ¿¡]"),
+    "fr": re.compile("œ"),
+    "it": re.compile("[ìò]"),
     "ko": re.compile("[\u1100-\u11ff\u3131-\u318e\uac00-\ud7a3]"),
+    "pt": re.compile("[ãõ]"),
     "ru": re.compile("[ёъыэ]"),
     "uk": re.compile("[ґєії]"),
 }
@@ -88,11 +98,16 @@ HAN = re.compile("[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 FEW = frozenset({"ru", "uk"})
 # Words that tell little of what an issue is about, which the search for older
 # issues like it leaves out.
-# The stopwords of every catalog are among them, except those that are also common
-# words of technical English titles, such as the Jest test framework, a network
-# card (NIC), "ama" and "bile": they still tell Polish and Turkish, but the search
-# keeps them.
-TECHNICAL_WORDS = frozenset({"jest", "nic", "ama", "bile"})
+# The stopwords of every catalog are among them, except those that tell what an
+# issue is about: common words of technical English titles, such as the Jest test
+# framework, a network card (NIC), "ama" and "bile", and words of a subject that
+# only one language writes, such as the Spanish "sesión" and the Italian
+# "aggiornamento" (update). They still tell their language, but the search keeps
+# them. A short word that two languages share, such as the "una" of Spanish and
+# Italian, counts for neither and is among them as well.
+TECHNICAL_WORDS = frozenset(
+    {"jest", "nic", "ama", "bile", "sesión", "cuenta", "aggiornamento", "opstarten"}
+)
 COMMON_WORDS = frozenset(
     frozenset[str]().union(*(locale.stopwords for locale in LOCALES.values()))
     - TECHNICAL_WORDS
@@ -102,8 +117,8 @@ COMMON_WORDS = frozenset(
         "cannot", "can't", "anymore", "there", "should", "would", "could",
         "issue", "bug", "error", "problem", "feature", "request", "help",
         "please", "work", "working", "any", "all", "new", "use", "using",
-        "sich", "oder", "für", "fuer", "von", "beim", "seit", "mehr", "fehler",
-        "kein", "einen", "einem", "einer", "bitte", "geht",
+        "fuer", "von", "kein", "einen", "einem", "einer", "bitte", "geht",
+        "una", "del", "como", "porque", "está", "quando", "mais", "aqui",
     }
 )  # fmt: skip
 

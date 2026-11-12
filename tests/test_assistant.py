@@ -301,9 +301,110 @@ def test_every_answer_of_a_multiple_choice_area_becomes_a_label(config):
         # Russian and Ukrainian share most of their letters, but not all.
         ("После обновления карточка пустая, и ничего не работает", "ru"),
         ("Після оновлення картка порожня", "uk"),
+        # Spanish shares many short words with Italian, such as "una", "mi" and
+        # "del": they count for neither, so a Spanish report isn't Italian.
+        (
+            "Hola, la sincronización falla al subir un documento del escáner. "
+            "Mi servidor es una Synology.",
+            "es",
+        ),
+        ("Error al iniciar sesión con mi cuenta", "es"),
+        ("El panel no carga al abrir una partida del torneo", "es"),
+        # A report of one short sentence has enough words of its language.
+        ("L'application plante au démarrage après la mise à jour.", "fr"),
+        ("Impossible de synchroniser mes documents depuis hier, erreur 500.", "fr"),
+        ("Le tableau ne se met plus à jour, la carte reste vide.", "fr"),
+        ("L'app si blocca all'avvio dopo l'aggiornamento.", "it"),
+        ("Synchronisierung schlägt fehl seit Version 1.2", "de"),
+        ("App crasht bij opstarten na update", "nl"),
+        # A letter that only one language of the Latin script writes counts for it
+        # as a stopword does, and one alone decides nothing.
+        ("¿Contraseña?", "es"),
+        ("Straße", "en"),
+        ("Größe beim Schließen", "de"),
+        ("Não são", "pt"),
+        ("Cœur de l'œuvre", "fr"),
+        ("Così può", "it"),
     ],
 )
 def test_the_language_is_guessed_from_the_words(text, language):
+    assert assistant.detect_language(text) == language
+
+
+# Everyday sentences of reports in each language of the Latin script. Each is
+# guessed as its own, so that a stopword of one catalog that is a common word of
+# another language, such as the Italian "una" in Spanish, fails here.
+EVERYDAY = {
+    "de": [
+        "Seit dem Update startet die App nicht mehr.",
+        "Ich bekomme beim Hochladen immer einen Fehler.",
+        "Die Synchronisierung schlägt fehl.",
+        "Danke für die schnelle Hilfe!",
+        "Beim Schließen gehen meine Einstellungen verloren.",
+    ],
+    "en": [
+        "The sync fails after the last update.",
+        "Sync broken since 1.2",
+        "App crashes on startup",
+        "Uploading a PDF returns error 500",
+        "Nothing happens when I click the button.",
+        "Not all files are uploaded, plus the log is empty.",
+    ],
+    "es": [
+        "Hola, desde ayer la página no carga y muestra un error.",
+        "No puedo iniciar sesión desde la última actualización.",
+        "¿Por qué no se guardan los cambios?",
+        "La sincronización con el servidor falla cada vez.",
+        "Los archivos PDF no se suben al servidor.",
+        "La contraseña de mi cuenta no funciona.",
+        "Gracias, ahora funciona como antes.",
+    ],
+    "fr": [
+        "Bonjour, depuis la mise à jour l'application ne démarre plus.",
+        "Je n'arrive pas à me connecter avec mon compte.",
+        "Les documents ne s'affichent plus dans la liste.",
+        "Le bouton ne fait rien quand je clique dessus.",
+        "Merci pour votre aide, le problème est résolu.",
+        "Il y a une erreur au chargement, mais seulement sur mobile.",
+    ],
+    "it": [
+        "Ciao, dopo l'aggiornamento non riesco più ad accedere.",
+        "Il pulsante non fa niente quando lo premo.",
+        "Grazie per il lavoro, funziona tutto perfettamente.",
+        "Non vedo più i miei documenti nella cartella.",
+        "Così non si può usare.",
+        "Ma il problema è ancora lì, anche con la nuova versione.",
+    ],
+    "nl": [
+        "Sinds de update start de app niet meer op.",
+        "Ik krijg een foutmelding bij het uploaden.",
+        "De knop doet niets als ik erop klik.",
+        "Bedankt voor de snelle hulp!",
+    ],
+    "pl": [
+        "Po aktualizacji aplikacja nie działa.",
+        "Nie mogę się zalogować na swoje konto.",
+        "Przycisk zapisu nic nie robi.",
+    ],
+    "pt": [
+        "Olá, depois da atualização o aplicativo não abre mais.",
+        "Não consigo fazer login com a minha conta.",
+        "O botão de sincronizar não faz nada.",
+        "Obrigado pela ajuda, agora está funcionando.",
+        "Quando abro o painel, aparece uma mensagem de erro.",
+    ],
+    "tr": [
+        "Bu sürüm ile senkronizasyon çalışmıyor.",
+        "Bir hata var ve uygulama açılmıyor.",
+    ],
+}
+
+
+@pytest.mark.parametrize(
+    ("language", "text"),
+    [(language, text) for language, texts in EVERYDAY.items() for text in texts],
+)
+def test_everyday_sentences_are_guessed_as_their_language(language, text):
     assert assistant.detect_language(text) == language
 
 

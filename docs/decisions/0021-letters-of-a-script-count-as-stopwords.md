@@ -1,6 +1,6 @@
 # Letters of a script of their own count as stopwords, and a third form of a number of days
 
-- Status: accepted
+- Status: accepted, amended on 2026-11-12 by the letters of the Latin script below
 - Date: 2026-10-25
 
 ## Context
@@ -22,3 +22,7 @@ Russian and Ukrainian get `days.few` beside `days.one` and `days.other`, chosen 
 ## Consequences
 
 A new language is no longer always one file: one without spaces between its words needs its letters in the code, and one with more plural forms needs its rule in `plural_form`. The catalogs of Chinese and Japanese have no stopwords. A stopword of a catalog that is also a word of technical English, such as the Polish `jest` and `nic`, still counts for its language but stays in the search for older issues.
+
+## Amendment: letters of the Latin script (2026-11-12)
+
+The languages of the Latin script have letters of their own too, and a report of one short sentence has too few stopwords to reach two. The same vote counts them: ñ, ¿ and ¡ for Spanish, ß for German, ã and õ for Portuguese, œ for French, and ì and ò for Italian. A letter that two of them write, such as ç, which French and Portuguese share, counts for none. The stopwords leave out the words that two languages of the catalogs write often, such as `una`, `del` and `al` of Spanish and Italian or `mais` of French and Portuguese, and the tests guess everyday sentences of each language, so that such a word fails them.

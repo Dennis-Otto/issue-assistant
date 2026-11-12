@@ -19,9 +19,11 @@ months = [
   "січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня",
   "вересня", "жовтня", "листопада", "грудня",
 ]
-# Words that are frequent in the language and in no other catalog. A reporter
-# writes in the language of whose stopwords their words have the most, in
-# English when no other language has more, or fewer than two.
+# Words that are frequent in the language and in no other language of the
+# catalogs: a word that two of them write often, such as the "una" of Spanish and
+# Italian, counts for neither. A reporter writes in the language of whose
+# stopwords their words have the most, in English when no other language has
+# more, or fewer than two.
 # Each of the letters ґ, є, і and ї, which Russian lacks, counts as one as well,
 # as OWN_LETTERS of issue_assistant/languages.py describes.
 stopwords = [

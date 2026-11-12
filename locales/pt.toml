@@ -19,13 +19,18 @@ months = [
   "janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
   "setembro", "outubro", "novembro", "dezembro",
 ]
-# Words that are frequent in the language and in no other catalog. A reporter
-# writes in the language of whose stopwords their words have the most, in
-# English when no other language has more, or fewer than two.
+# Words that are frequent in the language and in no other language of the
+# catalogs: a word that two of them write often, such as the "una" of Spanish and
+# Italian, counts for neither. A reporter writes in the language of whose
+# stopwords their words have the most, in English when no other language has
+# more, or fewer than two.
+# The letters ã and õ, which only Portuguese writes, count as well, as
+# OWN_LETTERS of issue_assistant/languages.py describes.
 stopwords = [
-  "não", "uma", "mas", "quando", "isso", "tem", "tenho", "também", "depois", "porque",
-  "muito", "está", "estou", "eu", "meu", "minha", "ao", "você", "obrigado", "versão",
-  "já", "ainda", "aqui", "quero", "deveria", "isto", "nem", "agora",
+  "não", "uma", "mas", "isso", "tem", "tenho", "também", "depois", "muito", "estou",
+  "eu", "meu", "minha", "ao", "você", "obrigado", "versão", "já", "ainda", "quero",
+  "deveria", "isto", "nem", "agora", "olá", "pela", "pelo", "foi", "seu", "sua", "erro",
+  "faz", "fazer",
 ]
 
 sample = "O cartão não mostra nada quando eu lanço um dardo, e isso não é normal."
