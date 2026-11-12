@@ -677,6 +677,14 @@
     "query": {}
    }
   },
+  "/enterprises/{enterprise}/copilot/policies/code-review": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
   "/enterprises/{enterprise}/copilot/policies/coding_agent": {
    "put": {
     "query": {}
@@ -2593,6 +2601,22 @@
     "query": {}
    }
   },
+  "/orgs/{org}/copilot/code-review/runner": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/code-review/settings": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
   "/orgs/{org}/copilot/coding-agent/permissions": {
    "get": {
     "query": {}
@@ -2678,6 +2702,14 @@
   },
   "/orgs/{org}/copilot/metrics/reports/users-28-day/latest": {
    "get": {
+    "query": {}
+   }
+  },
+  "/orgs/{org}/copilot/policies/code-review": {
+   "get": {
+    "query": {}
+   },
+   "put": {
     "query": {}
    }
   },
@@ -6557,6 +6589,14 @@
     "query": {}
    }
   },
+  "/repos/{owner}/{repo}/copilot/code-review/settings": {
+   "get": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   }
+  },
   "/repos/{owner}/{repo}/dependabot/alerts": {
    "get": {
     "query": {
@@ -6631,6 +6671,14 @@
    },
    "placeholders": {
     "alert_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/dependabot/runner-settings": {
+   "get": {
+    "query": {}
+   },
+   "put": {
+    "query": {}
    }
   },
   "/repos/{owner}/{repo}/dependabot/secrets": {
@@ -7459,7 +7507,14 @@
     "query": {}
    },
    "get": {
-    "query": {}
+    "query": {
+     "page": {
+      "type": "integer"
+     },
+     "per_page": {
+      "type": "integer"
+     }
+    }
    },
    "patch": {
     "query": {}
@@ -8279,6 +8334,14 @@
    },
    "placeholders": {
     "pull_number": "integer"
+   }
+  },
+  "/repos/{owner}/{repo}/pulls/{pull_number}/copilot-code-review": {
+   "placeholders": {
+    "pull_number": "integer"
+   },
+   "post": {
+    "query": {}
    }
   },
   "/repos/{owner}/{repo}/pulls/{pull_number}/files": {
@@ -9840,6 +9903,44 @@
    },
    "get": {
     "query": {}
+   },
+   "put": {
+    "query": {}
+   }
+  },
+  "/user/issue-fields": {
+   "get": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/issue-fields/{issue_field_id}": {
+   "delete": {
+    "query": {}
+   },
+   "patch": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_field_id": "integer"
+   }
+  },
+  "/user/issue-types": {
+   "get": {
+    "query": {}
+   },
+   "post": {
+    "query": {}
+   }
+  },
+  "/user/issue-types/{issue_type_id}": {
+   "delete": {
+    "query": {}
+   },
+   "placeholders": {
+    "issue_type_id": "integer"
    },
    "put": {
     "query": {}
