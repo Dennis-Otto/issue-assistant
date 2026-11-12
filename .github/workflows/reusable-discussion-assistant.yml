@@ -17,12 +17,25 @@ name: Discussion assistant
 # The jobs of the issues can't write to discussions: a called workflow that asks for
 # more than its caller grants doesn't start, and a repository that only moves the
 # pin of issue-assistant.yml grants them only reading. Decision 0018 says why.
+#
+# The Workflow test, .github/workflows/workflow-test.yml, calls it on every pull
+# request that changes what it runs, with the input smoke, as it calls the workflow
+# of the issues: the job event takes the discussion of
+# tests/fixtures/smoke-discussion.json in place of that of an event, analyze and
+# analyze-in-reserve are skipped, and apply checks the answer of
+# tests/fixtures/smoke-discussion-answer.json in place of the engine's, as a dry run.
+# Every step and value of the smoke test names inputs.smoke, which every other
+# caller leaves false.
 
 on:
   workflow_call:
     inputs:
       dry_run:
         description: Only show what the assistant would do
+        type: boolean
+        default: false
+      smoke:
+        description: Only for the Workflow test of the issue assistant, in its own repository; check the answer of tests/fixtures/smoke-discussion-answer.json for the discussion of tests/fixtures/smoke-discussion.json as a dry run, without the AI
         type: boolean
         default: false
     # The caller passes the engine's secrets by name. Only the job analyze sees their
@@ -49,11 +62,11 @@ permissions: {}
 jobs:
   event:
     name: Handle the event
-    # Only for the events that it handles: a call for another one, such as a pull
-    # request of the Workflow test of the issue assistant, skips every job.
+    # Only for the events that it handles, and for the smoke test of a pull request,
+    # also one of Renovate: a call for another event skips every job.
     if: >-
       !github.event.repository.fork &&
-      (github.event_name == 'workflow_dispatch' ||
+      (inputs.smoke || github.event_name == 'workflow_dispatch' ||
         (github.event_name == 'discussion' &&
          github.event.sender.type != 'Bot'))
     runs-on: ubuntu-24.04
@@ -63,8 +76,9 @@ jobs:
       issues: read
       discussions: read
     outputs:
+      # The smoke test names no discussion: apply takes that of its file.
       issue: ${{ steps.event.outputs.issue }}
-      mode: ${{ steps.event.outputs.mode }}
+      mode: ${{ steps.event.outputs.mode || steps.smoke.outputs.mode }}
       # The endpoints of Harden-Runner for analyze-in-reserve, on the runner of
       # ISSUE_ASSISTANT_AI_RUNNER alone.
       endpoints: ${{ steps.endpoints.outputs.endpoints }}
@@ -172,8 +186,24 @@ jobs:
             /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      # The smoke test checks the answer of a file for the discussion of a file,
+      # which only the issue assistant's own repository has.
+      - name: Take the discussion of the smoke test
+        id: smoke
+        if: inputs.smoke
+        env:
+          CALLER: ${{ github.repository }}
+          WORKFLOW: ${{ fromJSON(toJSON(job)).workflow_repository }}
+        run: |
+          if [[ "${CALLER,,}" != "${WORKFLOW,,}" ]]; then
+            echo "::error::Only the Workflow test of $WORKFLOW may pass the input smoke, not $CALLER."
+            exit 1
+          fi
+          echo "The smoke test checks the answer of tests/fixtures/smoke-discussion-answer.json for the discussion of tests/fixtures/smoke-discussion.json, without the AI."
+          echo "mode=discussion-answer" >> "$GITHUB_OUTPUT"
       - name: Choose the next task
         id: event
+        if: ${{ !inputs.smoke }}
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
         with:
           command: event
@@ -210,7 +240,9 @@ jobs:
   analyze:
     name: Analyze with the AI engine
     needs: event
+    # The smoke test runs no engine: apply takes the answer of its file.
     if: >-
+      !inputs.smoke &&
       needs.event.outputs.mode != '' &&
       needs.event.outputs.mode != 'none' &&
       vars.ISSUE_ASSISTANT_AI != 'off' &&
@@ -455,6 +487,7 @@ jobs:
     name: Analyze with the AI engine on the runner in reserve
     needs: event
     if: >-
+      !inputs.smoke &&
       needs.event.outputs.mode != '' &&
       needs.event.outputs.mode != 'none' &&
       vars.ISSUE_ASSISTANT_AI != 'off' &&
@@ -568,12 +601,14 @@ jobs:
   apply:
     name: Check and post the answer
     needs: [event, analyze, analyze-in-reserve]
-    # After an answer of the engine on either runner; written out, what GitHub
-    # otherwise adds: the jobs that ran passed. One of analyze and analyze-in-reserve
-    # is always skipped, which would skip apply without a status function.
+    # After an answer of the engine on either runner, or in the smoke test, which
+    # skips both, with the answer of its file; written out, what GitHub otherwise
+    # adds: the jobs that ran passed. One of analyze and analyze-in-reserve is always
+    # skipped, which would skip apply without a status function.
     if: >-
       !cancelled() && needs.event.result == 'success' &&
-      ((needs.analyze.result == 'success' && needs.analyze.outputs.answer != '') ||
+      (inputs.smoke ||
+        (needs.analyze.result == 'success' && needs.analyze.outputs.answer != '') ||
         (needs.analyze-in-reserve.result == 'success' &&
           needs.analyze-in-reserve.outputs.answer != ''))
     runs-on: ubuntu-24.04
@@ -681,14 +716,26 @@ jobs:
             /engines/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      # The answer of the smoke test, in place of the engine's, from the caller's
+      # checkout: only the issue assistant's own repository has the file.
+      - name: Take the answer of the smoke test
+        id: smoke
+        if: inputs.smoke
+        run: |
+          answer="$(jq --compact-output . tests/fixtures/smoke-discussion-answer.json)"
+          echo "answer=$answer" >> "$GITHUB_OUTPUT"
       - name: Check the engine's answer and post it
         uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
+        # With the discussion of the smoke test, apply is a dry run whose summary
+        # shows the answer.
+        env:
+          ISSUE_ASSISTANT_FIXTURE: ${{ inputs.smoke && 'tests/fixtures/smoke-discussion.json' || '' }}
         with:
           command: apply
           issue: ${{ needs.event.outputs.issue }}
           mode: ${{ needs.event.outputs.mode }}
           engine: ${{ needs.analyze.outputs.engine || needs.analyze-in-reserve.outputs.engine }}
-          answer: ${{ needs.analyze.outputs.answer || needs.analyze-in-reserve.outputs.answer }}
+          answer: ${{ needs.analyze.outputs.answer || needs.analyze-in-reserve.outputs.answer || steps.smoke.outputs.answer }}
           dry-run: ${{ inputs.dry_run }}
       - name: Wait until Harden-Runner has removed Docker
         # Harden-Runner removes Docker with apt-get in the background; a job that ends

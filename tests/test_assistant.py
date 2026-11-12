@@ -9861,7 +9861,10 @@ ISSUE = make_issue(12)
         (None, "can't be read: No such file or directory"),
         ("{", "is no JSON: Expecting property name enclosed in double quotes"),
         (b"\xff", "is no JSON: 'utf-8' codec can't decode byte 0xff"),
-        ([ISSUE], "must be an object with the issue and its comments"),
+        (
+            [ISSUE],
+            "must be an object with an issue and its comments, or with a discussion",
+        ),
         (
             {"issue": ISSUE, "comment": []},
             "doesn't fit: unknown key comment; did you mean comments?",

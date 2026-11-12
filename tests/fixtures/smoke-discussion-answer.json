@@ -1,0 +1,16 @@
+{
+  "language": "en",
+  "kind": "question",
+  "answer": "Yes. Name the category in `[discussions] answer_categories` of `.github/issue-assistant/config.toml`, such as `answer_categories = [\"Q&A\"]`, and run `install` of your release again: it then writes `.github/workflows/discussion-assistant.yml`, the only workflow that may write to discussions. Each new discussion of that category gets one first answer, checked as every analysis, which the asker may mark as the answer.",
+  "maintainer_summary": "",
+  "missing_information": [],
+  "references": [
+    {
+      "path": "docs/features/discussions.md",
+      "anchor": "",
+      "reason": "How a new discussion gets its first answer, and which settings turn it on."
+    }
+  ],
+  "sensitive_data": "none",
+  "security_report": false
+}

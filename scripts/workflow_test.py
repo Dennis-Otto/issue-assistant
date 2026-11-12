@@ -68,12 +68,12 @@ CALLS: dict[str, dict[str, str | None]] = {
         "Analyze with the AI engine on the runner in reserve": None,
         "Check and post the analysis": "Check the engine's answer and post it",
     },
-    # A pull request is no event of the discussions.
+    # The input smoke: the discussion and the answer of a file, without the AI.
     "reusable-discussion-assistant.yml": {
-        "Handle the event": None,
+        "Handle the event": "Take the discussion of the smoke test",
         "Analyze with the AI engine": None,
         "Analyze with the AI engine on the runner in reserve": None,
-        "Check and post the answer": None,
+        "Check and post the answer": "Check the engine's answer and post it",
     },
 }
 
@@ -91,6 +91,8 @@ WATCHED = (
     "templates/*",
     "tests/fixtures/canary-issue.json",
     "tests/fixtures/smoke-answer.json",
+    "tests/fixtures/smoke-discussion.json",
+    "tests/fixtures/smoke-discussion-answer.json",
     # The settings of this repository that the dry runs read.
     ".github/issue-assistant/*",
     ".github/labels.toml",
