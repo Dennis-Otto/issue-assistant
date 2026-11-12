@@ -391,21 +391,19 @@ def stopped(plan: Plan, note: str) -> Plan:
     return Plan(plan.issue, notes=[*plan.notes, note])
 
 
-def objected_to_closing(github: GitHub, issue: dict[str, Any]) -> Plan:
-    """The reporter wrote after the assistant closed the issue as a duplicate.
+def to_maintainers(github: GitHub, issue: dict[str, Any], note: str) -> Plan:
+    """The reporter wrote after a closing whose comment sends such a comment to the
+    maintainers: one as a duplicate, or one by a release on a muted issue, where no
+    AI reads it.
 
-    Its closing comment promised that the maintainers reopen the issue on such a
-    comment: `needs-triage` puts it into the digest's list of what waits on them
-    until one answers, and the sweep doesn't lock it till then. The issue stays closed,
-    since whether it is a duplicate is theirs to decide, not the reporter's.
+    `needs-triage` puts the issue into the digest's list of what waits on them until
+    one answers, and the sweep doesn't lock it till then. The issue stays closed:
+    whether it is a duplicate, or whether the fix fell short, is theirs to decide.
     """
     number = issue["number"]
     if NEEDS_TRIAGE not in label_names(issue):
         github.add_labels(number, [NEEDS_TRIAGE])
-    return Plan(
-        number,
-        notes=["The reporter objected to the closing as a duplicate: needs triage."],
-    )
+    return Plan(number, notes=[note])
 
 
 def reopen_if_answered(
@@ -418,7 +416,8 @@ def reopen_if_answered(
     release_replies times after each release. The marker of the assistant's
     comment about the release counts these runs, so a reporter who deletes their
     comments gets no more of them. One closed as a duplicate goes to the
-    maintainers (objected_to_closing).
+    maintainers (to_maintainers), and so does one that a release closed while it
+    is muted, at any time: no AI reads it, and its closing comment said so.
     """
     number = issue["number"]
     author = login(issue.get("user"))
@@ -440,6 +439,12 @@ def reopen_if_answered(
     ]
     if closings and kind_of(closings[-1]) == "released":
         released = closings[-1]
+        if MUTED in label_names(issue):
+            return to_maintainers(
+                github,
+                issue,
+                "The reporter wrote after the release of a muted issue: needs triage.",
+            )
         window = timedelta(days=config.lifecycle.reopen_after_release_days)
         if created(comment) - created(released) > window:
             return Plan(number, notes=["The release closed this issue long ago."])
@@ -457,7 +462,11 @@ def reopen_if_answered(
             answers=released,
         )
     if closings and kind_of(closings[-1]) == "closed-duplicate":
-        return objected_to_closing(github, issue)
+        return to_maintainers(
+            github,
+            issue,
+            "The reporter objected to the closing as a duplicate: needs triage.",
+        )
     # Whatever its labels say: the reporter's answer can come in while the sweep
     # closes the issue, end the waiting, and remove them.
     if not closings:

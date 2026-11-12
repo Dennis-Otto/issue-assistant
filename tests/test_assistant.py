@@ -1171,6 +1171,86 @@ def test_the_digest_lists_an_objection_to_a_duplicate_closing(config, case):
     assert github.writes == []
 
 
+@pytest.mark.parametrize(
+    "case",
+    [
+        "wrote",
+        "not muted",
+        "without needs-triage",
+        "closed as not planned since",
+        "a maintainer answered",
+        "closed as a duplicate since",
+    ],
+)
+def test_the_digest_lists_a_comment_after_the_release_of_a_muted_issue(config, case):
+    """The closing comment of a muted issue sends the reporter's comment to the
+    maintainers: it waits on them, also long after the release."""
+    labels = {
+        "not muted": ("bug", "needs-triage"),
+        "without needs-triage": ("bug", "assistant-muted"),
+    }.get(case, ("bug", "assistant-muted", "needs-triage"))
+    reason = "not_planned" if case == "closed as not planned since" else "completed"
+    github = FakeGitHub(
+        config,
+        make_issue(
+            state="closed",
+            days_ago=90,
+            closed_at=at(60),
+            labels=labels,
+            state_reason=reason,
+        ),
+    )
+    closing = assistant.render_released(
+        "reporter", make_release(), [40], "en", muted=True
+    )
+    comments = {
+        "a maintainer answered": [said(53, "owner", 1, "MEMBER")],
+        "closed as a duplicate since": [
+            make_comment(54, "bot", assistant.render_closed_duplicate(7, "en"), 1)
+        ],
+    }.get(case, [])
+    github.comment_store[12] = [
+        make_comment(51, "bot", closing, 60),
+        make_comment(52, "reporter", "Still broken.", 50),
+        *comments,
+    ]
+    found = assistant.objected_closings(github, NOW)
+    if case == "wrote":
+        assert found == [
+            assistant.Waiting(
+                assistant.moment(at(50)),
+                12,
+                0,
+                "the reporter wrote after the release, on a muted issue 50 days ago",
+            )
+        ]
+    else:
+        assert found == []
+
+
+def test_a_comment_after_the_release_of_a_muted_issue_keeps_it_unlocked(config):
+    github = FakeGitHub(
+        config,
+        closed_long_ago(
+            labels=("bug", "assistant-muted", "needs-triage"),
+            state_reason="completed",
+        ),
+    )
+    closing = assistant.render_released(
+        "reporter", make_release(), [40], "en", muted=True
+    )
+    github.comment_store[12] = [
+        make_comment(1, "bot", closing, 91),
+        make_comment(2, "reporter", "Still broken.", 80),
+    ]
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == []
+    assert not github.writes_made()
+    github.comment_store[12].append(make_comment(3, "owner", "Thanks.", 70, "MEMBER"))
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == [
+        "#12: locked, closed for more than 90 days."
+    ]
+
+
 def closed_by_release(config, days_ago=2):
     github = FakeGitHub(config, make_issue(labels=("bug",), state="closed"))
     github.comment_store[12] = [
@@ -1213,6 +1293,34 @@ def test_other_comments_after_the_release_change_nothing(config, case):
     author = "someone" if case == "other person" else "reporter"
     plan = comment_after_release(github, config, author)
     assert plan.mode == "none" and github.store[12]["state"] == "closed"
+
+
+@pytest.mark.parametrize("days_ago", [2, 40])
+def test_a_comment_after_the_release_of_a_muted_issue_goes_to_the_maintainers(
+    config, days_ago
+):
+    """No AI reads it, so its closing comment sent it to the maintainers, also
+    after the window of the reopening: needs-triage puts it into the digest."""
+    github = closed_by_release(config, days_ago=days_ago)
+    github.store[12]["labels"].append({"name": "assistant-muted"})
+    plan = comment_after_release(github, config)
+    assert (plan.mode, plan.notes) == (
+        "none",
+        ["The reporter wrote after the release of a muted issue: needs triage."],
+    )
+    assert github.labels_of(12) == {"bug", "assistant-muted", "needs-triage"}
+    assert github.store[12]["state"] == "closed" and github.posted(12) == []
+    assert assistant.runs_of(github.comment_store[12][1]) == []
+    # Another comment of the reporter adds nothing.
+    writes = len(github.writes_made())
+    comment_after_release(github, config)
+    assert len(github.writes_made()) == writes
+    # Someone else's comment changes nothing.
+    github = closed_by_release(config)
+    github.store[12]["labels"].append({"name": "assistant-muted"})
+    plan = comment_after_release(github, config, "someone")
+    assert plan.notes == ["Comment on a closed issue."]
+    assert github.labels_of(12) == {"bug", "assistant-muted"}
 
 
 def test_a_run_by_hand_starts_the_chosen_task(config):
@@ -8172,7 +8280,7 @@ def test_the_release_closes_the_fixed_issue_with_its_link(config):
         "🎉 Released in [v1.10.0](https://github.com/owner/project/releases/tag/v1.10.0)"
         " with the fix from #40. @reporter, please update to this version." in comment
     )
-    assert "write a comment here and the issue reopens" in comment
+    assert "write a comment here within 30 days and the issue reopens" in comment
     issue = github.store[12]
     assert issue["state"] == "closed" and issue["state_reason"] == "completed"
     day = make_release()["published_at"][:10]
@@ -8183,6 +8291,55 @@ def test_the_release_closes_the_fixed_issue_with_its_link(config):
     assert milestone["title"] == "v1.10.0" and milestone["state"] == "closed"
     assert milestone["due_on"] == make_release()["published_at"]
     assert issue["milestone"] == milestone["number"]
+
+
+def test_the_release_comment_names_the_window_of_the_repository(config):
+    github = released(config)
+    lifecycle = assistant.Lifecycle(reopen_after_release_days=14)
+    assert assistant.sweep(github, NOW, lifecycle=lifecycle) == [
+        "#12: closed, released in v1.10.0."
+    ]
+    (comment,) = github.posted(12)
+    assert "write a comment here within 14 days and the issue reopens" in comment
+
+
+def test_the_release_comment_of_a_muted_issue_promises_no_reopening(config):
+    """No AI reads a comment after the release there: it goes to the
+    maintainers, at any time."""
+    github = released(config)
+    github.store[12]["labels"].append({"name": "assistant-muted"})
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+    (comment,) = github.posted(12)
+    assert comment.startswith("<!-- issue-assistant:released tag=v1.10.0 -->\n")
+    assert comment.endswith(
+        "@reporter, please update to this version. If the problem persists, write a "
+        "comment here for the maintainers, or open a new issue.\n"
+    )
+    assert github.labels_of(12) == {"bug", "assistant-muted"}
+
+
+@pytest.mark.parametrize("language", assistant.LANGUAGES)
+def test_only_the_usual_release_comment_names_the_window(language):
+    release = make_release()
+    lifecycle = assistant.Lifecycle(reopen_after_release_days=17)
+    usual = assistant.render_released("reporter", release, [40], language, lifecycle)
+    muted = assistant.render_released(
+        "reporter", release, [40], language, lifecycle, muted=True
+    )
+    window = assistant.days(17, language)
+    assert window in usual and window not in muted
+    # The same thanks and link come first in both.
+    head = usual.split("@reporter")[0]
+    assert muted.startswith(head) and usual != muted
+
+
+def test_a_fix_that_a_release_already_shipped_closes_a_muted_issue_as_muted(config):
+    github = merged(config, labels=("bug", "assistant-muted"), days_ago=10)
+    github.release_store = [make_release()]
+    github.contained = {(f"{40:040x}", "v1.10.0")}
+    assert assistant.sweep(github, NOW) == ["#12: closed, released in v1.10.0."]
+    (comment,) = github.posted(12)
+    assert "for the maintainers" in comment and "reopens" not in comment
 
 
 def test_issues_of_one_release_share_its_milestone(config):

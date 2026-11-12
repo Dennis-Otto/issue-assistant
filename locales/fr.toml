@@ -167,8 +167,12 @@ fixed = """\
   celle-ci."""
 released = """\
   🎉 Publié dans [{tag}]({url}){fixes}. @{author}, merci de mettre à jour vers cette \
-  version. Si le problème persiste, écrivez un commentaire ici et le ticket sera \
-  rouvert, ou ouvrez un nouveau ticket."""
+  version. Si le problème persiste, écrivez un commentaire ici dans un délai de \
+  {reopen_days} et le ticket sera rouvert, ou ouvrez un nouveau ticket."""
+"released.muted" = """\
+  🎉 Publié dans [{tag}]({url}){fixes}. @{author}, merci de mettre à jour vers cette \
+  version. Si le problème persiste, écrivez un commentaire ici pour les mainteneurs, \
+  ou ouvrez un nouveau ticket."""
 "released.fixes" = " avec la correction de {pulls}"
 "reopened-release" = """\
   Merci de nous avoir prévenus, @{author}, et désolé que ce ne soit pas encore résolu. \
