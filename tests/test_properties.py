@@ -8,6 +8,7 @@ tests/oracle.py sees it. The reading of issues, which anyone writes, is checked 
 same way against how it read them before.
 """
 
+import collections
 import dataclasses
 import json
 import re
@@ -668,3 +669,45 @@ def test_the_engine_reads_no_text_that_github_hides(text):
     inner = rest[: rest.rfind("\n" + marks)]
     assert subsequence(inner, assistant.strip_html(text))
     assert not assistant.INVISIBLE.search(inner)
+
+
+# Forms with HTML: headings, answers, comments and tags with attributes.
+FORM_HTML = st.lists(
+    st.sampled_from(
+        [
+            "### What happened\n\n",
+            "### Version\n\n",
+            "_No response_",
+            "<!--",
+            "-->",
+            '<img alt="Xyzzy">',
+            '<a title="Xyzzy">',
+            "</a>",
+            "<",
+            ">",
+            "\n",
+            " ",
+            "x",
+        ]
+    ),
+    max_size=30,
+).map("".join)
+
+
+@hypothesis.example("### What happened\n\n<!-- Xyzzy\n\n### Version\n\n1.2")
+@hypothesis.example('Card is empty.\n<img alt="Xyzzy">')
+@given(st.one_of(st.text(), STRUCTURE, FORM_HTML))
+def test_an_excerpt_reads_nothing_that_issue_md_leaves_out(text):
+    """Each character of an excerpt is one that the fence of issue.md holds for the
+    same text: what GitHub hides there, the excerpts in the JSON files hide as well.
+    Left out are the white space, which both shorten in their own ways, and what the
+    excerpt writes itself: the colon after the label of a field and the ellipsis of
+    a shortened excerpt."""
+    rendered = assistant.rendered_text(text, assistant.Visible())
+    marks, _, rest = rendered.partition("\n")
+    inner = rest[: rest.rfind("\n" + marks)]
+    written = assistant.Visible()(assistant.excerpt(text, 1500))
+    kept = collections.Counter(
+        char for char in written if not char.isspace() and char not in ":…"
+    )
+    assert kept <= collections.Counter(inner)
