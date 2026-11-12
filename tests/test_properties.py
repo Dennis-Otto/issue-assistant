@@ -395,6 +395,11 @@ TOKENS = st.one_of(
     st.from_regex(r"github_pat_[A-Za-z0-9_]{60}", fullmatch=True),
     st.from_regex(r"sk-ant-[A-Za-z0-9_-]{30}", fullmatch=True),
     st.from_regex(r"AKIA[0-9A-Z]{16}", fullmatch=True),
+    st.from_regex(r"AIza[0-9A-Za-z_-]{35}", fullmatch=True),
+    st.from_regex(r"glpat-[A-Za-z0-9_-]{20}", fullmatch=True),
+    st.from_regex(r"[sr]k_live_[A-Za-z0-9]{24}", fullmatch=True),
+    st.from_regex(r"hf_[A-Za-z0-9]{34}", fullmatch=True),
+    st.from_regex(r"[0-9]{10}:[A-Za-z0-9_-]{35}", fullmatch=True),
 )
 
 
