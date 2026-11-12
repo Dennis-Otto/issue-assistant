@@ -31,7 +31,7 @@ stopwords = [
   "fonctionne", "être", "été", "avoir", "aussi", "très", "après", "mon", "elle", "nous",
   "vous", "rien", "toujours", "ça", "fait", "peut", "depuis", "au", "aux", "jour",
   "plus", "erreur", "pour", "sans", "sont", "ces", "bonjour", "merci", "leur", "même",
-  "chez", "seulement", "votre",
+  "chez", "seulement", "votre", "marche",
 ]
 
 sample = "La carte reste vide quand je lance une fléchette, et ce n'est pas normal."

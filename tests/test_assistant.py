@@ -366,6 +366,7 @@ EVERYDAY = {
         "Le bouton ne fait rien quand je clique dessus.",
         "Merci pour votre aide, le problème est résolu.",
         "Il y a une erreur au chargement, mais seulement sur mobile.",
+        "Mais rien ne marche",
     ],
     "it": [
         "Ciao, dopo l'aggiornamento non riesco più ad accedere.",
@@ -374,6 +375,12 @@ EVERYDAY = {
         "Non vedo più i miei documenti nella cartella.",
         "Così non si può usare.",
         "Ma il problema è ancora lì, anche con la nuova versione.",
+        "Il server non risponde",
+        "Il mio account è bloccato",
+        "Il file non viene caricato",
+        "Quando apro il file non succede nulla",
+        "Il mio telefono non si connette al server",
+        "Il plugin non salva la sua configurazione.",
     ],
     "nl": [
         "Sinds de update start de app niet meer op.",

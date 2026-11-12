@@ -106,8 +106,11 @@ FEW = frozenset({"ru", "uk"})
 # them. A short word that two languages share, such as the "una" of Spanish and
 # Italian, counts for neither and is among them as well.
 TECHNICAL_WORDS = frozenset(
-    {"jest", "nic", "ama", "bile", "sesión", "cuenta", "aggiornamento", "opstarten"}
-)
+    {
+        "jest", "nic", "ama", "bile", "sesión", "cuenta", "aggiornamento", "opstarten",
+        "configurazione", "caricato", "risponde",
+    }
+)  # fmt: skip
 COMMON_WORDS = frozenset(
     frozenset[str]().union(*(locale.stopwords for locale in LOCALES.values()))
     - TECHNICAL_WORDS
@@ -118,7 +121,7 @@ COMMON_WORDS = frozenset(
         "issue", "bug", "error", "problem", "feature", "request", "help",
         "please", "work", "working", "any", "all", "new", "use", "using",
         "fuer", "von", "kein", "einen", "einem", "einer", "bitte", "geht",
-        "una", "del", "como", "porque", "está", "quando", "mais", "aqui",
+        "una", "del", "como", "porque", "está", "quando", "mais", "aqui", "sua",
     }
 )  # fmt: skip
 

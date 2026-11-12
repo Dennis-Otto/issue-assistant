@@ -29,8 +29,8 @@ months = [
 stopwords = [
   "não", "uma", "mas", "isso", "tem", "tenho", "também", "depois", "muito", "estou",
   "eu", "meu", "minha", "ao", "você", "obrigado", "versão", "já", "ainda", "quero",
-  "deveria", "isto", "nem", "agora", "olá", "pela", "pelo", "foi", "seu", "sua", "erro",
-  "faz", "fazer",
+  "deveria", "isto", "nem", "agora", "olá", "pela", "pelo", "foi", "seu", "erro", "faz",
+  "fazer",
 ]
 
 sample = "O cartão não mostra nada quando eu lanço um dardo, e isso não é normal."

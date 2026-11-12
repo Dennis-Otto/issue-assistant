@@ -30,7 +30,8 @@ stopwords = [
   "non", "che", "di", "gli", "nel", "della", "questo", "anche", "funziona", "sono",
   "ho", "dopo", "perché", "molto", "ancora", "ogni", "grazie", "versione", "è",
   "aggiornamento", "errore", "più", "niente", "tutto", "nella", "nelle", "delle", "dei",
-  "questa", "però", "già", "ciao", "miei", "riesco", "quindi", "invece",
+  "questa", "però", "già", "ciao", "mio", "mia", "miei", "riesco", "quindi", "invece",
+  "sul", "sulla", "alla", "nulla", "risponde", "caricato", "configurazione",
 ]
 
 sample = "La scheda non mostra niente quando lancio una freccetta: non è normale."
