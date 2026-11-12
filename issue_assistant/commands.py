@@ -21,6 +21,7 @@ from .constants import (
     REFUSED,
     STALE,
 )
+from .digests import CLOSINGS
 from .github import GitHub
 from .issues import (
     Command,
@@ -390,6 +391,23 @@ def stopped(plan: Plan, note: str) -> Plan:
     return Plan(plan.issue, notes=[*plan.notes, note])
 
 
+def objected_to_closing(github: GitHub, issue: dict[str, Any]) -> Plan:
+    """The reporter wrote after the assistant closed the issue as a duplicate.
+
+    Its closing comment promised that the maintainers reopen the issue on such a
+    comment: `needs-triage` puts it into the digest's list of what waits on them
+    until one answers, and the sweep doesn't lock it till then. The issue stays closed,
+    since whether it is a duplicate is theirs to decide, not the reporter's.
+    """
+    number = issue["number"]
+    if NEEDS_TRIAGE not in label_names(issue):
+        github.add_labels(number, [NEEDS_TRIAGE])
+    return Plan(
+        number,
+        notes=["The reporter objected to the closing as a duplicate: needs triage."],
+    )
+
+
 def reopen_if_answered(
     github: GitHub, issue: dict[str, Any], comment: dict[str, Any], config: Config
 ) -> Plan:
@@ -399,7 +417,8 @@ def reopen_if_answered(
     engine decides whether the comment says that the problem persists, up to
     release_replies times after each release. The marker of the assistant's
     comment about the release counts these runs, so a reporter who deletes their
-    comments gets no more of them.
+    comments gets no more of them. One closed as a duplicate goes to the
+    maintainers (objected_to_closing).
     """
     number = issue["number"]
     author = login(issue.get("user"))
@@ -416,7 +435,7 @@ def reopen_if_answered(
     closings = [
         item
         for item in comments
-        if kind_of(item) in {"closed-unanswered", "closed-duplicate", "released"}
+        if kind_of(item) in CLOSINGS
         and (not reopenings or created(item) > reopenings[-1])
     ]
     if closings and kind_of(closings[-1]) == "released":
@@ -437,9 +456,11 @@ def reopen_if_answered(
             ["The reporter wrote after the release."],
             answers=released,
         )
+    if closings and kind_of(closings[-1]) == "closed-duplicate":
+        return objected_to_closing(github, issue)
     # Whatever its labels say: the reporter's answer can come in while the sweep
     # closes the issue, end the waiting, and remove them.
-    if not closings or kind_of(closings[-1]) != "closed-unanswered":
+    if not closings:
         return Plan(number, notes=["Not closed for a missing answer."])
     github.reopen(number)
     for name in (STALE, NEEDS_INFO):
