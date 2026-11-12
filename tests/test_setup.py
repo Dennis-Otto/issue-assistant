@@ -2163,11 +2163,15 @@ def test_the_install_command_writes_into_the_workspace(monkeypatch, tmp_path, ca
     assert code == 0
     out = capsys.readouterr().out
     assert "wrote .github/workflows/issue-assistant.yml" in out
-    # What is left to do, with the command of the check of this checkout.
+    # What is left to do, with the command of the check of this checkout, and the
+    # updates, which the empty folder has no tool for.
     assert out.splitlines()[-1] == (
         "next: describe the project in .github/issue-assistant/project.md, run "
-        f"PYTHONPATH={package.as_posix()} python3 -P -m issue_assistant check, commit, push, and "
-        "try it under Actions > Issue assistant > Run workflow"
+        f"PYTHONPATH={package.as_posix()} python3 -P -m issue_assistant check, turn on "
+        "updates by Dependabot or Renovate, as "
+        "https://dennis-otto.github.io/issue-assistant/getting-started.html"
+        "#turn-on-updates shows, commit, push, and try it under Actions > Issue "
+        "assistant > Run workflow"
     )
     assert "# v1.2.3" in (target / ".github/workflows/labels.yml").read_text("utf-8")
     code, _, _ = run_main(
@@ -2193,6 +2197,109 @@ def test_the_install_command_writes_into_the_workspace(monkeypatch, tmp_path, ca
         "--version, or run install from a checkout of a release: git clone --depth 1 "
         "--branch vX.Y.Z https://github.com/Dennis-Otto/issue-assistant\n"
     )
+
+
+@pytest.mark.parametrize(
+    "tool", [".github/renovate.json5", ".renovaterc", ".github/dependabot.yml"]
+)
+def test_install_leaves_the_updates_out_where_a_tool_moves_the_pins(
+    monkeypatch, tmp_path, capsys, tool
+):
+    monkeypatch.setattr(assistant.cli, "TOOL", tmp_path / "package")
+    target = tmp_path / "target"
+    (target / tool).parent.mkdir(parents=True)
+    (target / tool).write_text(
+        "version: 2\nupdates:\n  - package-ecosystem: github-actions\n", "utf-8"
+    )
+    code, _, _ = run_main(
+        monkeypatch, tmp_path, target, None, "install", "--ref", REF, "--version", "v1"
+    )
+    assert code == 0
+    last = capsys.readouterr().out.splitlines()[-1]
+    assert "issue_assistant check, commit, push, and try it" in last
+    assert "Dependabot" not in last
+
+
+UPDATES_WARNING = (
+    "so the pins of the issue assistant in .github/workflows stay on this release, "
+    "and its fixes, security fixes among them, never arrive: add the "
+    "package-ecosystem github-actions for the directory / to .github/dependabot.yml, "
+    "or a configuration of Renovate, such as renovate.json, as "
+    "https://dennis-otto.github.io/issue-assistant/getting-started.html"
+    "#turn-on-updates shows. A repository that runs Renovate from elsewhere, such as "
+    "with a preset of its organization, can leave it so"
+)
+
+
+def test_check_warns_without_a_tool_that_moves_the_pins(
+    monkeypatch, tmp_path, root, capsys
+):
+    """The sample has Dependabot for its actions; without it, the check warns, and
+    passes: Renovate may run from elsewhere."""
+    (root / ".github/dependabot.yml").unlink()
+    code, _, summary = run_main(monkeypatch, tmp_path, root, None, "check")
+    assert code == 0 and "Everything fits." in summary
+    assert capsys.readouterr().out.startswith(
+        f"::warning::neither Dependabot nor Renovate is configured, {UPDATES_WARNING}\n"
+    )
+    # Next to the problems of the set-up, which fail it.
+    (root / ".gitignore").unlink()
+    code, _, _ = run_main(monkeypatch, tmp_path, root, None, "check")
+    out = capsys.readouterr().out
+    assert code == 1 and out.startswith("::error::.gitignore: add /.issue-assistant/")
+    assert f"{UPDATES_WARNING}\n" in out
+
+
+@pytest.mark.parametrize(
+    "dependabot",
+    [
+        # Another ecosystem only.
+        "version: 2\nupdates:\n  - package-ecosystem: pip\n    directory: /\n",
+        # The entry of the actions in a comment.
+        "version: 2\nupdates:\n  # - package-ecosystem: github-actions\n",
+        # An ecosystem whose name only starts as that of the actions.
+        "updates:\n  - package-ecosystem: github-actions-x\n",
+    ],
+)
+def test_check_warns_when_dependabot_leaves_the_actions_alone(
+    monkeypatch, tmp_path, root, capsys, dependabot
+):
+    (root / ".github/dependabot.yml").write_text(dependabot, "utf-8")
+    code, _, _ = run_main(monkeypatch, tmp_path, root, None, "check")
+    assert code == 0
+    assert capsys.readouterr().out.startswith(
+        "::warning::.github/dependabot.yml updates no package-ecosystem "
+        f"github-actions, and no configuration of Renovate is there, {UPDATES_WARNING}\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [
+        *((str(name), "{}") for name in assistant.RENOVATE_FILES),
+        (
+            ".github/dependabot.yaml",
+            "updates:\n- \"package-ecosystem\": 'github-actions'  # the pins\n",
+        ),
+        (".github/dependabot.yml", "updates:\n  - package-ecosystem: github-actions\n"),
+    ],
+)
+def test_check_is_content_with_renovate_or_dependabot_for_the_actions(
+    monkeypatch, tmp_path, root, capsys, name, text
+):
+    (root / ".github/dependabot.yml").unlink()
+    (root / name).parent.mkdir(exist_ok=True)
+    (root / name).write_text(text, "utf-8")
+    assert assistant.updates_missing(root) == ""
+    code, _, summary = run_main(monkeypatch, tmp_path, root, None, "check")
+    assert code == 0 and "Everything fits." in summary
+    assert capsys.readouterr().out.startswith("::stop-commands::")
+
+
+def test_renovate_wins_over_a_dependabot_that_leaves_the_actions_alone(root):
+    (root / ".github/dependabot.yml").write_text("updates: []\n", "utf-8")
+    (root / "renovate.json").write_text("{}", "utf-8")
+    assert assistant.updates_missing(root) == ""
 
 
 def test_install_takes_the_release_of_its_checkout(monkeypatch, tmp_path, capsys):

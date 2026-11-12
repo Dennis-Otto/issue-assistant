@@ -31,14 +31,17 @@ from .languages import LANGUAGES, LOCALES, texts
 from .paths import (
     CHOOSER_REPOSITORY,
     CONTEXT,
+    DEPENDABOT_FILES,
     DISCUSSION_WORKFLOW,
     FINDINGS_FILE,
     FIREWALL,
     FORMS,
     LABELS_FILE,
+    RENOVATE_FILES,
     SETTINGS,
     TEMPLATE_WORKFLOWS,
     TEMPLATES,
+    UPDATES_GUIDE,
     VERSION_FILE,
     WORKFLOWS,
 )
@@ -96,6 +99,15 @@ MIN_PROJECT = 80
 
 # The longest title of an issue that GitHub takes.
 MAX_TITLE = 256
+
+# An entry of Dependabot's configuration for the actions and reusable workflows of
+# the workflows, in block style, as GitHub's docs write it; a line in a comment
+# doesn't count.
+DEPENDABOT_ACTIONS = re.compile(
+    r"""^[ \t-]*["']?package-ecosystem["']?[ \t]*:[ \t]*["']?github-actions["']?"""
+    r"[ \t]*(?:#.*)?$",
+    re.MULTILINE,
+)
 
 
 def normalized(node: Any, problems: list[str], where: str) -> Any:
@@ -695,6 +707,42 @@ def check_project(config: Config) -> list[str]:
             "what it does, for whom, and where its code and documentation are"
         ]
     return []
+
+
+def updates_missing(root: Path) -> str:
+    """Why the pins of the issue assistant in the workflows of the repository in
+    `root` never move to a new release, for `install` and a warning of `check`;
+    empty when a configuration of Renovate or Dependabot's ecosystem github-actions
+    moves them.
+
+    A warning, never a problem: a repository may run Renovate from elsewhere, such
+    as an app of its organization with a shared preset, without a file of its own.
+    """
+    if any((root / name).is_file() for name in RENOVATE_FILES):
+        return ""
+    dependabot = [name for name in DEPENDABOT_FILES if (root / name).is_file()]
+    if any(
+        DEPENDABOT_ACTIONS.search(
+            (root / name).read_text(encoding="utf-8", errors="replace")
+        )
+        for name in dependabot
+    ):
+        return ""
+    cause = (
+        f"{dependabot[0]} updates no package-ecosystem github-actions, and no "
+        "configuration of Renovate is there"
+        if dependabot
+        else "neither Dependabot nor Renovate is configured"
+    )
+    return (
+        f"{cause}, so the pins of the issue assistant in {WORKFLOWS} stay on this "
+        "release, and its fixes, security fixes among them, never arrive: add the "
+        f"package-ecosystem github-actions for the directory / to "
+        f"{DEPENDABOT_FILES[0]}, or a configuration of Renovate, such as "
+        f"{RENOVATE_FILES[0]}, as {UPDATES_GUIDE} shows. A repository that runs "
+        "Renovate from elsewhere, such as with a preset of its organization, can "
+        "leave it so"
+    )
 
 
 def check(config: Config) -> list[str]:
