@@ -69,6 +69,9 @@ FEEDBACK_EVENTS = frozenset({"schedule", "workflow_dispatch", ""})
 # An issue that needs triage waits on the maintainers once it is this old.
 TRIAGE_WAIT = timedelta(days=3)
 
+# The kinds of the comments with which the assistant closes an issue.
+CLOSINGS = frozenset({"closed-unanswered", "closed-duplicate", "released"})
+
 # The issues that each list of the digest names at most, the longest waiting first.
 DIGEST_ITEMS = 20
 
@@ -186,6 +189,49 @@ def objected(comments: list[dict[str, Any]]) -> datetime | None:
     return objection
 
 
+def objected_closing(
+    issue: dict[str, Any], comments: list[dict[str, Any]]
+) -> datetime | None:
+    """When the reporter first wrote after the assistant closed the issue as a
+    duplicate, and no maintainer answered since; None otherwise.
+
+    The closing comment tells the reporter that a comment is enough for the
+    maintainers to reopen the issue, so such a comment waits on them. Only the last
+    of the assistant's closings counts: one for a missing answer or by a release
+    since leaves the duplicate behind. A command objects to nothing.
+    """
+    closings = [comment for comment in comments if kind_of(comment) in CLOSINGS]
+    if not closings or kind_of(closings[-1]) != "closed-duplicate":
+        return None
+    author = login(issue.get("user"))
+    objection = None
+    for comment in comments:
+        if created(comment) <= created(closings[-1]) or is_bot(comment.get("user")):
+            continue
+        if is_maintainer(comment):
+            objection = None
+        elif login(comment.get("user")) == author and conversing(issue, comment):
+            objection = objection or created(comment)
+    return objection
+
+
+def awaits_reopening(
+    issue: dict[str, Any], comments: list[dict[str, Any]]
+) -> datetime | None:
+    """When the reporter objected to the issue's closing as a duplicate, while it
+    still waits on the maintainers; None otherwise.
+
+    It waits while the issue is closed as a duplicate and keeps `needs-triage`: a
+    maintainer who reopens the issue, closes it for another reason or removes the
+    label has decided, as well as one who answers.
+    """
+    if issue.get("state_reason") != "duplicate" or NEEDS_TRIAGE not in label_names(
+        issue
+    ):
+        return None
+    return objected_closing(issue, comments)
+
+
 def marks_newcomer(comment: dict[str, Any]) -> bool:
     """Whether the comment is an analysis that marks its issue as a candidate."""
     found = marker(comment)
@@ -205,9 +251,10 @@ def waits_on_others(issue: dict[str, Any]) -> bool:
 def waiting_on_maintainers(
     github: GitHub, activity: Activity, now: datetime
 ) -> list[Waiting]:
-    """The open issues whose next step is the maintainers': those that need triage
-    for TRIAGE_WAIT, those whose reporter answered a maintainer, and those whose
-    duplicate notice someone objected to; each until a maintainer answers."""
+    """The issues whose next step is the maintainers': the open ones that need
+    triage for TRIAGE_WAIT, those whose reporter answered a maintainer, those whose
+    duplicate notice someone objected to, and the closed ones whose reporter
+    objected to the closing as a duplicate; each until a maintainer answers."""
     found: dict[int, Waiting] = {}
     for issue in github.open_issues(NEEDS_TRIAGE):
         opened = created(issue)
@@ -235,7 +282,28 @@ def waiting_on_maintainers(
         else:
             continue
         found[number] = Waiting(since, number, upvotes(issue), why)
-    return list(found.values())
+    return list(found.values()) + objected_closings(github, now)
+
+
+def objected_closings(github: GitHub, now: datetime) -> list[Waiting]:
+    """The issues that the assistant closed as duplicates and whose reporter objected
+    since, without a maintainer's answer.
+
+    The objection gave the issue `needs-triage` (reopen_if_answered), which finds
+    them at any age; a maintainer who reopens the issue or removes the label ends
+    the waiting as well as one who answers.
+    """
+    found = []
+    for issue in github.closed_issues_labeled(NEEDS_TRIAGE):
+        number = issue["number"]
+        if waits_on_others(issue) or is_maintainer(issue):
+            continue
+        if since := awaits_reopening(issue, github.comments(number)):
+            why = (
+                f"the reporter objected to the closing as a duplicate {ago(since, now)}"
+            )
+            found.append(Waiting(since, number, upvotes(issue), why))
+    return found
 
 
 def waiting_on_reporters(

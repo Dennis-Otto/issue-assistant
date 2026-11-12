@@ -1029,7 +1029,6 @@ def test_an_answer_reopens_an_issue_that_the_sweep_closed_while_the_reporter_ans
         "other person",
         "closed by a person",
         "no marker",
-        "closed as a duplicate since",
         "closed by another workflow since",
     ],
 )
@@ -1040,11 +1039,6 @@ def test_other_closed_issues_stay_closed(config, case):
         github.event_store[12][-1]["actor"] = {"login": "maintainer", "type": "User"}
     if case == "no marker":
         github.comment_store[12] = github.comment_store[12][:1]
-    if case == "closed as a duplicate since":
-        # An answer reopened it, and the duplicate notice that followed closed it.
-        github.comment_store[12].append(
-            make_comment(3, "bot", assistant.render_closed_duplicate(7, "en"), 0.2)
-        )
     if case == "closed by another workflow since":
         # An answer reopened it, and a workflow of the repository closed it again.
         github.event_store[12] += [
@@ -1064,6 +1058,117 @@ def test_other_closed_issues_stay_closed(config, case):
     }.get(case, "Not closed for a missing answer.")
     assert (plan.issue, plan.mode, plan.notes) == (12, "none", [why])
     assert github.store[12]["state"] == "closed"
+
+
+OBJECTED = ["The reporter objected to the closing as a duplicate: needs triage."]
+
+
+def object_to_the_closing(github, config, comment_id, days_later):
+    """The event of a comment of the reporter on #12, `days_later` days after NOW."""
+    github.clock = NOW + timedelta(days=days_later)
+    comment = make_comment(comment_id, "reporter", "Not the same.", -days_later)
+    github.comment_store[12].append(comment)
+    return assistant.handle_event(
+        github,
+        "issue_comment",
+        event("created", github.issue(12), comment=comment),
+        config,
+    )
+
+
+def test_an_objection_to_a_duplicate_closing_waits_on_the_maintainers(config):
+    """The closing comment tells the reporter that a comment is enough for the
+    maintainers to reopen the issue: the comment gives it `needs-triage`, and the
+    digest lists it until a maintainer answers."""
+    github = possible_duplicate(config)
+    assert assistant.sweep(github, NOW) == ["#12: closed as a duplicate of #7."]
+    assert "needs-triage" not in github.labels_of(12)
+    plan = object_to_the_closing(github, config, 60, 1)
+    assert (plan.issue, plan.mode, plan.notes) == (12, "none", OBJECTED)
+    # Whether it is a duplicate is the maintainers' call: it stays closed, and the
+    # assistant says nothing.
+    issue = github.store[12]
+    assert (issue["state"], issue["state_reason"]) == ("closed", "duplicate")
+    assert github.labels_of(12) == {"bug", "duplicate", "needs-triage"}
+    assert github.posted(12) == []
+    # A second comment adds nothing; the digest counts from the first.
+    writes = len(github.writes_made())
+    assert object_to_the_closing(github, config, 61, 2).notes == OBJECTED
+    assert len(github.writes_made()) == writes
+    _, sections = assistant.report(github, config, NOW + timedelta(days=4), "schedule")
+    assert "**Waiting on the maintainers: 1**" in sections
+    assert (
+        f"- [#12](https://github.com/{REPOSITORY}/issues/12): the reporter objected"
+        " to the closing as a duplicate 3 days ago"
+    ) in sections
+    # A maintainer's answer ends the waiting, though the label stays.
+    github.comment_store[12].append(make_comment(62, "owner", "Same.", -3, "MEMBER"))
+    _, sections = assistant.report(github, config, NOW + timedelta(days=4), "schedule")
+    assert "**Waiting on the maintainers: 0**" in sections
+
+
+def closed_duplicate(**changes):
+    """#12, which the assistant closed as a duplicate of #7 three days ago; an
+    objection gave it `needs-triage`."""
+    changes.setdefault("labels", ("bug", "duplicate", "needs-triage"))
+    changes.setdefault("state_reason", "duplicate")
+    return make_issue(state="closed", days_ago=10, closed_at=at(3), **changes)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "objected",
+        "a maintainer answered",
+        "a command",
+        "before the closing",
+        "only others wrote",
+        "closed unanswered since",
+        "closed as completed",
+        "locked",
+        "a maintainer's own issue",
+    ],
+)
+def test_the_digest_lists_an_objection_to_a_duplicate_closing(config, case):
+    changes = {
+        "locked": {"locked": True},
+        "a maintainer's own issue": {"author": "owner", "association": "OWNER"},
+        "closed as completed": {"state_reason": "completed"},
+    }.get(case, {})
+    github = FakeGitHub(config, closed_duplicate(**changes))
+    closing = assistant.render_closed_duplicate(7, "en")
+    author = "owner" if case == "a maintainer's own issue" else "reporter"
+    text = "/assistant again" if case == "a command" else "Not the same."
+    objection = make_comment(52, author, text, 2)
+    comments = {
+        "a maintainer answered": [objection, said(53, "owner", 1, "MEMBER")],
+        "before the closing": [said(49, "reporter", 4)],
+        "only others wrote": [said(53, "someone", 2)],
+        "closed unanswered since": [
+            objection,
+            make_comment(
+                53, "bot", assistant.render_closed_unanswered("reporter", "en"), 1
+            ),
+        ],
+    }.get(case, [objection])
+    github.comment_store[12] = [
+        make_comment(51, "bot", closing, 3),
+        make_comment(54, "bot", "A comment of a bot", 1.5),
+        *comments,
+    ]
+    found = assistant.objected_closings(github, NOW)
+    if case == "objected":
+        assert found == [
+            assistant.Waiting(
+                assistant.moment(at(2)),
+                12,
+                0,
+                "the reporter objected to the closing as a duplicate 2 days ago",
+            )
+        ]
+    else:
+        assert found == []
+    assert github.writes == []
 
 
 def closed_by_release(config, days_ago=2):
@@ -7355,6 +7460,52 @@ def test_an_issue_that_someone_unlocked_stays_unlocked(config):
     ]
     assert assistant.sweep(github, NOW, lifecycle=LOCKING) == []
     assert not github.writes_made()
+
+
+def objected_duplicate(**changes):
+    """An issue closed long ago as a duplicate, whose reporter objected since."""
+    issue = closed_long_ago(
+        labels=("bug", "duplicate", "needs-triage"), state_reason="duplicate"
+    )
+    return {**issue, **changes}
+
+
+def objection_comments():
+    return [
+        make_comment(1, "bot", assistant.render_closed_duplicate(7, "en"), 91),
+        make_comment(2, "reporter", "This is another bug.", 80),
+    ]
+
+
+def test_an_objection_to_a_duplicate_closing_keeps_the_issue_unlocked(config):
+    """The reporter was told that a comment is enough: the issue stays open to the
+    conversation until a maintainer answered it."""
+    github = FakeGitHub(config, objected_duplicate())
+    github.comment_store[12] = objection_comments()
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == []
+    assert not github.writes_made()
+    github.comment_store[12].append(make_comment(3, "owner", "Same.", 70, "MEMBER"))
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == [
+        "#12: locked, closed for more than 90 days."
+    ]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"labels": [{"name": "bug"}, {"name": "duplicate"}]},
+        {"state_reason": "completed"},
+    ],
+    ids=["needs-triage removed", "closed again as completed"],
+)
+def test_a_maintainers_decision_on_an_objection_lets_the_lock_come(config, changes):
+    """A maintainer who removed `needs-triage`, or reopened the issue and closed it
+    for another reason, decided without a comment: the issue locks as any other."""
+    github = FakeGitHub(config, objected_duplicate(**changes))
+    github.comment_store[12] = objection_comments()
+    assert assistant.sweep(github, NOW, lifecycle=LOCKING) == [
+        "#12: locked, closed for more than 90 days."
+    ]
 
 
 def test_a_locked_issue_that_the_search_still_finds_is_left_alone(config, monkeypatch):

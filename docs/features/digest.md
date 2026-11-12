@@ -14,7 +14,7 @@ The summary of the morning sweep, on the page of its run in the Actions tab, say
 </picture>
 
 - **The maintainer digest, every morning,** lists the open issues in three parts, and a fourth where `labels.toml` has labels of the group `contribution`, each the longest waiting first and, among those of a day, the one with the most 👍 first, up to 20 a part:
-  - *Waiting on the maintainers:* an issue of someone else that needs triage for more than 3 days, one whose reporter answered a maintainer in the last 30 days with no word of a maintainer since, and one where someone objected in a comment to the duplicate notice and no maintainer answered. A fixed issue waits for its release alone.
+  - *Waiting on the maintainers:* an issue of someone else that needs triage for more than 3 days, one whose reporter answered a maintainer in the last 30 days with no word of a maintainer since, one where someone objected in a comment to the duplicate notice and no maintainer answered, and one that the sweep closed as a duplicate whose reporter objected in a comment since, also long ago, with no answer of a maintainer. A fixed issue waits for its release alone.
   - *Waiting on reporters:* every issue labeled `needs-info`, with the day of its reminder, or of its closing once reminded, or why it is exempt.
   - *Fixed, waiting for a release:* every issue labeled `fixed-in-next-release`, with the pull request that fixed it.
   - *Good first issue candidates:* every issue that a maintainer has triaged and whose last analysis says that someone new to the project could take it, for you to [confirm with the label](good-first-issues.md).

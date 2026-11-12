@@ -1,6 +1,6 @@
 sequenceDiagram
   accTitle: A duplicate, from the notice to its closing
-  accDescr: The reporter opens an issue. The analysis of issue-assistant.yml says that it looks like a duplicate of an older issue and closes in 3 days, and adds possible-duplicate. A comment of anyone in those days removes possible-duplicate at once, and the issue stays open. A thumbs down on the notice by the reporter or by someone who may push makes the morning sweep of issue-lifecycle.yml remove possible-duplicate after the 3 days, and the issue stays open. Without an objection, the morning sweep posts a comment, closes the issue as a duplicate of the original and labels it duplicate.
+  accDescr: The reporter opens an issue. The analysis of issue-assistant.yml says that it looks like a duplicate of an older issue and closes in 3 days, and adds possible-duplicate. A comment of anyone in those days removes possible-duplicate at once, and the issue stays open. A thumbs down on the notice by the reporter or by someone who may push makes the morning sweep of issue-lifecycle.yml remove possible-duplicate after the 3 days, and the issue stays open. Without an objection, the morning sweep posts a comment, closes the issue as a duplicate of the original and labels it duplicate. When the reporter comments after the closing, issue-assistant.yml adds needs-triage and leaves the issue closed; the morning sweep lists it in the digest and leaves it unlocked until a maintainer answers.
   actor R as Reporter
   participant I as Issue #35;14
   participant A as issue-assistant.yml
@@ -18,4 +18,10 @@ sequenceDiagram
   else no objection
     L->>I: the morning sweep: a comment,<br>closed as a duplicate of #35;9
     L->>I: label duplicate
+  end
+  opt the reporter comments after the closing
+    R->>I: a comment
+    I->>A: the comment
+    A->>I: label needs-triage,<br>the issue stays closed
+    L->>I: the morning digest lists it,<br>no lock, until a<br>maintainer answers
   end

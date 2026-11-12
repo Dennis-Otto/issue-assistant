@@ -257,6 +257,13 @@ class GitHub:
         )
         return [item for item in items if "pull_request" not in item]
 
+    def closed_issues_labeled(self, label: str) -> list[dict[str, Any]]:
+        items = self.rest(
+            f"issues?state=closed&labels={quote(label, safe='')}&per_page=100",
+            pages=True,
+        )
+        return [item for item in items if "pull_request" not in item]
+
     def recent_issues(self, closed: int) -> list[dict[str, Any]]:
         """Every open issue and the `closed` closed ones that changed last, in the
         form of the REST API, with the pull request that closed each, if one did.
