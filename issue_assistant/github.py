@@ -776,6 +776,154 @@ class GitHub:
                 return found
             cursor = page["pageInfo"]["endCursor"]
 
+    def open_questions(self) -> list[dict[str, Any]]:
+        """The open discussions, the last changed first, in the form of the REST
+        API: who wrote each, in which role and when, its category, whether it has a
+        marked answer, and the same of its last ten comments and of the last ten
+        replies of each, and of its first comment, without their text, for the digest.
+
+        What was written last says whom a question waits on, and a reply comes
+        late in a thread; the ten last of each are plenty for the last word. The
+        first comment, mostly the first answer, keeps the asker's replies to it.
+        """
+        found: list[dict[str, Any]] = []
+        cursor = None
+        while True:
+            try:
+                data = self.graphql(
+                    """
+                    query($owner: String!, $name: String!, $first: Int!,
+                          $cursor: String) {
+                      repository(owner: $owner, name: $name) {
+                        discussions(first: $first, after: $cursor, states: [OPEN],
+                                    orderBy: {field: UPDATED_AT, direction: DESC}) {
+                          pageInfo { hasNextPage endCursor }
+                          nodes {
+                            number createdAt isAnswered authorAssociation
+                            author { __typename login }
+                            category { name }
+                            comments(last: 10) { nodes { ...lastWords } }
+                            opening: comments(first: 1) { nodes { ...lastWords } }
+                          }
+                        }
+                      }
+                    }
+                    fragment lastWords on DiscussionComment {
+                      createdAt authorAssociation author { __typename login }
+                      replies(last: 10) {
+                        nodes { createdAt authorAssociation author { __typename login } }
+                      }
+                    }
+                    """,
+                    {
+                        "owner": self.owner,
+                        "name": self.name,
+                        "first": 100,
+                        "cursor": cursor,
+                    },
+                )
+            except GitHubError as error:
+                # A repository without discussions has none, as in discussions().
+                if not error.missing():
+                    raise
+                return found
+            page = data["repository"]["discussions"]
+            found += [
+                {
+                    "number": node["number"],
+                    "category": {"name": node["category"]["name"]},
+                    "answered": bool(node["isAnswered"]),
+                    **post_as_rest(node),
+                    "comments": [
+                        {
+                            **post_as_rest(comment),
+                            "replies": [
+                                post_as_rest(reply)
+                                for reply in comment["replies"]["nodes"]
+                            ],
+                        }
+                        for comment in [
+                            *node["comments"]["nodes"],
+                            *node["opening"]["nodes"],
+                        ]
+                    ],
+                }
+                for node in page["nodes"]
+            ]
+            if not page["pageInfo"]["hasNextPage"]:
+                return found
+            cursor = page["pageInfo"]["endCursor"]
+
+    def questions_since(self, since: datetime) -> list[dict[str, Any]]:
+        """The discussions opened at or after the moment, the newest first, each
+        with its first ten comments in the form of the REST API: who wrote them,
+        their text, whether the asker marked one as the answer and their 👍 and 👎,
+        for the quality. The assistant's first answer comes within minutes of the
+        question, among the first comments."""
+        found: list[dict[str, Any]] = []
+        cursor = None
+        while True:
+            try:
+                data = self.graphql(
+                    """
+                    query($owner: String!, $name: String!, $first: Int!,
+                          $cursor: String) {
+                      repository(owner: $owner, name: $name) {
+                        discussions(first: $first, after: $cursor,
+                                    orderBy: {field: CREATED_AT, direction: DESC}) {
+                          pageInfo { hasNextPage endCursor }
+                          nodes {
+                            number createdAt
+                            comments(first: 10) {
+                              nodes {
+                                body createdAt authorAssociation isAnswer
+                                author { __typename login }
+                                up: reactions(content: THUMBS_UP) { totalCount }
+                                down: reactions(content: THUMBS_DOWN) { totalCount }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                    """,
+                    {
+                        "owner": self.owner,
+                        "name": self.name,
+                        "first": 100,
+                        "cursor": cursor,
+                    },
+                )
+            except GitHubError as error:
+                # A repository without discussions has none, as in discussions().
+                if not error.missing():
+                    raise
+                return found
+            page = data["repository"]["discussions"]
+            for node in page["nodes"]:
+                if moment(node["createdAt"]) < since:
+                    return found
+                found.append(
+                    {
+                        "number": node["number"],
+                        "created_at": node["createdAt"],
+                        "comments": [
+                            {
+                                **post_as_rest(comment),
+                                "is_answer": bool(comment["isAnswer"]),
+                                "reactions": {
+                                    "+1": comment["up"]["totalCount"],
+                                    "-1": comment["down"]["totalCount"],
+                                },
+                            }
+                            for comment in node["comments"]["nodes"]
+                        ],
+                    }
+                )
+            if not page["pageInfo"]["hasNextPage"]:
+                return found
+            cursor = page["pageInfo"]["endCursor"]
+
     def last_edit(self, number: int) -> tuple[str, datetime] | None:
         """Who changed the text of the issue last, and when; None while nobody did.
 

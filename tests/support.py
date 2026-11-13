@@ -248,14 +248,28 @@ def make_discussion(
     }
 
 
-def discussion_comment(author, body, days_ago=0.0, association="NONE", replies=()):
+def discussion_comment(
+    author,
+    body,
+    days_ago=0.0,
+    association="NONE",
+    replies=(),
+    *,
+    answer=False,
+    up=0,
+    down=0,
+):
     """A comment of a discussion as GraphQL gives it, with its replies, which are
-    comments without replies of their own."""
+    comments without replies of their own, whether it is the marked answer, and its
+    👍 and 👎 by the names that the documents give them."""
     return {
         "author": author_node(author),
         "authorAssociation": association,
         "createdAt": at(days_ago),
         "body": body,
+        "isAnswer": answer,
+        "up": {"totalCount": up},
+        "down": {"totalCount": down},
         "replies": {"nodes": list(replies)},
     }
 
@@ -1038,9 +1052,24 @@ class FakeGitHub(assistant.GitHub):
             self.discussion_pages += 1
             assert self.discussion_pages <= 50, "endless paging of the discussions"
             items = self.discussion_store or []
+            if "states: [OPEN]" in query:
+                items = [item for item in items if not item["closed"]]
             if created:
                 items = sorted(items, key=lambda item: item["createdAt"], reverse=True)
             nodes, info = page_of(items, variables)
+            # The comments and replies that the document asks for: the last ten
+            # of each for the digest, the first ten for the quality.
+            for node in nodes:
+                comments = (node.get("comments") or {}).get("nodes", [])
+                if "comments(last: 10)" in query:
+                    # The first comment as well, by the alias of the document.
+                    node["opening"] = {"nodes": comments[:1]}
+                    comments[:] = comments[-10:]
+                    for comment in comments + node["opening"]["nodes"]:
+                        replies = comment["replies"]["nodes"]
+                        replies[:] = replies[-10:]
+                elif "comments(first: 10)" in query:
+                    comments[:] = comments[:10]
             return {"repository": {"discussions": {"pageInfo": info, "nodes": nodes}}}
         if "duplicateOf" in query:
             # The closed issues of evaluate, the newest first, a page of a hundred.

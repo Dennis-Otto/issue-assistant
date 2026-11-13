@@ -14,6 +14,7 @@ from typing import Any
 from .applying import vouched_for
 from .comments import bullets
 from .constants import (
+    BOT,
     DIGEST,
     DUPLICATE,
     FIXED,
@@ -52,7 +53,7 @@ from .learning import (
     plural,
     reacted_to,
 )
-from .settings import Config, Lifecycle, days, label_names
+from .settings import Config, Lifecycle, answers_category, days, label_names
 from .values import command, created, day_of, days_between, login
 
 # How far back the summary of the sweep looks: for the 👍 and 👎 that the footers of
@@ -117,12 +118,14 @@ def feedback(activity: Activity) -> str:
 
 @dataclass(frozen=True)
 class Waiting:
-    """An issue in a list of the digest: since when it waits, and for what."""
+    """An issue in a list of the digest: since when it waits, and for what; a
+    discussion has the path `discussions`."""
 
     since: datetime
     number: int
     upvotes: int
     why: str
+    path: str = "issues"
 
 
 def ago(when: datetime, now: datetime) -> str:
@@ -141,7 +144,7 @@ def listing(github: GitHub, heading: str, items: list[Waiting]) -> str:
         items, key=lambda item: (day_of(item.since), -item.upvotes, item.number)
     )
     lines = [
-        f"{issue_link(github, item.number)}: {item.why}"
+        f"{issue_link(github, item.number, item.path)}: {item.why}"
         + (f", 👍 {item.upvotes}" if item.upvotes else "")
         for item in ordered[:DIGEST_ITEMS]
     ]
@@ -452,9 +455,73 @@ def candidates_for_newcomers(
     )
 
 
+def last_word(discussion: dict[str, Any]) -> dict[str, Any]:
+    """What was written last on the discussion: the question itself, a comment or
+    a reply, of a person or of the assistant; another bot has no say. A comment of
+    the same second as the question comes after it. The assistant is
+    github-actions[bot], the account of the workflows' token: another workflow that
+    wrote on a discussion with that token would count as its first answer, which no
+    workflow of the blueprint does."""
+    comments = discussion["comments"]
+    thread = [
+        *comments,
+        *(reply for comment in comments for reply in comment["replies"]),
+    ]
+    return max(
+        (
+            *(
+                post
+                for post in thread
+                if not is_bot(post.get("user")) or login(post.get("user")) == BOT
+            ),
+            discussion,
+        ),
+        key=created,
+    )
+
+
+def waiting_questions(github: GitHub, config: Config, now: datetime) -> list[Waiting]:
+    """The open questions in Discussions whose next step is the maintainers': those
+    of [discussions] answer_categories without a marked answer, which a maintainer
+    didn't ask, and whose last word isn't a maintainer's, each until a maintainer
+    writes, an answer is marked or the discussion closes.
+
+    Discussions have no labels, reminders or closings that would catch a question
+    later. One that a person wrote on last waits at once, as an issue whose reporter
+    answered; one without an answer, or whose last word is the assistant's first
+    answer that nobody marked, once that is TRIAGE_WAIT old, as an issue that needs
+    triage, since the asker may still mark it."""
+    found = []
+    for discussion in github.open_questions():
+        if (
+            discussion["answered"]
+            or is_maintainer(discussion)
+            or not answers_category(config, discussion["category"]["name"])
+        ):
+            continue
+        last = last_word(discussion)
+        since = created(last)
+        if is_maintainer(last):
+            continue
+        if last is discussion or login(last.get("user")) == BOT:
+            if now - since < TRIAGE_WAIT:
+                continue
+            why = (
+                f"no answer for {days(days_between(since, now), 'en')}"
+                if last is discussion
+                else f"the assistant answered {ago(since, now)}, no answer marked"
+            )
+        elif login(last.get("user")) == login(discussion.get("user")):
+            why = f"the asker wrote {ago(since, now)}"
+        else:
+            why = f"someone else wrote {ago(since, now)}"
+        found.append(Waiting(since, discussion["number"], 0, why, "discussions"))
+    return found
+
+
 def digest(github: GitHub, config: Config, activity: Activity, now: datetime) -> str:
     """What waits on whom, for the summary of the sweep: links and numbers alone,
-    no text of an issue."""
+    no text of an issue or a discussion."""
     lists = [
         listing(
             github,
@@ -472,6 +539,16 @@ def digest(github: GitHub, config: Config, activity: Activity, now: datetime) ->
             waiting_for_release(github, activity, now),
         ),
     ]
+    # Without a category that gets first answers, Discussions aren't read.
+    if config.answer_categories:
+        lists.insert(
+            1,
+            listing(
+                github,
+                "Questions in Discussions waiting on the maintainers",
+                waiting_questions(github, config, now),
+            ),
+        )
     # Without labels to offer to newcomers, the AI isn't asked for candidates.
     if config.group("contribution"):
         lists.append(candidates_for_newcomers(github, config, activity, now))
@@ -579,6 +656,22 @@ def newcomer_outcomes(github: GitHub, config: Config, activity: Activity) -> str
     )
 
 
+def discussion_outcomes(github: GitHub, activity: Activity) -> str:
+    """What became of the assistant's first answers to the discussions opened since
+    the activity's moment: marked as the answer, which is the asker's choice, and
+    their 👍 and 👎."""
+    answers = marked = up = down = 0
+    for discussion in github.questions_since(activity.since):
+        for comment in discussion["comments"]:
+            if kind_of(comment) != "discussion-answer":
+                continue
+            answers += 1
+            marked += comment["is_answer"]
+            up += comment["reactions"]["+1"]
+            down += comment["reactions"]["-1"]
+    return f"{plural(answers, 'answer')}: marked {marked}, 👍 {up}, 👎 {down}"
+
+
 def quality(github: GitHub, config: Config, activity: Activity) -> str:
     """How the assistant did since the activity's moment, as a table of numbers."""
     first = activity.analyzed()
@@ -622,6 +715,10 @@ def quality(github: GitHub, config: Config, activity: Activity) -> str:
                 "Good first issue candidates",
                 newcomer_outcomes(github, config, activity),
             ),
+        )
+    if config.answer_categories:
+        rows.insert(
+            -1, ("First answers in Discussions", discussion_outcomes(github, activity))
         )
     return "| Number | Value |\n| --- | --- |\n" + "\n".join(
         f"| {name} | {value} |" for name, value in rows
