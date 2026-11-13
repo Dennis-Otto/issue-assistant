@@ -25,6 +25,6 @@ This amends decision 0030, which grouped the action of Codex with its command li
 
 ## Consequences
 
-- The notes of every release of an engine update, on the releases page, the Marketplace and in the pull requests that move the pins, say which version of which engine the analyses run from now on.
+- The notes of every release of an update of a command line of an engine (Codex, Gemini, Copilot), on the releases page, the Marketplace and in the pull requests that move the pins, say which version of which engine the analyses run from now on. An update of the action of Claude Code or of Codex is a `chore(deps)` of the workflows and makes no release; the title of its pull request names the versions as well.
 - An update of Codex that moves its action and its command line at once comes as two pull requests, each with its own checks, so a failing one holds back neither the other nor any other engine.
 - An update of an engine that Renovate brings with another package in one branch, which no rule of the repository makes, would again have a title without a version; the test of the changelog then fails on the pull request of that release, until its entry names the version.

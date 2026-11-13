@@ -178,10 +178,10 @@ The footer of every comment of the AI already links the issue assistant, unless 
 
 Setting `ISSUE_ASSISTANT_AI` to `off` only turns the AI off, as [the FAQ](faq.md#how-do-i-turn-it-off) says. To remove the assistant from a repository, undo what the set-up did, in this order:
 
-1. **Delete the workflows and the files that `install` wrote,** in one pull request: the five workflows in `.github/workflows/`, `issue-assistant.yml`, `issue-lifecycle.yml`, `labels.yml`, `findings.yml` and `discussion-assistant.yml`, which answers discussions with the engine too; the settings in `.github/issue-assistant/`, `.github/labels.toml`, `.github/findings.toml` and the firewall policy `.github/egress-firewall.yaml`; and the step of the check that [Keep it checked](#keep-it-checked) added to the CI, which would fail without them. Once it is merged, nothing of the assistant runs any more.
+1. **Delete the workflows and the files that `install` wrote,** in one pull request: the five workflows in `.github/workflows/`, `issue-assistant.yml`, `issue-lifecycle.yml`, `labels.yml`, `findings.yml` and `discussion-assistant.yml`, which answers discussions with the engine too; the settings in `.github/issue-assistant/`, `.github/labels.toml`, `.github/findings.toml` and the firewall policy `.github/egress-firewall.yaml`; and the step of the check that [Keep it checked](#keep-it-checked) added to the CI, which would fail without them. `discussion-assistant.yml`, `.github/findings.toml` and the firewall policy exist only where the set-up wrote them, so the command skips what is missing. Once it is merged, nothing of the assistant runs any more.
 
     ```sh
-    git rm -r .github/workflows/issue-assistant.yml .github/workflows/issue-lifecycle.yml \
+    git rm -r --ignore-unmatch .github/workflows/issue-assistant.yml .github/workflows/issue-lifecycle.yml \
       .github/workflows/labels.yml .github/workflows/findings.yml \
       .github/workflows/discussion-assistant.yml .github/issue-assistant \
       .github/labels.toml .github/findings.toml .github/egress-firewall.yaml
