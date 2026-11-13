@@ -48,7 +48,7 @@ A set-up has three parts: what `install` writes, what you edit, and what you set
 
     **[Turn on updates](getting-started.md#turn-on-updates)** by Dependabot or Renovate, if neither looks after the repository yet.
 
-4. **Try it:** commit the set-up, push it to the default branch, and under *Actions → Issue assistant → Run workflow*, enter the number of an existing issue. A run by hand starts as a dry run, which writes nothing; the summary of its `apply` job shows the labels and the comment that it would post:
+4. **Try it:** commit the set-up, push it to the default branch, and under *Actions → Issue assistant → Run workflow*, enter the number of an issue. A run by hand starts as a dry run, which writes nothing; the summary of the job *Check and post the analysis* (`apply`) shows the labels and the comment it would post:
 
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/dry-run-dark.webp">
@@ -143,7 +143,7 @@ The cooldown waits a week before a new release, as zizmor asks; security updates
 
 1. **The check passes** on your computer and in the CI of the repository, as *Keep it checked* above adds it. It names every problem of the labels, the issue forms, the workflows, the firewall policy and the settings, every key that it doesn't know, and a `project.md` that still holds the starter's first line or says less than 80 characters. [Troubleshooting](troubleshooting.md) has the fix for each.
 2. **The labels exist** once the set-up is merged into the default branch: the Labels workflow creates those of `.github/labels.toml`, and *Issues → Labels* lists them.
-3. **A dry run shows the comment**, as the last step of the set-up tries it: the summary of the `apply` job of a run by hand shows the labels and the comment that it would post, and writes nothing.
+3. **A dry run shows the comment**: the summary of the job *Check and post the analysis* (`apply`) shows the labels and the comment that it would post, and writes nothing.
 4. **A new issue gets its analysis** within a few minutes. Open it from an account that is not a maintainer's: issues of the owner, members and collaborators get the labels of their form, but no analysis.
 
 When no comment comes, [troubleshooting](troubleshooting.md) has the usual causes, each with its fix. [What reporters see](comments.md) shows every comment that the assistant posts.
@@ -155,7 +155,7 @@ Issues that were open before get a first analysis by the task [backlog](features
 <details markdown="1">
 <summary>Three steps, for a maintainer</summary>
 
-1. **See what it would do.** Under *Actions → Issue assistant → Run workflow*, choose the task `backlog` and enter `0` as the issue, or run `gh workflow run issue-assistant.yml -f mode=backlog -f issue=0`. As a dry run, it chooses the oldest open issues without a first analysis, up to `backlog_per_run` of `config.toml`, 20 by default; it runs the AI for each, so set it low for a first look. The summary of the job `apply` of each shows its labels, a possible duplicate and the missing information as a table.
+1. **See what it would do.** Under *Actions → Issue assistant → Run workflow*, choose the task `backlog` and enter `0` as the issue, or run `gh workflow run issue-assistant.yml -f mode=backlog -f issue=0`. As a dry run, it chooses the oldest open issues without a first analysis, up to `backlog_per_run` of `config.toml`, 20 by default; it runs the AI for each, so set it low for a first look. The summary of the job *Check and post the analysis* (`apply`) of each shows its labels, a possible duplicate and the missing information as a table.
 2. **Set the labels.** Run it again from the same number with *dry_run* off. It sets the labels of each analysis and posts no comment on the old issues, unless you tick *comment*.
 3. **Go on.** The summary of the job `assistant` names the last issue that it chose: enter that number as the issue of the next run, until it says that the backlog is done.
 

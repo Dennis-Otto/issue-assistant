@@ -6,6 +6,27 @@ description: Why an issue got no comment, and how to fix what keeps the issue as
 
 The summary of each run says what the assistant did and why; the runs are under *Actions → Issue assistant*.
 
+## The jobs of a run
+
+The Actions tab shows each job by its name, below the name of the job of your workflow, such as *Issue assistant / Check and post the analysis*. The rows below and the other pages name a job by its id, as the workflows do, beside its name where a newcomer looks for it first:
+
+| Workflow | Id | Name in the Actions tab | What it does |
+| --- | --- | --- | --- |
+| Issue assistant | `event` | *Handle the event* | Chooses the task and checks who started a run by hand, without AI |
+| Issue assistant | `analyze` | *Analyze with the AI engine* | Runs the engine on the firewall runner |
+| Issue assistant | `analyze-in-reserve` | *Analyze with the AI engine on the runner in reserve* | Runs the same steps on the runner of `ISSUE_ASSISTANT_AI_RUNNER` |
+| Issue assistant | `apply` | *Check and post the analysis* | Checks the answer of the AI and posts it, without AI |
+| Discussion assistant | `event` | *Handle the event* | Chooses the task, without AI |
+| Discussion assistant | `analyze` | *Analyze with the AI engine* | Runs the engine on the firewall runner |
+| Discussion assistant | `analyze-in-reserve` | *Analyze with the AI engine on the runner in reserve* | Runs the same steps on the runner of `ISSUE_ASSISTANT_AI_RUNNER` |
+| Discussion assistant | `apply` | *Check and post the answer* | Checks the answer of the AI and posts it, without AI |
+| Issue lifecycle | `sweep` | *Remind and close* | Reminds, closes and labels the issues of the morning |
+| Labels | `sync` | *Synchronize labels* | Makes the labels of the repository those of `.github/labels.toml` |
+| Findings | `record` | *Read the record of the reported alerts* | Reads which findings of code scanning were reported before |
+| Findings | `findings` | *Accept or report findings* | Dismisses the accepted findings and reports the others |
+
+## Symptoms
+
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | No comment on an issue that you or another maintainer opened | Issues of the owner, members and collaborators get labels only | Run the workflow by hand with the task `triage` and the dry run turned off |
@@ -14,6 +35,10 @@ The summary of each run says what the assistant did and why; the runs are under 
 | No comment, and the issue has the label `invalid` | The AI took the issue for spam | Remove the label; to get an analysis, run the workflow by hand |
 | No comment, and the run notes *Daily limit of AI runs reached* or *Daily limit of analyses for this reporter reached* | More new issues, follow-ups and replies after a release came in during the 24 hours before than `max_per_day` allows, or the reporter opened more than `max_per_author_per_day` issues in them | Run the workflow by hand with the task `triage`. If your repository usually gets more issues a day, raise the limit under `[engine]` in `config.toml` |
 | A comment after the release left the issue closed, and the run notes *Limit of comments read after the release reached* | The AI reads only `release_replies` comments of the reporter after each release | Read the comment and reopen the issue yourself, or run the workflow by hand with the task `release-reply` |
+| No comment, and a step of `analyze`, such as *Analyze with Claude*, fails with an error of the authentication: `authentication_error`, *Invalid API key*, *OAuth token has expired*, `401`, `invalid_api_key`, *API key not valid* or *No authentication information found*. `apply` is skipped, and the cost line of Claude in the summary reads *failed* | The engine's secret is there but no longer works: the token of a Claude subscription expired or was revoked, or the API key is wrong, deleted or of another account | Create it again, the token of a subscription with `claude setup-token` or a key in the console of the vendor, and set it in the environment `issue-assistant` under the name that [Engines](engines.md) gives it, such as with `gh secret set CLAUDE_CODE_OAUTH_TOKEN --env issue-assistant`. Then give each issue that got none its analysis by a [run by hand](features/runs-by-hand.md) with the task `triage`, or with `backlog` for many |
+| No comment, and the engine's step of `analyze` fails at a limit of the vendor: *limit reached*, `rate_limit_error`, `429`, `rate_limit_exceeded`, `insufficient_quota` or `RESOURCE_EXHAUSTED` | The usage limit of the Claude subscription is used up until it resets, or the account reached the rate limit or the credit of its API key | Wait for the limit, raise the limit or the credit of the account, or set `model` and `light_model` under `[engine]` in `config.toml` to a smaller model, which spends less of it. Then give each issue its analysis by a [run by hand](features/runs-by-hand.md) with the task `triage` |
+| No comment, and the engine's step of `analyze` fails on the model: *There's an issue with the selected model*, `not_found_error`, `model_not_found`, `404` or *is not found* | `model` or `light_model` under `[engine]` names a model that the engine doesn't know, or that the account may not use | Correct the name in `.github/issue-assistant/config.toml`, or leave `model` empty for the engine's default, which [Every key](every-key.md) names. Then give each issue its analysis by a [run by hand](features/runs-by-hand.md) with the task `triage` |
+| No comment, and the run warns *The engine stopped after the … turns of …, before it answered* or *The engine stopped at max_budget_usd*, or `analyze` fails with *… stopped at the turns of the task* | The engine used up the turns or the dollars of its task before it answered, and a run that stops there posts nothing | Raise `max_turns` or `max_budget_usd` under `[engine]` in `config.toml`, as the warning names them, or choose a cheaper model or effort; [What one run may cost](features/cost.md) has the limits of each task. Then give the issue its analysis by a [run by hand](features/runs-by-hand.md) with the task `triage` |
 | No comment, and the job `apply` shows an error | The checks refused the AI's answer, such as one that broke its schema or held something like a secret; nothing was posted | The error names the reason; run the workflow by hand to try again |
 | A run by hand ends without the AI and notes *already has its triage, and the assistant answers once* | The task already has its comment, and the assistant answers once | Run it again with `override`, as a maintainer; see [Runs by hand](features/runs-by-hand.md) |
 | A run by hand fails with *Only someone with write access may start the issue assistant by hand* or *Only a maintainer … may let the assistant answer again* | The person who started the run, or ran it again, lacks the role: write access to start one, `admin` or `maintain` to override. An app's own token has no role | Let a maintainer start it, or start it with a token that acts for a person |
