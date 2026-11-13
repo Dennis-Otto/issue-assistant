@@ -3855,9 +3855,16 @@ def test_mentions_images_html_and_headings_are_removed(config):
         # Below a blank line, a rule stays a rule.
         ("Text\n\n---\n\nMore", "Text\n\n---\n\nMore"),
         # The marks of a heading go in a quote and in a list item too, which keep
-        # their own marks; four spaces after a list mark make code, which stays.
+        # their own marks. A quote needs no space after its mark.
         ("> # Title\n\n- ## Item\n\n1. # One", "> Title\n\n- Item\n\n1. One"),
-        ("-     # code", "-     # code"),
+        (">## Title", "> Title"),
+        # Deeper in a list, more indentation can still make a heading: there the
+        # marks are escaped, and in code, as after five spaces, that only shows a
+        # backslash.
+        ("- a\n    - # x", "- a\n    - \\# x"),
+        ("- a\n  - b\n      - # x", "- a\n  - b\n      - \\# x"),
+        ("10. a\n\n    # x", "10. a\n\n    \\# x"),
+        ("-     # code", "-     \\# code"),
     ],
 )
 def test_no_heading_of_any_kind_is_left(config, text, cleaned):

@@ -96,15 +96,24 @@ HTML_TAG = re.compile(rf"{TAG}|(?P<open></?[A-Za-z][^>\n]*)")
 
 # The marks of a heading, without the line break after them, also in a quote or a
 # list item, whose marks stay: at most 3 spaces before it, or 4 after such a mark,
-# since more make it code.
+# since more make it code. A `>` needs no space after it, a list mark does.
+CONTAINER_MARK = r"(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$))"
 HEADING_LINE = re.compile(
-    r"^(?:[ \t]{0,3}|(?P<marks>(?:[ \t]{0,3}(?:>|[-+*]|\d{1,9}[.)])(?=[ \t]|$))+)"
+    rf"^(?:[ \t]{{0,3}}|(?P<marks>(?:[ \t]{{0,3}}{CONTAINER_MARK})+)"
     r"[ \t]{0,4})#{1,6}(?:[ \t]+|$)",
     re.MULTILINE,
 )
+# The marks of a heading that HEADING_LINE leaves, at any indentation: deeper in a
+# list, a line indented by 4 or more spaces can still be a heading, as `- # b` is
+# below `- a` and four spaces, and `# b` below `10. a` and a blank line. They are
+# escaped, which in code only shows a backslash.
+HEADING_MARKS = re.compile(
+    rf"^((?:[ \t]*{CONTAINER_MARK})*[ \t]*)(?=#{{1,6}}(?:[ \t]|$))", re.MULTILINE
+)
 # A line of only `=` or only `-`, perhaps in a quote and at any indentation, that
 # makes the line of text above it a heading. Below a blank line, it is text or a
-# rule.
+# rule. Escaped wherever it might be one: in indented code that shows a backslash,
+# and right below a kept code block it makes a rule text, which costs only looks.
 SETEXT_LINE = re.compile(r"^((?:[ \t]*>)*[ \t]*)(?=(?:=+|-+)[ \t]*$)", re.MULTILINE)
 QUOTE_MARKS = re.compile(r"(?:[ \t]*>)*[ \t]*")
 
@@ -296,6 +305,7 @@ def clean_prose(
     # At any indentation, because trimming the cleaned text can take the
     # indentation of its first line.
     text = TILDE_FENCE.sub(r"\1\\", text)
+    text = HEADING_MARKS.sub(r"\1\\", text)
     # No table without its delimiter row, which needs a line below the header: a
     # text of one line, such as a line of the log, keeps its hyphens.
     if lines:
@@ -946,8 +956,8 @@ def notice_link(config: Config, language: str = "en") -> str | None:
 
     A file of `[transparency] files` in the language of the comment, such as
     SUPPORT.de.md for one in German, else the first file; at its part on what happens
-    with an issue when it has one. None when the first file is missing, which `check`
-    reports.
+    with an issue when it has one. None when neither a file in that language nor the
+    first file is there; `check` reports a missing first file.
     """
     translated = (
         notice_file(name, config)

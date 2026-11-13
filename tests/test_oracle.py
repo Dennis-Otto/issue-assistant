@@ -213,7 +213,7 @@ def test_the_oracle_finds_what_the_cleaning_once_let_through(output):
         ("> # A\n\n- # B\n\n> C\n> ===\n\n- D\n  ---", ["A", "B", "C", "D"]),
         # A line of hyphens below a blank line is a rule, an escaped one text, and
         # four spaces make code.
-        ("A\n\n---\n\nB\n\===\n\n    # C\n\n\# D", []),
+        ("A\n\n---\n\nB\n\\===\n\n    # C\n\n\\# D", []),
     ],
 )
 def test_the_oracle_finds_every_heading(markdown, found):
