@@ -20,6 +20,11 @@ servers, a timeout or a rate limit. A read that GitHub refuses with any other er
 the client, such as 403 or 404, fails the check at once (issue #327): every read
 again would repeat it.
 
+A called job that Harden-Runner stopped, because it had no agent that blocks, ran no
+dry run, and the check fails for it as well. When such stops are all that failed, the
+check says so in the words of the step that stopped the job, so that the bots take it
+for a stop of Harden-Runner and not for a flaky test (issue #392).
+
 Before the calls, the job "what the reusable workflows run" runs
 `workflow_test.py changes`, which decides whether they run: on a pull request only
 when it changes a file that the dry runs run or read, so that the check, which main
@@ -111,6 +116,17 @@ OPEN_ALERT = re.compile(r"Alert #\d+ is open: https://\S+")
 EXIT_CODE = re.compile(r"Process completed with exit code \d+\.")
 
 TITLE = "### The reusable workflows as dry runs"
+
+# The step with which every job that blocks with Harden-Runner stops when Harden-Runner
+# has no agent that blocks, mostly in an outage of GitHub (decision 0134 of the
+# blueprint): a called job that it stopped ran no dry run, and the code of the call is
+# not why. Then this check says so in the words for which the flaky-test bot of After
+# the checks looks, so that it counts no flaky test for a stop of Harden-Runner, as it
+# counts none for the called job itself (issue #392); with any other problem it
+# leaves them out, so that the bot still counts that one.
+BLOCKS = "Make sure that Harden-Runner blocks"
+STOPPED = "would reach every host, and it stops here instead"
+HELD = f"Harden-Runner didn't block in it, so its step “{BLOCKS}” stopped it"
 
 # How often the gate reads the jobs again, and how many seconds apart, while GitHub
 # lists a job without the steps that it ran: five minutes in all, which the
@@ -348,6 +364,8 @@ def judge(
     if conclusion == "skipped":
         return conclusion, "it was skipped, but the call has to run it"
     steps = {str(step.get("name")): step for step in job.get("steps") or []}
+    if (steps.get(BLOCKS) or {}).get("conclusion") == "failure":
+        return "stopped by Harden-Runner", f"{HELD} before its dry run"
     step = steps.get(plan)
     if step is None and not steps:
         return (
@@ -464,6 +482,12 @@ def verify_command() -> int:
     table = "| Job | Expected | Result |\n| --- | --- | --- |\n" + "\n".join(rows)
     for problem in problems:
         print(f"::error::{problem}")
+    if problems and all(HELD in problem for problem in problems):
+        print(
+            "::error title=Harden-Runner doesn't block::Each job that didn't run as "
+            "its call has to stopped because Harden-Runner had no agent that blocks: "
+            f"the job {STOPPED}. That is no problem of the change: run the job again."
+        )
     verdict = (
         f"{len(problems)} of the jobs didn't run as their call has to."
         if problems

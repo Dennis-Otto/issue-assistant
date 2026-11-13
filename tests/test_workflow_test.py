@@ -783,6 +783,115 @@ def test_open_alerts_of_the_default_branch_fail_only_the_findings_job(
     assert len(problems) == 1
 
 
+LIFECYCLE = "reusable-issue-lifecycle.yml"
+LIFECYCLE_JOB = "Remind and close"
+LIFECYCLE_PLAN = "Remind, close and mark fixed issues"
+
+
+def stopped(call, name, plan):
+    """The job as GitHub listed it on 2026-11-12 (#392), when the agent of
+    Harden-Runner gave up at its start: the step that makes sure of the block failed,
+    and every step after it was skipped, the plan too."""
+    return job(
+        call,
+        name,
+        "failure",
+        [
+            ("Block every host but GitHub's", "success"),
+            (script.BLOCKS, "failure"),
+            ("Make sure that GitHub names the commit of this workflow", "skipped"),
+            (plan, "skipped"),
+        ],
+    )
+
+
+def test_a_job_that_harden_runner_stopped_fails_the_check_as_its_stop():
+    name = f"{LIFECYCLE} / {LIFECYCLE_JOB}"
+    jobs = replaced((name, stopped(LIFECYCLE, LIFECYCLE_JOB, LIFECYCLE_PLAN)))
+    rows, problems = script.check(jobs, no_annotations)
+    assert (
+        f"| {name} | passes, with “{LIFECYCLE_PLAN}” | stopped by Harden-Runner |"
+        in (rows)
+    )
+    assert problems == [
+        f"{name}: Harden-Runner didn't block in it, so its step “{script.BLOCKS}” "
+        "stopped it before its dry run."
+    ]
+    # A job whose block held and that failed later is judged by its plan.
+    held = job(
+        LIFECYCLE,
+        LIFECYCLE_JOB,
+        "failure",
+        [(script.BLOCKS, "success"), (LIFECYCLE_PLAN, "failure")],
+    )
+    _, problems = script.check(replaced((name, held)), no_annotations)
+    assert problems == [
+        f"{name}: it ended as failure, and its step “{LIFECYCLE_PLAN}” as failure."
+    ]
+
+
+# The annotation that tells the flaky-test bot that Harden-Runner stopped the check.
+STOP = (
+    "::error title=Harden-Runner doesn't block::Each job that didn't run as its call "
+    "has to stopped because Harden-Runner had no agent that blocks: the job would "
+    "reach every host, and it stops here instead. That is no problem of the change: "
+    "run the job again.\n"
+)
+
+
+def test_the_gate_says_so_when_harden_runner_stopped_each_job_that_failed(
+    monkeypatch, tmp_path, capsys
+):
+    """The flaky-test bot counts no flaky test for a job whose annotations say that
+    Harden-Runner stopped it: the gate says so when nothing else failed (#392)."""
+    lifecycle = f"{LIFECYCLE} / {LIFECYCLE_JOB}"
+    labels = f"{LABELS} / {LABELS_JOB}"
+    jobs = replaced(
+        (lifecycle, stopped(LIFECYCLE, LIFECYCLE_JOB, LIFECYCLE_PLAN)),
+        (labels, stopped(LABELS, LABELS_JOB, "Create and update the labels")),
+    )
+    code, summary = verify(
+        monkeypatch, tmp_path, jobs, CHANGES="success", WANTED="true"
+    )
+    assert code == 1
+    assert summary.endswith("\n\n2 of the jobs didn't run as their call has to.\n")
+    out = capsys.readouterr().out
+    assert out.endswith(STOP + "2 of the jobs didn't run as their call has to.\n")
+    assert script.STOPPED in out
+
+
+def test_the_gate_leaves_the_stop_out_when_another_job_failed_on_its_own(
+    monkeypatch, tmp_path, capsys
+):
+    """Then the bot counts the check as flaky if it passes again, for the failure of
+    the other job, which a stop of Harden-Runner doesn't explain."""
+    jobs = replaced(
+        (
+            f"{LIFECYCLE} / {LIFECYCLE_JOB}",
+            stopped(LIFECYCLE, LIFECYCLE_JOB, LIFECYCLE_PLAN),
+        ),
+        (f"{LABELS} / {LABELS_JOB}", None),
+    )
+    code, _ = verify(monkeypatch, tmp_path, jobs, CHANGES="success", WANTED="true")
+    assert code == 1
+    assert script.STOPPED not in capsys.readouterr().out
+
+
+def test_the_stop_is_the_step_and_the_words_that_the_workflows_use():
+    """The step that stops each job of the reusable workflows has the name for which
+    the gate looks, and the flaky-test bot looks for the words of the gate."""
+    named = {
+        step["name"]
+        for path in sorted(WORKFLOWS.glob("reusable-*.yml"))
+        for item in yaml.safe_load(path.read_text("utf-8"))["jobs"].values()
+        for step in item.get("steps", [])
+        if step.get("id") == "blocks"
+    }
+    assert named == {script.BLOCKS}
+    after_checks = (WORKFLOWS / "after-checks.yml").read_text("utf-8")
+    assert f'grep -qF "{script.STOPPED}" <<<"$errors"' in after_checks
+
+
 def test_the_jobs_and_annotations_come_from_the_api(monkeypatch):
     seen = []
 

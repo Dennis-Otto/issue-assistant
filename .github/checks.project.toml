@@ -503,7 +503,10 @@ run, such as with HTTP 403 or 404, fails the check at once, as every read again 
 repeat it: mostly the job lacks the permission `actions: read`.
 When the step *Make sure that Harden-Runner blocks* stopped the job, Harden-Runner
 had no agent that blocks, mostly because an outage of GitHub kept it from downloading
-it: that is no problem of the code, and the check passes when it runs again."""
+it: that is no problem of the code, and the check passes when it runs again. The same
+holds when the table shows a job as *stopped by Harden-Runner*: that step stopped the
+called job before its dry run, and when nothing else failed, the check says so in the
+error *Harden-Runner doesn't block*."""
 why = """The tests and actionlint only read the reusable workflows, and the Action test
 runs the action by itself. A job that fails or skips its work here fails or does
 nothing in every repository after the next release, often without a red run: a job
