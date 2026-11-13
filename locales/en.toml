@@ -152,8 +152,11 @@ fixed = """\
   this issue closes then, with a link to it."""
 released = """\
   🎉 Released in [{tag}]({url}){fixes}. @{author}, please update to this version. If \
-  the problem persists, write a comment here and the issue reopens, or open a new \
-  issue."""
+  the problem persists, write a comment here within {reopen_days} and the issue \
+  reopens, or open a new issue."""
+"released.muted" = """\
+  🎉 Released in [{tag}]({url}){fixes}. @{author}, please update to this version. If \
+  the problem persists, write a comment here for the maintainers, or open a new issue."""
 "released.fixes" = " with the fix from {pulls}"
 "reopened-release" = """\
   Thanks for letting us know, @{author}, and sorry that it isn't solved yet. I \

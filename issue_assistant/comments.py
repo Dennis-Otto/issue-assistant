@@ -472,17 +472,31 @@ def render_fixed(pull: int, branch: str, language: str) -> str:
 
 
 def render_released(
-    author: str, release: dict[str, Any], pulls: list[int], language: str
+    author: str,
+    release: dict[str, Any],
+    pulls: list[int],
+    language: str,
+    lifecycle: Lifecycle = DEFAULT_LIFECYCLE,
+    *,
+    muted: bool = False,
 ) -> str:
+    """The comment that closes an issue with the release that shipped its fix.
+
+    It promises only what a comment of the reporter does on this issue: within
+    reopen_after_release_days the AI reads it, and the issue reopens when the
+    problem persists. On a muted issue no AI reads it: there the comment goes to
+    the maintainers at any time (reopen_if_answered), and the text says so.
+    """
     joined = ", ".join(f"#{pull}" for pull in pulls)
     fixes = say(language, "released.fixes", pulls=joined) if pulls else ""
     text_ = say(
         language,
-        "released",
+        "released.muted" if muted else "released",
         tag=release["tag_name"],
         url=release["html_url"],
         fixes=fixes,
         author=author,
+        **lifecycle.text(language),
     )
     tag = release["tag_name"]
     attributes = {"tag": tag} if re.fullmatch(r"[\w.+/-]+", tag) else {}

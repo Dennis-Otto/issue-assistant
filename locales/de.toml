@@ -160,8 +160,12 @@ fixed = """\
   dann wird dieses Issue mit einem Link darauf geschlossen."""
 released = """\
   🎉 Veröffentlicht in [{tag}]({url}){fixes}. @{author}, bitte aktualisiere auf diese \
-  Version. Besteht das Problem weiter, schreib hier einen Kommentar, dann wird das \
-  Issue wieder geöffnet, oder eröffne ein neues Issue."""
+  Version. Besteht das Problem weiter, schreib innerhalb von {reopen_days} hier einen \
+  Kommentar, dann wird das Issue wieder geöffnet, oder eröffne ein neues Issue."""
+"released.muted" = """\
+  🎉 Veröffentlicht in [{tag}]({url}){fixes}. @{author}, bitte aktualisiere auf diese \
+  Version. Besteht das Problem weiter, schreib hier einen Kommentar für die Maintainer \
+  oder eröffne ein neues Issue."""
 "released.fixes" = " mit dem Fix aus {pulls}"
 "reopened-release" = """\
   Danke für die Rückmeldung, @{author}, und schade, dass es noch nicht gelöst ist. Ich \

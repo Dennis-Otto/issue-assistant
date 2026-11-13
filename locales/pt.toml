@@ -154,7 +154,11 @@ fixed = """\
   versão; esta issue será fechada então, com um link para ela."""
 released = """\
   🎉 Lançado em [{tag}]({url}){fixes}. @{author}, atualize para esta versão. Se o \
-  problema continuar, escreva um comentário aqui e a issue será reaberta, ou abra uma \
+  problema continuar, escreva um comentário aqui em até {reopen_days} e a issue será \
+  reaberta, ou abra uma nova issue."""
+"released.muted" = """\
+  🎉 Lançado em [{tag}]({url}){fixes}. @{author}, atualize para esta versão. Se o \
+  problema continuar, escreva um comentário aqui para os mantenedores, ou abra uma \
   nova issue."""
 "released.fixes" = " com a correção de {pulls}"
 "reopened-release" = """\

@@ -21,6 +21,7 @@ from .constants import (
     BOT,
     DUPLICATE,
     FIXED,
+    MUTED,
     NEEDS_INFO,
     NEEDS_TRIAGE,
     POSSIBLE_DUPLICATE,
@@ -157,10 +158,12 @@ def sweep(
     done = []
     if releases:
         done += isolate(
-            "Marking the fixed issues", partial(mark_fixed, github, now, isolate)
+            "Marking the fixed issues",
+            partial(mark_fixed, github, now, isolate, lifecycle),
         )
         done += isolate(
-            "Closing the released issues", partial(close_released, github, isolate)
+            "Closing the released issues",
+            partial(close_released, github, isolate, lifecycle),
         )
     for label, step in (
         (NEEDS_INFO, sweep_waiting),
@@ -271,7 +274,12 @@ def without_fillers(words: list[str]) -> list[str]:
     return words
 
 
-def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> list[str]:
+def mark_fixed(
+    github: GitHub,
+    now: datetime,
+    isolate: Isolate = directly,
+    lifecycle: Lifecycle = DEFAULT_LIFECYCLE,
+) -> list[str]:
     """Label the open issues that a recently merged pull request fixes.
 
     The issue stays open until a release ships the fix. A maintainer who removes the
@@ -304,7 +312,9 @@ def mark_fixed(github: GitHub, now: datetime, isolate: Isolate = directly) -> li
                 continue
             done += isolate(
                 f"#{number}",
-                partial(mark_issue_fixed, github, number, pull, branch, releases),
+                partial(
+                    mark_issue_fixed, github, number, pull, branch, releases, lifecycle
+                ),
             )
     return done
 
@@ -315,6 +325,7 @@ def mark_issue_fixed(
     pull: dict[str, Any],
     branch: str,
     releases: Callable[[], list[dict[str, Any]]],
+    lifecycle: Lifecycle,
 ) -> list[str]:
     try:
         issue = github.issue(number)
@@ -364,7 +375,9 @@ def mark_issue_fixed(
         ],
     }
     # Unless another pull request that fixes the issue waits for its release.
-    if shipped and (closed := close_issue_released(github, marked, releases())):
+    if shipped and (
+        closed := close_issue_released(github, marked, releases(), lifecycle)
+    ):
         return closed
     github.comment(
         number,
@@ -373,7 +386,11 @@ def mark_issue_fixed(
     return [f"#{number}: fixed by #{pull['number']}; closes with the next release."]
 
 
-def close_released(github: GitHub, isolate: Isolate = directly) -> list[str]:
+def close_released(
+    github: GitHub,
+    isolate: Isolate = directly,
+    lifecycle: Lifecycle = DEFAULT_LIFECYCLE,
+) -> list[str]:
     """Close the fixed issues whose fix a published release ships, with its link."""
     issues = [issue for issue in github.open_issues(FIXED) if not issue.get("locked")]
     if not issues:
@@ -383,13 +400,16 @@ def close_released(github: GitHub, isolate: Isolate = directly) -> list[str]:
     for issue in issues:
         done += isolate(
             f"#{issue['number']}",
-            partial(close_issue_released, github, issue, releases),
+            partial(close_issue_released, github, issue, releases, lifecycle),
         )
     return done
 
 
 def close_issue_released(
-    github: GitHub, issue: dict[str, Any], releases: list[dict[str, Any]]
+    github: GitHub,
+    issue: dict[str, Any],
+    releases: list[dict[str, Any]],
+    lifecycle: Lifecycle,
 ) -> list[str]:
     number = issue["number"]
     events = github.events(number)
@@ -451,6 +471,8 @@ def close_issue_released(
                 release,
                 sorted(pull["number"] for pull in pulls),
                 issue_language(issue, comments()),
+                lifecycle,
+                muted=MUTED in label_names(issue),
             ),
         )
     # Closed first: with the label, the next sweep finds an issue that GitHub
@@ -713,9 +735,9 @@ def lock_issue(
 
     The line comes once, also when GitHub failed the lock after it. An issue that
     someone unlocked stays unlocked: they want its conversation to go on. So does
-    one whose reporter objected to its closing as a duplicate, until a maintainer
-    answered or decided otherwise: the closing comment promised them that a comment
-    is enough.
+    one whose reporter objected to its closing as a duplicate, or wrote after the
+    release of a muted issue, until a maintainer answered or decided otherwise: the
+    closing comment promised them that a comment is enough.
     """
     number = issue["number"]
     if any(event["event"] == "unlocked" for event in github.events(number)):
