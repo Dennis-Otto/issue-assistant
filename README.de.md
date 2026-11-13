@@ -19,7 +19,7 @@ the German pages where there are any, and to the English ones otherwise. -->
 
 - **Prompt-Injection kann nicht schreiben.** Die KI läuft mit Werkzeugen, die nur lesen, hinter einer Firewall und mit einem Token, das nur liest, oder ganz ohne. Ihre Antwort erreicht GitHub nur über einen Job ohne KI, der sie gegen ein Schema, deine Labels und deine Issues prüft.
 - **Antworten, die sich zu lesen lohnen.** Die wahrscheinliche Ursache mit Links zu den Zeilen im Code, was die meldende Person versuchen kann, die noch fehlenden Angaben, Duplikate und Labels, in der Sprache der meldenden Person.
-- **Das ganze Leben eines Issues.** Erinnerungen und Schließen für unbeantwortete Issues, Duplikate, die nach drei Tagen schließen, und behobene Issues, die mit dem Release schließen, das den Fix ausliefert, alles ohne KI.
+- **Das ganze Leben eines Issues.** Erinnerungen und Schließen für unbeantwortete Issues, Duplikate, die nach drei Tagen schließen, und behobene Issues, die mit dem Release des Fixes schließen, alles ohne KI.
 
 Im Wurzelordner deines Repositorys installieren diese Befehle die Workflows des neuesten Releases, jedes Mal aus einer frischen Kopie, und richten auf GitHub die Umgebung für das Secret der KI ein:
 
@@ -70,7 +70,7 @@ Eine GitHub Action, die sich um die Issues eines Repositorys kümmert. Jede Zeil
 - **[Kandidaten für Good First Issues](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/good-first-issues.md):** Die Übersicht nennt die Issues, die jemand Neues übernehmen könnte; nur ein Maintainer setzt das Label.
 - **[Wenn GitHub ausfällt](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/github-failures.md):** Ein Rate Limit, ein Serverfehler oder eine Störung ändert nie, was der Assistent postet.
 - **[Labels als Code](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#githublabelstoml):** die Labels des Repositorys in `.github/labels.toml`, aus den Issue-Formularen und aus der Analyse, jedes mit seinem Grund.
-- **[Befunde des Code-Scannings](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings):** Die Befunde, die `.github/findings.toml` akzeptiert, werden mit ihrem Grund verworfen, auch in einem Pull Request, wo ihre Review-Threads den Merge blockieren würden; jeder andere offene Befund lässt einen Lauf scheitern, den ersten nach seinem Auftauchen, damit GitHub einmal darüber mailt, ohne öffentliches Issue.
+- **[Befunde des Code-Scannings](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings):** Was `.github/findings.toml` akzeptiert, wird mit seinem Grund verworfen, auch in einem Pull Request, wo seine Review-Threads den Merge blockieren würden; jeder andere offene Befund lässt den ersten Lauf nach seinem Auftauchen scheitern, damit GitHub einmal darüber mailt, ohne öffentliches Issue.
 
 Der Maintainer liest jedes Issue und hat das letzte Wort. Eine erste Analyse sieht so aus, hier auf einem Issue eines Demo-Projekts:
 
@@ -83,7 +83,7 @@ Der Maintainer liest jedes Issue und hat das letzte Wort. Eine erste Analyse sie
 
 ## Wie er funktioniert
 
-Vier Workflows laufen im Repository, jeder ein kurzer, der ein Release des Issue-Assistenten pinnt. Nur der violette Job führt eine KI aus, und er kann nicht schreiben. [How it works](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/how-it-works.md) zeigt, was jeden von ihnen startet und welche Aufgabe jedes Ereignis der KI gibt.
+Vier kurze Workflows laufen im Repository, jeder pinnt ein Release des Issue-Assistenten. Nur der violette Job führt eine KI aus, und er kann nicht schreiben. [How it works](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/how-it-works.md) zeigt, was jeden von ihnen startet und welche Aufgabe jedes Ereignis der KI gibt.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/the-four-workflows-of-a-repository-and-what-starts-them.de.dark.svg">
@@ -106,15 +106,15 @@ Issues kommen von jedem, also nimmt das Design an, dass ein Issue versucht, die 
 
 Andere Werkzeuge decken Teile davon ab. GitHub Agentic Workflows und die darauf gebauten Workflows teilen sein Design, und copilot-triage und die Beispiele der Gemini CLI Action für die Triage teilen seine Trennung zwischen einer KI, die liest, und Code ohne KI, der schreibt. Geprüft am 08.11.2026:
 
-- **Die Beispiele der [Claude Code Action](https://github.com/anthropics/claude-code-action/tree/main/examples) für Issues** lassen die KI selbst Labels setzen und Kommentare posten, mit einem Token, das in Issues schreibt, und ohne Prüfung ihrer Antwort vor dem Posten.
+- **Die Beispiele der [Claude Code Action](https://github.com/anthropics/claude-code-action/tree/main/examples) für Issues** lassen die KI selbst Labels setzen und kommentieren, mit einem Token, das in Issues schreibt, und ohne Prüfung ihrer Antwort.
 - **Die [Beispiele der Gemini CLI Action für die Triage](https://github.com/google-github-actions/run-gemini-cli/tree/main/examples/workflows/issue-triage)** geben Gemini ein Token, das nur liest, und ein eigener Job setzt die Labels, die es gewählt hat, falls es sie gibt. Sie vergeben nur Labels: keine Analyse, keine Frage an die meldende Person, keine Duplikate und keine Erinnerungen.
-- **[GitHubs AI assessment labeler](https://docs.github.com/en/issues/tracking-your-work-with-issues/administering-issues/triaging-an-issue-with-ai)** bewertet ein Issue, wenn ein Maintainer ein Label setzt, und postet die Antwort des Modells ungeprüft als Kommentar, aus einem Job, der in Issues schreibt. Er lief auf GitHub Models, das GitHub am 30.07.2026 eingestellt hat.
-- **[GitHub Agentic Workflows](https://github.github.com/gh-aw/)** (gh-aw) hat das nächstverwandte Design: einen Agenten mit einem Token, das nur liest, hinter einer Firewall, und Schreibzugriffe über begrenzte *safe outputs*, nachdem ein zweiter Durchgang einer KI nach Bedrohungen gesucht hat. Es ist ein allgemeines Framework in Version 0.x, in dem du den Workflow der Triage selbst schreibst und kompilierst; Erinnerungen, Duplikate, die schließen, und das Schließen mit dem Release gehören nicht zu seiner Triage.
+- **[GitHubs AI assessment labeler](https://docs.github.com/en/issues/tracking-your-work-with-issues/administering-issues/triaging-an-issue-with-ai)** bewertet ein Issue, wenn ein Maintainer ein Label setzt, und postet die Antwort des Modells ungeprüft aus einem Job, der in Issues schreibt. Er lief auf GitHub Models, das GitHub am 30.07.2026 eingestellt hat.
+- **[GitHub Agentic Workflows](https://github.github.com/gh-aw/)** (gh-aw) hat das nächstverwandte Design: einen Agenten mit einem Token, das nur liest, hinter einer Firewall, und Schreibzugriffe über begrenzte *safe outputs*, nachdem ein zweiter Durchgang einer KI nach Bedrohungen gesucht hat. Es ist ein allgemeines Framework in Version 0.x, in dem du die Triage selbst schreibst und kompilierst; Erinnerungen, das Schließen von Duplikaten und das Schließen mit dem Release fehlen ihr.
 - **[copilot-triage](https://github.com/crmne/copilot-triage)** gibt einem Modell sechs Werkzeuge, die nur lesen, und hält die Tokens aus seiner Umgebung heraus; Ruby prüft seine Entscheidung und postet sie aus demselben Job, der schreiben kann. Es kümmert sich auch um Discussions, Pull Requests und ein Projekt-Board, antwortet in unter 60 Wörtern oder gar nicht und schlägt vor oder schließt, was ein Release behoben hat oder die meldende Person gelöst nennt. Es läuft mit einem Copilot-Kontingent oder deinem eigenen Schlüssel, ohne Firewall, in Version 0.x.
-- **[Copilots Automatisierungen](https://docs.github.com/en/copilot/concepts/agent-capabilities/agent-powered-workflows-and-operations/about-automations)** führen GitHubs Cloud-Agenten auf einem neuen Issue aus, mit den schreibenden Werkzeugen, die du wählst. Der Agent gibt jedem Label, Typ, Feld, jeder Zuweisung oder Schließung einen Grund und eine Zuversicht und hält die unsicheren für eine Freigabe zurück, die laut GitHub keine Sicherheitskontrolle ist. Sie funktionieren nur in privaten und internen Repositorys und ignorieren standardmäßig die Issues von Personen, die dort nicht schreiben dürfen.
-- **[actions/stale](https://github.com/actions/stale)** schließt inaktive Issues ohne KI, standardmäßig 60 und dann 7 Tage nach der letzten Aktivität. Es schreibt keine Analyse, und um es auf Issues zu beschränken, die auf ihre meldende Person warten, braucht es ein Label wie `needs-info`, das etwas anderes setzen muss.
-- **[Dosu](https://dosu.dev/pricing)** ist heute ein gehosteter Dienst für Dokumentation. Seine Labels und sein Stale-Bot wurden zu Open-Source-Workflows auf gh-aw, die mit deiner eigenen Engine laufen.
-- **[GitHubs Erkennung von Duplikaten](https://github.blog/changelog/2026-06-18-duplicate-detection-and-issue-fields-mcp-support-for-github-issues/)**, als öffentliche Vorschau, schlägt bis zu drei ähnliche Issues vor, während eine Person schreibt. Sie passt gut zum Assistenten, der auch Duplikate eines bestehenden Issues findet.
+- **[Copilots Automatisierungen](https://docs.github.com/en/copilot/concepts/agent-capabilities/agent-powered-workflows-and-operations/about-automations)** führen GitHubs Cloud-Agenten auf einem neuen Issue aus, mit den schreibenden Werkzeugen, die du wählst. Der Agent gibt jedem Label, Typ, Feld, jeder Zuweisung oder Schließung Grund und Zuversicht und hält unsichere für eine Freigabe zurück, die laut GitHub keine Sicherheitskontrolle ist. Sie laufen nur in privaten und internen Repositorys und übergehen standardmäßig Issues von Personen ohne Schreibrecht.
+- **[actions/stale](https://github.com/actions/stale)** schließt inaktive Issues ohne KI, standardmäßig 60 und dann 7 Tage nach der letzten Aktivität. Es schreibt keine Analyse und braucht, um nur Issues zu treffen, die auf die meldende Person warten, ein Label wie `needs-info`, das etwas anderes setzt.
+- **[Dosu](https://dosu.dev/pricing)** ist heute ein gehosteter Dienst für Dokumentation. Seine Labels und sein Stale-Bot wurden Open-Source-Workflows auf gh-aw mit deiner eigenen Engine.
+- **[GitHubs Erkennung von Duplikaten](https://github.blog/changelog/2026-06-18-duplicate-detection-and-issue-fields-mcp-support-for-github-issues/)**, als öffentliche Vorschau, schlägt bis zu drei ähnliche Issues vor, während eine Person schreibt. Sie ergänzt den Assistenten, der auch Duplikate bestehender Issues findet.
 
 Der [Vergleich](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/comparison.md) hat die ganze Tabelle, mit der Quelle jeder Zelle.
 
@@ -147,7 +147,7 @@ Die Fußzeile jedes Kommentars der KI verlinkt den Issue-Assistenten bereits, es
 
 ## Unterstützte Runner
 
-Die Workflows, die `install` schreibt, wählen ihre Runner selbst: `ubuntu-24.04` und `ubuntu-24.04-firewall` für die KI. Ein eigener Job, der die Action aufruft, etwa der, der [`check`](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.de.md#keep-it-checked) ausführt, läuft auf jedem dieser Runner; jeder Pull Request hier testet die Action auf jedem:
+Die Workflows, die `install` schreibt, wählen ihre Runner selbst: `ubuntu-24.04` und `ubuntu-24.04-firewall` für die KI. Ein eigener Job mit der Action, etwa für [`check`](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.de.md#keep-it-checked), läuft auf jedem davon; jeder Pull Request hier testet sie auf jedem:
 
 | Runner | Python | Was er ist |
 | --- | --- | --- |
@@ -155,11 +155,11 @@ Die Workflows, die `install` schreibt, wählen ihre Runner selbst: `ubuntu-24.04
 | `ubuntu-26.04` | 3.14 | Was `ubuntu-latest` seit dem 19.10.2026 bedeutet |
 | `ubuntu-24.04-arm` | 3.12 | ARM, kostenlos in öffentlichen Repositorys |
 
-Die Action braucht Python 3.12 oder neuer als `python3`, mit `gh` und `git`; `check` und `evaluate` lesen YAML außerdem mit PyYAML oder `yq`. Auf einem älteren Python, etwa auf `ubuntu-22.04`, auf einem selbst gehosteten Runner oder nach `actions/setup-python` mit einer älteren Version, bricht die Action in ihrem ersten Schritt mit einem Fehler ab, der die gefundene Version und die Abhilfe nennt: Führe den Job auf `ubuntu-24.04` aus, oder füge vor der Action `actions/setup-python` mit `python-version: 3.12` hinzu.
+Die Action braucht Python 3.12 oder neuer als `python3`, mit `gh` und `git`; `check` und `evaluate` lesen YAML außerdem mit PyYAML oder `yq`. Auf älterem Python, etwa auf `ubuntu-22.04`, einem selbst gehosteten Runner oder nach `actions/setup-python` mit älterer Version, bricht sie im ersten Schritt ab und nennt Version und Abhilfe: den Job auf `ubuntu-24.04` ausführen oder vorher `actions/setup-python` mit `python-version: 3.12` einfügen.
 
 ## Entwicklung
 
-Siehe [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). Das Skript braucht nur die Standardbibliothek von Python, `gh` und `git`. Die Tests prüfen jede GraphQL-Anfrage gegen GitHubs Schema, [Probeläufe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) führen den Weg eines Issues durch die KI und jeden wiederverwendbaren Workflow so aus, wie ein Repository sie aufruft, und eine Änderung [einer Vorlage](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/templates.md) erreicht die Repositorys mit einem Release.
+Siehe [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). Das Skript braucht nur die Standardbibliothek von Python, `gh` und `git`. Die Tests prüfen jede GraphQL-Anfrage gegen GitHubs Schema, [Probeläufe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) spielen ein Issue durch die KI und jeden wiederverwendbaren Workflow durch, wie ein Repository sie aufruft, und eine Änderung [einer Vorlage](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/templates.md) erreicht die Repositorys mit einem Release.
 
 ## Lizenz
 

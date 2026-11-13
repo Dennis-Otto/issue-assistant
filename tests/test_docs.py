@@ -1003,8 +1003,10 @@ def test_the_readme_and_the_set_up_offer_the_same_badge_that_leads_to_the_websit
 
 
 def test_the_readme_is_short_and_leads_to_every_feature():
+    # The German README is read on a phone just as much.
+    for name in ("README.md", "README.de.md"):
+        assert len((ROOT / name).read_bytes()) <= README_BYTES, name
     readme = (ROOT / "README.md").read_text("utf-8")
-    assert len(readme.encode("utf-8")) <= README_BYTES
     features = section_of_readme(readme, "What it does")
     for page in hooks.FEATURES:
         (line,) = [line for line in features.splitlines() if f"/docs/{page})" in line]
