@@ -1,3 +1,0 @@
-### Bug fixes
-
-- The AI now reads only what GitHub shows of the Markdown of an issue, its comments and the excerpts of other issues and discussions, also without the link reference definitions, such as `[//]: # (a comment)`, the usual way to write a comment in Markdown, and without footnotes that nothing refers to, which GitHub shows as nothing. A note such as `(link definition removed)` takes the place of each, and a notice in the log of the run counts them, as it counts the invisible characters. A line that only looks like a definition, such as `[ERROR]: Failed` within a paragraph or in fenced code, stays as GitHub shows it.
