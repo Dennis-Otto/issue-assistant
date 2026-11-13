@@ -157,6 +157,13 @@ def tag(name: str, attributes: dict[str, str]) -> str:
     return f"<{name} {pairs}>"
 
 
+# The folder of the pages of a further language on the website, such as de/, and the
+# path of a picture inside it.
+LANGUAGE_FOLDER = re.compile(
+    r"(?P<language>[a-z]{2}(?:[-_][A-Za-z]{2,4})*)/(?P<rest>.+)"
+)
+
+
 def localized(html: str, url: str, docs: Path) -> str:
     """The HTML of the page at url, with the pictures of the website.
 
@@ -172,7 +179,18 @@ def localized(html: str, url: str, docs: Path) -> str:
         """The width and height of the picture at an address relative to the page."""
         if "://" in address or address.startswith(("/", "data:")):
             return {}
-        width, height = size(docs / posixpath.normpath(posixpath.join(folder, address)))
+        target = posixpath.normpath(posixpath.join(folder, address))
+        path = docs / target
+        language = LANGUAGE_FOLDER.fullmatch(target)
+        if language and not path.exists():
+            # A page of a further language, such as de/index.html, shows what the
+            # i18n plugin serves in its folder: the picture of docs/ in that language,
+            # such as images/NAME.de.png, or else the one of the default language.
+            rest = language["rest"]
+            stem, dot, ending = rest.rpartition(".")
+            own = docs / f"{stem}.{language['language']}{dot}{ending}"
+            path = own if own.exists() else docs / rest
+        width, height = size(path)
         return {"width": str(width), "height": str(height)}
 
     def themed(match: re.Match[str]) -> str:

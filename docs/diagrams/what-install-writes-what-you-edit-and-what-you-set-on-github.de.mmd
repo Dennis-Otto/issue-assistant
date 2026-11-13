@@ -1,0 +1,33 @@
+flowchart TB
+  accTitle: Was install schreibt, was du bearbeitest und was du auf GitHub einstellst
+  accDescr: install aus einem Release, im Wurzelordner des Repositorys gestartet, schreibt die vier Workflows, den Workflow der Discussions, wo answer_categories in config.toml eine Kategorie nennt, die Firewall-Richtlinie .github/egress-firewall.yaml und einen Eintrag in .gitignore; ergänzt, wo sie fehlen, den Hinweis an Meldende in SUPPORT.md und die Warteschlange von issue-assistant.yml in den Einstellungen von actionlint; und schreibt Vorlagen von project.md, config.toml, labels.toml, findings.toml, zwei Issue-Formularen und ihrer Auswahl, wenn sie fehlen. Mit --setup legt es außerdem die Umgebung issue-assistant auf GitHub an, beschränkt auf den Standard-Branch, und fragt nach dem Secret der Engine. Dann beschreibst du das Projekt in project.md, passt die Vorlagen an, schaltest das automatische Schließen von Issues durch gemergte Pull Requests ab und schaltest ein, was die Links der Auswahl brauchen: Discussions und private Meldungen von Sicherheitslücken. Dann besteht check, und ein Lauf von Hand zeigt die erste Analyse als Probelauf.
+  install(["`**install --setup** aus einem Release,<br>im Wurzelordner des Repositorys`"]) --> written
+  subgraph written ["install schreibt"]
+    direction TB
+    workflows["die vier Workflows,<br>den der Discussions, wo<br>Kategorien genannt sind,<br>die Firewall-Richtlinie,<br>eine Zeile in .gitignore"]
+    notices["wo sie fehlen: den Hinweis<br>an Meldende in SUPPORT.md,<br>die Warteschlange für actionlint"]
+    starters["Vorlagen, wenn sie fehlen:<br>project.md, config.toml,<br>labels.toml, findings.toml,<br>zwei Issue-Formulare, ihre Auswahl"]
+  end
+  written -- "mit --setup" --> github
+  subgraph github ["install richtet auf GitHub ein"]
+    direction TB
+    environment["die Umgebung<br>issue-assistant, nur für den<br>Standard-Branch"]
+    secret["das Secret der Engine,<br>nach dem gh fragt"]
+    environment ~~~ secret
+  end
+  github -- "dann" --> edited
+  subgraph edited ["du bearbeitest und stellst ein"]
+    direction TB
+    describe["project.md: was das<br>Projekt ist; die Vorlagen:<br>Labels, Formulare, Einstellungen"]
+    autoclose["auf GitHub: kein automatisches<br>Schließen von Issues durch<br>gemergte Pull Requests; Discussions<br>und private Meldungen von<br>Sicherheitslücken für die Links<br>der Auswahl"]
+    describe ~~~ autoclose
+  end
+  edited --> check(["`**check** besteht, und ein Lauf<br>von Hand zeigt die erste<br>Analyse als Probelauf`"])
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class install trigger
+  class workflows,notices,starters,environment,secret job
+  class describe,autoclose person
+  class check safe

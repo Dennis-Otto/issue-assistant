@@ -1,0 +1,29 @@
+flowchart TB
+  accTitle: Die vier Workflows eines Repositorys und was sie startet
+  accDescr: Vier Workflows, jeder mit dem, was ihn startet. In issue-assistant.yml startet ein neues Issue, eine Änderung oder ein Kommentar event, das die Labels des Formulars setzt und die nächste Aufgabe wählt; analyze lässt die KI den Checkout lesen und mit JSON antworten; apply prüft die Antwort und ist der einzige Job, der schreibt. In issue-lifecycle.yml starten jeder Morgen, ein gemergter Pull Request, ein Release und das Ende eines Release-Laufs sweep, das erinnert, Issues schließt, Duplikate schließt und behobene Issues markiert. In labels.yml startet eine Änderung von labels.toml auf main sync-labels, das die Labels anlegt und aktualisiert. In findings.yml starten jeder Morgen, ein Scan auf main und eine Änderung von findings.toml findings, das die akzeptierten Befunde verwirft und an den anderen scheitert.
+  subgraph lifecycle ["issue-lifecycle.yml"]
+    direction TB
+    shipped(["jeden Morgen, ein gemergter<br>Pull Request, ein Release,<br>das Ende eines Release-Laufs"]) --> sweep["`**sweep**<br>Erinnerungen, Schließen,<br>Duplikate, behobene Issues`"]
+  end
+  subgraph assistant ["issue-assistant.yml"]
+    direction TB
+    opened(["ein neues Issue, eine Änderung<br>oder ein Kommentar"]) --> event["`**event**<br>Labels aus dem Formular,<br>die nächste Aufgabe`"]
+    event --> analyze["`**analyze**<br>die KI liest den Checkout<br>und antwortet mit JSON`"]
+    analyze --> apply["`**apply**<br>prüft die Antwort,<br>der einzige Job, der schreibt`"]
+  end
+  subgraph scanning ["findings.yml"]
+    direction TB
+    scanned(["jeden Morgen, ein Scan<br>auf main, eine Änderung<br>von findings.toml"]) --> findings["`**findings**<br>verwirft die akzeptierten<br>Befunde, scheitert an anderen`"]
+  end
+  subgraph labelling ["labels.yml"]
+    direction TB
+    changed(["eine Änderung von<br>labels.toml auf main"]) --> sync["`**sync-labels**<br>legt die Labels an<br>und aktualisiert sie`"]
+  end
+  assistant ~~~ labelling
+  lifecycle ~~~ scanning
+  classDef ai fill:#8250df33,stroke:#8250df,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  class analyze ai
+  class event,apply,sweep,sync,findings job
+  class opened,shipped,changed,scanned trigger

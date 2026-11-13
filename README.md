@@ -12,6 +12,8 @@
 [![REUSE](https://api.reuse.software/badge/github.com/Dennis-Otto/issue-assistant)](https://api.reuse.software/info/github.com/Dennis-Otto/issue-assistant)
 [![Sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Dennis-Otto)
 
+[Auf Deutsch](https://github.com/Dennis-Otto/issue-assistant/blob/main/README.de.md)
+
 - **Prompt injection can't write.** The AI runs with tools that only read, behind a firewall and with a read-only token or none. Its answer reaches GitHub only through a job without AI that checks it against a schema, your labels and your issues.
 - **Answers worth reading.** The likely cause with links to the lines of code, what the reporter can try, the information still missing, duplicates and labels, in the reporter's language.
 - **The whole life of an issue.** Reminders and closing for unanswered issues, duplicates that close after three days, and fixed issues that close with the release that ships the fix, all without AI.
@@ -154,7 +156,7 @@ The action needs Python 3.12 or newer as `python3`, with `gh` and `git`; `check`
 
 ## Development
 
-See [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). The script needs only Python 3.12's standard library, `gh` and `git`, which GitHub's runners have; `check` and `evaluate` read YAML with PyYAML or `yq`. The tests check every GraphQL request against GitHub's schema, [dry runs](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) run the path of an issue through the AI and each reusable workflow as a repository calls them, and a change of [a template](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/templates.md) reaches the repositories with a release.
+See [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). The script needs only the standard library of Python, `gh` and `git`. The tests check every GraphQL request against GitHub's schema, [dry runs](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) run the path of an issue through the AI and each reusable workflow as a repository calls them, and a change of [a template](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/templates.md) reaches the repositories with a release.
 
 ## License
 
