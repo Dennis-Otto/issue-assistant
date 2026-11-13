@@ -14,7 +14,7 @@ hide:
 **Safe AI issue triage for GitHub.** A read-only AI writes a first analysis of every new issue, and a job without AI checks it before anything is posted. Labels, duplicates, reminders and the closing of fixed issues with the release come with it.
 
 [Get started](getting-started.md){ .md-button .md-button--primary }
-[See it live](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710){ .md-button }
+[See it live](https://github.com/Dennis-Otto/homedarts-for-autodarts/issues/521#issuecomment-6547309975){ .md-button }
 [Latest release](https://github.com/Dennis-Otto/issue-assistant/releases/latest){ .md-button }
 
 <picture>
@@ -84,7 +84,7 @@ hide:
 
 The maintainer reads every issue and has the last word.
 
-**Used by** [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), the website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and the issue assistant itself. **See it live:** [the first analysis of a feature request in Paperless Sync](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710), posted 2 minutes 39 seconds after the issue was opened.
+**Used by** [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), the website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and the issue assistant itself. **See it live:** first analyses of [a bug](https://github.com/Dennis-Otto/homedarts-for-autodarts/issues/521#issuecomment-6547309975), traced into the code, of [a feature request](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710) and of [one in the reporter's Chinese](https://github.com/Dennis-Otto/paperless-sync/issues/345#issuecomment-6582461804), with a summary for the maintainer, posted 2 min 32 s, 2 min 39 s and 3 min 7 s after each issue was opened.
 
 ## Careful by design
 

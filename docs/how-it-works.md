@@ -13,7 +13,7 @@ The four workflows that run in a repository, the task that each event gives the 
   <img src="images/diagrams/the-four-workflows-of-a-repository-and-what-starts-them.svg" alt="The four workflows of a repository and what starts them: Four workflows, each with what starts it. In issue-assistant.yml, a new issue, an edit or a comment starts event, which sets the labels of the form and chooses the next task; analyze lets the AI read the checkout and answer with JSON; apply checks the answer and is the only job that writes. In issue-lifecycle.yml, every morning, a merged pull request, a release and the end of a release run start sweep, which sends reminders, closes issues, closes duplicates and marks fixed issues. In labels.yml, a change of labels.toml on main starts sync-labels, which creates and updates the labels. In findings.yml, every morning, a scan on main and a change of findings.toml start findings, which dismisses the accepted findings and fails on the others.">
 </picture>
 
-Four workflows run in the repository. Only the violet job runs an AI, and it can't write:
+Four workflows run in the repository, and a fifth, `discussion-assistant.yml`, answers [discussions](features/discussions.md) where `[discussions] answer_categories` of `config.toml` names categories, as the starter does. Only the violet job runs an AI, and it can't write:
 
 | Workflow | When | What |
 | --- | --- | --- |

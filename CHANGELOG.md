@@ -8,7 +8,7 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ### Bug fixes
 
-* **deps:** update the other engines ([#311](https://github.com/Dennis-Otto/issue-assistant/issues/311)) ([759bfb1](https://github.com/Dennis-Otto/issue-assistant/commit/759bfb18f804d20ac015bb109329747a994c8ec9))
+* **deps:** update the Gemini CLI to 0.66.0 (was 0.65.0) and the Codex CLI to 0.166.0 (was 0.164.0) ([#311](https://github.com/Dennis-Otto/issue-assistant/issues/311)) ([759bfb1](https://github.com/Dennis-Otto/issue-assistant/commit/759bfb18f804d20ac015bb109329747a994c8ec9))
 
 ## [1.10.5](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.4...v1.10.5) (2026-11-09)
 

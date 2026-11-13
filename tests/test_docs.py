@@ -1156,6 +1156,32 @@ def test_every_page_names_the_same_users():
     assert users(roadmap, "- **The repositories that use it.**") == USERS
 
 
+# The real analyses that the README and the home page show, each at the anchor of its
+# comment: a bug traced into the code, a feature request and an answer in the
+# reporter's language with a summary for the maintainer.
+LIVE = [
+    "https://github.com/Dennis-Otto/homedarts-for-autodarts/issues/521"
+    "#issuecomment-6547309975",
+    "https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710",
+    "https://github.com/Dennis-Otto/paperless-sync/issues/345#issuecomment-6582461804",
+]
+
+
+def live_examples(text: str) -> list[str]:
+    """The links of the sentence that starts with **See it live:**, in their order."""
+    (sentence,) = re.findall(r"\*\*See it live:\*\* [^\n]*?\.(?= |$)", text, re.M)
+    return re.findall(r"\]\((https://[^)]+)\)", sentence)
+
+
+def test_every_page_shows_the_same_live_examples():
+    readme = (ROOT / "README.md").read_text("utf-8")
+    home = (ROOT / "docs" / "index.md").read_text("utf-8")
+    assert live_examples(readme) == LIVE
+    assert live_examples(home) == LIVE
+    # The button of the home page leads to the bug, the example that shows the most.
+    assert f"[See it live]({LIVE[0]}){{ .md-button }}" in home
+
+
 def test_no_page_links_a_repository_by_its_old_name():
     for document in DOCUMENTS:
         text = document.read_text("utf-8")

@@ -27,9 +27,9 @@ git clone --quiet --depth 1 --branch "$tag" https://github.com/Dennis-Otto/issue
 
 Then describe the project, clear one setting and try it on an issue, as [Set up a repository](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.md#set-up-a-repository) shows. [Requirements](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.md#requirements) lists what it needs, and the [FAQ](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/faq.md#what-does-it-cost) what it costs.
 
-Coming from the [GitHub Marketplace](https://github.com/marketplace/actions/read-only-issue-assistant)? Its *Use latest version* offers a bare step with an empty `command`; on its own, give it `command: check`, as in [Keep it checked](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.md#keep-it-checked); `install` above writes the four workflows that run the assistant.
+Coming from the [GitHub Marketplace](https://github.com/marketplace/actions/read-only-issue-assistant)? Its *Use latest version* offers a bare step with an empty `command`; on its own, give it `command: check`, as in [Keep it checked](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.md#keep-it-checked); `install` above writes the workflows that run the assistant.
 
-**See it live:** [the first analysis of a feature request in Paperless Sync](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710), posted 2 minutes 39 seconds after the issue was opened.
+**See it live:** first analyses of [a bug](https://github.com/Dennis-Otto/homedarts-for-autodarts/issues/521#issuecomment-6547309975), traced into the code, of [a feature request](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710) and of [one in the reporter's Chinese](https://github.com/Dennis-Otto/paperless-sync/issues/345#issuecomment-6582461804), with a summary for the maintainer, posted 2 min 32 s, 2 min 39 s and 3 min 7 s after each issue was opened.
 
 <picture>
   <source media="(prefers-reduced-motion: reduce) and (max-width: 600px) and (prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/hero-mobile-still-dark.webp">
@@ -65,7 +65,7 @@ A GitHub Action that looks after the issues of a repository. Each line leads to 
 - **[Good first issue candidates](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/good-first-issues.md):** the digest names the issues that someone new could take; only a maintainer adds the label.
 - <a name="when-github-fails"></a>**[When GitHub fails](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/github-failures.md):** a rate limit, a server error or an incident never changes what the assistant posts.
 - **[Labels as code](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#githublabelstoml):** the labels of the repository in `.github/labels.toml`, from the issue forms and from the analysis, each with its reason.
-- **[Findings of code scanning](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings):** the findings that `.github/findings.toml` accepts are dismissed with their reason, also in a pull request, where their review threads would block the merge; any other open finding fails one run, the first after it opens, so GitHub mails about it once, without a public issue.
+- **[Findings of code scanning](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings):** the findings that `.github/findings.toml` accepts are dismissed with their reason, also in a pull request; any other open finding fails one run, so GitHub mails about it once, without a public issue.
 
 The maintainer reads every issue and has the last word. A first analysis looks like this, here on an issue of a demo project:
 
@@ -78,7 +78,7 @@ The maintainer reads every issue and has the last word. A first analysis looks l
 
 ## How it works
 
-Four workflows run in the repository, each a short one that pins a release of the issue assistant. Only the violet job runs an AI, and it can't write. [How it works](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/how-it-works.md) has what starts each of them and the task that each event gives the AI.
+Four workflows run in the repository, a fifth for discussions where `answer_categories` names categories, each a short one that pins a release of the issue assistant. Only the violet job runs an AI, and it can't write. [How it works](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/how-it-works.md) has what starts each of them and the task that each event gives the AI.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/the-four-workflows-of-a-repository-and-what-starts-them.dark.svg">
@@ -150,11 +150,11 @@ The workflows that `install` writes choose their own runners: `ubuntu-24.04`, an
 | `ubuntu-26.04` | 3.14 | What `ubuntu-latest` means since 2026-10-19 |
 | `ubuntu-24.04-arm` | 3.12 | ARM, free in public repositories |
 
-The action needs Python 3.12 or newer as `python3`, with `gh` and `git`; `check` and `evaluate` also read YAML with PyYAML or `yq`. On an older Python, such as on `ubuntu-22.04`, on a self-hosted runner or after `actions/setup-python` with an older version, the action stops in its first step with an error that names the version it found and the fix: run the job on `ubuntu-24.04`, or add `actions/setup-python` with `python-version: 3.12` before the action.
+The action needs Python 3.12 or newer as `python3`, with `gh` and `git`; `check` and `evaluate` also read YAML with PyYAML or `yq`. On an older Python, such as on `ubuntu-22.04`, the action stops in its first step with an error that names the fix: run the job on `ubuntu-24.04`, or add `actions/setup-python` with `python-version: 3.12` before the action.
 
 ## Development
 
-See [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). The script needs only Python 3.12's standard library, `gh` and `git`, which GitHub's runners have; `check` and `evaluate` read YAML with PyYAML or `yq`. The tests check every GraphQL request against GitHub's schema, [dry runs](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) run the path of an issue through the AI and each reusable workflow as a repository calls them, and a change of [a template](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/templates.md) reaches the repositories with a release.
+See [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). The script needs only the standard library of Python, `gh` and `git`. The tests check every GraphQL request against GitHub's schema, [dry runs](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) run the path of an issue through the AI and each reusable workflow as a repository calls them.
 
 ## License
 
