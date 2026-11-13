@@ -491,13 +491,27 @@ def test_a_missing_picture_fails_the_build(docs: Path):
 
 
 def test_a_page_in_german_shows_the_pictures_of_docs(docs: Path):
-    # The i18n plugin serves images/ of docs/ in de/ too, for de/index.html, and a
-    # picture of its own in German, NAME.de.png, in its place.
+    # The i18n plugin serves in de/ only the pictures in German, NAME.de.png as
+    # de/images/NAME.png; a page in de/ shows the others from images/ of the default
+    # language, which the build of the website found missing in de/images/ before.
     (docs / "images" / "a-dark.de.png").write_bytes(png(800, 450))
     html = PICTURE.format(dark="images/a-dark.png", light="images/a-light.png")
     shown = hooks.localized(html, "de/index.html", docs)
+    assert 'src="images/a-dark.png#only-dark"' in shown
+    assert 'src="../images/a-light.png#only-light"' in shown
     assert 'width="1600" height="900"' in shown
     assert 'width="800" height="450"' in shown
+    # So does the English page that the plugin shows in de/ when it has no German one.
+    deeper = html.replace('"images/', '"../images/')
+    fallback = hooks.localized(deeper, "de/features/index.html", docs)
+    assert 'src="../../images/a-light.png#only-light"' in fallback
+    assert 'src="../images/a-dark.png#only-dark"' in fallback
+    # The pages of the default language, and addresses elsewhere, stay as they are.
+    other = '<img src="https://example.com/a.png"><img src="/images/a.png">'
+    assert hooks.localized(other, "de/index.html", docs) == other
+    assert 'src="images/a-light.png#only-light"' in hooks.localized(
+        html, "index.html", docs
+    )
     # A folder of pages that is no language finds nothing there.
     with pytest.raises(FileNotFoundError):
         hooks.localized(html, "features/index.html", docs)

@@ -162,6 +162,10 @@ def tag(name: str, attributes: dict[str, str]) -> str:
 LANGUAGE_FOLDER = re.compile(
     r"(?P<language>[a-z]{2}(?:[-_][A-Za-z]{2,4})*)/(?P<rest>.+)"
 )
+# The address of a picture that a page gives itself, relative to the page.
+RELATIVE = re.compile(
+    r'\b(?P<attribute>src|srcset)="(?P<address>[^":/\s,#?]+(?:/[^":/\s,#?]+)*)"'
+)
 
 
 def localized(html: str, url: str, docs: Path) -> str:
@@ -175,22 +179,48 @@ def localized(html: str, url: str, docs: Path) -> str:
         path = posixpath.relpath(match["path"], folder)
         return f'{match["attribute"]}="{path}"'
 
+    def own(target: str) -> Path | None:
+        """The picture in its language that the i18n plugin serves at target.
+
+        A page of a further language, such as de/index.html, finds in its folder
+        only the pictures of docs/ in that language, such as images/NAME.de.png as
+        de/images/NAME.png.
+        """
+        language = LANGUAGE_FOLDER.fullmatch(target)
+        if not language or (docs / target).exists():
+            return None
+        stem, dot, ending = language["rest"].rpartition(".")
+        path = docs / f"{stem}.{language['language']}{dot}{ending}"
+        return path if path.exists() else None
+
+    def served(match: re.Match[str]) -> str:
+        """The address of a picture that the website serves.
+
+        A picture of the default language that a page of a further language shows,
+        written as on the English page, images/NAME.png, is the one of the default
+        language, ../images/NAME.png: the i18n plugin doesn't copy it into de/.
+        """
+        address = match["address"]
+        target = posixpath.normpath(posixpath.join(folder, address))
+        language = LANGUAGE_FOLDER.fullmatch(target)
+        # A diagram stays as it is: the hook of the blueprint draws it from its
+        # source, whatever path the page gives it.
+        diagram = address.endswith(".svg")
+        if (
+            language
+            and not diagram
+            and not (docs / target).exists()
+            and not own(target)
+        ):
+            address = posixpath.relpath(language["rest"], folder)
+        return f'{match["attribute"]}="{address}"'
+
     def dimensions(address: str) -> dict[str, str]:
         """The width and height of the picture at an address relative to the page."""
         if "://" in address or address.startswith(("/", "data:")):
             return {}
         target = posixpath.normpath(posixpath.join(folder, address))
-        path = docs / target
-        language = LANGUAGE_FOLDER.fullmatch(target)
-        if language and not path.exists():
-            # A page of a further language, such as de/index.html, shows what the
-            # i18n plugin serves in its folder: the picture of docs/ in that language,
-            # such as images/NAME.de.png, or else the one of the default language.
-            rest = language["rest"]
-            stem, dot, ending = rest.rpartition(".")
-            own = docs / f"{stem}.{language['language']}{dot}{ending}"
-            path = own if own.exists() else docs / rest
-        width, height = size(path)
+        width, height = size(own(target) or docs / target)
         return {"width": str(width), "height": str(height)}
 
     def themed(match: re.Match[str]) -> str:
@@ -233,7 +263,7 @@ def localized(html: str, url: str, docs: Path) -> str:
             copies.append(f"<picture>{sources}{tag('img', attributes)}</picture>")
         return "".join(copies)
 
-    return PICTURE.sub(themed, ADDRESS.sub(local, html))
+    return PICTURE.sub(themed, RELATIVE.sub(served, ADDRESS.sub(local, html)))
 
 
 def scrolling(output: str) -> str:
