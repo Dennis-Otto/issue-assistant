@@ -4,6 +4,40 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.11.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.6...v1.11.0) (2026-11-13)
+
+
+### Features
+
+* **analysis:** a maintainer gives the open issues of a backlog their first analysis ([#397](https://github.com/Dennis-Otto/issue-assistant/issues/397)) ([d155d5d](https://github.com/Dennis-Otto/issue-assistant/commit/d155d5d0701b9531e710e46a0e81b6762f6da857))
+* **digest:** list the questions in Discussions that wait on the maintainers ([#406](https://github.com/Dennis-Otto/issue-assistant/issues/406)) ([7172e74](https://github.com/Dennis-Otto/issue-assistant/commit/7172e74d3eeb8b25179449065c62286e8959c151))
+* **fixture:** the Workflow test runs the workflow of the discussions ([#394](https://github.com/Dennis-Otto/issue-assistant/issues/394)) ([7f36df5](https://github.com/Dennis-Otto/issue-assistant/commit/7f36df534f7c06b02f3b104fa00d393dc87dea29))
+* **setup:** install and check name the missing update tool ([#395](https://github.com/Dennis-Otto/issue-assistant/issues/395)) ([6bc42af](https://github.com/Dennis-Otto/issue-assistant/commit/6bc42afe81568d6886f071835449b368365c279e))
+
+
+### Bug fixes
+
+* **answers:** link into the repository only at a ref that the checkout has ([#382](https://github.com/Dennis-Otto/issue-assistant/issues/382)) ([fa7f9e1](https://github.com/Dennis-Otto/issue-assistant/commit/fa7f9e1e31f2f8b229ba9669ce2a06cd60457393))
+* **answers:** refuse Google API keys, more tokens and long runs of one case ([#378](https://github.com/Dennis-Otto/issue-assistant/issues/378)) ([31dad3d](https://github.com/Dennis-Otto/issue-assistant/commit/31dad3d7ddc82c42b2bd275739b74cfacd327ffd))
+* **check:** name a firewall policy of the wrong shape instead of a traceback ([#401](https://github.com/Dennis-Otto/issue-assistant/issues/401)) ([9954ece](https://github.com/Dennis-Otto/issue-assistant/commit/9954ece073c142721226be62fa869bc6bd759300))
+* **context:** an excerpt keeps the words above a form and each answer ([#388](https://github.com/Dennis-Otto/issue-assistant/issues/388)) ([b50fae4](https://github.com/Dennis-Otto/issue-assistant/commit/b50fae43faf3d3597e42afadd47c8a796fb8fd2b))
+* **context:** the AI reads no link reference definition that GitHub hides ([#385](https://github.com/Dennis-Otto/issue-assistant/issues/385)) ([31c342d](https://github.com/Dennis-Otto/issue-assistant/commit/31c342d2bdc7b34d5f6ffea31b52497870b86450))
+* **context:** the excerpts of other issues hold only what GitHub shows ([#380](https://github.com/Dennis-Otto/issue-assistant/issues/380)) ([d91d34c](https://github.com/Dennis-Otto/issue-assistant/commit/d91d34c16bb96add77633abbe7518b25c408af1f))
+* **deps:** name the engine and its versions in the title of an engine update ([#405](https://github.com/Dennis-Otto/issue-assistant/issues/405)) ([6d1a5c1](https://github.com/Dennis-Otto/issue-assistant/commit/6d1a5c14856ca5fe601fc317e713a531929f8a60))
+* **findings:** a run with an older record than the newest fails for no alert ([#389](https://github.com/Dennis-Otto/issue-assistant/issues/389)) ([96fa78e](https://github.com/Dennis-Otto/issue-assistant/commit/96fa78e945a64c6e3050cdd311980885c914ecdd))
+* German comments link the German notice, and the AI's text makes no headings ([#408](https://github.com/Dennis-Otto/issue-assistant/issues/408)) ([7de2f71](https://github.com/Dennis-Otto/issue-assistant/commit/7de2f71e430293386b73c2208d59ff6918a733fc))
+* **github:** run a read again after every kind of broken connection ([#398](https://github.com/Dennis-Otto/issue-assistant/issues/398)) ([f197df1](https://github.com/Dennis-Otto/issue-assistant/commit/f197df129792df0c7754d2386b1fc920a34dfed1))
+* **languages:** a Spanish report is no longer taken for Italian, nor a short one for English ([#390](https://github.com/Dennis-Otto/issue-assistant/issues/390)) ([5809cb9](https://github.com/Dennis-Otto/issue-assistant/commit/5809cb99d890fbf3faa9b272cb3b4969919db786))
+* **lifecycle:** a feature request hears what was implemented, not a fix ([#403](https://github.com/Dennis-Otto/issue-assistant/issues/403)) ([75dd34d](https://github.com/Dennis-Otto/issue-assistant/commit/75dd34d4a8f7ec6545c3cd8e9e891d27c5896eca))
+* **lifecycle:** a negation denies a fix only when it governs the keyword ([#386](https://github.com/Dennis-Otto/issue-assistant/issues/386)) ([aa38a9e](https://github.com/Dennis-Otto/issue-assistant/commit/aa38a9ea1263a943a52ac7ed29c6f594073f3a6d))
+* **lifecycle:** a reopening by hand ends the waiting for an answer ([#383](https://github.com/Dennis-Otto/issue-assistant/issues/383)) ([a5ebb54](https://github.com/Dennis-Otto/issue-assistant/commit/a5ebb54cf56d0a6a184abcb19c3ca4b52824ee20))
+* **lifecycle:** a reporter's objection to a duplicate closing reaches the maintainers ([#391](https://github.com/Dennis-Otto/issue-assistant/issues/391)) ([4c8016d](https://github.com/Dennis-Otto/issue-assistant/commit/4c8016d8840469d614ec4101e73a15c3a3d78d01))
+* **lifecycle:** a thumbs down of a deleted account no longer fails the duplicate sweep ([#402](https://github.com/Dennis-Otto/issue-assistant/issues/402)) ([5e2c2d4](https://github.com/Dennis-Otto/issue-assistant/commit/5e2c2d46bb01f3b9f2c253c3c7508c4143570999))
+* **lifecycle:** an edit of the reporter reopens an issue closed for a missing answer ([#399](https://github.com/Dennis-Otto/issue-assistant/issues/399)) ([c813311](https://github.com/Dennis-Otto/issue-assistant/commit/c8133119406d57e019231f2dff1f9e1a9b8f0221))
+* **lifecycle:** the release comment promises only what a comment there does ([#400](https://github.com/Dennis-Otto/issue-assistant/issues/400)) ([7f78355](https://github.com/Dennis-Otto/issue-assistant/commit/7f783559156b48f3daa297bcc2fb6cc60b19f3c7))
+* read every issue that a pull request fixes, and YAML through yq as UTF-8 ([#409](https://github.com/Dennis-Otto/issue-assistant/issues/409)) ([a9bd8f3](https://github.com/Dennis-Otto/issue-assistant/commit/a9bd8f30fea46f9ba2626d89c102071aaac2adf8))
+* **setup:** keep the notice in SUPPORT.md in line with the waiting periods ([#387](https://github.com/Dennis-Otto/issue-assistant/issues/387)) ([fd1a9b1](https://github.com/Dennis-Otto/issue-assistant/commit/fd1a9b19e8d78c47adb25d9bf1972b0ab8226aa8))
+
 ## [1.10.6](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.5...v1.10.6) (2026-11-10)
 
 ### Bug fixes
