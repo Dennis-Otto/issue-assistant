@@ -130,6 +130,10 @@ released = """\
   🎉 已在 [{tag}]({url}) 中发布{fixes}。@{author}，请更新到此版本。如果问题仍然存在，\
   请在这里发表评论告知维护者，或者创建一个新议题。"""
 "released.fixes" = "，包含 {pulls} 的修复"
+"fixed.enhancement" = "已由 #{pull} 实现，现已进入 `{branch}`。它将随下一个版本发布；届时本议题会关闭，并附上该版本的链接。"
+"released.enhancement" = "🎉 已在 [{tag}]({url}) 中发布{fixes}。@{author}，更新到此版本即可使用。如果还缺少什么，请在 {reopen_days}内在这里发表评论，议题会重新打开；或者创建一个新议题。"
+"released.muted.enhancement" = "🎉 已在 [{tag}]({url}) 中发布{fixes}。@{author}，更新到此版本即可使用。如果还缺少什么，请在这里发表评论告知维护者，或者创建一个新议题。"
+"released.fixes.enhancement" = "，包含 {pulls}"
 "reopened-release" = """\
   感谢您告诉我们，@{author}，很抱歉问题还没有解决。我已重新打开本议题，维护者会再看一\
   看。"""

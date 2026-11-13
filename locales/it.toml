@@ -168,6 +168,18 @@ released = """\
   problema persiste, scrivi qui un commento per i manutentori, oppure apri una nuova \
   segnalazione."""
 "released.fixes" = " con la correzione di {pulls}"
+"fixed.enhancement" = """\
+  Implementato da #{pull}, che ora è su `{branch}`. Arriverà con la prossima versione; \
+  allora questa segnalazione verrà chiusa, con un link alla versione."""
+"released.enhancement" = """\
+  🎉 Pubblicato in [{tag}]({url}){fixes}. @{author}, aggiorna a questa versione per \
+  usarlo. Se manca qualcosa, scrivi un commento qui entro {reopen_days} e la \
+  segnalazione verrà riaperta, oppure apri una nuova segnalazione."""
+"released.muted.enhancement" = """\
+  🎉 Pubblicato in [{tag}]({url}){fixes}. @{author}, aggiorna a questa versione per \
+  usarlo. Se manca qualcosa, scrivi qui un commento per i manutentori, oppure apri una \
+  nuova segnalazione."""
+"released.fixes.enhancement" = " con {pulls}"
 "reopened-release" = """\
   Grazie per avercelo detto, @{author}, e mi dispiace che non sia ancora risolto. Ho \
   riaperto la segnalazione; i manutentori le daranno un'altra occhiata."""

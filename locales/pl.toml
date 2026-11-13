@@ -161,6 +161,18 @@ released = """\
   problem nadal występuje, napisz tutaj komentarz dla opiekunów albo otwórz nowe \
   zgłoszenie."""
 "released.fixes" = " z poprawką z {pulls}"
+"fixed.enhancement" = """\
+  Zrealizowane w #{pull}; zmiana jest już w `{branch}`. Trafi do następnego wydania; \
+  wtedy to zgłoszenie zostanie zamknięte z linkiem do niego."""
+"released.enhancement" = """\
+  🎉 Wydane w [{tag}]({url}){fixes}. @{author}, zaktualizuj do tej wersji, aby z tego \
+  skorzystać. Jeśli czegoś brakuje, napisz tutaj komentarz najpóźniej {reopen_days} po \
+  wydaniu, a zgłoszenie zostanie ponownie otwarte, albo otwórz nowe zgłoszenie."""
+"released.muted.enhancement" = """\
+  🎉 Wydane w [{tag}]({url}){fixes}. @{author}, zaktualizuj do tej wersji, aby z tego \
+  skorzystać. Jeśli czegoś brakuje, napisz tutaj komentarz dla opiekunów albo otwórz \
+  nowe zgłoszenie."""
+"released.fixes.enhancement" = " ze zmianą z {pulls}"
 "reopened-release" = """\
   Dzięki za informację, @{author}, i przepraszamy, że problem nie jest jeszcze \
   rozwiązany. Zgłoszenie zostało ponownie otwarte; opiekunowie przyjrzą się mu \

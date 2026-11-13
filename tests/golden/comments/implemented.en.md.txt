@@ -1,0 +1,3 @@
+<!-- issue-assistant:fixed pull=43 -->
+Implemented by #43, which is now on `main`. It ships with the next release; this issue closes then, with a link to it.
+

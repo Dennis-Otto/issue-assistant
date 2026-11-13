@@ -158,6 +158,17 @@ released = """\
   🎉 Released in [{tag}]({url}){fixes}. @{author}, please update to this version. If \
   the problem persists, write a comment here for the maintainers, or open a new issue."""
 "released.fixes" = " with the fix from {pulls}"
+"fixed.enhancement" = """\
+  Implemented by #{pull}, which is now on `{branch}`. It ships with the next release; \
+  this issue closes then, with a link to it."""
+"released.enhancement" = """\
+  🎉 Released in [{tag}]({url}){fixes}. @{author}, update to this version to use it. If \
+  something is missing, write a comment here within {reopen_days} and the issue \
+  reopens, or open a new issue."""
+"released.muted.enhancement" = """\
+  🎉 Released in [{tag}]({url}){fixes}. @{author}, update to this version to use it. If \
+  something is missing, write a comment here for the maintainers, or open a new issue."""
+"released.fixes.enhancement" = " with {pulls}"
 "reopened-release" = """\
   Thanks for letting us know, @{author}, and sorry that it isn't solved yet. I \
   reopened the issue; the maintainers will take another look."""
