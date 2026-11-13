@@ -296,6 +296,8 @@ def mark_fixed(
         unread = references["totalCount"] - len(references["nodes"])
         if unread > 0:
             # GitHub gives one page of them; the rest a maintainer labels by hand.
+            # Unlike the notice on an issue, this line comes back in every sweep
+            # while the pull request is inside MERGE_LOOKBACK: a rare case.
             skipped = (
                 f"#{pull['number']} fixes {references['totalCount']} issues; the"
                 f" {unread} after the first {len(references['nodes'])} get no label."

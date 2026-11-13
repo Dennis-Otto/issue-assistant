@@ -540,9 +540,9 @@ class GitHub:
 
         Each with its description and the issues that it fixes, with their state:
         the first 100, the most that one page holds, and their `totalCount`, by
-        which mark_fixed names the rest. GitHub lists them by their last update, which a merge is, so the pages end
-        with one that nobody updated since then; a busy repository merges far more
-        than one page in MERGE_LOOKBACK.
+        which mark_fixed names the rest. GitHub lists them by their last update,
+        which a merge is, so the pages end with one that nobody updated since then;
+        a busy repository merges far more than one page in MERGE_LOOKBACK.
         """
         pulls: list[dict[str, Any]] = []
         cursor = None
