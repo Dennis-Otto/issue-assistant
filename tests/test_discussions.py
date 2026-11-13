@@ -1166,9 +1166,26 @@ def test_the_open_questions_are_read_in_pages_with_their_last_words(answering):
         False,
         {"name": "Q&A"},
     )
-    assert len(last["comments"]) == 10
-    assert len(last["comments"][-1]["replies"]) == 10
-    assert last["comments"][-1]["replies"][-1]["created_at"] == at(1 - 11 / 100)
+    # The last ten comments, and the first one with its thread.
+    assert len(last["comments"]) == 11
+    assert last["comments"][-1]["created_at"] == at(3)
+    assert len(last["comments"][-2]["replies"]) == 10
+    assert last["comments"][-2]["replies"][-1]["created_at"] == at(1 - 11 / 100)
+
+
+def test_a_reply_under_the_first_answer_counts_after_ten_later_comments(answering):
+    """The asker answers in the thread of the assistant's first answer, which ten
+    later comments pushed out of the last ten: the reply still has the last word."""
+    later = [discussion_comment("helper", "Same.", 4 - n / 100) for n in range(10)]
+    reply = discussion_reply("asker", "That didn't help.", 1)
+    github = with_discussions(
+        answering,
+        opened(1, "asker", days_ago=6, comments=[first_answer(5, [reply]), *later]),
+    )
+    found = assistant.waiting_questions(github, answering, NOW)
+    assert [(item.number, item.why) for item in found] == [
+        (1, "the asker wrote 1 day ago")
+    ]
 
 
 READS = {

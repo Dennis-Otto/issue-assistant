@@ -153,6 +153,21 @@ DISCUSSION = {
 # A discussion with its comments and their replies, as GitHub holds it: a deleted
 # account is no author, and Actor is an interface, whose type GitHub answers.
 ASKER = {"__typename": "User", "login": "asker"}
+# The assistant's first answer and the asker's reply, as open_questions() gives them.
+FIRST_ANSWER_THREAD = {
+    "user": {"login": "github-actions[bot]", "type": "Bot"},
+    "author_association": "NONE",
+    "created_at": "2026-10-07T11:30:00Z",
+    "body": None,
+    "replies": [
+        {
+            "user": {"login": "asker", "type": "User"},
+            "author_association": "NONE",
+            "created_at": "2026-10-08T09:00:00Z",
+            "body": None,
+        }
+    ],
+}
 THREAD = {
     "id": "D_kwDOMpLSs84AdQ1x",
     "number": 5,
@@ -563,22 +578,8 @@ REQUESTS = {
                 "author_association": "NONE",
                 "created_at": "2026-10-07T11:00:00Z",
                 "body": None,
-                "comments": [
-                    {
-                        "user": {"login": "github-actions[bot]", "type": "Bot"},
-                        "author_association": "NONE",
-                        "created_at": "2026-10-07T11:30:00Z",
-                        "body": None,
-                        "replies": [
-                            {
-                                "user": {"login": "asker", "type": "User"},
-                                "author_association": "NONE",
-                                "created_at": "2026-10-08T09:00:00Z",
-                                "body": None,
-                            }
-                        ],
-                    }
-                ],
+                # The only comment is the last one and the first one as well.
+                "comments": [FIRST_ANSWER_THREAD, FIRST_ANSWER_THREAD],
             }
         ],
     ),

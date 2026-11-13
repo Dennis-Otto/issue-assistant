@@ -458,7 +458,10 @@ def candidates_for_newcomers(
 def last_word(discussion: dict[str, Any]) -> dict[str, Any]:
     """What was written last on the discussion: the question itself, a comment or
     a reply, of a person or of the assistant; another bot has no say. A comment of
-    the same second as the question comes after it."""
+    the same second as the question comes after it. The assistant is
+    github-actions[bot], the account of the workflows' token: another workflow that
+    wrote on a discussion with that token would count as its first answer, which no
+    workflow of the blueprint does."""
     comments = discussion["comments"]
     thread = [
         *comments,

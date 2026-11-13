@@ -29,8 +29,8 @@ The summary of the morning sweep, on the page of its run in the Actions tab, say
   | Labels that maintainers added within 7 days | kinds, areas, topics and priorities that a maintainer added in the week after the first analysis, which the AI missed |
   | Duplicate notices | closed as a duplicate, by the sweep or a maintainer; objected to in a comment; kept open otherwise; and still waiting for the closing |
   | Questions to reporters | the issues whose analysis or follow-up asked: answered by the reporter in a comment, closed without an answer, settled otherwise, as by a maintainer, and still waiting |
-  | First answers in Discussions | where `answer_categories` names a category, the assistant's first answers to the discussions opened in the 30 days: marked as the answer, which is the asker's choice, and the 👍 and 👎 on them |
   | Good first issue candidates | where `labels.toml` has labels of the group `contribution`, the issues whose last analysis marks them: kept with such a label, removed by a maintainer's no, closed without a label, and still waiting |
+  | First answers in Discussions | where `answer_categories` names a category, the assistant's first answers to the discussions opened in the 30 days: marked as the answer, which is the asker's choice, and the 👍 and 👎 on them |
   | Feedback on the analyses | the 👍 and 👎 on them |
 
 - **Numbers and links only.** Anyone who can read the repository can open the run, so the summary names issues by their number and never shows a title or a text.

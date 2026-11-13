@@ -1062,8 +1062,10 @@ class FakeGitHub(assistant.GitHub):
             for node in nodes:
                 comments = (node.get("comments") or {}).get("nodes", [])
                 if "comments(last: 10)" in query:
+                    # The first comment as well, by the alias of the document.
+                    node["opening"] = {"nodes": comments[:1]}
                     comments[:] = comments[-10:]
-                    for comment in comments:
+                    for comment in comments + node["opening"]["nodes"]:
                         replies = comment["replies"]["nodes"]
                         replies[:] = replies[-10:]
                 elif "comments(first: 10)" in query:

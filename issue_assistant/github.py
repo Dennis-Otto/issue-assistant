@@ -780,10 +780,11 @@ class GitHub:
         """The open discussions, the last changed first, in the form of the REST
         API: who wrote each, in which role and when, its category, whether it has a
         marked answer, and the same of its last ten comments and of the last ten
-        replies of each, without their text, for the digest.
+        replies of each, and of its first comment, without their text, for the digest.
 
         What was written last says whom a question waits on, and a reply comes
-        late in a thread; the ten last of each are plenty for the last word.
+        late in a thread; the ten last of each are plenty for the last word. The
+        first comment, mostly the first answer, keeps the asker's replies to it.
         """
         found: list[dict[str, Any]] = []
         cursor = None
@@ -801,20 +802,16 @@ class GitHub:
                             number createdAt isAnswered authorAssociation
                             author { __typename login }
                             category { name }
-                            comments(last: 10) {
-                              nodes {
-                                createdAt authorAssociation
-                                author { __typename login }
-                                replies(last: 10) {
-                                  nodes {
-                                    createdAt authorAssociation
-                                    author { __typename login }
-                                  }
-                                }
-                              }
-                            }
+                            comments(last: 10) { nodes { ...lastWords } }
+                            opening: comments(first: 1) { nodes { ...lastWords } }
                           }
                         }
+                      }
+                    }
+                    fragment lastWords on DiscussionComment {
+                      createdAt authorAssociation author { __typename login }
+                      replies(last: 10) {
+                        nodes { createdAt authorAssociation author { __typename login } }
                       }
                     }
                     """,
@@ -845,7 +842,10 @@ class GitHub:
                                 for reply in comment["replies"]["nodes"]
                             ],
                         }
-                        for comment in node["comments"]["nodes"]
+                        for comment in [
+                            *node["comments"]["nodes"],
+                            *node["opening"]["nodes"],
+                        ]
                     ],
                 }
                 for node in page["nodes"]
