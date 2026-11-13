@@ -1,6 +1,6 @@
 <!-- issue-assistant:answer lang=en to=2 engine=claude -->
 
-@sam-demo, here is my answer to [your question](https://github.com/demo-org/plant-monitor/issues/42#issuecomment-2):
+@sam_demo, here is my answer to [your question](https://github.com/demo-org/plant-monitor/issues/42#issuecomment-2):
 
 Only the chart. `ChartFeed.start()` subscribes once and returns early while `subscribed` is set, and nothing clears it after a reconnect. The current value subscribes in `ValueFeed`, which starts anew each time, so it recovers. A fix would clear `subscribed` in `on_disconnect()`; no test covers a reconnect yet.
 

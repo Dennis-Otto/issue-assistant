@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=de questions=1 engine=claude -->
 
-Danke für deine Meldung, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
+Danke für deine Meldung, @alex_demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
 
 ### Zusammenfassung
 

@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=pt maint=de questions=1 engine=claude -->
 
-Obrigado pelo relato, @alex-demo! Sou o assistente de issues deste repositório e dei uma primeira olhada. Os mantenedores também leem cada issue.
+Obrigado pelo relato, @alex_demo! Sou o assistente de issues deste repositório e dei uma primeira olhada. Os mantenedores também leem cada issue.
 
 ### Resumo
 

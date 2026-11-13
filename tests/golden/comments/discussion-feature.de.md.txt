@@ -1,6 +1,6 @@
 <!-- issue-assistant:discussion-answer lang=de type=feature questions=0 engine=claude -->
 
-Danke für deine Frage, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe eine erste Antwort geschrieben. Die Maintainer und die Community lesen mit und ergänzen sie vielleicht.
+Danke für deine Frage, @alex_demo! Ich bin der Issue-Assistent dieses Repositorys und habe eine erste Antwort geschrieben. Die Maintainer und die Community lesen mit und ergänzen sie vielleicht.
 
 > [!NOTE]
 > Diese Diskussion scheint persönliche Daten zu zeigen, etwa eine E-Mail-Adresse, eine öffentliche IP-Adresse oder die Adresse eines privaten Servers. Wenn du sie lieber nicht zeigen willst, bearbeite den Beitrag und lösche die frühere Fassung aus dem Bearbeitungsverlauf.

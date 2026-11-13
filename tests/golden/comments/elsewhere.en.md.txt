@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=en questions=0 engine=claude -->
 
-Thanks for the report, @alex-demo! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
+Thanks for the report, @alex_demo! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
 
 ### Summary
 

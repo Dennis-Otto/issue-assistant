@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=ja questions=1 engine=claude -->
 
-@alex-demo さん、ご報告ありがとうございます！このリポジトリの Issue アシスタントです。最初の確認を行いました。メンテナーもすべての Issue を読んでいます。
+@alex_demo さん、ご報告ありがとうございます！このリポジトリの Issue アシスタントです。最初の確認を行いました。メンテナーもすべての Issue を読んでいます。
 
 ### 概要
 

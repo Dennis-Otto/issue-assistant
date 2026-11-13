@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=en questions=0 engine=claude duplicate=23 -->
 
-Thanks for the suggestion, @alex-demo! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
+Thanks for the suggestion, @alex_demo! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
 
 ### Possible duplicate
 

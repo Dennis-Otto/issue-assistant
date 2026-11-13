@@ -51,6 +51,13 @@ REPORT_ROW = re.compile(
     re.ASCII,
 )
 REPORT_SHARE = re.compile(r"\d{1,3} % \((\d{1,9}) of (\d{1,9})\)", re.ASCII)
+# The table of a repository on the page: three narrow columns, the issues of a measure
+# after its name and each share as "90 % · 26/29", so that it fits the width of a
+# phone without a sideways scroll. The report of `evaluate` keeps its four columns.
+PAGE_HEAD = (
+    "| Measure (issues) | Precision | Recall |",
+    "| --- | ---: | ---: |",
+)
 
 
 @dataclass(frozen=True)
@@ -90,6 +97,25 @@ def fits_row(line: str) -> bool:
         and row["measure"] in MEASURES
         and fits_share(row["precision"])
         and fits_share(row["recall"])
+    )
+
+
+def narrow_share(cell: str) -> str:
+    """A share of the report, "90 % (26 of 29)", as the page writes it,
+    "90 % · 26/29"; the dash of a share without a whole stays as it is."""
+    return REPORT_SHARE.sub(
+        lambda found: f"{found[0].partition(' (')[0]} · {found[1]}/{found[2]}", cell
+    )
+
+
+def narrow_row(line: str) -> str:
+    """A line of the table of measures of the report, which fits_row accepted, as a
+    line of the narrow table of the page."""
+    measure, precision, recall, issues = (
+        part.strip() for part in line.strip("|").split("|")
+    )
+    return (
+        f"| {measure} ({issues}) | {narrow_share(precision)} | {narrow_share(recall)} |"
     )
 
 
@@ -163,10 +189,11 @@ def accuracy_section(found: Measurement) -> str:
             "closed issues read that people labelled or closed as a duplicate of an "
             f"older issue, and that the assistant never analyzed.{failed}{cost} Small "
             "numbers vary: with few issues, one more found or missed moves a share a "
-            "lot, so each share names its counts.",
+            "lot, so each share names its counts, and each measure the issues that it "
+            "rests on.",
             "",
-            *MEASURES_HEAD,
-            *found.rows,
+            *PAGE_HEAD,
+            *(narrow_row(row) for row in found.rows),
         )
     )
 

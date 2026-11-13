@@ -49,19 +49,19 @@ Du kommst aus dem [GitHub Marketplace](https://github.com/marketplace/actions/re
 
 ## Was er tut
 
-Eine GitHub Action, die sich um die Issues eines Repositorys kümmert. Jede Zeile führt zu einer Seite mit einem Bild und den Einzelheiten, auf Englisch:
+Eine GitHub Action, die sich um die Issues eines Repositorys kümmert. Jede Zeile führt zu einer Seite mit einem Bild und Einzelheiten, auf Englisch:
 
 - **[Die erste Analyse](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/first-analysis.md):** die wahrscheinliche Ursache mit Links zum Code, was zu versuchen ist und was fehlt, in der Sprache der meldenden Person.
 - **[Das Leben eines Issues](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/life-of-an-issue.md):** Labels sagen, wo ein Issue steht, und der Assistent hält, was seine Kommentare versprechen, ohne KI.
 - **[Prioritäten, Zuständige und Issue-Typen](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/priorities.md):** Eine Analyse kann eine Priorität setzen, die Zuständigen eines Bereichs zuweisen und der Art mit einem Issue-Typ folgen.
-- **[Wartezeiten, Ausnahmen und alte Threads](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/waiting-periods.md):** eine Erinnerung nach 15 Tagen und das Schließen nach 30, oder nach deinen eigenen Tagen, mit Ausnahmen und Sperren.
+- **[Wartezeiten, Ausnahmen und alte Threads](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/waiting-periods.md):** eine Erinnerung nach 15 Tagen und das Schließen nach 30, oder nach deinen Tagen, mit Ausnahmen und Sperren.
 - **[Duplikate](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/duplicates.md):** Ein sicheres Duplikat schließt drei Tage nach seinem Hinweis, sofern niemand widerspricht; andere sind Vorschläge.
 - **[Verwandte Repositorys](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/related-repositories.md):** durchsucht auch die Issues von Projekten, die deine Nutzer teilen, und sagt, wenn ein Issue dorthin gehören könnte.
 - **[Fragen in den Discussions](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/discussions.md):** eine erste Antwort auf eine neue Frage, mit derselben KI und denselben Prüfungen, nie als Antwort markiert.
 - **[Slash-Befehle](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/slash-commands.md):** steuern den Assistenten vom Issue aus, etwa `/assistant again` oder `/assistant ask <question>`.
 - **[Läufe von Hand](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/runs-by-hand.md):** starte ihn auf einem Issue mit einer Anweisung, etwa "ask for the logs", oder auf dem Rückstand; nur ein Maintainer lässt ihn erneut antworten.
 - **[Vom Fix zum Release](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/fix-to-release.md):** Ein behobenes Issue bleibt offen, bis ein Release den Fix ausliefert, und schließt dann mit einem Link darauf.
-- **[Was die KI liest](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/what-the-ai-reads.md):** Jede Aufgabe liest, was sie braucht, und nicht mehr, und eine erste Analyse lernt aus den Korrekturen der Maintainer.
+- **[Was die KI liest](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/what-the-ai-reads.md):** Jede Aufgabe liest, was sie braucht, nicht mehr, und eine erste Analyse lernt aus den Korrekturen der Maintainer.
 - **[Nein zur KI sagen](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/opt-out.md):** Ein Kästchen im Issue-Formular hält die KI aus einem Issue heraus, und alles, was ohne KI läuft, geht weiter.
 - **[Sprachen](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/languages.md):** vierzehn Kataloge für die Meldenden und eine eingeklappte Zusammenfassung für Maintainer, die deren Sprache nicht lesen.
 - **[Grenzen der KI-Läufe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/limits.md):** Kein Fremder kann die Rechnung in die Höhe treiben: Die Läufe, die andere als die Maintainer starten, sind begrenzt.
@@ -72,14 +72,14 @@ Eine GitHub Action, die sich um die Issues eines Repositorys kümmert. Jede Zeil
 - **[Labels als Code](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#githublabelstoml):** die Labels des Repositorys in `.github/labels.toml`, aus den Issue-Formularen und aus der Analyse, jedes mit seinem Grund.
 - **[Befunde des Code-Scannings](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings):** Was `.github/findings.toml` akzeptiert, wird mit seinem Grund verworfen, auch in einem Pull Request; jeder andere offene Befund lässt einen Lauf scheitern, damit GitHub einmal darüber mailt, ohne öffentliches Issue.
 
-Der Maintainer liest jedes Issue und hat das letzte Wort. Eine erste Analyse sieht so aus, hier auf einem Issue eines Demo-Projekts:
+Der Maintainer liest jedes Issue und hat das letzte Wort. Eine erste Analyse, auf einem Issue eines Demo-Projekts:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/analysis-dark.webp">
   <img src="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/analysis-light.webp" alt="Eine erste Analyse des Issue-Assistenten auf einem Issue eines Demo-Projekts: Dank an die meldende Person, eine Zusammenfassung, die erste Analyse mit der wahrscheinlichen Ursache, was einen Versuch wert ist, die benötigten Angaben mit der Erinnerung nach 15 Tagen, ein verwandtes Issue, Links zur Zeile im Code und zum Abschnitt der Anleitung zur Fehlerbehebung, und eine Fußzeile, die Claude und das gesetzte Label nennt, verlinkt, wie der Assistent arbeitet, um ein Daumen hoch oder runter bittet und das Projekt verlinkt">
 </picture>
 
-**Im Einsatz bei** [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), dem [Repository-Blueprint](https://github.com/Dennis-Otto/repo-blueprint), der Website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) und dem Issue-Assistenten selbst.
+**Im Einsatz bei** [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), [Repo Pager](https://github.com/Dennis-Otto/repo-pager), dem [Repository-Blueprint](https://github.com/Dennis-Otto/repo-blueprint), [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) und dem Assistenten selbst.
 
 ## Wie er funktioniert
 
