@@ -1,6 +1,6 @@
 <!-- issue-assistant:follow-up lang=en questions=1 engine=claude -->
 
-Thanks for your answer, @alex-demo!
+Thanks for your answer, @alex_demo!
 
 The log shows `already subscribed, skipping` right after the reconnect, which confirms the cause above. A fix would end the subscription in `on_disconnect()`, so that `start()` subscribes again.
 

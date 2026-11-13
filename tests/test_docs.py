@@ -899,6 +899,7 @@ USERS = {
     "player-switch-for-autodarts",
     "paperless-unified-search",
     "paperless-sync",
+    "repo-pager",
     "repo-blueprint",
     "dennis-otto.github.io",
 }
@@ -1239,6 +1240,9 @@ def test_every_page_names_the_same_users():
     assert users(readme, "**Used by**") == USERS
     assert users(home, "**Used by**") == USERS
     assert users(roadmap, "- **The repositories that use it.**") == USERS
+    # The German README and home page name the same.
+    for german in (ROOT / "README.de.md", ROOT / "docs" / "index.de.md"):
+        assert users(german.read_text("utf-8"), "**Im Einsatz bei**") == USERS
 
 
 # The real analyses that the README and the home page show, each at the anchor of its
@@ -1738,7 +1742,7 @@ def test_the_comments_page_takes_its_timing_rules_from_the_assistant(monkeypatch
 def test_a_comment_looks_as_github_shows_it():
     text = (
         "<!-- issue-assistant:analysis lang=en questions=1 engine=claude -->\n\n"
-        "Thanks for the report, @alex-demo!\n\n"
+        "Thanks for the report, @alex_demo!\n\n"
         "> [!WARNING]\n> Remove the token.\n\n"
         "### Related\n\n- #17: The same, see `#3` and `@not-a-mention`.\n"
         "- [`chart.py`, line 52](https://github.com/demo-org/plant-monitor/blob/x/"
@@ -1758,13 +1762,13 @@ def test_a_comment_looks_as_github_shows_it():
     converted = hooks.comment_html(
         text,
         lambda markdown: (
-            '<p>Thanks, @alex-demo! <a href="https://github.com/demo-org/plant-monitor/'
+            '<p>Thanks, @alex_demo! <a href="https://github.com/demo-org/plant-monitor/'
             'blob/x/chart.py#L52"><code>chart.py</code>, line 52</a> and #17, '
             "<code>#3 @not-a-mention</code>, a@b.example, "
             '<a href="https://example.com/#9">#9</a>.</p>'
         ),
     )
-    assert '<span class="ia-mention">@alex-demo</span>' in converted
+    assert '<span class="ia-mention">@alex_demo</span>' in converted
     assert '<span class="ia-link"><code>chart.py</code>, line 52</span>' in converted
     assert '<span class="ia-link">#17</span>' in converted
     assert "<code>#3 @not-a-mention</code>" in converted
@@ -1804,10 +1808,10 @@ def test_the_comments_take_the_place_that_the_page_keeps_for_them():
     # The first comment shows, and the others fold, so that the page stays short.
     assert markdown.count('???+ note "The comment"') == 1
     assert markdown.count('??? note "The comment"') == len(hooks.examples()) - 1
-    assert "| `bug` | Thanks for the report, @alex-demo! |" in markdown
+    assert "| `bug` | Thanks for the report, @alex_demo! |" in markdown
     assert markdown.rstrip().endswith(
-        "| any other kind | Thanks for opening this issue, @alex-demo! | "
-        "Danke für dein Issue, @alex-demo! |"
+        "| any other kind | Thanks for opening this issue, @alex_demo! | "
+        "Danke für dein Issue, @alex_demo! |"
     )
     # The HTML of the page gets the HTML of each comment for its placeholder.
     key = hooks.placeholder("fixed", "de")
@@ -1829,6 +1833,26 @@ def test_the_markdown_of_a_comment_becomes_the_html_that_github_shows():
     assert "<h3>Summary</h3>" in html and "<h1>" not in html
     assert '<li><span class="ia-link">#17</span>: The same symptom' in html
     assert "<sub>🤖 Automated first analysis by Claude" in html
+
+
+def test_the_examples_link_no_repository_and_name_no_account_of_the_demo():
+    """The demo project and its related firmware exist nowhere, so no link of the page
+    leads to them, which would answer 404; and its people have names that GitHub
+    can't register, with an underscore, so that the page names no one's account."""
+    login = re.compile(r"[A-Za-z0-9](?:-?[A-Za-z0-9]){0,38}")
+    for name in (hooks.REPORTER, hooks.MAINTAINER):
+        assert not login.fullmatch(name), name
+    for example in hooks.examples():
+        for text in example.texts.values():
+            html = hooks.comment_html(text, hooks.markdown_html)
+            assert 'href="https://github.com/demo-org/' not in html, example.kind
+            names = re.findall(r'<span class="ia-mention">@([^<]*)</span>', html)
+            assert set(names) <= {hooks.REPORTER, hooks.MAINTAINER}, example.kind
+    (elsewhere,) = [
+        example for example in hooks.examples() if example.kind == "elsewhere"
+    ]
+    html = hooks.comment_html(elsewhere.texts["en"], hooks.markdown_html)
+    assert f'<span class="ia-link">{hooks.FIRMWARE}#31</span>' in html
 
 
 def test_every_input_and_output_of_the_action_is_in_the_reference():

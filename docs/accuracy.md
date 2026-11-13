@@ -14,42 +14,42 @@ They come from the repositories that use the assistant, [HomeDarts for Autodarts
 
 ### [Dennis-Otto/homedarts-for-autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts)
 
-Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 46 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $6.75 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 46 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $6.75 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts, and each measure the issues that it rests on.
 
-| Measure | Precision | Recall | Issues |
-| --- | ---: | ---: | ---: |
-| Type | 90 % (26 of 29) | 72 % (26 of 36) | 29 |
-| Areas | 62 % (10 of 16) | 100 % (10 of 10) | 9 |
-| Topics | 100 % (2 of 2) | 100 % (2 of 2) | 2 |
-| Duplicates | – | – | 0 |
-| Sure duplicates | – | – | 0 |
-| Asks for information | – | – | 0 |
+| Measure (issues) | Precision | Recall |
+| --- | ---: | ---: |
+| Type (29) | 90 % · 26/29 | 72 % · 26/36 |
+| Areas (9) | 62 % · 10/16 | 100 % · 10/10 |
+| Topics (2) | 100 % · 2/2 | 100 % · 2/2 |
+| Duplicates (0) | – | – |
+| Sure duplicates (0) | – | – |
+| Asks for information (0) | – | – |
 
 ### [Dennis-Otto/paperless-sync](https://github.com/Dennis-Otto/paperless-sync)
 
-Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 43 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $7.47 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 43 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $7.47 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts, and each measure the issues that it rests on.
 
-| Measure | Precision | Recall | Issues |
-| --- | ---: | ---: | ---: |
-| Type | 93 % (27 of 29) | 87 % (27 of 31) | 29 |
-| Areas | 65 % (11 of 17) | 92 % (11 of 12) | 12 |
-| Topics | 100 % (6 of 6) | 86 % (6 of 7) | 7 |
-| Duplicates | – | – | 0 |
-| Sure duplicates | – | – | 0 |
-| Asks for information | – | – | 0 |
+| Measure (issues) | Precision | Recall |
+| --- | ---: | ---: |
+| Type (29) | 93 % · 27/29 | 87 % · 27/31 |
+| Areas (12) | 65 % · 11/17 | 92 % · 11/12 |
+| Topics (7) | 100 % · 6/6 | 86 % · 6/7 |
+| Duplicates (0) | – | – |
+| Sure duplicates (0) | – | – |
+| Asks for information (0) | – | – |
 
 ### [Dennis-Otto/paperless-unified-search](https://github.com/Dennis-Otto/paperless-unified-search)
 
-Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 45 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $6.30 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts.
+Measured on 2026-11-09 with Claude, `claude-opus-5-5`, on the 30 newest of 45 closed issues read that people labelled or closed as a duplicate of an older issue, and that the assistant never analyzed. The analyses cost $6.30 at the prices of the API. Small numbers vary: with few issues, one more found or missed moves a share a lot, so each share names its counts, and each measure the issues that it rests on.
 
-| Measure | Precision | Recall | Issues |
-| --- | ---: | ---: | ---: |
-| Type | 93 % (27 of 29) | 82 % (27 of 33) | 29 |
-| Areas | 55 % (12 of 22) | 92 % (12 of 13) | 12 |
-| Topics | 100 % (8 of 8) | 100 % (8 of 8) | 8 |
-| Duplicates | – | – | 0 |
-| Sure duplicates | – | – | 0 |
-| Asks for information | – | – | 0 |
+| Measure (issues) | Precision | Recall |
+| --- | ---: | ---: |
+| Type (29) | 93 % · 27/29 | 82 % · 27/33 |
+| Areas (12) | 55 % · 12/22 | 92 % · 12/13 |
+| Topics (8) | 100 % · 8/8 | 100 % · 8/8 |
+| Duplicates (0) | – | – |
+| Sure duplicates (0) | – | – |
+| Asks for information (0) | – | – |
 
 <!-- accuracy numbers: end -->
 

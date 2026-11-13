@@ -1,6 +1,6 @@
 <!-- issue-assistant:follow-up lang=de questions=1 engine=claude -->
 
-Danke für deine Antwort, @alex-demo!
+Danke für deine Antwort, @alex_demo!
 
 Das Log zeigt `already subscribed, skipping` direkt nach dem Wiederverbinden, was die Ursache oben bestätigt. Ein Fix würde das Abonnement in `on_disconnect()` beenden, damit `start()` neu abonniert.
 

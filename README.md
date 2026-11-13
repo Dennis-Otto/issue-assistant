@@ -46,7 +46,7 @@ Coming from the [GitHub Marketplace](https://github.com/marketplace/actions/read
 
 ## What it does
 
-A GitHub Action that looks after the issues of a repository. Each line leads to a page with a picture and the details:
+A GitHub Action that looks after the issues of a repository. Each line leads to a page with a picture and details:
 
 - **[The first analysis](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/first-analysis.md):** the likely cause with links to the code, what to try and what is missing, in the reporter's language.
 - <a name="the-life-of-an-issue"></a>**[The life of an issue](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/life-of-an-issue.md):** labels say where an issue stands, and the assistant keeps what its comments promise, without AI.
@@ -69,14 +69,14 @@ A GitHub Action that looks after the issues of a repository. Each line leads to 
 - **[Labels as code](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#githublabelstoml):** the labels of the repository in `.github/labels.toml`, from the issue forms and from the analysis, each with its reason.
 - **[Findings of code scanning](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings):** the findings that `.github/findings.toml` accepts are dismissed with their reason, also in a pull request; any other open finding fails one run, so GitHub mails about it once, without a public issue.
 
-The maintainer reads every issue and has the last word. A first analysis looks like this, here on an issue of a demo project:
+The maintainer reads every issue and has the last word. A first analysis, on an issue of a demo project:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/analysis-dark.webp">
   <img src="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/analysis-light.webp" alt="A first analysis of the issue assistant on an issue of a demo project: thanks to the reporter, a summary, the first analysis with the likely cause, what is worth trying, the information needed with the reminder after 15 days, a related issue, links to the line of code and the section of the troubleshooting guide, and a footer that names Claude and the label it added, links how the assistant works, asks for a thumbs up or down and links the project">
 </picture>
 
-**Used by** [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), the website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and the issue assistant itself.
+**Used by** [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), [Repo Pager](https://github.com/Dennis-Otto/repo-pager), the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) and the assistant itself.
 
 ## How it works
 

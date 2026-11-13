@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=de questions=0 engine=claude -->
 
-Danke für deine Meldung, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
+Danke für deine Meldung, @alex_demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
 
 > [!CAUTION]
 > Das könnte eine Sicherheitslücke beschreiben. Bitte melde so etwas vertraulich, wie in der [Sicherheitsrichtlinie](https://github.com/demo-org/plant-monitor/security/policy) beschrieben, und entferne die Details hier.

@@ -400,8 +400,10 @@ MORE_LANGUAGES = {"zh": "中文", "ja": "日本語", "ru": "Русский"}
 DEMO = "demo-org/plant-monitor"
 # The related repository of the demo project, in [related] of its config.toml.
 FIRMWARE = "demo-org/plant-hub-firmware"
-REPORTER = "alex-demo"
-MAINTAINER = "sam-demo"
+# The people of the demo project. GitHub lets no one register a name with an
+# underscore, so these name no one's account, as a name such as alex-demo would.
+REPORTER = "alex_demo"
+MAINTAINER = "sam_demo"
 # The days after the closing that the example of a locked issue names; the default
 # of lock_closed_after_days, 0, locks none.
 LOCK_EXAMPLE = 90
@@ -861,11 +863,15 @@ ALERTS = {
     "WARNING": "warning",
     "CAUTION": "danger",
 }
+# A link to the demo project or to its firmware, which exist nowhere.
 DEMO_LINK = re.compile(
-    rf'<a href="https://github\.com/{re.escape(DEMO)}[^"]*">(?P<text>.*?)</a>', re.S
+    rf'<a href="https://github\.com/(?:{re.escape(DEMO)}|{re.escape(FIRMWARE)})'
+    r'[^"]*">(?P<text>.*?)</a>',
+    re.S,
 )
+# A mention, also of the people of the demo project, whose names have an underscore.
 MENTION = re.compile(
-    r"(?<![\w@/.-])@(?P<login>[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)"
+    r"(?<![\w@/.-])@(?P<login>[A-Za-z0-9](?:[\w-]*[A-Za-z0-9])?)", re.ASCII
 )
 # A reference to an issue, which GitHub links; not the anchor of an address.
 REFERENCE = re.compile(r"(?<![\w&/#])#(?P<number>\d+)\b")
