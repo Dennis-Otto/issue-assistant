@@ -1483,6 +1483,7 @@ def test_the_comments_page_examples_carry_their_marker_and_language():
                 "secret": "analysis",
                 "personal": "analysis",
                 "security": "analysis",
+                "released-muted": "released",
                 "reopened-release": "reopened",
                 "discussion-bug": "discussion-answer",
                 "discussion-feature": "discussion-answer",

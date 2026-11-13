@@ -726,7 +726,15 @@ KINDS = {
     "released": (
         "Released",
         "When a release ships the fix, the issue closes with a link to the release and "
-        "is filed under the milestone of its version.",
+        "is filed under the milestone of its version. The comment names the "
+        "{reopen_after_release} days in which the reporter's comment reopens it.",
+    ),
+    "released-muted": (
+        "Released, on a muted issue",
+        "On an issue that its reporter or a maintainer muted, no AI reads a comment "
+        "after the release, so the comment promises no reopening: a comment of the "
+        "reporter gives the issue `needs-triage`, at any time, and the digest lists it "
+        "for the maintainers until one answers.",
     ),
     "reopened-release": (
         "Reopened after the release",
@@ -969,6 +977,9 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
         "closed-duplicate": ia.render_closed_duplicate(23, language),
         "fixed": ia.render_fixed(43, "main", language),
         "released": ia.render_released(REPORTER, release, [43], language),
+        "released-muted": ia.render_released(
+            REPORTER, release, [43], language, muted=True
+        ),
         "reopened-release": ia.render_reopened_release(REPORTER, language),
         "locked": ia.render_locked(
             language, ia.Lifecycle(lock_closed_after_days=LOCK_EXAMPLE)

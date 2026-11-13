@@ -189,19 +189,19 @@ def objected(comments: list[dict[str, Any]]) -> datetime | None:
     return objection
 
 
-def objected_closing(
-    issue: dict[str, Any], comments: list[dict[str, Any]]
+def wrote_after_closing(
+    issue: dict[str, Any], comments: list[dict[str, Any]], kind: str
 ) -> datetime | None:
-    """When the reporter first wrote after the assistant closed the issue as a
-    duplicate, and no maintainer answered since; None otherwise.
+    """When the reporter first wrote after the assistant closed the issue with a
+    comment of this kind, and no maintainer answered since; None otherwise.
 
-    The closing comment tells the reporter that a comment is enough for the
-    maintainers to reopen the issue, so such a comment waits on them. Only the last
-    of the assistant's closings counts: one for a missing answer or by a release
-    since leaves the duplicate behind. A command objects to nothing.
+    The comment of a closing as a duplicate, or by a release on a muted issue,
+    tells the reporter that a comment is enough to reach the maintainers, so such a
+    comment waits on them. Only the last of the assistant's closings counts: another
+    one since leaves the first behind. A command asks the maintainers nothing.
     """
     closings = [comment for comment in comments if kind_of(comment) in CLOSINGS]
-    if not closings or kind_of(closings[-1]) != "closed-duplicate":
+    if not closings or kind_of(closings[-1]) != kind:
         return None
     author = login(issue.get("user"))
     objection = None
@@ -218,18 +218,24 @@ def objected_closing(
 def awaits_reopening(
     issue: dict[str, Any], comments: list[dict[str, Any]]
 ) -> datetime | None:
-    """When the reporter objected to the issue's closing as a duplicate, while it
-    still waits on the maintainers; None otherwise.
+    """When the reporter objected to the issue's closing as a duplicate, or wrote
+    after a release closed it while it is muted, while it still waits on the
+    maintainers; None otherwise.
 
-    It waits while the issue is closed as a duplicate and keeps `needs-triage`: a
-    maintainer who reopens the issue, closes it for another reason or removes the
-    label has decided, as well as one who answers.
+    It waits while the issue is closed as such and keeps `needs-triage`: a
+    maintainer who reopens the issue, closes it for another reason, unmutes it, so
+    that the AI reads the next comment, or removes the label has decided, as well as
+    one who answers.
     """
-    if issue.get("state_reason") != "duplicate" or NEEDS_TRIAGE not in label_names(
-        issue
-    ):
+    labels = label_names(issue)
+    if NEEDS_TRIAGE not in labels:
         return None
-    return objected_closing(issue, comments)
+    reason = issue.get("state_reason")
+    if reason == "duplicate":
+        return wrote_after_closing(issue, comments, "closed-duplicate")
+    if reason == "completed" and MUTED in labels:
+        return wrote_after_closing(issue, comments, "released")
+    return None
 
 
 def marks_newcomer(comment: dict[str, Any]) -> bool:
@@ -287,9 +293,10 @@ def waiting_on_maintainers(
 
 def objected_closings(github: GitHub, now: datetime) -> list[Waiting]:
     """The issues that the assistant closed as duplicates and whose reporter objected
-    since, without a maintainer's answer.
+    since, and the muted ones that a release closed and whose reporter wrote since,
+    without a maintainer's answer.
 
-    The objection gave the issue `needs-triage` (reopen_if_answered), which finds
+    The comment gave the issue `needs-triage` (reopen_if_answered), which finds
     them at any age; a maintainer who reopens the issue or removes the label ends
     the waiting as well as one who answers.
     """
@@ -299,10 +306,19 @@ def objected_closings(github: GitHub, now: datetime) -> list[Waiting]:
         if waits_on_others(issue) or is_maintainer(issue):
             continue
         if since := awaits_reopening(issue, github.comments(number)):
-            why = (
-                f"the reporter objected to the closing as a duplicate {ago(since, now)}"
+            what = (
+                "objected to the closing as a duplicate"
+                if issue.get("state_reason") == "duplicate"
+                else "wrote after the release, on a muted issue"
             )
-            found.append(Waiting(since, number, upvotes(issue), why))
+            found.append(
+                Waiting(
+                    since,
+                    number,
+                    upvotes(issue),
+                    f"the reporter {what} {ago(since, now)}",
+                )
+            )
     return found
 
 

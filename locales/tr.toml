@@ -157,8 +157,12 @@ fixed = """\
   yayımlanacak; bu konu o zaman sürümün bağlantısıyla kapanacak."""
 released = """\
   🎉 [{tag}]({url}) sürümünde yayımlandı{fixes}. @{author}, lütfen bu sürüme \
-  güncelleyin. Sorun devam ederse buraya bir yorum yazın, konu yeniden açılır; ya da \
-  yeni bir konu açın."""
+  güncelleyin. Sorun devam ederse {reopen_days} içinde buraya bir yorum yazın, konu \
+  yeniden açılır; ya da yeni bir konu açın."""
+"released.muted" = """\
+  🎉 [{tag}]({url}) sürümünde yayımlandı{fixes}. @{author}, lütfen bu sürüme \
+  güncelleyin. Sorun devam ederse bakımcılar için buraya bir yorum yazın ya da yeni \
+  bir konu açın."""
 "released.fixes" = " ({pulls} düzeltmesiyle)"
 "reopened-release" = """\
   Bize bildirdiğiniz için teşekkürler, @{author}; sorun henüz çözülmediği için \

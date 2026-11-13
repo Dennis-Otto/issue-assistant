@@ -153,9 +153,13 @@ fixed = """\
   Naprawione w #{pull}; zmiana jest już w `{branch}`. Poprawka trafi do następnego \
   wydania; wtedy to zgłoszenie zostanie zamknięte z linkiem do niego."""
 released = """\
-  🎉 Wydane w [{tag}]({url}){fixes}. @{author}, zaktualizuj proszę do tej wersji. \
-  Jeśli problem nadal występuje, napisz tutaj komentarz, a zgłoszenie zostanie \
-  ponownie otwarte, albo otwórz nowe zgłoszenie."""
+  🎉 Wydane w [{tag}]({url}){fixes}. @{author}, zaktualizuj proszę do tej wersji. Jeśli \
+  problem nadal występuje, napisz tutaj komentarz najpóźniej {reopen_days} po wydaniu, \
+  a zgłoszenie zostanie ponownie otwarte, albo otwórz nowe zgłoszenie."""
+"released.muted" = """\
+  🎉 Wydane w [{tag}]({url}){fixes}. @{author}, zaktualizuj proszę do tej wersji. Jeśli \
+  problem nadal występuje, napisz tutaj komentarz dla opiekunów albo otwórz nowe \
+  zgłoszenie."""
 "released.fixes" = " z poprawką z {pulls}"
 "reopened-release" = """\
   Dzięki za informację, @{author}, i przepraszamy, że problem nie jest jeszcze \
