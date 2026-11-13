@@ -1,5 +1,9 @@
 # Tools for the tests and checks; compile requirements-dev.txt with
 #   pip-compile --generate-hashes --allow-unsafe requirements-dev.in
+# pytest needs colorama on Windows only, so a compile on Linux leaves it out, and pip
+# stops in a fresh venv on Windows, whose set-up AGENTS.md describes, at the unpinned
+# colorama>=0.4: pinned here, it is in the lock file on every system.
+colorama
 coverage
 graphql-core
 hypothesis

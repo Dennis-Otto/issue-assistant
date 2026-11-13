@@ -95,7 +95,7 @@ def invitation(language: str, config: Config, *, duplicate: bool = False) -> str
     """The end of a footer: a link to how the assistant works, the request for a 👍
     or 👎, which on a duplicate notice also objects to the closing, and the link to
     the project, unless `[transparency] credit` leaves it out."""
-    notice = notice_link(config)
+    notice = notice_link(config, language)
     ends = [
         say(language, "about", notice=notice) if notice else "",
         say(language, "feedback.duplicate" if duplicate else "feedback"),
@@ -443,7 +443,7 @@ def render_duplicate(number: int, author: str, language: str, config: Config) ->
     duplicate. Its marker names the original, as that of an analysis does, so that
     the sweep closes the issue after the same days unless someone objects."""
     periods = config.lifecycle.text(language)
-    notice = notice_link(config)
+    notice = notice_link(config, language)
     about = f"\n<sub>{say(language, 'about', notice=notice)}</sub>\n" if notice else ""
     return (
         f"{render_marker('duplicate', lang=language, duplicate=number)}\n"

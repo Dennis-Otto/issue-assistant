@@ -20,7 +20,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 import issue_assistant as assistant
-from oracle import PARSER, problems
+from oracle import PARSER, headings, problems
 from support import (
     BOT_USER,
     BOX,
@@ -103,6 +103,11 @@ PIECES = st.sampled_from(
         "1. ",
         "> ",
         "\n#\n",
+        ">#",
+        "\n    ",
+        "=",
+        "\n===\n",
+        "\n---\n",
         "|",
         ":",
         "-",
@@ -142,6 +147,8 @@ def known_escapes(test):
 def test_sanitized_text_mentions_nobody_and_links_only_allowed_sites(text, numbers):
     output = assistant.sanitize(text, CONFIG, numbers)
     assert problems(output, numbers, CONFIG) == [], output
+    # Only the assistant writes the headings of a comment.
+    assert headings(output) == [], output
 
 
 # Text with references to the issues of related repositories, of which owner/server#3,
@@ -218,12 +225,13 @@ def test_cleaned_text_stays_safe_wherever_the_comment_puts_it(text, numbers):
     would start no code block."""
     cleaned = assistant.sanitize(text, CONFIG, numbers)
     line = assistant.sanitize(assistant.one_line(text), CONFIG, numbers)
-    for comment in (
-        f"### Summary\n\n{cleaned}\n\n### Next steps",
-        assistant.bullets([cleaned, cleaned]),
-        f"- #7: {line}\n- #8: {line}",
+    for comment, own in (
+        (f"### Summary\n\n{cleaned}\n\n### Next steps", ["Summary", "Next steps"]),
+        (assistant.bullets([cleaned, cleaned]), []),
+        (f"- #7: {line}\n- #8: {line}", []),
     ):
         assert problems(comment, numbers | {7, 8}, CONFIG) == [], comment
+        assert headings(comment) == own, comment
 
 
 # Files of the sample repository, and the anchors of headings in one of them, which

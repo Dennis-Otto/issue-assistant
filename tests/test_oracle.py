@@ -8,7 +8,7 @@ what it would where the user, the team or the commit exists.
 
 import pytest
 
-from oracle import problems
+from oracle import headings, problems
 from support import CONFIG
 
 
@@ -203,3 +203,18 @@ def test_the_oracle_finds_what_the_cleaning_once_let_through(output):
     """What the cleaning made of texts that got past it before #65, in which the
     oracle of that time found nothing."""
     assert problems(output, set(), CONFIG)
+
+
+@pytest.mark.parametrize(
+    ("markdown", "found"),
+    [
+        ("# A\n\nB\n===\n\nC\n---", ["A", "B", "C"]),
+        # In a quote and in a list item, and underlined below their text.
+        ("> # A\n\n- # B\n\n> C\n> ===\n\n- D\n  ---", ["A", "B", "C", "D"]),
+        # A line of hyphens below a blank line is a rule, an escaped one text, and
+        # four spaces make code.
+        ("A\n\n---\n\nB\n\\===\n\n    # C\n\n\\# D", []),
+    ],
+)
+def test_the_oracle_finds_every_heading(markdown, found):
+    assert headings(markdown) == found

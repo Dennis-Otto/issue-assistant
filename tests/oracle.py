@@ -124,6 +124,18 @@ def problems(
     return found
 
 
+def headings(markdown: str) -> list[str]:
+    """The text of each heading in the Markdown, with `#` or underlined with `=` or
+    `-`, also in a quote or a list item. The engine's text holds none: only the
+    assistant writes the headings of its comments."""
+    tokens = PARSER.parse(markdown)
+    return [
+        tokens[index + 1].content
+        for index, token in enumerate(tokens)
+        if token.type == "heading_open"
+    ]
+
+
 def inline_parts(markdown: str, found: list[str]) -> Iterator[list[Reading]]:
     """The ways in which GitHub might read each heading and paragraph. The HTML
     blocks go to `found`."""

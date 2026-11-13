@@ -20,7 +20,7 @@ import pytest
 from markdown_it import MarkdownIt
 
 import issue_assistant as assistant
-from oracle import problems
+from oracle import headings, problems
 from support import (
     BOT_USER,
     BOX,
@@ -3844,6 +3844,35 @@ def test_mentions_images_html_and_headings_are_removed(config):
     )
 
 
+@pytest.mark.parametrize(
+    ("text", "cleaned"),
+    [
+        # A line of = or - below text makes it a heading: it is escaped.
+        ("Title\n===\n\nSub\n---", "Title\n\\===\n\nSub\n\\---"),
+        ("> Title\n> ===\n\n- Item\n  ---", "> Title\n> \\===\n\n- Item\n  \\---"),
+        # Below code too, which may go on from the line of text above it.
+        ("Run `make`\n---", "Run `make`\n\\---"),
+        # Below a blank line, a rule stays a rule.
+        ("Text\n\n---\n\nMore", "Text\n\n---\n\nMore"),
+        # The marks of a heading go in a quote and in a list item too, which keep
+        # their own marks. A quote needs no space after its mark.
+        ("> # Title\n\n- ## Item\n\n1. # One", "> Title\n\n- Item\n\n1. One"),
+        (">## Title", "> Title"),
+        # Deeper in a list, more indentation can still make a heading: there the
+        # marks are escaped, and in code, as after five spaces, that only shows a
+        # backslash.
+        ("- a\n    - # x", "- a\n    - \\# x"),
+        ("- a\n  - b\n      - # x", "- a\n  - b\n      - \\# x"),
+        ("10. a\n\n    # x", "10. a\n\n    \\# x"),
+        ("-     # code", "-     \\# code"),
+    ],
+)
+def test_no_heading_of_any_kind_is_left(config, text, cleaned):
+    output = assistant.sanitize(text, config)
+    assert output == cleaned
+    assert headings(output) == []
+
+
 def test_only_links_to_known_places_stay_links(config):
     text = (
         "[docs](https://github.com/owner/project/blob/main/README.md), "
@@ -4762,6 +4791,96 @@ def test_the_footer_links_the_first_notice_to_reporters(
     # Without the credit, the footer ends with what it asks.
     settings = dataclasses.replace(settings, credit=False)
     assert assistant.invitation("en", settings) == expected
+
+
+def test_the_anchors_of_the_notice_are_those_of_its_templates():
+    # install writes the notices from these templates, in English and in German.
+    for language, anchor in [("en", assistant.NOTICE_ANCHOR)] + sorted(
+        assistant.NOTICE_ANCHORS.items()
+    ):
+        suffix = "" if language == "en" else f".{language}"
+        template = assistant.TEMPLATES / f"SUPPORT-notice{suffix}.md"
+        assert next(iter(assistant.headings(template))) == anchor
+
+
+GERMAN_NOTICE = "## Was mit deinem Issue geschieht\n\nClaude von Anthropic liest.\n"
+
+
+@pytest.mark.parametrize(
+    ("notices", "german", "language", "link"),
+    [
+        # A German comment links the German notice, at its German heading, as
+        # homedarts-for-autodarts lists docs/troubleshooting.de.md.
+        (
+            ("SUPPORT.md", "docs/SUPPORT.de.md"),
+            GERMAN_NOTICE,
+            "de",
+            f"{NOTICE.removesuffix('SUPPORT.md')}docs/SUPPORT.de.md"
+            "#was-mit-deinem-issue-geschieht",
+        ),
+        # A German notice with the English heading still links that part.
+        (
+            ("SUPPORT.md", "./docs/SUPPORT.DE.md"),
+            "## What happens with your issue\n",
+            "de",
+            f"{NOTICE.removesuffix('SUPPORT.md')}docs/SUPPORT.DE.md"
+            "#what-happens-with-your-issue",
+        ),
+        # One without that part: the whole file.
+        (
+            ("SUPPORT.md", "docs/SUPPORT.de.md"),
+            "# Hilfe\n",
+            "de",
+            f"{NOTICE.removesuffix('SUPPORT.md')}docs/SUPPORT.de.md",
+        ),
+        # An English comment, or one in a language without a notice, links the first
+        # file, as does a German one whose notice is missing or outside the repository.
+        (
+            ("SUPPORT.md", "docs/SUPPORT.de.md"),
+            GERMAN_NOTICE,
+            "en",
+            f"{NOTICE}#what-happens-with-your-issue",
+        ),
+        (
+            ("SUPPORT.md", "docs/SUPPORT.de.md"),
+            GERMAN_NOTICE,
+            "fr",
+            f"{NOTICE}#what-happens-with-your-issue",
+        ),
+        (
+            ("SUPPORT.md", "docs/missing.de.md", "../SUPPORT.de.md"),
+            None,
+            "de",
+            f"{NOTICE}#what-happens-with-your-issue",
+        ),
+        # A notice that isn't Markdown: the whole file.
+        (
+            ("docs/SUPPORT.txt",),
+            GERMAN_NOTICE,
+            "de",
+            f"{NOTICE.removesuffix('SUPPORT.md')}docs/SUPPORT.txt",
+        ),
+        # Without the first file, which check reports, the German one still helps.
+        (
+            ("docs/missing.md", "docs/SUPPORT.de.md"),
+            GERMAN_NOTICE,
+            "de",
+            f"{NOTICE.removesuffix('SUPPORT.md')}docs/SUPPORT.de.md"
+            "#was-mit-deinem-issue-geschieht",
+        ),
+    ],
+)
+def test_a_comment_links_the_notice_in_its_language(
+    config, root, notices, german, language, link
+):
+    if german is not None:
+        (root / "docs").mkdir(exist_ok=True)
+        (root / notices[-1].removeprefix("./")).write_text(german, encoding="utf-8")
+    settings = dataclasses.replace(config, notices=notices)
+    assert assistant.notice_link(settings, language) == link
+    assert link in assistant.invitation(language, settings)
+    duplicate = assistant.render_duplicate(7, "maintainer", language, settings)
+    assert f"]({link})" in duplicate
 
 
 @pytest.mark.parametrize("path", sorted(LOCALES.glob("*.toml")), ids=lambda p: p.stem)
