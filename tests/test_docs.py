@@ -196,6 +196,41 @@ def test_every_page_that_the_documentation_links_on_main_exists():
         assert (ROOT / path).is_file(), f"{name} links {path}, which doesn't exist"
 
 
+def website_page(source: Path) -> str:
+    # docs/faq.md is faq.html and docs/faq.de.md de/faq.html, as the site builds them.
+    page = source.relative_to(ROOT / "docs").with_suffix("").as_posix()
+    if page.endswith(".de"):
+        return f"de/{page.removesuffix('.de')}.html"
+    return f"{page}.html"
+
+
+def test_every_address_of_the_website_names_a_page_that_it_has():
+    # The website is built with use_directory_urls: false, so a page is
+    # troubleshooting.html, and troubleshooting/ is a 404. The workflows name these
+    # addresses in their errors, the templates and the code in what they post.
+    site = "https://dennis-otto.github.io/issue-assistant/"
+    texts = [
+        path
+        for folder in (".github", "docs", "issue_assistant", "locales", "templates")
+        for path in (ROOT / folder).rglob("*")
+        if path.suffix in {".md", ".py", ".toml", ".yml", ".yaml", ".json"}
+    ]
+    texts += [ROOT / "README.md", ROOT / "README.de.md", ROOT / "action.yml"]
+    linked = {
+        (path.relative_to(ROOT).as_posix(), match[1].rstrip(".,:;"))
+        for path in texts
+        for match in re.finditer(
+            rf"{re.escape(site)}([^\s\"'`)<>#?*]*)", path.read_text("utf-8")
+        )
+    }
+    assert ("README.de.md", "de/") in linked
+    pages = {website_page(source) for source in (ROOT / "docs").rglob("*.md")}
+    # The start pages answer at their folder as well.
+    pages |= {"", "de/"}
+    for name, page in sorted(linked):
+        assert page in pages, f"{name} links {site}{page}, which the website lacks"
+
+
 def test_the_readme_links_only_full_addresses():
     # The Marketplace shows the README on a page of its own, where a relative link leads
     # nowhere.

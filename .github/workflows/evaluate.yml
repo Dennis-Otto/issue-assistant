@@ -76,7 +76,7 @@ jobs:
           while [ "$failures" -lt 2 ]; do
             attempt=$((attempt + 1))
             if [ "$attempt" -gt 12 ]; then
-              echo "::error::A request to example.com, a host outside .github/egress-firewall.yaml, got through, so the AI doesn't run: nothing blocks the hosts that the policy leaves out. On ubuntu-24.04-firewall, GitHub didn't enforce the policy: the job lacks the permission contents: read, the policy says mode: log in place of mode: enforce, or GitHub changed its preview of the egress firewall. Behind Harden-Runner, on the runner of ISSUE_ASSISTANT_AI_RUNNER, it blocks in a private repository only with a subscription of StepSecurity, and when its log says Reverted changes, its agent gave up at its start: run the job again. Until the block holds, set ISSUE_ASSISTANT_AI to off: https://dennis-otto.github.io/issue-assistant/troubleshooting/"
+              echo "::error::A request to example.com, a host outside .github/egress-firewall.yaml, got through, so the AI doesn't run: nothing blocks the hosts that the policy leaves out. On ubuntu-24.04-firewall, GitHub didn't enforce the policy: the job lacks the permission contents: read, the policy says mode: log in place of mode: enforce, or GitHub changed its preview of the egress firewall. Behind Harden-Runner, on the runner of ISSUE_ASSISTANT_AI_RUNNER, it blocks in a private repository only with a subscription of StepSecurity, and when its log says Reverted changes, its agent gave up at its start: run the job again. Until the block holds, set ISSUE_ASSISTANT_AI to off: https://dennis-otto.github.io/issue-assistant/troubleshooting.html"
               exit 1
             fi
             if curl --silent --max-time 10 --output /dev/null https://example.com; then
