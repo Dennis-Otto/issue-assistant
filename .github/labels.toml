@@ -156,6 +156,12 @@ color = "ededed"
 description = "The assistant starts no AI run on this issue; /assistant unmute ends it"
 group = "decision"
 
+[[label]]
+name = "no-bot-fixes"
+color = "c5def5"
+description = "The fix bot leaves this pull request alone: no commit, no suggestion"
+group = "decision"
+
 # Contribution: the assistant's digest suggests the first of these labels
 
 [[label]]
