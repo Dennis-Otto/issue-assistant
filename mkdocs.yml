@@ -44,6 +44,66 @@ theme:
         icon: material/weather-sunny
         name: Switch to the scheme of the system
 plugins:
+  search:
+    lang: [en, de]
+  # English and German. A German page sits next to its English one, named like it with
+  # .de, such as faq.de.md next to faq.md; together they make the German website in
+  # de/, with German menus, search, dates and switches, and a switch between the
+  # languages in the header that keeps the page. A page without a German version, such
+  # as the reference, shows in English there; it links the German page of a link, so
+  # each German page has an anchor of the English name above each heading, such as
+  # <a id="requirements"></a>, and the strict build names one that is missing.
+  # tests/test_docs.py keeps the headings, pictures, parts and code of each German page
+  # in step with its English one.
+  # https://ultrabug.github.io/mkdocs-static-i18n/
+  i18n:
+    enabled: true
+    languages:
+      - locale: en
+        name: English
+        default: true
+        build: true
+      - locale: de
+        name: Deutsch
+        build: true
+        site_description: "Sichere KI-Triage von Issues für GitHub: eine KI, die nur liest, schreibt eine erste Analyse jedes neuen Issues (wahrscheinliche Ursache, fehlende Angaben, Duplikate, Labels), und ein Job ohne KI prüft sie vor dem Posten."
+        nav_translations:
+          Home: Start
+          Get started: Loslegen
+          Features: Funktionen
+          Guide: Anleitung
+          What reporters see: Was Meldende sehen
+          Help: Hilfe
+          Troubleshooting: Fehlerbehebung
+          Compare: Vergleich
+          Accuracy: Genauigkeit
+          Security: Sicherheit
+          Project: Projekt
+          Decisions: Entscheidungen
+          Changelog: Änderungen
+        # The switch between the schemes, with German names.
+        theme:
+          palette:
+            - media: "(prefers-color-scheme)"
+              primary: custom
+              accent: custom
+              toggle:
+                icon: material/brightness-auto
+                name: Zum hellen Design wechseln
+            - media: "(prefers-color-scheme: light)"
+              scheme: default
+              primary: custom
+              accent: custom
+              toggle:
+                icon: material/weather-night
+                name: Zum dunklen Design wechseln
+            - media: "(prefers-color-scheme: dark)"
+              scheme: slate
+              primary: custom
+              accent: custom
+              toggle:
+                icon: material/weather-sunny
+                name: Zum Design des Systems wechseln
   social:
     cards_layout_options:
       background_color: "#5a32a3"

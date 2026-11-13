@@ -13,7 +13,7 @@ The action is free and open source. A repository pays for its engine and, when i
 | Measure | Value |
 | --- | --- |
 | From the new issue to the comment | 2 min 39 s |
-| Time on runners | 78 s: 5 s `event`, 65 s `analyze`, 8 s `apply`; the rest was the wait for a firewall runner |
+| Time on runners | 78 s: 5 s *Handle the event*, 65 s *Analyze with the AI engine*, 8 s *Check and post the analysis*; the rest was the wait for a firewall runner |
 | The AI | Claude Opus 5.5, 15 turns, $0.20 at the prices of the API |
 
 A reply to a maintainer's comment, which only judges whether the issue now waits for its reporter, took Claude Opus 5.5 3 turns, 4.4 s and $0.08. The summary of every run's job shows what it cost, [in one line](features/cost.md).
@@ -66,7 +66,7 @@ It finds candidates, and the label stays yours. Where `.github/labels.toml` has 
 
 ## Which data leaves GitHub?
 
-The `analyze` job sends the vendor of the engine, Anthropic for Claude, OpenAI for Codex, Google for Gemini and GitHub for Copilot, what the AI reads: the issue and its comments, at most 20,000 characters of each text, short excerpts of the other issues and of the discussions, the labels, `.github/issue-assistant/project.md` and the files of the default branch that the AI opens. The engine runs with its telemetry and error reports turned off. What the vendor may do with the data follows your agreement with it: for Claude, the terms of your API account or of your subscription, and the privacy settings of that account. Google may use what reaches the free tier of the Gemini API to improve its products, so a private repository is better served by its paid tier. The jobs without AI tell StepSecurity, the maker of Harden-Runner, the repository, the run and the hosts that their steps reach, as the [security design](security.md#residual-risks) says. The action keeps no database and no service of its own, and the notice in `SUPPORT.md` tells reporters which AI reads their issue.
+The job *Analyze with the AI engine* (`analyze`) sends the vendor of the engine, Anthropic for Claude, OpenAI for Codex, Google for Gemini and GitHub for Copilot, what the AI reads: the issue and its comments, at most 20,000 characters of each text, short excerpts of the other issues and of the discussions, the labels, `.github/issue-assistant/project.md` and the files of the default branch that the AI opens. The engine runs with its telemetry and error reports turned off. What the vendor may do with the data follows your agreement with it: for Claude, the terms of your API account or of your subscription, and the privacy settings of that account. Google may use what reaches the free tier of the Gemini API to improve its products, so a private repository is better served by its paid tier. The jobs without AI tell StepSecurity, the maker of Harden-Runner, the repository, the run and the hosts that their steps reach, as the [security design](security.md#residual-risks) says. The action keeps no database and no service of its own, and the notice in `SUPPORT.md` tells reporters which AI reads their issue.
 
 ## Can a reporter say no to the AI?
 
@@ -102,13 +102,13 @@ Set the repository variable `ISSUE_ASSISTANT_AI` to `off`, for example with `gh 
 
 ## What if the firewall runner is gone?
 
-The AI runs on `ubuntu-24.04-firewall`, GitHub's runner with the egress firewall, which is a technical preview. Should GitHub rename or end it, or your account lose it, `analyze` waits in the queue for up to a day, and every later run of the same issue waits behind it. Name another runner for the AI in the repository variable `ISSUE_ASSISTANT_AI_RUNNER`, without a new release:
+The AI runs on `ubuntu-24.04-firewall`, GitHub's runner with the egress firewall, which is a technical preview. Should GitHub rename or end it, or your account lose it, the job *Analyze with the AI engine* (`analyze`) waits in the queue for up to a day, and every later run of the same issue waits behind it. Name another runner for the AI in the repository variable `ISSUE_ASSISTANT_AI_RUNNER`, without a new release:
 
 ```sh
 gh variable set ISSUE_ASSISTANT_AI_RUNNER --body ubuntu-24.04
 ```
 
-The runner must be one of GitHub's runners of Ubuntu with a fixed version; the job `event` refuses any other, such as a self-hosted runner or `ubuntu-latest`, before the AI runs. There the job `analyze-in-reserve` runs the steps of `analyze` in its place, and its first step is Harden-Runner in block mode with the hosts of your `.github/egress-firewall.yaml`, and, before the engine runs, a step fails the job when requests to a host outside them still get through after a minute. That is the trade-off: the firewall blocks for the whole machine, out of reach of every step, Harden-Runner for the job, inside the machine; in a private repository it blocks only with a subscription of StepSecurity, so the AI doesn't run there without one. `gh variable delete ISSUE_ASSISTANT_AI_RUNNER` brings the AI back to the firewall runner, and [decision 0019](decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md) explains the choice. The Canary of this repository fails when its `analyze` waits for longer than 30 minutes for the firewall runner and opens an issue at once, so a release follows a new label quickly.
+The runner must be one of GitHub's runners of Ubuntu with a fixed version; the job `event` refuses any other, such as a self-hosted runner or `ubuntu-latest`, before the AI runs. There the job *Analyze with the AI engine on the runner in reserve* (`analyze-in-reserve`) runs the steps of `analyze` in its place, and its first step is Harden-Runner in block mode with the hosts of your `.github/egress-firewall.yaml`, and, before the engine runs, a step fails the job when requests to a host outside them still get through after a minute. That is the trade-off: the firewall blocks for the whole machine, out of reach of every step, Harden-Runner for the job, inside the machine; in a private repository it blocks only with a subscription of StepSecurity, so the AI doesn't run there without one. `gh variable delete ISSUE_ASSISTANT_AI_RUNNER` brings the AI back to the firewall runner, and [decision 0019](decisions/0019-a-runner-for-the-ai-when-the-firewall-runner-is-gone.md) explains the choice. The Canary of this repository fails when its `analyze` waits for longer than 30 minutes for the firewall runner and opens an issue at once, so a release follows a new label quickly.
 
 ## Why must the workflows equal the templates?
 

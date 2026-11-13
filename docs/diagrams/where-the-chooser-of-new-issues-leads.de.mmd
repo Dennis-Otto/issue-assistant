@@ -1,0 +1,28 @@
+flowchart TB
+  accTitle: Wohin die Auswahl neuer Issues führt
+  accDescr: Unter New issue zeigt GitHub die Auswahl, die install für ein Repository ohne Formulare schreibt, mit abgeschalteten leeren Issues. Ein Fehlerbericht und ein Funktionswunsch öffnen je ein Formular, dessen Antworten die Labels vor der ersten Analyse wählen. Eine Frage geht in die Discussions, eine Sicherheitslücke in eine private Meldung, und der Link zum Support sagt, was mit einem Issue geschieht
+  new(["`**New issue**<br>auf GitHub`"]) --> chooser["die Auswahl, config.yml,<br>mit abgeschalteten leeren Issues"]
+  chooser --> forms
+  chooser --> links
+  subgraph forms ["ein Issue, aus einem Formular"]
+    direction TB
+    bug["Fehlerbericht,<br>bug_report.yml"]
+    feature["Funktionswunsch,<br>feature_request.yml"]
+    bug ~~~ feature
+  end
+  subgraph links ["kein Issue, aus einem Link"]
+    direction TB
+    question["Frage: die erste Kategorie<br>von answer_categories<br>in den Discussions"]
+    vulnerability["Sicherheitslücke:<br>eine private Meldung"]
+    support["Support: SUPPORT.md"]
+    question ~~~ vulnerability ~~~ support
+  end
+  forms --> analysis(["`Labels aus dem Formular,<br>dann die **erste Analyse**`"])
+  classDef trigger fill:#d4a72c33,stroke:#bf8700,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef person fill:#0969da26,stroke:#0969da,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class new trigger
+  class chooser job
+  class bug,feature,question,vulnerability,support person
+  class analysis safe
