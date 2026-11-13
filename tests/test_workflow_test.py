@@ -856,8 +856,47 @@ def test_the_gate_says_so_when_harden_runner_stopped_each_job_that_failed(
     assert code == 1
     assert summary.endswith("\n\n2 of the jobs didn't run as their call has to.\n")
     out = capsys.readouterr().out
-    assert out.endswith(STOP + "2 of the jobs didn't run as their call has to.\n")
-    assert script.STOPPED in out
+    # The stop comes before the error of each job, so that GitHub keeps it among the
+    # first ten errors of the step, which are all that it keeps.
+    assert out.startswith(STOP + f"::error::{labels}: ")
+    assert out.endswith("2 of the jobs didn't run as their call has to.\n")
+
+
+ASSISTANT = "reusable-issue-assistant.yml"
+EVENT_JOB = "Handle the event"
+EVENT_PLAN = "Take the issue of the smoke test"
+APPLY_JOB = "Check and post the analysis"
+
+
+def test_a_job_skipped_after_a_stop_of_its_call_is_part_of_the_stop(
+    monkeypatch, tmp_path, capsys
+):
+    """When Harden-Runner stops "Handle the event", the job that needs it is skipped:
+    that skip is part of the stop, so the gate still says so (#392)."""
+    event = f"{ASSISTANT} / {EVENT_JOB}"
+    apply = f"{ASSISTANT} / {APPLY_JOB}"
+    jobs = replaced(
+        (event, stopped(ASSISTANT, EVENT_JOB, EVENT_PLAN)),
+        (apply, job(ASSISTANT, APPLY_JOB, "skipped")),
+    )
+    _, problems = script.check(jobs, no_annotations)
+    assert f"{apply}: {script.AFTER_STOP}." in problems
+    code, _ = verify(monkeypatch, tmp_path, jobs, CHANGES="success", WANTED="true")
+    assert code == 1
+    assert capsys.readouterr().out.startswith(STOP)
+    # Without a stop in its call, the skip is a problem of its own.
+    jobs = replaced((apply, job(ASSISTANT, APPLY_JOB, "skipped")))
+    _, problems = script.check(jobs, no_annotations)
+    assert problems == [f"{apply}: {script.SKIPPED}."]
+    # A stop in another call doesn't explain it either.
+    lifecycle = f"{LIFECYCLE} / {LIFECYCLE_JOB}"
+    jobs = replaced(
+        (lifecycle, stopped(LIFECYCLE, LIFECYCLE_JOB, LIFECYCLE_PLAN)),
+        (apply, job(ASSISTANT, APPLY_JOB, "skipped")),
+    )
+    code, _ = verify(monkeypatch, tmp_path, jobs, CHANGES="success", WANTED="true")
+    assert code == 1
+    assert script.STOPPED not in capsys.readouterr().out
 
 
 def test_the_gate_leaves_the_stop_out_when_another_job_failed_on_its_own(

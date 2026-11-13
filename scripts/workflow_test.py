@@ -127,6 +127,10 @@ TITLE = "### The reusable workflows as dry runs"
 BLOCKS = "Make sure that Harden-Runner blocks"
 STOPPED = "would reach every host, and it stops here instead"
 HELD = f"Harden-Runner didn't block in it, so its step “{BLOCKS}” stopped it"
+# A job of the same call that needs the stopped one is skipped then (as "Check and
+# post the analysis" after "Handle the event"): that skip is part of the stop.
+SKIPPED = "it was skipped, but the call has to run it"
+AFTER_STOP = "it was skipped because Harden-Runner stopped a job of its call before it"
 
 # How often the gate reads the jobs again, and how many seconds apart, while GitHub
 # lists a job without the steps that it ran: five minutes in all, which the
@@ -362,7 +366,7 @@ def judge(
             return "skipped", ""
         return conclusion, f"it ended as {conclusion}, but the call has to skip it"
     if conclusion == "skipped":
-        return conclusion, "it was skipped, but the call has to run it"
+        return conclusion, SKIPPED
     steps = {str(step.get("name")): step for step in job.get("steps") or []}
     if (steps.get(BLOCKS) or {}).get("conclusion") == "failure":
         return "stopped by Harden-Runner", f"{HELD} before its dry run"
@@ -400,10 +404,16 @@ def check(
     """The rows of the table of the summary, and the problems."""
     rows, problems = [], []
     for call, called in CALLS.items():
+        judged = {
+            name: judge(call, listed(jobs, f"{call} / {name}"), plan, annotations)
+            for name, plan in called.items()
+        }
+        stop = any(HELD in problem for _, problem in judged.values())
         for name, plan in called.items():
             full = f"{call} / {name}"
-            job = listed(jobs, full)
-            result, problem = judge(call, job, plan, annotations)
+            result, problem = judged[name]
+            if stop and problem == SKIPPED:
+                problem = AFTER_STOP
             expected = f"passes, with “{plan}”" if plan else "skipped"
             rows.append(f"| {full} | {expected} | {result} |")
             if problem:
@@ -480,14 +490,16 @@ def verify_command() -> int:
         )
     rows, problems = check(jobs, annotations_of(repository))
     table = "| Job | Expected | Result |\n| --- | --- | --- |\n" + "\n".join(rows)
-    for problem in problems:
-        print(f"::error::{problem}")
-    if problems and all(HELD in problem for problem in problems):
+    # The stop comes first: GitHub keeps only the first ten errors of a step, and the
+    # flaky-test bot looks for this one.
+    if problems and all(HELD in p or AFTER_STOP in p for p in problems):
         print(
             "::error title=Harden-Runner doesn't block::Each job that didn't run as "
             "its call has to stopped because Harden-Runner had no agent that blocks: "
             f"the job {STOPPED}. That is no problem of the change: run the job again."
         )
+    for problem in problems:
+        print(f"::error::{problem}")
     verdict = (
         f"{len(problems)} of the jobs didn't run as their call has to."
         if problems
