@@ -204,6 +204,7 @@ def website_page(source: Path) -> str:
     return f"{page}.html"
 
 
+@pytest.mark.mutation_unsafe
 def test_every_address_of_the_website_names_a_page_that_it_has():
     # The website is built with use_directory_urls: false, so a page is
     # troubleshooting.html, and troubleshooting/ is a 404. The workflows name these
