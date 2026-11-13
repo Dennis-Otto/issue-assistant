@@ -158,6 +158,10 @@ released = """\
   주세요. 문제가 계속되면 메인테이너가 볼 수 있도록 여기에 댓글을 남기거나 새 이슈를 \
   열어 주세요."""
 "released.fixes" = " ({pulls}의 수정 포함)"
+"fixed.enhancement" = "#{pull}에서 구현되었으며, 이제 `{branch}`에 반영되었습니다. 다음 릴리스에 포함되며, 그때 이 이슈는 릴리스 링크와 함께 닫힙니다."
+"released.enhancement" = "🎉 [{tag}]({url})에서 릴리스되었습니다{fixes}. @{author}님, 이 버전으로 업데이트하면 사용할 수 있습니다. 부족한 점이 있으면 {reopen_days} 이내에 여기에 댓글을 남겨 주세요. 이슈가 다시 열립니다. 또는 새 이슈를 열어 주세요."
+"released.muted.enhancement" = "🎉 [{tag}]({url})에서 릴리스되었습니다{fixes}. @{author}님, 이 버전으로 업데이트하면 사용할 수 있습니다. 부족한 점이 있으면 메인테이너가 볼 수 있도록 여기에 댓글을 남기거나 새 이슈를 열어 주세요."
+"released.fixes.enhancement" = " ({pulls} 포함)"
 "reopened-release" = """\
   @{author}님, 알려 주셔서 감사합니다. 아직 해결되지 않아 죄송합니다. 이슈를 다시 열었\
   습니다. 메인테이너가 다시 살펴볼 것입니다."""

@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from .cleaning import code_span, notice_link, one_line, sanitize
-from .constants import ACTION, LET_IN
+from .constants import ACTION, ENHANCEMENT, LET_IN
 from .engines import DEFAULT_ENGINE, ENGINES
 from .issues import render_marker
 from .languages import format_date, say, texts
@@ -464,11 +464,21 @@ def render_reopened(author: str, language: str) -> str:
     return f"{render_marker('reopened')}\n{say(language, 'reopened', author=author)}\n"
 
 
-def render_fixed(pull: int, branch: str, language: str) -> str:
-    return (
-        f"{render_marker('fixed', pull=pull)}\n"
-        f"{say(language, 'fixed', pull=pull, branch=branch)}\n"
-    )
+def of_kind(key: str, feature: bool) -> str:
+    """The key of a text of the lifecycle for a feature request, which tells of
+    what a pull request implemented, or the one for a problem, which tells of a
+    fix; see requests_a_feature."""
+    return f"{key}.{ENHANCEMENT}" if feature else key
+
+
+def render_fixed(
+    pull: int, branch: str, language: str, *, feature: bool = False
+) -> str:
+    """The notice that a merged pull request fixed the issue, or implemented what
+    a feature request asked for, and that the next release ships it. Its marker is
+    the same for both, so that the sweeps and the digest read either."""
+    text_ = say(language, of_kind("fixed", feature), pull=pull, branch=branch)
+    return f"{render_marker('fixed', pull=pull)}\n{text_}\n"
 
 
 def render_released(
@@ -479,19 +489,24 @@ def render_released(
     lifecycle: Lifecycle = DEFAULT_LIFECYCLE,
     *,
     muted: bool = False,
+    feature: bool = False,
 ) -> str:
-    """The comment that closes an issue with the release that shipped its fix.
+    """The comment that closes an issue with the release that shipped its fix, or
+    what a feature request asked for, in the words of its kind.
 
     It promises only what a comment of the reporter does on this issue: within
     reopen_after_release_days the AI reads it, and the issue reopens when the
-    problem persists. On a muted issue no AI reads it: there the comment goes to
-    the maintainers at any time (reopen_if_answered), and the text says so.
+    problem persists, or what was asked for is missing. On a muted issue no AI
+    reads it: there the comment goes to the maintainers at any time
+    (reopen_if_answered), and the text says so.
     """
     joined = ", ".join(f"#{pull}" for pull in pulls)
-    fixes = say(language, "released.fixes", pulls=joined) if pulls else ""
+    fixes = (
+        say(language, of_kind("released.fixes", feature), pulls=joined) if pulls else ""
+    )
     text_ = say(
         language,
-        "released.muted" if muted else "released",
+        of_kind("released.muted" if muted else "released", feature),
         tag=release["tag_name"],
         url=release["html_url"],
         fixes=fixes,

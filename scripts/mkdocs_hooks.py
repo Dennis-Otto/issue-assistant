@@ -741,6 +741,12 @@ KINDS = {
         "A merged pull request that names the issue with `Fixes #42` marks it "
         "`fixed-in-next-release`. The issue stays open until a release ships the fix.",
     ),
+    "implemented": (
+        "Implemented by a pull request",
+        "A feature request, an issue with the label `enhancement` or the issue type "
+        "Feature and without the label `bug`, had no problem to fix: the notice of "
+        "the merge says what the pull request implemented instead.",
+    ),
     "released": (
         "Released",
         "When a release ships the fix, the issue closes with a link to the release and "
@@ -753,6 +759,16 @@ KINDS = {
         "after the release, so the comment promises no reopening: a comment of the "
         "reporter gives the issue `needs-triage`, at any time, and the digest lists it "
         "for the maintainers until one answers.",
+    ),
+    "released-feature": (
+        "Released, on a feature request",
+        "A feature request hears how to use what it asked for, and that a comment "
+        "within {reopen_after_release} days reopens it when something is missing.",
+    ),
+    "released-feature-muted": (
+        "Released, on a muted feature request",
+        "On a muted feature request, the comment asks the reporter to write for the "
+        "maintainers when something is missing, as on any muted issue.",
     ),
     "reopened-release": (
         "Reopened after the release",
@@ -994,7 +1010,14 @@ def comments(ia: ModuleType, config: Any, language: str) -> dict[str, str]:
         ),
         "closed-duplicate": ia.render_closed_duplicate(23, language),
         "fixed": ia.render_fixed(43, "main", language),
+        "implemented": ia.render_fixed(43, "main", language, feature=True),
         "released": ia.render_released(REPORTER, release, [43], language),
+        "released-feature": ia.render_released(
+            REPORTER, release, [43], language, feature=True
+        ),
+        "released-feature-muted": ia.render_released(
+            REPORTER, release, [43], language, muted=True, feature=True
+        ),
         "released-muted": ia.render_released(
             REPORTER, release, [43], language, muted=True
         ),

@@ -163,6 +163,18 @@ released = """\
   het probleem bestaan, schrijf dan hier een reactie voor de maintainers, of open een \
   nieuw issue."""
 "released.fixes" = " met de oplossing uit {pulls}"
+"fixed.enhancement" = """\
+  Geïmplementeerd door #{pull}, die nu op `{branch}` staat. Het komt mee met de \
+  volgende release; dan wordt dit issue gesloten, met een link ernaar."""
+"released.enhancement" = """\
+  🎉 Uitgebracht in [{tag}]({url}){fixes}. @{author}, werk bij naar deze versie om het \
+  te gebruiken. Ontbreekt er nog iets, schrijf dan binnen {reopen_days} hier een \
+  reactie en het issue wordt heropend, of open een nieuw issue."""
+"released.muted.enhancement" = """\
+  🎉 Uitgebracht in [{tag}]({url}){fixes}. @{author}, werk bij naar deze versie om het \
+  te gebruiken. Ontbreekt er nog iets, schrijf dan hier een reactie voor de \
+  maintainers, of open een nieuw issue."""
+"released.fixes.enhancement" = " met {pulls}"
 "reopened-release" = """\
   Bedankt dat je het laat weten, @{author}, en jammer dat het nog niet is opgelost. Ik \
   heb het issue heropend; de maintainers kijken er opnieuw naar."""

@@ -47,6 +47,13 @@ DUPLICATE = "duplicate"
 INVALID = "invalid"
 WONTFIX = "wontfix"
 FIXED = "fixed-in-next-release"
+# A feature request: the kind of labels.toml, or the issue type of GitHub, whose
+# issue the lifecycle tells that a pull request implemented what it asked for, not
+# that one fixed a problem; an issue of the kind of a bug always hears of a fix.
+# See requests_a_feature.
+BUG = "bug"
+ENHANCEMENT = "enhancement"
+FEATURE_TYPE = "Feature"
 LIFECYCLE = (
     NEEDS_TRIAGE,
     NEEDS_INFO,
