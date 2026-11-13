@@ -519,6 +519,123 @@ REQUESTS = {
             }
         ],
     ),
+    "the open questions with their last words": Request(
+        lambda github: github.open_questions(),
+        {
+            "repository": {
+                "discussions": {
+                    "pageInfo": PAGE,
+                    "nodes": [
+                        {
+                            **THREAD,
+                            "comments": {
+                                "nodes": [
+                                    {
+                                        "createdAt": "2026-10-07T11:30:00Z",
+                                        "authorAssociation": "NONE",
+                                        "author": {
+                                            "__typename": "Bot",
+                                            "login": "github-actions",
+                                        },
+                                        "replies": {
+                                            "nodes": [
+                                                {
+                                                    "createdAt": "2026-10-08T09:00:00Z",
+                                                    "authorAssociation": "NONE",
+                                                    "author": ASKER,
+                                                }
+                                            ]
+                                        },
+                                    }
+                                ]
+                            },
+                        }
+                    ],
+                }
+            }
+        },
+        [
+            {
+                "number": 5,
+                "category": {"name": "Q&A"},
+                "answered": False,
+                "user": {"login": "asker", "type": "User"},
+                "author_association": "NONE",
+                "created_at": "2026-10-07T11:00:00Z",
+                "body": None,
+                "comments": [
+                    {
+                        "user": {"login": "github-actions[bot]", "type": "Bot"},
+                        "author_association": "NONE",
+                        "created_at": "2026-10-07T11:30:00Z",
+                        "body": None,
+                        "replies": [
+                            {
+                                "user": {"login": "asker", "type": "User"},
+                                "author_association": "NONE",
+                                "created_at": "2026-10-08T09:00:00Z",
+                                "body": None,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    ),
+    # The newest first; the second is older than the moment and ends the list.
+    "the first answers to the discussions since a moment": Request(
+        lambda github: github.questions_since(datetime(2026, 10, 6, 12, tzinfo=UTC)),
+        {
+            "repository": {
+                "discussions": {
+                    "pageInfo": PAGE,
+                    "nodes": [
+                        {
+                            **OF_THE_DAY[0],
+                            "comments": {
+                                "nodes": [
+                                    {
+                                        "body": "A first answer.",
+                                        "createdAt": "2026-10-07T11:05:00Z",
+                                        "authorAssociation": "NONE",
+                                        "isAnswer": True,
+                                        "author": {
+                                            "__typename": "Bot",
+                                            "login": "github-actions",
+                                        },
+                                        # The 👍 and the 👎, by the content asked.
+                                        "reactions": lambda _, content: {
+                                            "totalCount": {
+                                                "THUMBS_UP": 2,
+                                                "THUMBS_DOWN": 1,
+                                            }[content]
+                                        },
+                                    }
+                                ]
+                            },
+                        },
+                        {**OF_THE_DAY[1], "comments": {"nodes": []}},
+                    ],
+                }
+            }
+        },
+        [
+            {
+                "number": 9,
+                "created_at": "2026-10-07T11:00:00Z",
+                "comments": [
+                    {
+                        "user": {"login": "github-actions[bot]", "type": "Bot"},
+                        "author_association": "NONE",
+                        "created_at": "2026-10-07T11:05:00Z",
+                        "body": "A first answer.",
+                        "is_answer": True,
+                        "reactions": {"+1": 2, "-1": 1},
+                    }
+                ],
+            }
+        ],
+    ),
     "a comment on a discussion": Request(
         lambda github: github.answer_discussion(
             {"number": 5, "node_id": "D_kwDOMpLSs84AdQ1x"}, "A first answer."
@@ -730,7 +847,7 @@ def test_every_graphql_document_of_the_script_is_checked(monkeypatch, schema):
         for request in REQUESTS.values()
         for sent in send(monkeypatch, schema, request)[1]
     }
-    assert len(documents) == 16
+    assert len(documents) == 18
     assert documents == checked
 
 

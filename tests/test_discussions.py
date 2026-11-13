@@ -1045,3 +1045,199 @@ def test_the_comments_of_a_discussion_read_as_the_rest_api_names_them():
     }
     comment = make_comment(1, "bot", "<!-- issue-assistant:discussion-answer -->", 0)
     assert assistant.kind_of(comment) == MODE
+
+
+# The digest and the quality
+
+
+ANSWERED = f"{assistant.render_marker(MODE, lang='en')}\nA first answer."
+
+
+def first_answer(days_ago, replies=(), **changes):
+    return discussion_comment("bot", ANSWERED, days_ago, replies=replies, **changes)
+
+
+def waiting_github(config):
+    """Discussions of every case of the list of the digest."""
+    return with_discussions(
+        config,
+        # The asker answered the first answer in its thread.
+        opened(
+            1,
+            "asker",
+            days_ago=5,
+            comments=[
+                first_answer(5, [discussion_reply("asker", "That didn't help.", 2)])
+            ],
+        ),
+        # No answer at all, long enough to wait, and too new to.
+        opened(2, days_ago=5),
+        opened(3, days_ago=1),
+        # The assistant's answer, which nobody marked, long enough, and too new.
+        opened(4, days_ago=4, comments=[first_answer(4)]),
+        opened(5, days_ago=1, comments=[first_answer(1)]),
+        # A maintainer had the last word.
+        opened(
+            6,
+            days_ago=6,
+            comments=[
+                first_answer(6),
+                discussion_comment("dennis", "Try this.", 3, "OWNER"),
+            ],
+        ),
+        # An answer is marked, the category gets none, it is closed, a maintainer
+        # asked it.
+        opened(7, days_ago=9, isAnswered=True),
+        opened(8, days_ago=9, category="General"),
+        opened(9, days_ago=9, closed=True),
+        opened(10, "dennis", days_ago=9, association="OWNER"),
+        # Someone else wrote after the maintainer; another bot has no say.
+        opened(
+            11,
+            days_ago=8,
+            comments=[
+                discussion_comment(
+                    "dennis",
+                    "Which version?",
+                    7,
+                    "MEMBER",
+                    [discussion_reply("helper", "Mine is 2.1 as well.", 1)],
+                ),
+                discussion_comment("renovate[bot]", "Noise.", 0.5),
+            ],
+        ),
+    )
+
+
+def digest_of(github, config):
+    activity = assistant.Activity.read(github, NOW - assistant.FEEDBACK_PERIOD)
+    return assistant.digest(github, config, activity, NOW)
+
+
+def test_the_digest_lists_the_questions_that_wait_on_the_maintainers(answering):
+    """The open questions of the categories that get first answers, without a
+    marked answer and without a maintainer's last word: at once when a person wrote
+    last, after three days when nobody or only the assistant answered; links to the
+    discussions and numbers alone, the longest waiting first."""
+    github = waiting_github(answering)
+    lists = digest_of(github, answering).split("\n\n**")
+    link = f"https://github.com/{REPOSITORY}/discussions"
+    assert lists[1] == "\n".join(
+        [
+            "Questions in Discussions waiting on the maintainers: 4**",
+            "",
+            f"- [#2]({link}/2): no answer for 5 days",
+            f"- [#4]({link}/4): the assistant answered 4 days ago, no answer marked",
+            f"- [#1]({link}/1): the asker wrote 2 days ago",
+            f"- [#11]({link}/11): someone else wrote 1 day ago",
+        ]
+    )
+    assert lists[0].startswith("**Waiting on the maintainers: 0")
+    # The digest issue links them relatively, as the issues.
+    body = assistant.digest_body(github, ["\n\n**".join(lists)], "", "", NOW)
+    assert "- [#2](../discussions/2): no answer for 5 days" in body
+    assert "That didn't help" not in "\n".join(lists)
+    assert github.writes == []
+
+
+def test_without_answered_categories_the_digest_reads_no_discussions(config):
+    github = waiting_github(config)
+    assert "Discussions" not in digest_of(github, config)
+    assert github.discussion_pages == 0
+
+
+def test_the_open_questions_are_read_in_pages_with_their_last_words(answering):
+    """Every open discussion, in pages of a hundred, each with its last ten
+    comments and the last ten replies of each, and nobody's text."""
+    replies = [discussion_reply("asker", "More.", 1 - n / 100) for n in range(12)]
+    comments = [discussion_comment("helper", "Hm.", 3 - n / 100) for n in range(11)]
+    comments[-1]["replies"]["nodes"] = replies
+    github = with_discussions(
+        answering,
+        *(opened(number, days_ago=9) for number in range(1, 151)),
+        opened(151, days_ago=9, comments=comments),
+    )
+    found = github.open_questions()
+    assert len(found) == 151
+    assert github.discussion_pages == 2
+    last = found[-1]
+    assert (last["number"], last["answered"], last["category"]) == (
+        151,
+        False,
+        {"name": "Q&A"},
+    )
+    assert len(last["comments"]) == 10
+    assert len(last["comments"][-1]["replies"]) == 10
+    assert last["comments"][-1]["replies"][-1]["created_at"] == at(1 - 11 / 100)
+
+
+READS = {
+    "open_questions": (),
+    "questions_since": (NOW - timedelta(days=30),),
+}
+
+
+@pytest.mark.parametrize("method", READS)
+def test_a_repository_without_discussions_has_no_questions(answering, method):
+    github = with_discussions(answering, opened(3))
+    github.fail(r"(?s)GRAPHQL .*discussions\(", not_found())
+    assert getattr(github, method)(*READS[method]) == []
+    github = with_discussions(answering)
+    github.fail(r"(?s)GRAPHQL .*discussions\(")
+    with pytest.raises(assistant.GitHubError):
+        getattr(github, method)(*READS[method])
+
+
+def answers_github(config):
+    """The first answers of a month: marked or not, with 👍 and 👎, a person's
+    comment, which is no first answer, and an answer older than the month."""
+    return with_discussions(
+        config,
+        opened(20, days_ago=10, comments=[first_answer(10, answer=True, up=2)]),
+        opened(
+            21,
+            days_ago=5,
+            comments=[
+                first_answer(5, down=1),
+                discussion_comment("helper", "Me too.", 4, up=3),
+            ],
+        ),
+        opened(22, days_ago=40, comments=[first_answer(40, answer=True, up=5)]),
+    )
+
+
+def test_the_quality_counts_what_became_of_the_first_answers(answering):
+    """Marked as the answer, which is the asker's choice, and the 👍 and 👎 on the
+    first answers to the discussions of the 30 days."""
+    github = answers_github(answering)
+    activity = assistant.Activity.read(github, NOW - assistant.FEEDBACK_PERIOD)
+    table = assistant.quality(github, answering, activity).splitlines()
+    assert table[-2:] == [
+        "| First answers in Discussions | 2 answers: marked 1, 👍 2, 👎 1 |",
+        "| Feedback on the analyses | 👍 0, 👎 0 |",
+    ]
+    without = dataclasses.replace(answering, answer_categories=())
+    assert "Discussions" not in assistant.quality(github, without, activity)
+
+
+def test_the_discussions_of_the_month_are_read_in_pages(answering):
+    """The newest first, in pages of a hundred, until one is older than the
+    moment, each with its first ten comments."""
+    many = [first_answer(1 - n / 100) for n in range(12)]
+    github = with_discussions(
+        answering,
+        *(opened(number, days_ago=2 - number / 1000) for number in range(1, 151)),
+        opened(151, days_ago=3, comments=many),
+    )
+    found = github.questions_since(NOW - timedelta(days=30))
+    assert len(found) == 151
+    assert github.discussion_pages == 2
+    assert len(found[-1]["comments"]) == 10
+    assert found[-1]["comments"][0] == {
+        "user": {"login": "github-actions[bot]", "type": "Bot"},
+        "author_association": "NONE",
+        "created_at": at(1),
+        "body": ANSWERED,
+        "is_answer": False,
+        "reactions": {"+1": 0, "-1": 0},
+    }
