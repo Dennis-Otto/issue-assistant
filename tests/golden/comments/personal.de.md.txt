@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=de questions=0 engine=claude -->
 
-Danke für deinen Hinweis zur Dokumentation, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
+Danke für deinen Hinweis zur Dokumentation, @alex_demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
 
 > [!NOTE]
 > Dieses Issue scheint persönliche Daten zu zeigen, etwa eine E-Mail-Adresse, eine öffentliche IP-Adresse oder die Adresse eines privaten Servers. Wenn du sie lieber nicht zeigen willst, bearbeite den Beitrag und lösche die frühere Fassung aus dem Bearbeitungsverlauf.

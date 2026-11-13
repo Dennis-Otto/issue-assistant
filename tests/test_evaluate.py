@@ -999,17 +999,32 @@ def test_the_accuracy_section_has_the_numbers_of_the_report():
         "issue, and that the assistant never analyzed. 1 of the 3 analyses failed; "
         "they count in no measure. The analyses cost $0.30 at the prices of the API. "
         "Small numbers vary: with few issues, one more found or missed moves a share a "
-        "lot, so each share names its counts.\n"
+        "lot, so each share names its counts, and each measure the issues that it "
+        "rests on.\n"
         "\n"
-        "| Measure | Precision | Recall | Issues |\n"
-        "| --- | ---: | ---: | ---: |\n"
-        "| Type | 100 % (1 of 1) | 100 % (1 of 1) | 1 |\n"
-        "| Areas | 0 % (0 of 1) | 0 % (0 of 1) | 1 |\n"
-        "| Topics | – | – | 0 |\n"
-        "| Duplicates | 100 % (1 of 1) | 100 % (1 of 1) | 1 |\n"
-        "| Sure duplicates | 100 % (1 of 1) | 100 % (1 of 1) | 1 |\n"
-        "| Asks for information | 100 % (1 of 1) | 100 % (1 of 1) | 2 |"
+        "| Measure (issues) | Precision | Recall |\n"
+        "| --- | ---: | ---: |\n"
+        "| Type (1) | 100 % · 1/1 | 100 % · 1/1 |\n"
+        "| Areas (1) | 0 % · 0/1 | 0 % · 0/1 |\n"
+        "| Topics (0) | – | – |\n"
+        "| Duplicates (1) | 100 % · 1/1 | 100 % · 1/1 |\n"
+        "| Sure duplicates (1) | 100 % · 1/1 | 100 % · 1/1 |\n"
+        "| Asks for information (2) | 100 % · 1/1 | 100 % · 1/1 |"
     )
+
+
+def test_the_accuracy_table_fits_the_width_of_a_phone():
+    """Three narrow columns, the issues after the name of the measure and each share
+    as its percent and counts, not the four wide columns of the report, which hid
+    the issues behind a sideways scroll on a phone."""
+    found = assistant.measurement_of(report_of())
+    table = assistant.accuracy_section(found).split("\n\n")[-1].splitlines()
+    assert all(line.count("|") == 4 for line in table)
+    assert "| Type (1) | 100 % · 1/1 | 100 % · 1/1 |" in table
+    assert not any(" of " in line or "Issues" in line for line in table)
+    # The widest share, with a three-digit percent and counts of three digits.
+    assert assistant.narrow_share("100 % (123 of 123)") == "100 % · 123/123"
+    assert assistant.narrow_share("–") == "–"
 
 
 def test_an_accuracy_section_without_failures_or_costs_says_neither():

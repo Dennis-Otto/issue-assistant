@@ -1,6 +1,6 @@
 <!-- issue-assistant:answer lang=de to=2 engine=claude -->
 
-@sam-demo, hier ist meine Antwort auf [deine Frage](https://github.com/demo-org/plant-monitor/issues/42#issuecomment-2):
+@sam_demo, hier ist meine Antwort auf [deine Frage](https://github.com/demo-org/plant-monitor/issues/42#issuecomment-2):
 
 Nur das Diagramm. `ChartFeed.start()` abonniert einmal und kehrt früh zurück, solange `subscribed` gesetzt ist, und nach dem Wiederverbinden setzt es nichts zurück. Der aktuelle Wert abonniert in `ValueFeed`, das jedes Mal neu startet, und erholt sich deshalb. Ein Fix würde `subscribed` in `on_disconnect()` zurücksetzen; noch prüft kein Test ein Wiederverbinden.
 

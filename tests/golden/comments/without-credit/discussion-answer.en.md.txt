@@ -1,6 +1,6 @@
 <!-- issue-assistant:discussion-answer lang=en type=question questions=1 engine=claude -->
 
-Thanks for your question, @alex-demo! I'm the issue assistant of this repository and wrote a first answer. The maintainers and the community read along and may add to it.
+Thanks for your question, @alex_demo! I'm the issue assistant of this repository and wrote a first answer. The maintainers and the community read along and may add to it.
 
 Yes. Add both sensors to `chart.sensors`, and the chart draws a line for each, in the colour of its plant; since 1.3, a click on a name in the legend hides its line. With more than four lines, a second chart reads better, as #17 shows.
 

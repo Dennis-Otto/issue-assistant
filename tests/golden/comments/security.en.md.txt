@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=en questions=0 engine=claude -->
 
-Thanks for the report, @alex-demo! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
+Thanks for the report, @alex_demo! I'm the issue assistant of this repository and took a first look. The maintainers read every issue as well.
 
 > [!CAUTION]
 > This may describe a security vulnerability. Please report it privately, as described in the [security policy](https://github.com/demo-org/plant-monitor/security/policy), and remove the details here.

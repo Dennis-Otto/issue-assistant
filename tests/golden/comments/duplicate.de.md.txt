@@ -1,6 +1,6 @@
 <!-- issue-assistant:analysis lang=de questions=0 engine=claude duplicate=23 -->
 
-Danke für deinen Vorschlag, @alex-demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
+Danke für deinen Vorschlag, @alex_demo! Ich bin der Issue-Assistent dieses Repositorys und habe mir das zuerst angesehen. Die Maintainer lesen jedes Issue ebenfalls.
 
 ### Mögliches Duplikat
 

@@ -1,6 +1,6 @@
 <!-- issue-assistant:discussion-answer lang=en type=feature questions=0 engine=claude -->
 
-Thanks for your question, @alex-demo! I'm the issue assistant of this repository and wrote a first answer. The maintainers and the community read along and may add to it.
+Thanks for your question, @alex_demo! I'm the issue assistant of this repository and wrote a first answer. The maintainers and the community read along and may add to it.
 
 > [!NOTE]
 > This discussion seems to show personal data, such as an e-mail address, a public IP address or the address of a private server. If you'd rather not show it, edit the post and delete the earlier version from its edit history.

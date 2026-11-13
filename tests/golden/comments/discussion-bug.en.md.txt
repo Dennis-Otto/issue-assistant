@@ -1,6 +1,6 @@
 <!-- issue-assistant:discussion-answer lang=en type=bug questions=0 engine=claude -->
 
-Thanks for your question, @alex-demo! I'm the issue assistant of this repository and wrote a first answer. The maintainers and the community read along and may add to it.
+Thanks for your question, @alex_demo! I'm the issue assistant of this repository and wrote a first answer. The maintainers and the community read along and may add to it.
 
 > [!WARNING]
 > This discussion seems to show a secret, such as a token, a key or a password. Please remove it by editing the post, delete the earlier version from its edit history, and replace the secret, because others may have seen it.

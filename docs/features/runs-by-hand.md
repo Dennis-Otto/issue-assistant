@@ -22,11 +22,11 @@ Under *Actions → Issue assistant → Run workflow*, with these inputs:
 | `issue` | | The number of the issue; for `backlog`, the issue after which it starts, `0` for the oldest |
 | `mode` | `triage` | The task: `triage` for a first analysis, `follow-up` for the answer to the reporter, one of the replies to a comment, or `backlog` for the first analyses of the open issues without one |
 | `instruction` | empty | What the assistant should do, in your words, such as "ask for the logs"; for `triage` and `follow-up`, at most 500 characters |
-| `override` | off | Answer again, also where the task already has its comment; only for maintainers |
+| `override` | off | Answer again, also where the task already has its comment; only for maintainers. The button 🤖 *Assistant again* of [Repo Pager](https://github.com/Dennis-Otto/repo-pager) is a ready-made way: it starts this run with `override` on an issue, in the maintainer's name, from a message in Telegram |
 | `comment` | off | For `backlog`: post each first analysis as a comment, not only its labels |
 | `dry_run` | on | Only show in the summary what the assistant would post |
 
-The same with the GitHub CLI, or with any tool that calls the REST API, such as a chat bot:
+The same with the GitHub CLI, or with any tool that calls the REST API, such as a chat bot like Repo Pager:
 
 ```sh
 gh workflow run issue-assistant.yml -f issue=42 -f instruction="Ask for the logs" \
