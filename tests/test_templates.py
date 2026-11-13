@@ -2913,7 +2913,7 @@ def test_merges_and_releases_start_the_lifecycle_without_running_pull_request_co
     assert triggers["release"] == {"types": ["published"]}
     # A release published with the GITHUB_TOKEN starts no workflow.
     assert triggers["workflow_run"] == {
-        "workflows": ["Release", "Release integration"],
+        "workflows": ["Release"],
         "types": ["completed"],
     }
     assert "pull_request" not in triggers

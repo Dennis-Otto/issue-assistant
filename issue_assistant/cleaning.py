@@ -94,8 +94,19 @@ HTML = re.compile(
 # a `<!--` there is text, and a tag start without its `>` takes the rest of its line.
 HTML_TAG = re.compile(rf"{TAG}|(?P<open></?[A-Za-z][^>\n]*)")
 
-# The marks of a heading, without the line break after them.
-HEADING_LINE = re.compile(r"^[ \t]{0,3}#{1,6}(?:[ \t]+|$)", re.MULTILINE)
+# The marks of a heading, without the line break after them, also in a quote or a
+# list item, whose marks stay: at most 3 spaces before it, or 4 after such a mark,
+# since more make it code.
+HEADING_LINE = re.compile(
+    r"^(?:[ \t]{0,3}|(?P<marks>(?:[ \t]{0,3}(?:>|[-+*]|\d{1,9}[.)])(?=[ \t]|$))+)"
+    r"[ \t]{0,4})#{1,6}(?:[ \t]+|$)",
+    re.MULTILINE,
+)
+# A line of only `=` or only `-`, perhaps in a quote and at any indentation, that
+# makes the line of text above it a heading. Below a blank line, it is text or a
+# rule.
+SETEXT_LINE = re.compile(r"^((?:[ \t]*>)*[ \t]*)(?=(?:=+|-+)[ \t]*$)", re.MULTILINE)
+QUOTE_MARKS = re.compile(r"(?:[ \t]*>)*[ \t]*")
 
 
 def allowed_url(url: str, config: Config) -> bool:
@@ -227,7 +238,7 @@ def clean_prose(
         previous = text
         text = strip_html(text)
         text = LINK_DEFINITION.sub("", text)
-        text = HEADING_LINE.sub("", text)
+        text = HEADING_LINE.sub(lambda m: f"{m['marks']} " if m["marks"] else "", text)
         text = IMAGE.sub(r"\1", text)
         text = MARKDOWN_LINK.sub(lambda m: m[0] if target(m[2]) else m[1], text)
 
@@ -289,10 +300,22 @@ def clean_prose(
     # text of one line, such as a line of the log, keeps its hyphens.
     if lines:
         text = TABLE_HYPHEN.sub(lambda m: f"{m[1] or ''}\\-", text)
+        text = SETEXT_LINE.sub(lambda m: m[1] + underline(m.string, m.start()), text)
     pieces = re.split(r"\0(\d+)\0", text)
     return joined(
         kept[int(piece)] if index % 2 else piece for index, piece in enumerate(pieces)
     )
+
+
+def underline(text: str, start: int) -> str:
+    """The escape of a line of `=` or `-` at `start` that would make the line above
+    it a heading: a backslash, unless that line is blank. On the first two lines,
+    the line above may go on from code that this text follows, such as a code span,
+    so they are escaped whatever is above."""
+    begins = text.rfind("\n", 0, max(start - 1, 0)) + 1
+    above = text[begins : start - 1]
+    first = not start or not begins
+    return "\\" if first or run(QUOTE_MARKS, above, 0) < len(above) else ""
 
 
 def cross_reference(text: str, names: dict[str, str]) -> str | None:
@@ -903,22 +926,42 @@ def reference_link(
 # follow-up link: the part on what happens with an issue, which the SUPPORT.md of
 # the blueprint has, as docs/getting-started.md advises.
 NOTICE_ANCHOR = "what-happens-with-your-issue"
+# The same heading in the notices of the other languages that install writes, such
+# as the German one of templates/SUPPORT-notice.de.md.
+NOTICE_ANCHORS = {"de": "was-mit-deinem-issue-geschieht"}
 
 
-def notice_link(config: Config) -> str | None:
+def notice_file(name: str, config: Config) -> str | None:
+    """The path of a file of `[transparency] files` in the repository, or None when
+    it is missing or outside it."""
+    name = name.strip().removeprefix("./")
+    parts = PurePosixPath(name).parts
+    if not parts or parts[0] == "/" or ".." in parts:
+        return None
+    return name if (config.root / name).is_file() else None
+
+
+def notice_link(config: Config, language: str = "en") -> str | None:
     """Where a comment tells reporters how the assistant works and who decides.
 
-    The first file of `[transparency] files`, at its part on what happens with an
-    issue when it has one; None when the file is missing, which `check` reports.
+    A file of `[transparency] files` in the language of the comment, such as
+    SUPPORT.de.md for one in German, else the first file; at its part on what happens
+    with an issue when it has one. None when the first file is missing, which `check`
+    reports.
     """
-    if not config.notices:
-        return None
-    name = config.notices[0].strip().removeprefix("./")
-    parts = PurePosixPath(name).parts
-    file = config.root / name
-    if not parts or parts[0] == "/" or ".." in parts or not file.is_file():
+    translated = (
+        notice_file(name, config)
+        for name in config.notices
+        if language != "en" and name.strip().lower().endswith(f".{language}.md")
+    )
+    first = notice_file(config.notices[0], config) if config.notices else None
+    name = next(filter(None, translated), first)
+    if name is None:
         return None
     address = f"{config.blob}/HEAD/{quote(name)}"
-    if name.lower().endswith(".md") and NOTICE_ANCHOR in headings(file):
-        return f"{address}#{NOTICE_ANCHOR}"
+    if name.lower().endswith(".md"):
+        titles = headings(config.root / name)
+        for anchor in (NOTICE_ANCHORS.get(language), NOTICE_ANCHOR):
+            if anchor in titles:
+                return f"{address}#{anchor}"
     return address

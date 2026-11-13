@@ -31,7 +31,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / "tests")]
 
 with atheris.instrument_imports():
     import issue_assistant as assistant
-    from oracle import problems
+    from oracle import headings, problems
     from support import CONFIG
 
 # A related repository, whose checked issues the cleaning makes links.
@@ -49,6 +49,8 @@ def test_one_input(data: bytes) -> None:
     text = data[3:].decode("utf-8", "replace")
     output = assistant.sanitize(text, SETTINGS, numbers)
     found = problems(output, numbers, SETTINGS)
+    # Only the assistant writes the headings of a comment.
+    found += [f"heading {heading!r}" for heading in headings(output)]
     if found:
         raise AssertionError(f"{found} in {output!r} from {text!r}")
     # A line stands alone as a rationale, and after other text in the log.
