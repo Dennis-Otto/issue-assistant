@@ -164,6 +164,18 @@ released = """\
   güncelleyin. Sorun devam ederse bakımcılar için buraya bir yorum yazın ya da yeni \
   bir konu açın."""
 "released.fixes" = " ({pulls} düzeltmesiyle)"
+"fixed.enhancement" = """\
+  #{pull} ile uygulandı ve şu anda `{branch}` dalında. Bir sonraki sürümle \
+  yayımlanacak; bu konu o zaman sürümün bağlantısıyla kapanacak."""
+"released.enhancement" = """\
+  🎉 [{tag}]({url}) sürümünde yayımlandı{fixes}. @{author}, kullanmak için bu sürüme \
+  güncelleyin. Eksik bir şey varsa {reopen_days} içinde buraya bir yorum yazın, konu \
+  yeniden açılır; ya da yeni bir konu açın."""
+"released.muted.enhancement" = """\
+  🎉 [{tag}]({url}) sürümünde yayımlandı{fixes}. @{author}, kullanmak için bu sürüme \
+  güncelleyin. Eksik bir şey varsa bakımcılar için buraya bir yorum yazın ya da yeni \
+  bir konu açın."""
+"released.fixes.enhancement" = " ({pulls} ile)"
 "reopened-release" = """\
   Bize bildirdiğiniz için teşekkürler, @{author}; sorun henüz çözülmediği için \
   üzgünüz. Konuyu yeniden açtım; bakımcılar bir kez daha bakacak."""

@@ -40,7 +40,7 @@ from .issues import (
     kind_of,
     marker,
 )
-from .settings import DEFAULT_LIFECYCLE, Lifecycle, label_names
+from .settings import DEFAULT_LIFECYCLE, Lifecycle, label_names, requests_a_feature
 from .values import command, created, day_of, days_between, login, moment, over
 
 # The most issues that one sweep locks; the next sweep goes on with the rest, so
@@ -381,7 +381,12 @@ def mark_issue_fixed(
         return closed
     github.comment(
         number,
-        render_fixed(pull["number"], branch, issue_language(issue, comments)),
+        render_fixed(
+            pull["number"],
+            branch,
+            issue_language(issue, comments),
+            feature=requests_a_feature(issue),
+        ),
     )
     return [f"#{number}: fixed by #{pull['number']}; closes with the next release."]
 
@@ -473,6 +478,7 @@ def close_issue_released(
                 issue_language(issue, comments()),
                 lifecycle,
                 muted=MUTED in label_names(issue),
+                feature=requests_a_feature(issue),
             ),
         )
     # Closed first: with the label, the next sweep finds an issue that GitHub

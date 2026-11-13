@@ -1,0 +1,3 @@
+<!-- issue-assistant:fixed pull=43 -->
+Umgesetzt durch #43, jetzt auf `main`. Es kommt mit dem nächsten Release; dann wird dieses Issue mit einem Link darauf geschlossen.
+

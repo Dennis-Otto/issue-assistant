@@ -8134,6 +8134,78 @@ def test_a_merged_fix_marks_the_issue_until_the_release(config):
     assert assistant.sweep(github, NOW) == []
 
 
+def test_a_feature_request_hears_what_was_implemented_not_fixed(config):
+    """A feature request had no problem to fix: the notice of the merge says what
+    a pull request implemented, under the same marker, which the sweeps and the
+    digest read for either kind."""
+    github = merged(config, labels=("enhancement", "needs-triage"))
+    assert assistant.sweep(github, NOW) == [
+        "#12: fixed by #40; closes with the next release."
+    ]
+    (notice,) = github.posted(12)
+    assert notice == (
+        "<!-- issue-assistant:fixed pull=40 -->\n"
+        "Implemented by #40, which is now on `main`. It ships with the next "
+        "release; this issue closes then, with a link to it.\n"
+    )
+    assert assistant.sweep(github, NOW) == []
+
+
+@pytest.mark.parametrize("muted", [False, True])
+def test_the_release_tells_a_feature_request_how_to_use_it(config, muted):
+    github = released(config)
+    kinds = ["enhancement", "fixed-in-next-release"] + ["assistant-muted"] * muted
+    github.store[12]["labels"] = [{"name": name} for name in kinds]
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+    (comment,) = github.posted(12)
+    assert comment.startswith("<!-- issue-assistant:released tag=v1.10.0 -->\n")
+    where = "for the maintainers," if muted else "within 30 days and the issue reopens,"
+    assert comment.endswith(
+        "v1.10.0) with #40. @reporter, update to this version to use it. If something "
+        f"is missing, write a comment here {where} or open a new issue.\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("labels", "issue_type", "feature"),
+    [
+        (("enhancement",), None, True),
+        (("enhancement", "needs-triage"), {"name": "Task"}, True),
+        ((), {"name": "Feature"}, True),
+        (("bug", "enhancement"), None, False),
+        (("bug",), {"name": "Feature"}, False),
+        (("documentation",), None, False),
+        ((), None, False),
+        ((), {"name": "Task"}, False),
+    ],
+)
+def test_only_a_request_for_a_feature_without_the_kind_of_a_bug_is_one(
+    labels, issue_type, feature
+):
+    """The words of a fix stay the default: they fit a bug, a gap in the
+    documentation or an issue without a kind; the label `bug` wins over the rest."""
+    issue = make_issue(labels=labels, type=issue_type)
+    assert assistant.requests_a_feature(issue) is feature
+
+
+@pytest.mark.parametrize("language", assistant.LANGUAGES)
+def test_every_language_tells_a_feature_request_other_words(language):
+    release = make_release()
+    for muted in (False, True):
+        problem = assistant.render_released(
+            "reporter", release, [40], language, muted=muted
+        )
+        feature = assistant.render_released(
+            "reporter", release, [40], language, muted=muted, feature=True
+        )
+        assert problem.split("\n")[0] == feature.split("\n")[0]
+        assert problem != feature and "#40" in feature
+    fixed = assistant.render_fixed(40, "main", language)
+    implemented = assistant.render_fixed(40, "main", language, feature=True)
+    assert fixed.split("\n")[0] == implemented.split("\n")[0]
+    assert fixed != implemented and "#40" in implemented and "`main`" in implemented
+
+
 def test_the_notice_of_a_fix_speaks_the_reporter_s_language(config):
     github = merged(config, labels=("bug",))
     german = assistant.render_marker("analysis", lang="de")

@@ -8,7 +8,16 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .constants import EFFORTS, LOGIN, MAX_ASSIGNEES, MAX_RELATED, REPOSITORY_NAME
+from .constants import (
+    BUG,
+    EFFORTS,
+    ENHANCEMENT,
+    FEATURE_TYPE,
+    LOGIN,
+    MAX_ASSIGNEES,
+    MAX_RELATED,
+    REPOSITORY_NAME,
+)
 from .engines import (
     DEFAULT_ENGINE,
     ENGINES,
@@ -732,3 +741,13 @@ def load_findings(root: Path) -> tuple[Acceptance, ...]:
 
 def label_names(issue: dict[str, Any]) -> set[str]:
     return {label["name"] for label in issue.get("labels") or []}
+
+
+def requests_a_feature(issue: dict[str, Any]) -> bool:
+    """Whether the issue asks for something new instead of reporting a problem: it
+    has the kind `enhancement` or GitHub's issue type Feature, and not the kind
+    `bug`. Any other issue, also one without a kind, keeps the words of a fix, which
+    fit a bug, a gap in the documentation or a compatibility problem alike."""
+    names = label_names(issue)
+    issue_type = (issue.get("type") or {}).get("name")
+    return BUG not in names and (ENHANCEMENT in names or issue_type == FEATURE_TYPE)

@@ -167,6 +167,18 @@ released = """\
   Version. Besteht das Problem weiter, schreib hier einen Kommentar für die Maintainer \
   oder eröffne ein neues Issue."""
 "released.fixes" = " mit dem Fix aus {pulls}"
+"fixed.enhancement" = """\
+  Umgesetzt durch #{pull}, jetzt auf `{branch}`. Es kommt mit dem nächsten Release; \
+  dann wird dieses Issue mit einem Link darauf geschlossen."""
+"released.enhancement" = """\
+  🎉 Veröffentlicht in [{tag}]({url}){fixes}. @{author}, aktualisiere auf diese \
+  Version, um es zu nutzen. Fehlt noch etwas, schreib innerhalb von {reopen_days} hier \
+  einen Kommentar, dann wird das Issue wieder geöffnet, oder eröffne ein neues Issue."""
+"released.muted.enhancement" = """\
+  🎉 Veröffentlicht in [{tag}]({url}){fixes}. @{author}, aktualisiere auf diese \
+  Version, um es zu nutzen. Fehlt noch etwas, schreib hier einen Kommentar für die \
+  Maintainer oder eröffne ein neues Issue."""
+"released.fixes.enhancement" = " mit {pulls}"
 "reopened-release" = """\
   Danke für die Rückmeldung, @{author}, und schade, dass es noch nicht gelöst ist. Ich \
   habe das Issue wieder geöffnet; die Maintainer sehen es sich erneut an."""
