@@ -2557,7 +2557,7 @@ def test_yaml_is_read_with_yq_without_pyyaml(monkeypatch, tmp_path):
 
     def run(command, **kwargs):
         calls.append(command)
-        return assistant.subprocess.CompletedProcess(command, 0, '{"on": "push"}', "")
+        return assistant.subprocess.CompletedProcess(command, 0, b'{"on": "push"}', b"")
 
     monkeypatch.setitem(assistant.sys.modules, "yaml", None)
     monkeypatch.setattr(assistant.subprocess, "run", run)
@@ -2565,10 +2565,53 @@ def test_yaml_is_read_with_yq_without_pyyaml(monkeypatch, tmp_path):
     assert calls == [["yq", "-o=json", ".", str(workflow)]]
 
 
+def fake_yq(monkeypatch, output: bytes, status: int = 0):
+    """A yq that writes `output` from a real process, read as load_yaml asks for it.
+
+    Read in text mode without an encoding, its UTF-8 would turn into the code page
+    of the system, such as cp1252 on Windows.
+    """
+    run = subprocess.run
+    script = (
+        "import sys; sys.stdout.buffer.write(bytes.fromhex(sys.argv[1]));"
+        " sys.stderr.buffer.write(bytes.fromhex(sys.argv[1])); sys.exit(int(sys.argv[2]))"
+    )
+
+    def yq(command, **kwargs):
+        assert command[0] == "yq"
+        return run([sys.executable, "-c", script, output.hex(), str(status)], **kwargs)
+
+    monkeypatch.setitem(assistant.sys.modules, "yaml", None)
+    monkeypatch.setattr(assistant.subprocess, "run", yq)
+
+
+@pytest.mark.parametrize("label", ["Gerät", "Ámbito", "设备"])
+def test_yq_s_yaml_keeps_letters_beyond_ascii(monkeypatch, tmp_path, label):
+    fake_yq(monkeypatch, json.dumps({"label": label}, ensure_ascii=False).encode())
+    assert assistant.load_yaml(tmp_path / "form.yml") == {"label": label}
+
+
+def test_yaml_that_yq_writes_in_no_utf_8_is_named(monkeypatch, tmp_path):
+    fake_yq(monkeypatch, b'{"label": "Ger\xe4t"}')
+    with pytest.raises(assistant.SettingsError) as raised:
+        assistant.load_yaml(tmp_path / "form.yml", "form.yml")
+    (problem,) = raised.value.problems
+    assert problem.startswith("form.yml is no valid YAML: 'utf-8' codec can't decode")
+
+
+def test_the_error_of_yq_beyond_ascii_is_named(monkeypatch, tmp_path):
+    fake_yq(monkeypatch, "Error: Gerät: yaml: line 2\n".encode(), status=1)
+    with pytest.raises(assistant.SettingsError) as raised:
+        assistant.load_yaml(tmp_path / "form.yml", "form.yml")
+    assert raised.value.problems == [
+        "form.yml is no valid YAML: Error: Gerät: yaml: line 2"
+    ]
+
+
 def test_yaml_that_yq_cant_read_is_named(monkeypatch, tmp_path):
     def run(command, **kwargs):
         raise assistant.subprocess.CalledProcessError(
-            1, command, "", "Error: bad file: yaml: line 2\n"
+            1, command, b"", b"Error: bad file: yaml: line 2\n"
         )
 
     monkeypatch.setitem(assistant.sys.modules, "yaml", None)

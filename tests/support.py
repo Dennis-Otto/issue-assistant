@@ -1161,9 +1161,16 @@ class FakeGitHub(assistant.GitHub):
             start = int(variables["cursor"] or 0)
             end = start + size
             nodes = deepcopy(pulls[start:end])
-            # The state of each issue at the time of the query, unless a test pins
-            # the one that GitHub reported before the issue changed.
+            # The first issues that each fixes, as many as the query asks for, with
+            # the state of each at the time of the query, unless a test pins the one
+            # that GitHub reported before the issue changed.
+            fixed = int(re.search(r"closingIssuesReferences\(first: (\d+)", query)[1])
             for pull in nodes:
+                references = pull["closingIssuesReferences"]["nodes"]
+                pull["closingIssuesReferences"] = {
+                    "totalCount": len(references),
+                    "nodes": references[:fixed],
+                }
                 for ref in pull["closingIssuesReferences"]["nodes"]:
                     here = ref["repository"]["nameWithOwner"] == REPOSITORY
                     issue = self.store.get(ref["number"]) if here else None
@@ -1204,10 +1211,18 @@ class FakeGitHub(assistant.GitHub):
                     for ref in pull["closingIssuesReferences"]["nodes"]
                 }
             ]
+            first = int(
+                re.search(r"closedByPullRequestsReferences\(first: (\d+)", query)[1]
+            )
             return {
                 "repository": {
                     "defaultBranchRef": {"name": self.branch},
-                    "issue": {"closedByPullRequestsReferences": {"nodes": nodes}},
+                    "issue": {
+                        "closedByPullRequestsReferences": {
+                            "totalCount": len(nodes),
+                            "nodes": nodes[:first],
+                        }
+                    },
                 }
             }
         if "lastEditedAt" in query:

@@ -292,7 +292,19 @@ def mark_fixed(
     for pull in sorted(pulls, key=lambda item: item["mergedAt"]):
         if pull["baseRefName"] != branch:
             continue
-        for reference in pull["closingIssuesReferences"]["nodes"]:
+        references = pull["closingIssuesReferences"]
+        unread = references["totalCount"] - len(references["nodes"])
+        if unread > 0:
+            # GitHub gives one page of them; the rest a maintainer labels by hand.
+            # Unlike the notice on an issue, this line comes back in every sweep
+            # while the pull request is inside MERGE_LOOKBACK: a rare case.
+            skipped = (
+                f"#{pull['number']} fixes {references['totalCount']} issues; the"
+                f" {unread} after the first {len(references['nodes'])} get no label."
+            )
+            command("notice", skipped)
+            done.append(skipped)
+        for reference in references["nodes"]:
             # Most issues that a merge names are closed by the time of a sweep, and
             # each one read would spend the requests that the token has in an
             # hour; the read of an open one decides. A pull request whose words

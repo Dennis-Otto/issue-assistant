@@ -28,6 +28,7 @@ from .languages import *
 from .engines import *
 from .settings import *
 from .fixture import *
+from .rest_shapes import *
 from .github import *
 from .issues import *
 from .cleaning import *

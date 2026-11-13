@@ -27,10 +27,11 @@ def load_yaml(path: Path, where: str = "") -> Any:
         import yaml
     except ImportError:
         try:
+            # As bytes: yq writes UTF-8 everywhere, while text mode would read it
+            # in the code page of the system, such as cp1252 on Windows.
             result = subprocess.run(
                 ["yq", "-o=json", ".", str(path)],
                 capture_output=True,
-                text=True,
                 check=True,
             )
         except FileNotFoundError:
@@ -40,9 +41,12 @@ def load_yaml(path: Path, where: str = "") -> Any:
                 "for example with: pip install pyyaml"
             ) from None
         except subprocess.CalledProcessError as error:
-            reason = error.stderr.strip()
+            reason = error.stderr.decode("utf-8", "replace").strip()
         else:
-            return json.loads(result.stdout)
+            try:
+                return json.loads(result.stdout.decode("utf-8"))
+            except UnicodeDecodeError as error:
+                reason = str(error)
     else:
         try:
             return yaml.safe_load(path.read_text(encoding="utf-8"))

@@ -2394,6 +2394,30 @@ def test_the_website_wears_the_brand():
     assert all((ROOT / "docs" / sheet).is_file() for sheet in website["extra_css"])
 
 
+def test_the_social_preview_names_the_project_as_the_readme_does():
+    name = (ROOT / "README.md").read_text("utf-8").split("\n", 1)[0].removeprefix("# ")
+    website = yaml.safe_load((ROOT / "mkdocs.yml").read_text("utf-8"))
+    assert name == website["site_name"] == "Issue assistant"
+    preview = (ROOT / ".github" / "social-preview.html").read_text("utf-8")
+    assert f"<title>{name}: social preview</title>" in preview
+    assert f"<h1>{name}</h1>" in preview
+
+
+@pytest.mark.parametrize("page", ["getting-started.md", "getting-started.de.md"])
+def test_the_environment_by_hand_lets_the_default_branch_use_it(page):
+    # As install --setup does, whatever the branch is called, such as master or
+    # develop: with main written in, the runs of another one may not use it.
+    text = (ROOT / "docs" / page).read_text("utf-8")
+    (policy,) = re.findall(r"^gh api .*/deployment-branch-policies .*$", text, re.M)
+    assert policy.endswith(" -f name=BRANCH -f type=branch")
+    explained = re.search(
+        r"^`install` .*; `BRANCH` (is the default branch|ist der Standard-Branch):$",
+        text,
+        re.M,
+    )
+    assert explained and explained.end() < text.index(policy)
+
+
 def test_the_hidden_copy_of_a_picture_has_no_link():
     # The hook puts a copy of a picture on the page for each theme, and the theme
     # hides the other one; the link of the lightbox around it goes with it, so that
