@@ -233,8 +233,14 @@ class GitHub:
 
         GitHub's permission is admin or write for the roles admin, maintain and
         write, also through a team or a custom role, and read or none for the rest.
+        An account that GitHub doesn't know, such as a deleted one, may not push.
         """
-        found = self.rest(f"collaborators/{quote(user, safe='')}/permission")
+        try:
+            found = self.rest(f"collaborators/{quote(user, safe='')}/permission")
+        except GitHubError as error:
+            if not error.missing():
+                raise
+            return False
         permission: str = found.get("permission") or "none"
         return permission in {"admin", "write"}
 
