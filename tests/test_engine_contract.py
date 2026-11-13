@@ -235,11 +235,13 @@ def test_every_update_of_an_engine_merges_on_its_own():
         assert "revert this update" in note
         assert "waits for you" not in note
     # A pull request for each engine, so an update that fails its checks holds back
-    # no other one; the action of Codex and its command line move together.
+    # no other one; and one for each package, since Renovate leaves the versions out
+    # of the title of a group of several (decision 0032).
     assert sorted(map(sorted, groups.values())) == sorted(
         [
             ["anthropics/claude-code-action"],
-            ["@openai/codex", "openai/codex-action"],
+            ["openai/codex-action"],
+            ["@openai/codex"],
             ["@google/gemini-cli"],
             ["@github/copilot"],
         ]
@@ -251,6 +253,52 @@ def test_every_update_of_an_engine_merges_on_its_own():
     # The record of the patch versions alone says which replaced it.
     replaced = ROOT / "docs" / "decisions" / REPLACED
     assert f"- Status: replaced by [0030]({DECISION})" in replaced.read_text("utf-8")
+
+
+# What the title of the pull request of each engine calls it.
+ENGINE_TOPICS = {
+    "anthropics/claude-code-action": "the Claude Code action",
+    "openai/codex-action": "the Codex action",
+    "@openai/codex": "the Codex CLI",
+    "@google/gemini-cli": "the Gemini CLI",
+    "@github/copilot": "the Copilot CLI",
+}
+TITLED = "0032-the-title-of-an-engine-update-names-its-versions.md"
+
+
+def test_the_title_of_an_engine_update_names_the_engine_and_its_versions():
+    """Decision 0032: the release takes the title of a pull request of Renovate as its
+    entry of the changelog, so the title names the engine, the new version and the one
+    before, as "fix(deps): update the Gemini CLI to 0.66.0 (was 0.65.0)". Renovate
+    writes commitMessageExtra only into the title of a group with one package, which
+    the test above keeps for each."""
+    assert set(ENGINE_TOPICS) == ENGINE_DEPENDENCIES
+    for name, topic in ENGINE_TOPICS.items():
+        settings, _ = renovate_settings(name)
+        assert settings["commitMessageTopic"] == topic, name
+        assert settings["commitMessageAction"] == "update", name
+        # Renovate writes a title in lower case otherwise, "the gemini cli".
+        assert settings["commitMessageLowerCase"] == "never", name
+        extra = settings["commitMessageExtra"]
+        assert "{{{newVersion}}} (was {{{currentVersion}}})" in extra, name
+        # A new commit of a tag keeps its version and names the commit instead.
+        assert "(equals updateType 'digest')" in extra, name
+        assert "{{{newDigestShort}}}" in extra, name
+    assert (ROOT / "docs" / "decisions" / TITLED).is_file()
+    index = (ROOT / "docs" / "decisions" / "README.md").read_text("utf-8")
+    assert f"accepted, amended by [0032]({TITLED})" in index
+
+
+def test_a_released_update_of_the_dependencies_names_its_versions():
+    """An entry of the changelog that release-please wrote from the title of an update
+    of the dependencies, `* **deps:** …`, names a version that it brings, as every
+    title of an engine does since decision 0032; v1.10.6 said only "update the other
+    engines"."""
+    changelog = (ROOT / "CHANGELOG.md").read_text("utf-8")
+    entries = re.findall(r"^\* \*\*deps:\*\* (.*)$", changelog, re.MULTILINE)
+    assert entries
+    for entry in entries:
+        assert re.search(r"\bv?\d+\.\d+", entry), entry
 
 
 def test_the_check_of_the_engines_is_required_and_reports_on_every_pull_request():

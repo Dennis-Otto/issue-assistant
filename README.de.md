@@ -32,9 +32,9 @@ git clone --quiet --depth 1 --branch "$tag" https://github.com/Dennis-Otto/issue
 
 Dann beschreibst du das Projekt, leerst eine Einstellung und probierst es an einem Issue aus, wie [Ein Repository einrichten](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.de.md#set-up-a-repository) zeigt. Die [Voraussetzungen](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.de.md#requirements) listen, was er braucht, und die [FAQ](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/faq.de.md#what-does-it-cost), was er kostet.
 
-Du kommst aus dem [GitHub Marketplace](https://github.com/marketplace/actions/read-only-issue-assistant)? Sein *Use latest version* bietet einen nackten Schritt mit leerem `command` an; für sich allein gib ihm `command: check`, wie in [Dauerhaft prüfen](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.de.md#keep-it-checked); `install` oben schreibt die vier Workflows, die den Assistenten ausführen.
+Du kommst aus dem [GitHub Marketplace](https://github.com/marketplace/actions/read-only-issue-assistant)? Sein *Use latest version* bietet einen nackten Schritt mit leerem `command` an; für sich allein gib ihm `command: check`, wie in [Dauerhaft prüfen](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/getting-started.de.md#keep-it-checked); `install` oben schreibt die Workflows, die den Assistenten ausführen.
 
-**Live ansehen:** [die erste Analyse eines Funktionswunsches in Paperless Sync](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710), gepostet 2 Minuten 39 Sekunden nach dem Öffnen des Issues.
+**Live ansehen:** erste Analysen [eines Fehlers](https://github.com/Dennis-Otto/homedarts-for-autodarts/issues/521#issuecomment-6547309975), bis in den Code verfolgt, [eines Funktionswunsches](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710) und [einer im Chinesisch des Meldenden](https://github.com/Dennis-Otto/paperless-sync/issues/345#issuecomment-6582461804), mit Zusammenfassung für den Maintainer, gepostet 2 min 32 s, 2 min 39 s und 3 min 7 s nach dem Öffnen des Issues.
 
 <picture>
   <source media="(prefers-reduced-motion: reduce) and (max-width: 600px) and (prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Dennis-Otto/issue-assistant/main/docs/images/hero-mobile-still-dark.webp">
@@ -70,7 +70,7 @@ Eine GitHub Action, die sich um die Issues eines Repositorys kümmert. Jede Zeil
 - **[Kandidaten für Good First Issues](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/good-first-issues.md):** Die Übersicht nennt die Issues, die jemand Neues übernehmen könnte; nur ein Maintainer setzt das Label.
 - **[Wenn GitHub ausfällt](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/github-failures.md):** Ein Rate Limit, ein Serverfehler oder eine Störung ändert nie, was der Assistent postet.
 - **[Labels als Code](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#githublabelstoml):** die Labels des Repositorys in `.github/labels.toml`, aus den Issue-Formularen und aus der Analyse, jedes mit seinem Grund.
-- **[Befunde des Code-Scannings](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings):** Was `.github/findings.toml` akzeptiert, wird mit seinem Grund verworfen, auch in einem Pull Request, wo seine Review-Threads den Merge blockieren würden; jeder andere offene Befund lässt den ersten Lauf nach seinem Auftauchen scheitern, damit GitHub einmal darüber mailt, ohne öffentliches Issue.
+- **[Befunde des Code-Scannings](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/configuration.md#findings):** Was `.github/findings.toml` akzeptiert, wird mit seinem Grund verworfen, auch in einem Pull Request; jeder andere offene Befund lässt einen Lauf scheitern, damit GitHub einmal darüber mailt, ohne öffentliches Issue.
 
 Der Maintainer liest jedes Issue und hat das letzte Wort. Eine erste Analyse sieht so aus, hier auf einem Issue eines Demo-Projekts:
 
@@ -83,7 +83,7 @@ Der Maintainer liest jedes Issue und hat das letzte Wort. Eine erste Analyse sie
 
 ## Wie er funktioniert
 
-Vier kurze Workflows laufen im Repository, jeder pinnt ein Release des Issue-Assistenten. Nur der violette Job führt eine KI aus, und er kann nicht schreiben. [How it works](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/how-it-works.md) zeigt, was jeden von ihnen startet und welche Aufgabe jedes Ereignis der KI gibt.
+Vier Workflows laufen im Repository, ein fünfter für Discussions, wo `answer_categories` Kategorien nennt, jeder pinnt ein Release des Issue-Assistenten. Nur der violette Job führt eine KI aus, und er kann nicht schreiben. [How it works](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/how-it-works.md) zeigt, was jeden von ihnen startet und welche Aufgabe jedes Ereignis der KI gibt.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagrams/the-four-workflows-of-a-repository-and-what-starts-them.de.dark.svg">
@@ -155,11 +155,11 @@ Die Workflows, die `install` schreibt, wählen ihre Runner selbst: `ubuntu-24.04
 | `ubuntu-26.04` | 3.14 | Was `ubuntu-latest` seit dem 19.10.2026 bedeutet |
 | `ubuntu-24.04-arm` | 3.12 | ARM, kostenlos in öffentlichen Repositorys |
 
-Die Action braucht Python 3.12 oder neuer als `python3`, mit `gh` und `git`; `check` und `evaluate` lesen YAML außerdem mit PyYAML oder `yq`. Auf älterem Python, etwa auf `ubuntu-22.04`, einem selbst gehosteten Runner oder nach `actions/setup-python` mit älterer Version, bricht sie im ersten Schritt ab und nennt Version und Abhilfe: den Job auf `ubuntu-24.04` ausführen oder vorher `actions/setup-python` mit `python-version: 3.12` einfügen.
+Die Action braucht Python 3.12 oder neuer als `python3`, mit `gh` und `git`; `check` und `evaluate` lesen YAML außerdem mit PyYAML oder `yq`. Auf älterem Python, etwa auf `ubuntu-22.04`, bricht sie im ersten Schritt ab und nennt die Abhilfe: den Job auf `ubuntu-24.04` ausführen oder vorher `actions/setup-python` mit `python-version: 3.12` einfügen.
 
 ## Entwicklung
 
-Siehe [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). Das Skript braucht nur die Standardbibliothek von Python, `gh` und `git`. Die Tests prüfen jede GraphQL-Anfrage gegen GitHubs Schema, [Probeläufe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) spielen ein Issue durch die KI und jeden wiederverwendbaren Workflow durch, wie ein Repository sie aufruft, und eine Änderung [einer Vorlage](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/templates.md) erreicht die Repositorys mit einem Release.
+Siehe [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). Das Skript braucht nur die Standardbibliothek von Python, `gh` und `git`. Die Tests prüfen jede GraphQL-Anfrage gegen GitHubs Schema, [Probeläufe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) spielen ein Issue durch die KI und jeden wiederverwendbaren Workflow durch, wie ein Repository sie aufruft.
 
 ## Lizenz
 

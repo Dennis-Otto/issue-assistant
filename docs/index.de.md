@@ -16,7 +16,7 @@ hide:
 **Sichere KI-Triage von Issues für GitHub.** Eine KI, die nur liest, schreibt eine erste Analyse jedes neuen Issues, und ein Job ohne KI prüft sie, bevor irgendetwas gepostet wird. Labels, Duplikate, Erinnerungen und das Schließen behobener Issues mit dem Release gibt es dazu.
 
 [Loslegen](getting-started.md){ .md-button .md-button--primary }
-[Live ansehen](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710){ .md-button }
+[Live ansehen](https://github.com/Dennis-Otto/homedarts-for-autodarts/issues/521#issuecomment-6547309975){ .md-button }
 [Neuestes Release](https://github.com/Dennis-Otto/issue-assistant/releases/latest){ .md-button }
 
 <picture>
@@ -88,7 +88,7 @@ hide:
 
 Der Maintainer liest jedes Issue und hat das letzte Wort.
 
-**Im Einsatz bei** [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), dem [Repository-Blueprint](https://github.com/Dennis-Otto/repo-blueprint), der Website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) und dem Issue-Assistenten selbst. **Live ansehen:** [die erste Analyse eines Funktionswunsches in Paperless Sync](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710), gepostet 2 Minuten 39 Sekunden nach dem Öffnen des Issues.
+**Im Einsatz bei** [HomeDarts for Autodarts](https://github.com/Dennis-Otto/homedarts-for-autodarts), [Player Switch for Autodarts](https://github.com/Dennis-Otto/player-switch-for-autodarts), [Paperless Unified Search](https://github.com/Dennis-Otto/paperless-unified-search), [Paperless Sync](https://github.com/Dennis-Otto/paperless-sync), dem [Repository-Blueprint](https://github.com/Dennis-Otto/repo-blueprint), der Website [dennis-otto.github.io](https://github.com/Dennis-Otto/dennis-otto.github.io) und dem Issue-Assistenten selbst. **Live ansehen:** erste Analysen [eines Fehlers](https://github.com/Dennis-Otto/homedarts-for-autodarts/issues/521#issuecomment-6547309975), bis in den Code verfolgt, [eines Funktionswunsches](https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710) und [einer im Chinesisch des Meldenden](https://github.com/Dennis-Otto/paperless-sync/issues/345#issuecomment-6582461804), mit Zusammenfassung für den Maintainer, gepostet 2 min 32 s, 2 min 39 s und 3 min 7 s nach dem Öffnen des Issues.
 
 <a id="careful-by-design"></a>
 

@@ -1,6 +1,6 @@
 # Every update of an engine merges on its own once its checks passed, and the release waits for the Canary of main
 
-- Status: accepted
+- Status: accepted, amended by [0032](0032-the-title-of-an-engine-update-names-its-versions.md)
 - Date: 2026-11-10
 
 ## Context

@@ -68,7 +68,7 @@ On Windows, run the commands in Git Bash; Python's launcher `py` takes the place
 | `.github/egress-firewall.yaml` | when missing | add the hosts that the engine needs besides those of the template, if any |
 | `.github/issue-assistant/project.md` | when missing | describe the project, as step 2 says |
 | `.github/labels.toml` | when missing | define the labels: the seven lifecycle labels are required; kinds, areas, topics and, if you add them, priorities are what the AI chooses from |
-| `.github/issue-assistant/config.toml` | when missing | choose the engine, the hosts that links may lead to, the field of the issue forms that chooses an area, the categories of the discussions that get a first answer, and the files that tell reporters which AI reads their issue |
+| `.github/issue-assistant/config.toml` | when missing | choose the engine, the hosts that links may lead to, the field of the issue forms that chooses an area, the categories of discussions that get a first answer, and the files that tell reporters which AI reads their issue |
 | `.github/findings.toml` | when missing | accept findings of code scanning that can't or shouldn't be fixed, each with its reason |
 | `.github/ISSUE_TEMPLATE/bug_report.yml`, `feature_request.yml` | together with the starter `labels.toml`, when the repository has no issue forms or templates | adapt the answers of the field *Area*, whose `form_options` in `labels.toml` choose an area label; their box *Automated analysis* lets a reporter [say no to the AI](features/opt-out.md) |
 | `.github/ISSUE_TEMPLATE/config.yml` | with these forms, when it is missing | turn on what its links need in the settings of the repository: Discussions, for the first category of `[discussions] answer_categories`, and private vulnerability reporting, which GitHub offers only for public repositories; remove a link that you don't want or that can't work |
@@ -170,3 +170,33 @@ The footer of every comment of the AI already links the issue assistant, unless 
 ```markdown
 [![issues: triaged by issue assistant](https://img.shields.io/badge/issues-triaged%20by%20issue%20assistant-blue)](https://dennis-otto.github.io/issue-assistant/)
 ```
+
+## Remove the assistant
+
+<details markdown="1">
+<summary>Five steps, for a maintainer</summary>
+
+Setting `ISSUE_ASSISTANT_AI` to `off` only turns the AI off, as [the FAQ](faq.md#how-do-i-turn-it-off) says. To remove the assistant from a repository, undo what the set-up did, in this order:
+
+1. **Delete the workflows and the files that `install` wrote,** in one pull request: the five workflows in `.github/workflows/`, `issue-assistant.yml`, `issue-lifecycle.yml`, `labels.yml`, `findings.yml` and `discussion-assistant.yml`, which answers discussions with the engine too; the settings in `.github/issue-assistant/`, `.github/labels.toml`, `.github/findings.toml` and the firewall policy `.github/egress-firewall.yaml`; and the step of the check that [Keep it checked](#keep-it-checked) added to the CI, which would fail without them. `discussion-assistant.yml`, `.github/findings.toml` and the firewall policy exist only where the set-up wrote them, so the command skips what is missing. Once it is merged, nothing of the assistant runs any more.
+
+    ```sh
+    git rm -r --ignore-unmatch .github/workflows/issue-assistant.yml .github/workflows/issue-lifecycle.yml \
+      .github/workflows/labels.yml .github/workflows/findings.yml \
+      .github/workflows/discussion-assistant.yml .github/issue-assistant \
+      .github/labels.toml .github/findings.toml .github/egress-firewall.yaml
+    ```
+
+2. **Delete the environment `issue-assistant`,** with the engine's secret in it, and the repository variables `ISSUE_ASSISTANT_AI` and `ISSUE_ASSISTANT_AI_RUNNER`, where you set them, under *Settings → Environments* and *Settings → Secrets and variables → Actions*, or with the GitHub CLI:
+
+    ```sh
+    gh api -X DELETE repos/OWNER/REPO/environments/issue-assistant
+    gh variable delete ISSUE_ASSISTANT_AI
+    gh variable delete ISSUE_ASSISTANT_AI_RUNNER
+    ```
+
+3. **Settle the issues that the assistant looked after.** Close the issue of the [digest](features/digest.md#the-digest-as-an-issue), if the sweep kept one. Nothing reminds the reporters of the open issues labeled `needs-info` any more, or closes those labeled `fixed-in-next-release` with the release: `gh issue list --label needs-info` and `gh issue list --label fixed-in-next-release` list them, for you to answer, close or relabel. The labels themselves stay, since the Labels workflow never deletes one; delete those you no longer want under *Issues → Labels*.
+4. **Let merged pull requests close their issues again:** under *Settings → General → Issues*, tick **Auto-close issues with merged linked pull requests**, which step 3 of [the set-up](#set-up-a-repository) cleared.
+5. **Stop telling reporters about the AI:** remove the section *What happens with your issue* from `SUPPORT.md`, or from the files of `[transparency]`, and the box *Automated analysis* from the issue forms, which nothing reads any more. The entry `/.issue-assistant/` of `.gitignore` can go as well. These are files, so they can go into the pull request of step 1.
+
+</details>

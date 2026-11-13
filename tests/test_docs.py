@@ -1206,6 +1206,39 @@ def test_every_page_names_the_same_users():
     assert users(roadmap, "- **The repositories that use it.**") == USERS
 
 
+# The real analyses that the README and the home page show, each at the anchor of its
+# comment: a bug traced into the code, a feature request and an answer in the
+# reporter's language with a summary for the maintainer.
+LIVE = [
+    "https://github.com/Dennis-Otto/homedarts-for-autodarts/issues/521"
+    "#issuecomment-6547309975",
+    "https://github.com/Dennis-Otto/paperless-sync/issues/84#issuecomment-6125470710",
+    "https://github.com/Dennis-Otto/paperless-sync/issues/345#issuecomment-6582461804",
+]
+
+
+def live_examples(text: str, label: str) -> list[str]:
+    """The links of the sentence that starts with **<label>:**, in their order."""
+    (sentence,) = re.findall(rf"\*\*{label}:\*\* [^\n]*?\.(?= |$)", text, re.M)
+    return re.findall(r"\]\((https://[^)]+)\)", sentence)
+
+
+@pytest.mark.parametrize(
+    ("readme", "home", "label"),
+    [
+        ("README.md", "index.md", "See it live"),
+        ("README.de.md", "index.de.md", "Live ansehen"),
+    ],
+)
+def test_every_page_shows_the_same_live_examples(readme: str, home: str, label: str):
+    readme_text = (ROOT / readme).read_text("utf-8")
+    home_text = (ROOT / "docs" / home).read_text("utf-8")
+    assert live_examples(readme_text, label) == LIVE
+    assert live_examples(home_text, label) == LIVE
+    # The button of the home page leads to the bug, the example that shows the most.
+    assert f"[{label}]({LIVE[0]}){{ .md-button }}" in home_text
+
+
 def test_no_page_links_a_repository_by_its_old_name():
     for document in DOCUMENTS:
         text = document.read_text("utf-8")

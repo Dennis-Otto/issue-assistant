@@ -136,7 +136,7 @@ Der Kommentar bittet die meldende Person nur, sie privat zu melden, wie die Sich
 
 ## Wie schalte ich ihn ab?
 
-Setze die Repository-Variable `ISSUE_ASSISTANT_AI` auf `off`, zum Beispiel mit `gh variable set ISSUE_ASSISTANT_AI --body off`, und die KI bleibt aus, während Labels, Erinnerungen und Schließen weiterlaufen; das Entfernen des Secrets der Engine bewirkt dasselbe. Für ein einzelnes Issue hält ein Kommentar `/assistant mute` die KI davon ab, dort von selbst zu starten. Um alles abzuschalten, deaktiviere oder lösche die vier Workflows.
+Setze die Repository-Variable `ISSUE_ASSISTANT_AI` auf `off`, zum Beispiel mit `gh variable set ISSUE_ASSISTANT_AI --body off`, und die KI bleibt aus, während Labels, Erinnerungen und Schließen weiterlaufen; das Entfernen des Secrets der Engine bewirkt dasselbe. Für ein einzelnes Issue hält ein Kommentar `/assistant mute` die KI davon ab, dort von selbst zu starten. Um alles abzuschalten, deaktiviere oder lösche die vier Workflows und den der Discussions, `discussion-assistant.yml`, der ebenfalls mit der Engine antwortet; [Den Assistenten entfernen](getting-started.md#remove-the-assistant) nennt, was die Einrichtung sonst im Repository und auf GitHub hinterlassen hat.
 
 <a id="what-if-the-firewall-runner-is-gone"></a>
 

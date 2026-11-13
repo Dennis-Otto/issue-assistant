@@ -98,7 +98,7 @@ The comment only asks the reporter to report it privately, as the security polic
 
 ## How do I turn it off?
 
-Set the repository variable `ISSUE_ASSISTANT_AI` to `off`, for example with `gh variable set ISSUE_ASSISTANT_AI --body off`, and the AI stays off while labels, reminders and closing keep working; removing the engine's secret does the same. For one issue, a comment `/assistant mute` keeps the AI from starting on its own there. To turn off everything, disable or delete the four workflows.
+Set the repository variable `ISSUE_ASSISTANT_AI` to `off`, for example with `gh variable set ISSUE_ASSISTANT_AI --body off`, and the AI stays off while labels, reminders and closing keep working; removing the engine's secret does the same. For one issue, a comment `/assistant mute` keeps the AI from starting on its own there. To turn off everything, disable or delete the four workflows and the one of the discussions, `discussion-assistant.yml`, which answers with the engine too; [Remove the assistant](getting-started.md#remove-the-assistant) lists what else the set-up left in the repository and on GitHub.
 
 ## What if the firewall runner is gone?
 

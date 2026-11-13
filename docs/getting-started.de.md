@@ -162,7 +162,7 @@ Der Cooldown wartet eine Woche auf neue Releases, wie zizmor verlangt; Sicherhei
 3. **Ein Probelauf zeigt den Kommentar**: Die Zusammenfassung des Jobs *Check and post the analysis* (`apply`) zeigt die Labels und den Kommentar, die er posten würde, und schreibt nichts.
 4. **Ein neues Issue bekommt seine Analyse** innerhalb weniger Minuten. Öffne es mit einem Konto, das kein Maintainer ist: Issues des Besitzers, von Mitgliedern und Collaborators bekommen die Labels ihres Formulars, aber keine Analyse.
 
-Kommt kein Kommentar, hat die [Fehlerbehebung](troubleshooting.md) die üblichen Ursachen, jede mit ihrer Abhilfe. [Was Meldende sehen](comments.md) zeigt jeden Kommentar, den der Assistent postet.
+Kommt kein Kommentar, hat die [Fehlerbehebung](troubleshooting.md) die üblichen Ursachen, jede mit Abhilfe. [Was Meldende sehen](comments.md) zeigt jeden Kommentar, den der Assistent postet.
 
 <a id="start-with-a-backlog"></a>
 
@@ -190,3 +190,35 @@ Die Fußzeile jedes Kommentars der KI verlinkt den Issue-Assistenten bereits, es
 ```markdown
 [![issues: triaged by issue assistant](https://img.shields.io/badge/issues-triaged%20by%20issue%20assistant-blue)](https://dennis-otto.github.io/issue-assistant/)
 ```
+
+<a id="remove-the-assistant"></a>
+
+## Den Assistenten entfernen
+
+<details markdown="1">
+<summary>Fünf Schritte, für Maintainer</summary>
+
+`ISSUE_ASSISTANT_AI` auf `off` zu setzen, schaltet nur die KI ab, wie [die FAQ](faq.md#how-do-i-turn-it-off) sagt. Um den Assistenten aus einem Repository zu entfernen, mach rückgängig, was die Einrichtung getan hat, in dieser Reihenfolge:
+
+1. **Lösche die Workflows und die Dateien, die `install` geschrieben hat,** in einem Pull Request: die fünf Workflows in `.github/workflows/`, `issue-assistant.yml`, `issue-lifecycle.yml`, `labels.yml`, `findings.yml` und `discussion-assistant.yml`, der ebenfalls mit der Engine Discussions beantwortet; die Einstellungen in `.github/issue-assistant/`, `.github/labels.toml`, `.github/findings.toml` und die Firewall-Richtlinie `.github/egress-firewall.yaml`; und den Schritt der Prüfung, den [Dauerhaft prüfen](#keep-it-checked) der CI hinzugefügt hat und der ohne sie scheitern würde. `discussion-assistant.yml`, `.github/findings.toml` und die Firewall-Richtlinie gibt es nur, wo die Einrichtung sie geschrieben hat, deshalb überspringt der Befehl, was fehlt. Sobald er gemergt ist, läuft nichts mehr vom Assistenten.
+
+    ```sh
+    git rm -r --ignore-unmatch .github/workflows/issue-assistant.yml .github/workflows/issue-lifecycle.yml \
+      .github/workflows/labels.yml .github/workflows/findings.yml \
+      .github/workflows/discussion-assistant.yml .github/issue-assistant \
+      .github/labels.toml .github/findings.toml .github/egress-firewall.yaml
+    ```
+
+2. **Lösche die Umgebung `issue-assistant`,** mit dem Secret der Engine darin, und die Repository-Variablen `ISSUE_ASSISTANT_AI` und `ISSUE_ASSISTANT_AI_RUNNER`, wo du sie gesetzt hast, unter *Settings → Environments* und *Settings → Secrets and variables → Actions* oder mit der GitHub CLI:
+
+    ```sh
+    gh api -X DELETE repos/OWNER/REPO/environments/issue-assistant
+    gh variable delete ISSUE_ASSISTANT_AI
+    gh variable delete ISSUE_ASSISTANT_AI_RUNNER
+    ```
+
+3. **Kümmere dich um die Issues, die der Assistent betreut hat.** Schließe das Issue des [Digests](features/digest.md#the-digest-as-an-issue), wenn der Sweep eines geführt hat. Nichts erinnert mehr die Meldenden der offenen Issues mit dem Label `needs-info`, und nichts schließt mehr die mit `fixed-in-next-release` mit dem Release: `gh issue list --label needs-info` und `gh issue list --label fixed-in-next-release` listen sie, damit du sie beantwortest, schließt oder neu labelst. Die Labels selbst bleiben, weil der Labels-Workflow nie eines löscht; lösche die, die du nicht mehr willst, unter *Issues → Labels*.
+4. **Lass gemergte Pull Requests ihre Issues wieder schließen:** Setze unter *Settings → General → Issues* wieder den Haken bei **Auto-close issues with merged linked pull requests**, den Schritt 3 von [der Einrichtung](#set-up-a-repository) entfernt hat.
+5. **Hör auf, Meldenden von der KI zu erzählen:** Entferne den Abschnitt *What happens with your issue* aus `SUPPORT.md` oder aus den Dateien von `[transparency]` und das Feld *Automated analysis* aus den Issue-Formularen, das nichts mehr liest. Der Eintrag `/.issue-assistant/` in `.gitignore` kann auch weg. Das sind Dateien, sie können also in den Pull Request von Schritt 1.
+
+</details>

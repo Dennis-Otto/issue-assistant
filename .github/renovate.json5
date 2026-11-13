@@ -35,6 +35,18 @@
       // merges on its own as well, by the rules of the blueprint, from versions a
       // week old. Each engine comes in a pull request of its own, so an update that
       // fails its checks holds back no other engine.
+      //
+      // The title of each names the engine and both versions, such as "fix(deps):
+      // update the Gemini CLI to 0.66.0 (was 0.65.0)": the release takes the title of
+      // a pull request of Renovate as its entry of the changelog and its line of the
+      // notes, since a bot writes no fragment of changelog.d/. Renovate writes
+      // commitMessageExtra only into the title of a group that holds one package and
+      // one version, and leaves it out of a group of several, as it did in #311, so
+      // each package of an engine has a group of its own, Codex one for its action
+      // and one for its command line (decision 0032). A new commit of a tag keeps its
+      // version and names the commit instead. Renovate would write the title in lower
+      // case, "the gemini cli"; commitMessageLowerCase keeps the names as they are,
+      // and commitMessageAction the verb in lower case, as in every other title.
       matchDepNames: [
         "anthropics/claude-code-action",
         "openai/codex-action",
@@ -43,25 +55,37 @@
         "@github/copilot",
       ],
       automerge: true,
+      commitMessageAction: "update",
+      commitMessageLowerCase: "never",
+      commitMessageExtra: "to {{#if (equals updateType 'digest')}}a new commit of {{{currentValue}}}, {{{newDigestShort}}}{{else}}{{{newVersion}}} (was {{{currentVersion}}}){{/if}}",
     },
     {
       matchDepNames: ["anthropics/claude-code-action"],
       groupName: "the engine's action",
+      commitMessageTopic: "the Claude Code action",
       prBodyNotes: [
         "**This update merges on its own** once every required check passed, as [decision 0030](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/decisions/0030-every-update-of-an-engine-merges-on-its-own-and-the-release-waits-for-the-canary.md) says, a minor or major version too. The engine's action runs only on `main`, where the engine's secret is, so no check of this pull request runs it; the required check *engine contracts* below shows that the action still has each input that the workflows pass and each output that they read. The push of the merge to `main` starts the [Canary](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/canary.yml), which runs the analysis of a fixture issue with this version, from the engine on the firewall runner to the checked answer, and the pull request of the next release waits until a Canary of `main` passed, by its required check *the Canary of main*. If the Canary fails, revert this update; the release goes once a Canary passes again.",
       ],
     },
     {
-      matchDepNames: ["openai/codex-action", "@openai/codex"],
-      groupName: "Codex",
+      matchDepNames: ["openai/codex-action"],
+      groupName: "the Codex action",
+      commitMessageTopic: "the Codex action",
+    },
+    {
+      matchDepNames: ["@openai/codex"],
+      groupName: "the Codex CLI",
+      commitMessageTopic: "the Codex CLI",
     },
     {
       matchDepNames: ["@google/gemini-cli"],
       groupName: "the Gemini CLI",
+      commitMessageTopic: "the Gemini CLI",
     },
     {
       matchDepNames: ["@github/copilot"],
       groupName: "the Copilot CLI",
+      commitMessageTopic: "the Copilot CLI",
     },
     {
       matchDepNames: [
