@@ -58,6 +58,12 @@ def assigned(node: ast.AST) -> Iterator[tuple[str, ast.expr]]:
         and node.value is not None
     ):
         yield node.target.id, node.value
+    elif isinstance(node, ast.For | ast.comprehension) and isinstance(
+        node.target, ast.Name
+    ):
+        # The name of a loop takes each value of what it runs over, as folder does
+        # in `for folder in ("docs", "issue_assistant")`.
+        yield node.target.id, node.iter
 
 
 @dataclass
@@ -274,6 +280,14 @@ READERS = {
         'def test_a():\n    for module in (ROOT / "issue_assistant").glob("*.py"):\n'
         "        module.read_text()\n"
     ),
+    "a folder among others, in a loop": (
+        'def test_a():\n    for folder in ("docs", "issue_assistant"):\n'
+        "        (ROOT / folder).rglob('*')\n"
+    ),
+    "a folder among others, in a comprehension": (
+        "def test_a():\n    texts = [path for folder in ('docs', 'issue_assistant')"
+        " for path in (ROOT / folder).rglob('*')]\n"
+    ),
     "the folder of __file__": (
         "def test_a():\n    list(Path(assistant.__file__).parent.iterdir())\n"
     ),
@@ -335,6 +349,10 @@ SAFE = {
         "def test_a():\n    (ROOT / 'action.yml').read_text()\n"
     ),
     "another folder": 'def test_a():\n    (ROOT / "tests").glob("*.py")\n',
+    "other folders, in a loop": (
+        'def test_a():\n    for folder in ("docs", "tests"):\n'
+        "        (ROOT / folder).rglob('*')\n"
+    ),
     "the file of another module": (
         "def test_a():\n    Path(other.__file__).read_text()\n"
     ),
