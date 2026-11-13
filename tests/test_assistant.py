@@ -8337,6 +8337,29 @@ def test_a_busy_repository_marks_a_fix_on_a_later_page(config):
     assert [call[2]["cursor"] for call in pages] == [None, "100"]
 
 
+def test_a_fix_of_eleven_issues_marks_the_eleventh(config):
+    github = merged(config, make_pull(fixes=range(12, 23)), labels=("bug",))
+    for number in range(13, 23):
+        github.store[number] = make_issue(number, labels=("bug",))
+    assert assistant.mark_fixed(github, NOW) == [
+        f"#{number}: fixed by #40; closes with the next release."
+        for number in range(12, 23)
+    ]
+    assert github.labels_of(22) == {"bug", "fixed-in-next-release"}
+
+
+def test_a_fix_of_more_issues_than_one_page_names_the_rest(config, capsys):
+    # A hundred closed ones come first, which cost no request, and #12 after them.
+    pull = make_pull(fixes=(*range(1000, 1100), 12))
+    for reference in pull["closingIssuesReferences"]["nodes"][:100]:
+        reference["state"] = "CLOSED"
+    github = merged(config, pull, labels=("bug",))
+    skipped = "#40 fixes 101 issues; the 1 after the first 100 get no label."
+    assert assistant.mark_fixed(github, NOW) == [skipped]
+    assert f"::notice::{skipped}" in capsys.readouterr().out
+    assert github.labels_of(12) == {"bug"}
+
+
 def test_a_fix_that_a_release_already_ships_closes_the_issue_at_once(config):
     # The run of the merge failed, and the release came before the next sweep.
     github = merged(config, make_pull(days_ago=3), days_ago=10)
@@ -8576,6 +8599,29 @@ def test_a_release_without_the_fix_keeps_the_issue_open(config):
     github = released(config, contained=False)
     assert assistant.close_released(github) == []
     assert github.store[12]["state"] == "open"
+
+
+def test_the_release_waits_for_the_eleventh_fix_of_an_issue(config):
+    github = released(
+        config,
+        pulls=[make_pull(30 + index, days_ago=3) for index in range(11)],
+        contained=False,
+    )
+    # The release ships the first ten fixes, but not the eleventh.
+    github.contained = {(f"{30 + index:040x}", "v1.10.0") for index in range(10)}
+    assert assistant.close_released(github) == []
+    assert github.store[12]["state"] == "open"
+
+
+def test_more_fixes_of_an_issue_than_one_page_are_named(config, capsys):
+    pulls = [make_pull(100 + index, days_ago=3) for index in range(101)]
+    github = released(config, pulls=pulls, contained=False)
+    github.contained = {(f"{100 + index:040x}", "v1.10.0") for index in range(101)}
+    assert assistant.close_released(github) == ["#12: closed, released in v1.10.0."]
+    assert (
+        "::notice::#12: 101 pull requests name it; the release waits only for the"
+        " fixes of the first 100, not for the other 1." in capsys.readouterr().out
+    )
 
 
 def test_the_first_release_with_every_fix_closes_the_issue(config):

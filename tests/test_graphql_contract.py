@@ -133,9 +133,10 @@ def pull(
 
 
 FIXES = {
+    "totalCount": 1,
     "nodes": [
         {"number": 12, "state": "OPEN", "repository": {"nameWithOwner": REPOSITORY}}
-    ]
+    ],
 }
 DISCUSSION = {
     "number": 3,
@@ -364,12 +365,13 @@ REQUESTS = {
                 "defaultBranchRef": {"name": "main"},
                 "issue": {
                     "closedByPullRequestsReferences": {
+                        "totalCount": 4,
                         "nodes": [
                             pull(31),
                             pull(32, merged=False),
                             pull(33, base="release"),
                             pull(34, repository="someone/else"),
-                        ]
+                        ],
                     }
                 },
             }

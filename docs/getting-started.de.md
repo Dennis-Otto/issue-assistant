@@ -120,11 +120,11 @@ Die Prüfung läuft unter Linux, macOS oder Windows, mit Python 3.12 oder neuer,
 
 ### Ohne `--setup`
 
-`install` allein schreibt nur Dateien. Lege die Umgebung und das Secret selbst auf GitHub an, unter *Settings → Environments* oder mit der GitHub CLI:
+`install` allein schreibt nur Dateien. Lege Umgebung und Secret unter *Settings → Environments* an oder mit der GitHub CLI; `BRANCH` ist der Standard-Branch:
 
 ```sh
 gh api -X PUT repos/OWNER/REPO/environments/issue-assistant -F "deployment_branch_policy[protected_branches]=false" -F "deployment_branch_policy[custom_branch_policies]=true"
-gh api -X POST repos/OWNER/REPO/environments/issue-assistant/deployment-branch-policies -f name=main -f type=branch
+gh api -X POST repos/OWNER/REPO/environments/issue-assistant/deployment-branch-policies -f name=BRANCH -f type=branch
 gh secret set CLAUDE_CODE_OAUTH_TOKEN --env issue-assistant --repo OWNER/REPO
 ```
 

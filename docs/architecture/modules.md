@@ -26,7 +26,8 @@ The code is the package `issue_assistant/`, of the standard library alone ([deci
 | `issue_assistant/engines.py` | The table `ENGINES`, with the command line and the limits of each |
 | `issue_assistant/settings.py` | `labels.toml`, `config.toml` and `findings.toml`, read and checked |
 | `issue_assistant/fixture.py` | An issue or a discussion from a file, for the canary, the Workflow test and for trying a prompt |
-| `issue_assistant/github.py` | The class `GitHub`: every request, through `gh`, and GraphQL's answers as REST's |
+| `issue_assistant/rest_shapes.py` | GraphQL's answers in the form of the REST API: issues, authors, comments and discussions |
+| `issue_assistant/github.py` | The class `GitHub`: every request, through `gh` |
 | `issue_assistant/issues.py` | Who wrote an issue or a comment, the marks of the assistant, the issue forms and the commands in a comment |
 | `issue_assistant/cleaning.py` | The cleaning of what the engine wrote: `sanitize`, `plain` and the links to files |
 | `issue_assistant/answer.py` | The schema of the answer, `validate` and `parse_answer` |

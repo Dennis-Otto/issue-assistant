@@ -108,11 +108,11 @@ The check runs on Linux, macOS or Windows, with Python 3.12 or newer, and reads 
 
 ### Without `--setup`
 
-`install` alone writes only files. Create the environment and the secret on GitHub yourself, under *Settings → Environments*, or with the GitHub CLI:
+`install` alone writes only files. Create the environment and its secret in *Settings → Environments* or with the GitHub CLI; `BRANCH` is the default branch:
 
 ```sh
 gh api -X PUT repos/OWNER/REPO/environments/issue-assistant -F "deployment_branch_policy[protected_branches]=false" -F "deployment_branch_policy[custom_branch_policies]=true"
-gh api -X POST repos/OWNER/REPO/environments/issue-assistant/deployment-branch-policies -f name=main -f type=branch
+gh api -X POST repos/OWNER/REPO/environments/issue-assistant/deployment-branch-policies -f name=BRANCH -f type=branch
 gh secret set CLAUDE_CODE_OAUTH_TOKEN --env issue-assistant --repo OWNER/REPO
 ```
 
