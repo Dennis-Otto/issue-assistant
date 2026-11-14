@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .answer import schema_json
-from .attachments import render_attachments
+from .attachments import keep_shown, render_attachments
 from .cleaning import one_line, shown_text
 from .constants import BOT, DISCUSSION_MODES, MAX_TEXT, MODES
 from .engines import ENGINES, IN_PROMPT, STRICT, Engine, engine_named
@@ -446,6 +446,7 @@ def write_context(
         )
         if attached:
             (folder / "attachments.md").write_text(attached, encoding="utf-8")
+        keep_shown(config.root, attached, images)
         if mode in REPLIES:
             judged = judged_comment(issue, comments, mode, comment_id)
             (folder / "comment.md").write_text(

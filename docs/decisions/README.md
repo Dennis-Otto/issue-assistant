@@ -13,7 +13,7 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0005](0005-close-with-the-release.md) | Close an issue with the release that ships its fix | accepted |
 | [0006](0006-the-templates-exactly.md) | Every repository uses the workflows exactly as the templates have them | accepted, amended by [0007](0007-templates-live-in-templates.md) and [0015](0015-reusable-workflows.md) |
 | [0007](0007-templates-live-in-templates.md) | The templates live in `templates/`; this repository's own workflows come from the blueprint | accepted |
-| [0008](0008-the-jobs-that-write-reach-only-github.md) | The jobs that write reach only GitHub: Harden-Runner blocks every other host | accepted, amended by [0026](0026-an-open-alert-fails-one-run.md) and [0029](0029-a-job-stops-when-harden-runner-doesnt-block.md) |
+| [0008](0008-the-jobs-that-write-reach-only-github.md) | The jobs that write reach only GitHub: Harden-Runner blocks every other host | accepted, amended by [0026](0026-an-open-alert-fails-one-run.md), [0029](0029-a-job-stops-when-harden-runner-doesnt-block.md) and [0033](0033-the-ai-reads-the-text-files-that-a-reporter-attaches.md) |
 | [0009](0009-limit-the-ai-runs.md) | Limit the AI runs that strangers start, counting issues rather than answers | accepted |
 | [0010](0010-the-lifecycle-keeps-the-day-it-names.md) | The lifecycle counts days of the calendar and keeps the day that a reminder names | accepted |
 | [0011](0011-install-pins-its-own-checkout.md) | `install` pins the commit of its own checkout, the release whose templates it writes | accepted |

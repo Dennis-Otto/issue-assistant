@@ -48,8 +48,11 @@ MOST_CHARACTERS = 20_000
 MOST_BYTES = 4 * MOST_CHARACTERS
 # The most images of one issue that the job downloads, and the most bytes of each:
 # the limit of one image of the APIs of the engines. An image that is larger is
-# left out, since a part of one is none.
+# left out, since a part of one is none. GitHub gives a video the same link as an
+# image, so only an upload that is an image takes one of the MOST_IMAGES, and the
+# job tries at most MOST_IMAGE_TRIES uploads, however many an issue links.
 MOST_IMAGES = 3
+MOST_IMAGE_TRIES = 2 * MOST_IMAGES
 MOST_IMAGE_BYTES = 5_000_000
 # The kinds of images that the engines open, by the bytes that each starts with,
 # and the end of the name of the file that the job gives it; WebP, whose start has
@@ -136,12 +139,12 @@ UNREAD_IMAGE = {
         "the assistant opens."
     ),
     "too large": (
-        f"Not read: an image of more than {MOST_IMAGE_BYTES // 1_000_000} MB, "
-        "larger than an engine takes."
+        f"Not read: a file of more than {MOST_IMAGE_BYTES // 1_000_000} MB, "
+        "larger than an engine takes of an image, such as a video."
     ),
     "too many": (
-        f"Not read: the issue has more than {MOST_IMAGES} images, and the "
-        f"assistant opens the first {MOST_IMAGES}."
+        f"Not read: the assistant opens the first {MOST_IMAGES} images of an issue, "
+        f"of at most {MOST_IMAGE_TRIES} uploads that it tries."
     ),
 }
 # What attachments.md says of an image that the engine opens.
@@ -291,8 +294,9 @@ def fetch(github: GitHub, number: int, root: Path, token: str) -> list[dict[str,
 
     The files of the first MOST_FILES links of text files are downloaded, the bytes
     that MOST_BYTES allows of each, and each that is no text is left out; so are
-    those of the first MOST_IMAGES images, each whole and up to MOST_IMAGE_BYTES,
-    and each that is no image of a kind that the engines open. A failed download is
+    the first MOST_IMAGES uploads that are images of a kind that the engines open,
+    each whole and up to MOST_IMAGE_BYTES, of at most MOST_IMAGE_TRIES uploads that
+    the links of images name, as a video has one too. A failed download is
     a line of the index, never a failure of the job: the attachments only add to
     what the AI reads. The token reaches github.com only for a private repository,
     which needs it.
@@ -310,16 +314,21 @@ def fetch(github: GitHub, number: int, root: Path, token: str) -> list[dict[str,
     index = []
     counts = {"text": 0, "image": 0}
     read = {"text": 0, "image": 0}
+    tried = 0
     for item in found:
         counts[item.kind] += 1
-        position = counts[item.kind]
         entry: dict[str, Any] = {"url": item.url}
-        if position > (MOST_FILES if item.kind == "text" else MOST_IMAGES):
-            entry["status"] = "too many"
-        elif item.kind == "text":
-            entry |= fetched(item.url, folder / f"{position}.txt", sent)
+        if item.kind == "text" and counts["text"] <= MOST_FILES:
+            entry |= fetched(item.url, folder / f"{counts['text']}.txt", sent)
+        elif (
+            item.kind == "image"
+            and read["image"] < MOST_IMAGES
+            and tried < MOST_IMAGE_TRIES
+        ):
+            tried += 1
+            entry |= fetched_image(item.url, folder / f"image-{tried}", sent)
         else:
-            entry |= fetched_image(item.url, folder / f"image-{position}", sent)
+            entry["status"] = "too many"
         read[item.kind] += entry["status"] in {"read", "shortened"}
         index.append(entry)
     (folder / INDEX).write_text(json.dumps(index, indent=1) + "\n", encoding="utf-8")
@@ -505,6 +514,25 @@ def image_text(entry: dict[str, Any] | None, folder: Path) -> list[str]:
     if image_suffix(start) != path.suffix:
         return [UNREAD["missing"]]
     return [IMAGE_NOTE.format(path=(ATTACHMENTS / file).as_posix())]
+
+
+def keep_shown(root: Path, attached: str | None, images: bool) -> None:
+    """Remove what the job attachments downloaded, once attachments.md holds what
+    the AI reads of it: the raw text files, whose cleaned and fenced text is there,
+    and the index, so that the engine's tool that reads files finds no copy without
+    the cleaning. Only each image that attachments.md names, for an engine that
+    opens `images`, stays."""
+    folder = root / ATTACHMENTS
+    if not folder.is_dir():
+        return
+    for path in folder.iterdir():
+        named = IMAGE_NOTE.format(path=(ATTACHMENTS / path.name).as_posix())
+        if images and IMAGE_FILE.fullmatch(path.name) and named in (attached or ""):
+            continue
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
 
 
 def attachments_command(github: GitHub, number: int, root: Path, token: str) -> int:
