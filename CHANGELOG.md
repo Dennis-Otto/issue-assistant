@@ -4,6 +4,19 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.12.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.11.0...v1.12.0) (2026-11-14)
+
+
+### Features
+
+* **analysis:** the AI reads the logs and screenshots that a reporter attaches ([#422](https://github.com/Dennis-Otto/issue-assistant/issues/422)) ([e5f5562](https://github.com/Dennis-Otto/issue-assistant/commit/e5f55620a04e68d22f74ff21ffd9b82e94288928))
+* **settings:** a project adds the hosts and files of its assistant in config.project.toml ([#424](https://github.com/Dennis-Otto/issue-assistant/issues/424)) ([79e816a](https://github.com/Dennis-Otto/issue-assistant/commit/79e816a2417cb57f0b5d16835c96bd17929c6b3f))
+
+
+### Bug fixes
+
+* refuse hex of 40 characters after the name of a credential ([#420](https://github.com/Dennis-Otto/issue-assistant/issues/420)) ([b807410](https://github.com/Dennis-Otto/issue-assistant/commit/b8074108c82ca4e44d5777d6e55622bf024ea946))
+
 ## [1.11.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.6...v1.11.0) (2026-11-13)
 
 ### Features
