@@ -6,16 +6,14 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## [1.12.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.11.0...v1.12.0) (2026-11-14)
 
-
 ### Features
 
-* **analysis:** the AI reads the logs and screenshots that a reporter attaches ([#422](https://github.com/Dennis-Otto/issue-assistant/issues/422)) ([e5f5562](https://github.com/Dennis-Otto/issue-assistant/commit/e5f55620a04e68d22f74ff21ffd9b82e94288928))
-* **settings:** a project adds the hosts and files of its assistant in config.project.toml ([#424](https://github.com/Dennis-Otto/issue-assistant/issues/424)) ([79e816a](https://github.com/Dennis-Otto/issue-assistant/commit/79e816a2417cb57f0b5d16835c96bd17929c6b3f))
-
+- The AI reads the text files and the screenshots that the reporter attaches to an issue or to their comments, such as a log, a configuration or the diagnostics of Home Assistant (`.txt`, `.log`, `.json`, `.yaml`, `.yml`), up to 20,000 characters of each and five files of an issue. A job without the AI downloads them from GitHub's own hosts alone, the AI reads each as the reporter's text, and what looks like a token or a key is replaced first. An engine that opens images, Claude or Gemini, also sees up to three screenshots of an issue (PNG, JPEG, GIF or WebP, up to 5 MB each); for Codex and Copilot, and for archives, `attachments.md` says that a file is attached and isn't read, and nothing is ever unpacked or run. Your `.github/egress-firewall.yaml` needs no change.
+- A project can add the hosts that the AI's links may lead to and the files that tell reporters which AI reads their issue in a file of its own, `.github/issue-assistant/config.project.toml`, whose `[links] hosts` and `[transparency] files` add to those of `config.toml`. A template that writes `config.toml` anew with each update, such as Repo Blueprint, no longer overwrites them. Nothing else may be set there: `check` fails on any other key, which changes nothing.
 
 ### Bug fixes
 
-* refuse hex of 40 characters after the name of a credential ([#420](https://github.com/Dennis-Otto/issue-assistant/issues/420)) ([b807410](https://github.com/Dennis-Otto/issue-assistant/commit/b8074108c82ca4e44d5777d6e55622bf024ea946))
+- An answer of the AI with 40 or more characters of hex right after the name of a credential, such as `Authorization: token`, `GITHUB_TOKEN=`, `"api_key": "` or `password`, is now refused as a secret instead of posted: a token of GitHub's old kind is as long as a commit, which let it pass before. A commit alone, in a link or after the word commit is still posted.
 
 ## [1.11.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.6...v1.11.0) (2026-11-13)
 
