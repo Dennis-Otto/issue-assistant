@@ -426,6 +426,69 @@ def test_a_token_anywhere_in_the_answer_is_refused(before, token, after):
     assert assistant.looks_secret(text, {token, f"docs/{token}.md"})
 
 
+# Hex as long as a commit, or longer, in either case.
+HEX = st.one_of(
+    st.from_regex(r"[0-9a-f]{40,70}", fullmatch=True),
+    st.from_regex(r"[0-9A-F]{40,70}", fullmatch=True),
+)
+# Names that say that a value is a credential, and what stands between the two.
+CREDENTIALS = st.sampled_from(
+    [
+        "token",
+        "Token",
+        "GITHUB_TOKEN",
+        "access_token",
+        "x-auth-token",
+        "secret",
+        "CLIENT_SECRET",
+        "secrets",
+        "password",
+        "passwd",
+        "passphrase",
+        "key",
+        "api_key",
+        "apikey",
+        "X-Api-Key",
+        "Authorization",
+        "auth",
+        "credentials",
+    ]
+)
+BETWEEN = st.sampled_from(
+    [": ", ":", "=", " = ", " ", "\t", ": token ", ": Bearer ", '": "', "='", "']='"]
+)
+
+
+@given(st.text(), CREDENTIALS, BETWEEN, HEX, st.text())
+def test_hex_after_the_name_of_a_credential_is_refused(
+    before, name, between, value, after
+):
+    """Such as a token of GitHub's old kind, which is as long as a commit."""
+    text = f"{before} {name}{between}{value} {after}"
+    assert assistant.looks_secret(text)
+    # Even when the hex is the name of a file of the repository.
+    assert assistant.looks_secret(text, {value, f"docs/{value}.md"})
+
+
+@given(
+    st.from_regex(r"[0-9a-f]{40}", fullmatch=True),
+    st.sampled_from(
+        [
+            "{}",
+            "commit {}",
+            "Fixed in commit {}.",
+            "The token was rotated in commit {}.",
+            "https://github.com/owner/project/commit/{}",
+            "https://github.com/owner/secret-key/blob/{}/src/token.py#L3",
+            "See `{}` for the key.",
+        ]
+    ),
+)
+def test_a_commit_is_no_secret(commit, sentence):
+    """Alone, in a link or after the word commit, even where a credential is named."""
+    assert not assistant.looks_secret(sentence.format(commit))
+
+
 # Paths of folders and files with any names, long ones too.
 PATHS = st.builds(
     lambda folders, extension: "/".join(folders) + extension,
