@@ -1,5 +1,5 @@
 ---
-description: Every key of the settings of the issue assistant in labels.toml, config.toml and findings.toml, its type, its default and what check makes sure of.
+description: Every key of the issue assistant in labels.toml, config.toml, config.project.toml and findings.toml, its type, its default and what check makes sure of.
 ---
 
 # Every key
