@@ -1,4 +1,5 @@
-"""The settings of a repository: .github/labels.toml, config.toml and findings.toml."""
+"""The settings of a repository: .github/labels.toml, config.toml with
+config.project.toml, and findings.toml."""
 
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ from .engines import (
 )
 from .errors import AssistantError, SettingsError
 from .languages import LOCALES, plural_form, say
-from .paths import FINDINGS_FILE, LABELS_FILE, SETTINGS
+from .paths import FINDINGS_FILE, LABELS_FILE, PROJECT_CONFIG, SETTINGS
 from .values import command, did_you_mean, fits
 
 # The periods of the lifecycle are in Lifecycle, which [lifecycle] in config.toml
@@ -284,6 +285,9 @@ class Config:
     max_turns: int = MAX_TURNS
     max_budget_usd: float = MAX_BUDGET_USD
     hosts: frozenset[str] = frozenset()
+    # The hosts that config.project.toml adds and config.toml doesn't name, so that
+    # check names the right file for one that is no host name.
+    project_hosts: frozenset[str] = frozenset()
     area_field: str = "Area"
     unmapped_options: tuple[str, ...] = ("Other",)
     # The box of the forms that keeps the AI out of an issue; see box_ticked.
@@ -428,6 +432,15 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
         "issue": Key("digest_issue", bool),
         "title": Key("digest_title", str),
     },
+}
+# The keys of config.project.toml, by their section: the lists of config.toml that a
+# project adds to in a file of its own. Nothing else may be set there, so that the
+# file can't change what config.toml sets, such as the engine, the limits or the
+# lifecycle; every other key is reported, as an unknown key of config.toml is, and
+# changes nothing.
+PROJECT_KEYS: dict[str, tuple[str, ...]] = {
+    "links": ("hosts",),
+    "transparency": ("files",),
 }
 # The keys of a [[label]] of labels.toml with their types; the first four are needed.
 LABEL_KEYS: dict[str, type] = {
@@ -576,8 +589,87 @@ def read_settings(path: Path, problems: Problems) -> dict[str, Any]:
     return values
 
 
+def read_project_settings(path: Path, problems: Problems) -> dict[str, list[str]]:
+    """What config.project.toml adds to the lists of config.toml, by the attribute of
+    Config that each list sets; nothing without the file."""
+    if not path.is_file():
+        return {}
+    where = PROJECT_CONFIG
+    allowed = " and ".join(
+        f"[{section}] {name}"
+        for section, names in PROJECT_KEYS.items()
+        for name in names
+    )
+    # A key that only config.toml may set, said as config.toml has it.
+    only_there = (
+        f"isn't allowed here: config.toml sets it, and this file only adds to {allowed}"
+    )
+    home = {name: section for section, names in PROJECT_KEYS.items() for name in names}
+    elsewhere = {name for keys in CONFIG_KEYS.values() for name in keys}
+    values: dict[str, list[str]] = {}
+    for section, table in read_toml(path, where).items():
+        names = PROJECT_KEYS.get(section)
+        if names is None and section in home:
+            problems.unknown.append(
+                f"{where}: {section} belongs in the section [{home[section]}]"
+            )
+        elif names is None and section in CONFIG_KEYS:
+            problems.unknown.append(f"{where}: [{section}] {only_there}")
+        elif names is None and section in elsewhere:
+            problems.unknown.append(f"{where}: {section} {only_there}")
+        elif names is None:
+            problems.unknown.append(
+                did_you_mean(
+                    f"{where}: unknown section [{section}]",
+                    section,
+                    PROJECT_KEYS,
+                    "[{}]",
+                )
+            )
+        elif not isinstance(table, dict):
+            problems.wrong.append(
+                f"{where}: {section} must be a section, [{section}], with its keys "
+                "below it"
+            )
+        else:
+            for name, value in table.items():
+                if name in names and fits(value, list):
+                    values[CONFIG_KEYS[section][name].attribute] = value
+                elif name in names:
+                    problems.wrong.append(
+                        f"{where}: [{section}] {name} must be {KINDS[list]}"
+                    )
+                elif name in CONFIG_KEYS[section]:
+                    problems.unknown.append(f"{where}: [{section}] {name} {only_there}")
+                elif name in home:
+                    problems.unknown.append(
+                        f"{where}: {name} belongs in the section [{home[name]}], "
+                        f"not in [{section}]"
+                    )
+                else:
+                    problems.unknown.append(
+                        did_you_mean(
+                            f"{where}: unknown key {name} in [{section}]", name, names
+                        )
+                    )
+    return values
+
+
+def add_project_settings(values: dict[str, Any], added: dict[str, list[str]]) -> None:
+    """Add the lists of config.project.toml to those of config.toml in `values`: each
+    list is the one of config.toml, or its default, followed by what the file adds,
+    and names each value once."""
+    for attribute, names in added.items():
+        # The class attribute of a field is its default.
+        known = values.get(attribute, getattr(Config, attribute))
+        values[attribute] = type(known)(dict.fromkeys((*known, *names)))
+        if attribute == "hosts":
+            values["project_hosts"] = frozenset(names) - known
+
+
 def load_config(root: Path, repository: str, *, lenient: bool = False) -> Config:
-    """The settings of the repository in `root`; config.toml is optional.
+    """The settings of the repository in `root`; config.toml is optional, and so is
+    config.project.toml, which only adds to its lists of hosts and of files.
 
     A file that isn't TOML stops every command. So does a value that the assistant
     can't use, such as a word where a number belongs, with one error that names each
@@ -601,6 +693,7 @@ def load_config(root: Path, repository: str, *, lenient: bool = False) -> Config
     problems = Problems()
     labels = load_labels(root / LABELS_FILE, problems)
     values = read_settings(root / SETTINGS / "config.toml", problems)
+    add_project_settings(values, read_project_settings(root / PROJECT_CONFIG, problems))
     if lenient:
         values["problems"] = (*problems.wrong, *problems.unknown)
     elif problems.wrong:

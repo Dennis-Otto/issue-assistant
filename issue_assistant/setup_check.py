@@ -38,6 +38,7 @@ from .paths import (
     FIREWALL,
     FORMS,
     LABELS_FILE,
+    PROJECT_CONFIG,
     RENOVATE_FILES,
     RENOVATE_PACKAGE,
     SETTINGS,
@@ -488,7 +489,12 @@ def check_config(config: Config) -> list[str]:
         )
     for host in sorted(config.hosts):
         if not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", host):
-            problems.append(f"{SETTINGS / 'config.toml'}: {host} is no host name")
+            where = (
+                PROJECT_CONFIG
+                if host in config.project_hosts
+                else SETTINGS / "config.toml"
+            )
+            problems.append(f"{where}: {host} is no host name")
     problems += related_problems(config)
     problems += digest_problems(config)
     problems += [

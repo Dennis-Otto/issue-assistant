@@ -1,12 +1,12 @@
 ---
-description: Every key of the settings of the issue assistant in labels.toml, config.toml and findings.toml, its type, its default and what check makes sure of.
+description: Every key of the issue assistant in labels.toml, config.toml, config.project.toml and findings.toml, its type, its default and what check makes sure of.
 ---
 
 # Every key
 
 [← Configuration](configuration.md)
 
-Each key of the three files, its type, its default and what `check` makes sure of. A key that says *required* has no default. Besides, `check` makes sure that every value has the type of its key, and fails on every key that these tables don't have, naming the key that was probably meant, such as `form_options` for `form_option`.
+Each key of the four files, its type, its default and what `check` makes sure of. A key that says *required* has no default. Besides, `check` makes sure that every value has the type of its key, and fails on every key that these tables don't have, naming the key that was probably meant, such as `form_options` for `form_option`.
 
 ## labels.toml
 
@@ -70,6 +70,15 @@ The group `lifecycle` needs the seven labels that the assistant sets: `needs-tri
 | `[lifecycle] lock_closed_after_days` | integer | `0` | The sweep locks issues closed for more than this many days as resolved, with one line that points to a new issue, at most 25 in a sweep; `0` locks none | 0, or at least `reopen_after_release_days` and up to 3650 |
 | `[digest] issue` | boolean | `false` | Whether the morning sweep also keeps [its digest](features/digest.md#the-digest-as-an-issue) in one issue, which it opens and then edits without notifying anyone | It is `true` or `false` |
 | `[digest] title` | string | `"Triage digest"` | The title of that issue; the sweep sets it anew when it differs | One line of 1 to 256 characters |
+
+## config.project.toml
+
+`.github/issue-assistant/config.project.toml` is optional and holds only these two keys, which add to the lists of `config.toml`, each value once; `check` fails on any other key, which changes nothing.
+
+| Key | Type | Default | What it does | What `check` makes sure of |
+| --- | --- | --- | --- | --- |
+| `[links] hosts` | list of strings | `[]` | More hosts that links in the comments may lead to, besides those of `config.toml` and the repository itself | Each is a host name, such as `docs.example.com` |
+| `[transparency] files` | list of strings | `[]` | More files that tell reporters which AI reads their issue, after those of `config.toml` | As for `[transparency] files` of `config.toml` |
 
 ## findings.toml
 

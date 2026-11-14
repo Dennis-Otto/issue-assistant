@@ -279,6 +279,176 @@ def test_unknown_keys_are_named_with_the_key_they_probably_mean(
     )
 
 
+PROJECT_CONFIG = ".github/issue-assistant/config.project.toml"
+
+
+def test_the_project_s_own_file_adds_hosts_and_files_once(root):
+    # The lists of config.toml first, then what the project's file adds, each once.
+    (root / CONFIG).write_text(
+        '[links]\nhosts = ["docs.autodarts.io", "www.home-assistant.io"]\n\n'
+        '[transparency]\nfiles = ["SUPPORT.md", "SUPPORT.de.md"]\n',
+        encoding="utf-8",
+    )
+    (root / PROJECT_CONFIG).write_text(
+        '[links]\nhosts = ["autodarts.io", "docs.autodarts.io", "autodarts.io"]\n\n'
+        '[transparency]\nfiles = ["docs/troubleshooting.md", "SUPPORT.md"]\n',
+        encoding="utf-8",
+    )
+    config = assistant.load_config(root, REPOSITORY)
+    assert config.hosts == {
+        "docs.autodarts.io",
+        "www.home-assistant.io",
+        "autodarts.io",
+    }
+    assert config.notices == (
+        "SUPPORT.md",
+        "SUPPORT.de.md",
+        "docs/troubleshooting.md",
+    )
+    # Only the host that config.toml doesn't name is the file's own.
+    assert config.project_hosts == {"autodarts.io"}
+    assert config.problems == ()
+    # A list that the file leaves out is that of config.toml.
+    (root / PROJECT_CONFIG).write_text(
+        '[links]\nhosts = ["autodarts.io"]\n', encoding="utf-8"
+    )
+    config = assistant.load_config(root, REPOSITORY)
+    assert config.notices == ("SUPPORT.md", "SUPPORT.de.md")
+    assert config.hosts == {
+        "docs.autodarts.io",
+        "www.home-assistant.io",
+        "autodarts.io",
+    }
+
+
+def test_the_project_s_own_file_adds_to_the_defaults_without_config_toml(root):
+    (root / CONFIG).unlink()
+    (root / PROJECT_CONFIG).write_text(
+        '[links]\nhosts = ["docs.example.com"]\n\n'
+        '[transparency]\nfiles = ["docs/support.md"]\n',
+        encoding="utf-8",
+    )
+    config = assistant.load_config(root, REPOSITORY)
+    assert config.hosts == config.project_hosts == {"docs.example.com"}
+    assert config.notices == ("SUPPORT.md", "docs/support.md")
+    # Without either file, everything is as before.
+    (root / PROJECT_CONFIG).unlink()
+    plain = assistant.load_config(root, REPOSITORY)
+    assert (plain.hosts, plain.project_hosts) == (frozenset(), frozenset())
+    assert plain.notices == ("SUPPORT.md",)
+
+
+def test_the_project_s_own_file_can_t_set_what_config_toml_sets(
+    monkeypatch, tmp_path, root, capsys
+):
+    (root / PROJECT_CONFIG).write_text(
+        'max_per_day = 100\nhosts = ["evil.example"]\n\n'
+        '[engine]\nname = "codex"\nmax_budget_usd = 100\n\n'
+        '[links]\nhosts = ["docs.example.com"]\nhots = ["x.example"]\n'
+        'files = ["NOTICE.md"]\n\n'
+        "[transparency]\ncredit = false\n\n[lifecycle]\nclose_after_days = 1\n\n"
+        "[link]\nhosts = []\n\n[colours]\ndark = true\n",
+        encoding="utf-8",
+    )
+    only = (
+        "isn't allowed here: config.toml sets it, and this file only adds to "
+        "[links] hosts and [transparency] files"
+    )
+    problems = [
+        f"{PROJECT_CONFIG}: max_per_day {only}",
+        f"{PROJECT_CONFIG}: hosts belongs in the section [links]",
+        f"{PROJECT_CONFIG}: [engine] {only}",
+        f"{PROJECT_CONFIG}: unknown key hots in [links]; did you mean hosts?",
+        f"{PROJECT_CONFIG}: files belongs in the section [transparency], "
+        "not in [links]",
+        f"{PROJECT_CONFIG}: [transparency] credit {only}",
+        f"{PROJECT_CONFIG}: [lifecycle] {only}",
+        f"{PROJECT_CONFIG}: unknown section [link]; did you mean [links]?",
+        f"{PROJECT_CONFIG}: unknown section [colours]; known: [links], [transparency]",
+    ]
+    # The other commands keep what config.toml sets and warn.
+    config = assistant.load_config(root, REPOSITORY)
+    assert capsys.readouterr().out == "".join(
+        f"::warning::{problem}\n" for problem in problems
+    )
+    assert (config.engine, config.max_per_day, config.max_budget_usd) == (
+        "claude",
+        20,
+        1.0,
+    )
+    assert (config.credit, config.lifecycle) == (True, assistant.DEFAULT_LIFECYCLE)
+    assert config.hosts == {
+        "www.home-assistant.io",
+        "docs.autodarts.io",
+        "docs.example.com",
+    }
+    assert config.notices == ("SUPPORT.md",)
+    # check fails on them.
+    checked = assistant.load_config(root, REPOSITORY, lenient=True)
+    assert assistant.check(checked)[: len(problems)] == problems
+    code, _, _ = run_main(monkeypatch, tmp_path, root, None, "check")
+    assert code == 1
+    assert capsys.readouterr().out.startswith(
+        "".join(f"::error::{problem}\n" for problem in problems)
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "problems"),
+    [
+        (
+            '[links]\nhosts = "docs.example.com"\n\n[transparency]\nfiles = [1]\n',
+            [
+                f"{PROJECT_CONFIG}: [links] hosts must be a list of strings",
+                f"{PROJECT_CONFIG}: [transparency] files must be a list of strings",
+            ],
+        ),
+        (
+            "links = 3\n",
+            [
+                f"{PROJECT_CONFIG}: links must be a section, [links], with its keys "
+                "below it"
+            ],
+        ),
+    ],
+)
+def test_a_value_of_the_project_s_own_file_that_can_t_be_used_stops(
+    monkeypatch, tmp_path, root, capsys, text, problems
+):
+    (root / PROJECT_CONFIG).write_text(text, encoding="utf-8")
+    with pytest.raises(assistant.SettingsError) as refused:
+        assistant.load_config(root, REPOSITORY)
+    assert refused.value.problems == problems
+    code, _, _ = run_main(monkeypatch, tmp_path, root, None, "check")
+    assert code == 1
+    assert capsys.readouterr().out.startswith(
+        "".join(f"::error::{problem}\n" for problem in problems)
+    )
+
+
+def test_check_names_the_file_of_a_host_that_is_no_host_name(root):
+    (root / CONFIG).write_text(
+        '[links]\nhosts = ["https://a.example/", "docs.example.com"]\n',
+        encoding="utf-8",
+    )
+    (root / PROJECT_CONFIG).write_text(
+        '[links]\nhosts = ["https://a.example/", "https://b.example/"]\n',
+        encoding="utf-8",
+    )
+    config = assistant.load_config(root, REPOSITORY, lenient=True)
+    hosts = [problem for problem in assistant.check(config) if "no host" in problem]
+    assert hosts == [
+        f"{CONFIG}: https://a.example/ is no host name",
+        f"{PROJECT_CONFIG}: https://b.example/ is no host name",
+    ]
+
+
+def test_a_project_s_own_file_that_is_no_toml_stops_every_command(root):
+    (root / PROJECT_CONFIG).write_bytes(b"[links\n")
+    with pytest.raises(assistant.SettingsError, match="config.project.toml is no"):
+        assistant.load_config(root, REPOSITORY)
+
+
 def test_every_key_of_the_settings_is_known():
     assert set(assistant.LABEL_KEYS) == {
         field.name for field in dataclasses.fields(assistant.Label)
