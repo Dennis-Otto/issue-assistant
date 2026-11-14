@@ -2016,6 +2016,19 @@ def test_the_reference_of_config_toml_has_every_key_with_its_default(root: Path)
     }
 
 
+def test_the_reference_of_config_project_toml_has_every_key_that_it_allows():
+    rows = reference_table("config.project.toml")
+    assert list(rows) == [
+        f"[{section}] {name}"
+        for section, names in assistant.PROJECT_KEYS.items()
+        for name in names
+    ]
+    for key, row in rows.items():
+        # Each adds to the list of config.toml with the same type.
+        assert row["Type"] == reference_table("config.toml")[key]["Type"]
+        assert default(row["Default"]) == []
+
+
 def test_the_documentation_names_the_engines_and_their_models_of_the_assistant():
     # An engine or its default model changes in ENGINES alone; the keys and the answer
     # of the FAQ must follow, or name what the assistant no longer runs.

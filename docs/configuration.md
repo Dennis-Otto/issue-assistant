@@ -101,6 +101,20 @@ Each key has the type that it has here. A file that isn't TOML, or a value of an
   <img src="images/diagrams/what-the-assistant-does-with-a-problem-of-its-settings.svg" alt="What the assistant does with a problem of its settings: Every command reads labels.toml and config.toml. A file that isn't TOML stops every command, with the line of the mistake. A value of another type than its key's stops every other command with an error that names the key; check reads the rest with the defaults and names every problem at once. A key that the assistant doesn't know changes nothing, so check fails on it and names the key that was probably meant, while the other commands warn of it and keep the default.">
 </picture>
 
+### `.github/issue-assistant/config.project.toml`
+
+```toml
+[links]
+hosts = ["docs.example.com"]    # besides those of config.toml
+
+[transparency]
+files = ["docs/troubleshooting.md"]   # besides those of config.toml
+```
+
+A template that writes `config.toml` anew with each of its updates, such as [Repo Blueprint](https://github.com/Dennis-Otto/repo-blueprint), would overwrite the hosts and the files that a project adds there. This optional file is the project's own, which such an update never writes: its `[links] hosts` and `[transparency] files` add to those of `config.toml`. Each list is that of `config.toml`, or its default, followed by what this file adds, and names each value once, so the first file of `[transparency]` stays that of `config.toml`. `install` writes no such file, and without it everything is as `config.toml` says.
+
+Nothing else may be set there: the engine, the limits, the lifecycle and every other key stay those of `config.toml`, so the file can widen nothing but the two lists. Any other section or key, such as `[engine] name` or `[transparency] credit`, changes nothing: `check` fails on it with the name of the file, as on an unknown key of `config.toml`, and every other command warns of it. The values are checked as those of `config.toml` are: a value of another type stops every command, and `check` makes sure that each host is a host name and that each file names the engine.
+
 The `labels` of an issue form may be a list or one text of names separated by commas, as GitHub allows, and the area field may be a dropdown with `multiple: true`: each option that a reporter chooses adds its label.
 
 ## Findings

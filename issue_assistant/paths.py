@@ -26,6 +26,10 @@ WORKFLOWS = PurePosixPath(".github/workflows")
 FIREWALL = PurePosixPath(".github/egress-firewall.yaml")
 ACTIONLINT = PurePosixPath(".github/actionlint.yaml")
 FINDINGS_FILE = PurePosixPath(".github/findings.toml")
+# The settings that a project adds to those of config.toml, in a file of its own: a
+# template such as Repo Blueprint writes config.toml anew with each update, but never
+# this file. It is optional, and install writes none.
+PROJECT_CONFIG = SETTINGS / "config.project.toml"
 # The alerts of code scanning that a run of the findings reported, each with the
 # time it opened, so that an alert fails one run and not every one after it. The
 # Findings workflow keeps it from run to run in the cache of the default branch.
