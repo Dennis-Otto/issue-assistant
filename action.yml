@@ -10,10 +10,10 @@ branding:
 
 inputs:
   command:
-    description: event, endpoints, engine, context, analyze, apply, usage, sweep, sync-labels, findings or check
+    description: event, endpoints, engine, attachments, context, analyze, apply, usage, sweep, sync-labels, findings or check
     required: true
   issue:
-    description: Number of the issue or the discussion, for context, apply and usage
+    description: Number of the issue or the discussion, for attachments, context, apply and usage
     required: false
     default: ""
   mode:
@@ -85,6 +85,9 @@ outputs:
   engine-args:
     description: The arguments that the engine's action adds to its command line, such as the rules, as JSON; empty for an engine without any
     value: ${{ steps.run.outputs.engine-args }}
+  count:
+    description: The number of text files and images attached to the issue, downloaded or not, from attachments
+    value: ${{ steps.run.outputs.count }}
   answer:
     description: The engine's answer, from analyze
     value: ${{ steps.run.outputs.answer }}

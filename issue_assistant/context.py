@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .answer import schema_json
+from .attachments import keep_shown, render_attachments
 from .cleaning import one_line, shown_text
 from .constants import BOT, DISCUSSION_MODES, MAX_TEXT, MODES
 from .engines import ENGINES, IN_PROMPT, STRICT, Engine, engine_named
@@ -361,6 +362,7 @@ def write_lines(path: Path, items: Iterable[dict[str, Any]]) -> None:
 # answer to a discussion never the issue of an earlier task.
 CONTEXT_FILES = (
     "issue.md",
+    "attachments.md",
     "discussion.md",
     "comment.md",
     "labels.md",
@@ -438,6 +440,13 @@ def write_context(
         (folder / "issue.md").write_text(
             render_issue(issue, comments, own), encoding="utf-8"
         )
+        images = ENGINES[engine_named(config.engine)].reads_images
+        attached = render_attachments(
+            config.root, issue, comments, config.repository, own, images
+        )
+        if attached:
+            (folder / "attachments.md").write_text(attached, encoding="utf-8")
+        keep_shown(config.root, attached, images)
         if mode in REPLIES:
             judged = judged_comment(issue, comments, mode, comment_id)
             (folder / "comment.md").write_text(

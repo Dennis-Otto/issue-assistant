@@ -121,7 +121,8 @@ jobs:
           allowed-endpoints: >-
             api.github.com:443
             github.com:443
-      - name: Make sure that Harden-Runner blocks
+      - &harden-runner-blocks
+        name: Make sure that Harden-Runner blocks
         id: blocks
         # Harden-Runner goes on without its agent when the agent can't be downloaded, as
         # in GitHub's outage of 8 November 2026, or doesn't start: the job would reach
@@ -161,7 +162,7 @@ jobs:
           HOSTS: >-
             api.github.com:443
             github.com:443
-        run: |
+        run: &warm-up |
           deadline=$(($(date +%s) + 120))
           for endpoint in $HOSTS; do
             host="${endpoint%:*}"
@@ -180,7 +181,8 @@ jobs:
       # which GitHub names in the context of the job. Without one, actions/checkout
       # would take the caller's own repository at its default branch, and the job
       # would run the caller's action.yml in place of the release that it pins.
-      - name: Make sure that GitHub names the commit of this workflow
+      - &event-workflow-commit
+        name: Make sure that GitHub names the commit of this workflow
         env:
           WORKFLOW_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
           WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
@@ -191,13 +193,15 @@ jobs:
           fi
           echo "The issue assistant of $WORKFLOW_REPOSITORY at $WORKFLOW_SHA."
       # Issue events always run the workflow and the settings of the default branch.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - &event-checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       # The commit of this workflow, which the caller pins. actionlint 1.7.12 doesn't
       # know job.workflow_repository and job.workflow_sha yet, which toJSON hides,
       # nor the self-repository syntax $/, which would need no checkout.
-      - name: Check out the issue assistant of this workflow
+      - &event-assistant-checkout
+        name: Check out the issue assistant of this workflow
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
@@ -279,7 +283,8 @@ jobs:
           ISSUE_ASSISTANT_AI_RUNNER: ${{ vars.ISSUE_ASSISTANT_AI_RUNNER }}
         with:
           command: endpoints
-      - name: Wait until Harden-Runner has removed Docker
+      - &wait-for-docker
+        name: Wait until Harden-Runner has removed Docker
         # Harden-Runner removes Docker with apt-get in the background; a job that ends
         # before it finishes hangs in "Cleaning up orphan processes" until its timeout.
         if: always()
@@ -290,16 +295,95 @@ jobs:
           done
           echo "::warning::Harden-Runner still removes Docker after two minutes; the job may hang until its timeout."
 
+  # The files that the reporter attached to the issue, for the AI: downloaded in a
+  # job of their own, without the AI, its secret or a token that writes, from
+  # GitHub's hosts for attachments alone, which the firewall of the AI's job doesn't
+  # let through. Only text files and images, capped in number, size and type, and
+  # nothing of them is run, decoded or unpacked; the artifact hands them to analyze,
+  # whose context step writes them into attachments.md as the reporter's material
+  # (decisions 0033 and 0034).
+  attachments:
+    name: Download the attachments of the issue
+    needs: event
+    # Not for the canary and the smoke test, whose issue is that of a file.
+    if: >-
+      !inputs.smoke && !inputs.canary &&
+      needs.event.outputs.issue != '' &&
+      needs.event.outputs.mode != '' &&
+      needs.event.outputs.mode != 'none' &&
+      vars.ISSUE_ASSISTANT_AI != 'off'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      # The number of text files and images of the issue, downloaded or not; 0 or
+      # empty without any.
+      count: ${{ steps.attachments.outputs.count }}
+    steps:
+      - name: Block every host but GitHub's and those of its attachments
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          # GitHub's API; github.com, where each link of an attachment points; the
+          # hosts of its storage, to which github.com sends each download on; and its
+          # results service, which keeps the artifact.
+          allowed-endpoints: >-
+            api.github.com:443
+            github.com:443
+            objects.githubusercontent.com:443
+            private-user-images.githubusercontent.com:443
+            user-images.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+      - *harden-runner-blocks
+      - name: Wait until Harden-Runner lets the hosts through
+        timeout-minutes: 4
+        env:
+          HOSTS: >-
+            api.github.com:443
+            github.com:443
+            objects.githubusercontent.com:443
+            private-user-images.githubusercontent.com:443
+            user-images.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+        run: *warm-up
+      - *event-workflow-commit
+      - *event-checkout
+      - *event-assistant-checkout
+      - name: Download the text files and images attached to the issue
+        id: attachments
+        uses: ./.issue-assistant/action # zizmor: ignore[self-repository]
+        with:
+          command: attachments
+          issue: ${{ needs.event.outputs.issue }}
+          mode: ${{ needs.event.outputs.mode }}
+      # For a day: the job analyze of this run takes it within minutes.
+      - name: Keep the attachments for the AI
+        if: steps.attachments.outputs.count != '' && steps.attachments.outputs.count != '0'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: issue-assistant-attachments
+          path: .issue-assistant/attachments/
+          if-no-files-found: error
+          retention-days: 1
+      - *wait-for-docker
+
   # The AI on GitHub's egress-firewall runner. No step of Harden-Runner belongs in this
   # job, not even one that its condition skips: GitHub runs the pre step of an action,
   # which starts the agent of Harden-Runner, whatever the if of its step says
   # (decision 0027). The anchors, such as &engine, give its steps to analyze-in-reserve.
   analyze:
     name: Analyze with the AI engine
-    needs: event
+    # After the attachments, which a run without any skips: without a status
+    # function, that skip would skip this job too. A failed download only leaves the
+    # attachments out.
+    needs: [event, attachments]
     # The smoke test runs no engine: apply takes the answer of its file.
     if: >-
       !inputs.smoke &&
+      !cancelled() && needs.event.result == 'success' &&
       needs.event.outputs.mode != '' &&
       needs.event.outputs.mode != 'none' &&
       vars.ISSUE_ASSISTANT_AI != 'off' &&
@@ -418,6 +502,20 @@ jobs:
             (secrets.OPENAI_API_KEY != '') && 'codex' || '',
             (secrets.GEMINI_API_KEY != '') && 'gemini' || '',
             (secrets.COPILOT_GITHUB_TOKEN != '') && 'copilot' || '') }}
+      # The text files and images that the job attachments downloaded, which the
+      # context step names in attachments.md. Should GitHub fail to hand them over,
+      # the AI reads the issue without them, and attachments.md says so.
+      - &attachments
+        name: Take the attachments of the issue
+        if: >-
+          steps.engine.outputs.ready == 'true' &&
+          needs.attachments.outputs.count != '' &&
+          needs.attachments.outputs.count != '0'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: issue-assistant-attachments
+          path: .issue-assistant/attachments
       - &context
         name: Collect the issue, earlier issues and discussions
         id: context
@@ -570,9 +668,10 @@ jobs:
   # runner.
   analyze-in-reserve:
     name: Analyze with the AI engine on the runner in reserve
-    needs: event
+    needs: [event, attachments]
     if: >-
       !inputs.smoke &&
+      !cancelled() && needs.event.result == 'success' &&
       needs.event.outputs.mode != '' &&
       needs.event.outputs.mode != 'none' &&
       vars.ISSUE_ASSISTANT_AI != 'off' &&
@@ -592,7 +691,11 @@ jobs:
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
-          allowed-endpoints: ${{ needs.event.outputs.endpoints }}
+          # With GitHub's results service while there are attachments, which the job
+          # takes from it, as the firewall runner reaches it by itself.
+          allowed-endpoints: >-
+            ${{ needs.event.outputs.endpoints }}
+            ${{ needs.attachments.outputs.count != '' && needs.attachments.outputs.count != '0' && 'results-receiver.actions.githubusercontent.com:443' || '' }}
       # GitHub's DNS experiment on some of its runners hides the lookups of the job from
       # Harden-Runner, which then blocks the hosts of the policy until the time limit
       # (step-security/harden-runner#708). Harden-Runner takes it away unless its
@@ -676,6 +779,7 @@ jobs:
       - *checkout
       - *assistant-checkout
       - *engine
+      - *attachments
       - *context
       - *claude
       - *codex

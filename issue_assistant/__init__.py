@@ -37,6 +37,7 @@ from .comments import *
 from .applying import *
 from .learning import *
 from .digests import *
+from .attachments import *
 from .context import *
 from .commands import *
 from .events import *

@@ -69,6 +69,7 @@ CALLS: dict[str, dict[str, str | None]] = {
     # The input smoke: the issue and the answer of a file, without the AI.
     "reusable-issue-assistant.yml": {
         "Handle the event": "Take the issue of the smoke test",
+        "Download the attachments of the issue": None,
         "Analyze with the AI engine": None,
         "Analyze with the AI engine on the runner in reserve": None,
         "Check and post the analysis": "Check the engine's answer and post it",

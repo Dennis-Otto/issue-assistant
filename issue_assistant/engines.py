@@ -89,6 +89,10 @@ class Engine:
     # as `evaluate` runs it on your computer, with the arguments that keep it to
     # reading, as its action has them in the workflow; see answer_with_schema.
     local: tuple[str, ...] = ()
+    # Whether its tool that reads files opens an image: attachments.md then names
+    # the images that the reporter attached with their paths, and for any other
+    # engine as not read (decision 0034).
+    reads_images: bool = False
 
 
 # The engines the workflow template has a step for; .github/issue-assistant/config.toml
@@ -113,6 +117,7 @@ ENGINES = {
             "--output-format",
             "json",
         ),
+        reads_images=True,
     ),
     # The Codex action runs Codex in a sandbox that reads files but neither writes
     # them nor reaches the network, and enforces the strict schema. Its arguments
@@ -193,6 +198,7 @@ ENGINES = {
             answer="response",
             at_turns=53,
         ),
+        reads_images=True,
     ),
     "copilot": Engine(
         "Copilot",

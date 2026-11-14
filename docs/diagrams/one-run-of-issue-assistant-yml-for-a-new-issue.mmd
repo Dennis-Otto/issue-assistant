@@ -1,15 +1,20 @@
 sequenceDiagram
   accTitle: One run of issue-assistant.yml for a new issue
-  accDescr: GitHub sends the event of the new issue 12 to the job event, which adds the labels of the form and needs-triage and hands the issue and the task triage to the job analyze. Its engine step chooses the model, the turns and the dollars of the task, and its context step writes the issue, the other issues, the discussions, the labels, the rules, the task and the schema into .issue-assistant/ and hands the rules before the task, and the schema, to the engine, which runs with a read-only token, behind the egress firewall, with the engine's secret and stops at its turns or its dollars, as far as it counts them. The engine reads the checkout with tools that only read and hands its answer in JSON to the job apply, which runs no AI and has no secret. apply checks the answer against the schema, the labels and the issues, cleans the text, and writes the labels, the comment and then needs-info, only on issue 12. For Claude, the usage step writes what the run cost into the summary of the job.
+  accDescr: GitHub sends the event of the new issue 12 to the job event, which adds the labels of the form and needs-triage and hands the issue and the task triage to the job analyze. Before it, the job attachments, without the AI and with a read-only token, downloads the logs and screenshots that the reporter attached and keeps them as an artifact for analyze. Its engine step chooses the model, the turns and the dollars of the task, and its context step writes the issue, its attachments, cleaned and fenced, the other issues, the discussions, the labels, the rules, the task and the schema into .issue-assistant/ and hands the rules before the task, and the schema, to the engine, which runs with a read-only token, behind the egress firewall, with the engine's secret and stops at its turns or its dollars, as far as it counts them. The engine reads the checkout with tools that only read and hands its answer in JSON to the job apply, which runs no AI and has no secret. apply checks the answer against the schema, the labels and the issues, cleans the text, and writes the labels, the comment and then needs-info, only on issue 12. For Claude, the usage step writes what the run cost into the summary of the job.
   participant G as GitHub
   participant E as event
+  participant A as attachments
   participant C as analyze: context
   participant AI as analyze: engine
   participant P as apply
   G->>E: a new issue, #35;12
   E->>G: labels from the form,<br>needs-triage
+  E->>A: issue 12
+  A->>G: downloads the logs and<br>screenshots of the reporter
+  Note over A: no AI,<br>a read-only token
+  A->>C: the artifact of<br>the attachments
   E->>C: issue 12, task triage
-  C->>C: writes the issue, other<br>issues, discussions, labels,<br>rules, task and schema into<br>.issue-assistant/
+  C->>C: writes the issue, its<br>attachments, other issues,<br>discussions, labels, rules,<br>task and schema into<br>.issue-assistant/
   C->>AI: the rules before the task,<br>and the schema
   Note over C,AI: read-only token, egress<br>firewall, the engine's secret
   Note over AI: the model, turns and<br>dollars of the task

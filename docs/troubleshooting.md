@@ -13,6 +13,7 @@ The Actions tab shows each job by its name, below the name of the job of your wo
 | Workflow | Id | Name in the Actions tab | What it does |
 | --- | --- | --- | --- |
 | Issue assistant | `event` | *Handle the event* | Chooses the task and checks who started a run by hand, without AI |
+| Issue assistant | `attachments` | *Download the attachments of the issue* | Downloads the text files and images that the reporter attached, for the AI, without AI |
 | Issue assistant | `analyze` | *Analyze with the AI engine* | Runs the engine on the firewall runner |
 | Issue assistant | `analyze-in-reserve` | *Analyze with the AI engine on the runner in reserve* | Runs the same steps on the runner of `ISSUE_ASSISTANT_AI_RUNNER` |
 | Issue assistant | `apply` | *Check and post the analysis* | Checks the answer of the AI and posts it, without AI |

@@ -35,6 +35,7 @@ The code is the package `issue_assistant/`, of the standard library alone ([deci
 | `issue_assistant/applying.py` | `apply_answer`: the labels, the comment, the owners and the first answer to a discussion |
 | `issue_assistant/learning.py` | What maintainers changed, for `corrections.md` of the next analyses |
 | `issue_assistant/digests.py` | What waits for whom, the feedback, the quality of the month and the digest |
+| `issue_assistant/attachments.py` | `attachments_of`, `fetch` and `render_attachments`: the files that a reporter attaches, the download of the text files and the images in the job `attachments`, and `attachments.md` |
 | `issue_assistant/context.py` | `write_context`: all that the engine reads besides the checkout |
 | `issue_assistant/commands.py` | The `/assistant` commands, a reporter's answer, and the limits of the AI runs |
 | `issue_assistant/events.py` | `handle_event`: what a new issue, a comment or a discussion starts |
