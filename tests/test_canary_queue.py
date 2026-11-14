@@ -78,7 +78,12 @@ def test_the_job_of_the_canary_runs_the_script_beside_the_call():
     )["jobs"]
     assert {called[key]["name"]: key for key in queue.AI.values()} == queue.AI
     assert called["event"]["name"] == queue.EVENT
-    assert all(called[key]["needs"] == "event" for key in queue.AI.values())
+    # The job attachments, which the jobs of the AI need too, skips the canary, so
+    # they can start once the event ended.
+    assert all(
+        called[key]["needs"] == ["event", "attachments"] for key in queue.AI.values()
+    )
+    assert "!inputs.canary" in called["attachments"]["if"]
     # Long enough for the call to wait for an earlier canary, then FAIL.
     assert watcher["timeout-minutes"] * 60 > queue.FAIL.total_seconds() * 2
 

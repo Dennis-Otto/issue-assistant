@@ -106,8 +106,8 @@ def test_the_script_knows_every_job_and_the_step_that_writes_its_plan():
             plan = expected[job["name"]]
             if plan is not None:
                 assert plan in [step.get("name") for step in job["steps"]], plan
-    # The two jobs of the AI alone are skipped: the smoke tests of the issues and of
-    # the discussions run no engine.
+    # The jobs of the AI alone are skipped, and the attachments: the smoke tests of
+    # the issues and of the discussions run no engine, on the issue of a file.
     skipped = {
         f"{call} / {name}"
         for call, expected in script.CALLS.items()
@@ -115,6 +115,8 @@ def test_the_script_knows_every_job_and_the_step_that_writes_its_plan():
         if plan is None
     }
     assert skipped == {
+        # The smoke test downloads no attachments of its issue, which is a file's.
+        "reusable-issue-assistant.yml / Download the attachments of the issue",
         "reusable-issue-assistant.yml / Analyze with the AI engine",
         "reusable-issue-assistant.yml / Analyze with the AI engine on the runner in "
         "reserve",

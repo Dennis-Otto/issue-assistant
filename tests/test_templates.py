@@ -723,12 +723,65 @@ def test_jobs_without_the_ai_reach_only_github(item):
     hosts = GITHUB_HOSTS + [CACHE_HOST] * (job_name == "findings")
     if (name, job_name) == ("findings.yml", RECORD_JOB):
         hosts = [CACHE_HOST]
+    if (name, job_name) == ("issue-assistant.yml", "attachments"):
+        hosts = GITHUB_HOSTS + ATTACHMENT_HOSTS + [CACHE_HOST]
     assert first["with"] == {
         "egress-policy": "block",
         "disable-sudo-and-containers": True,
         "allowed-endpoints": " ".join(hosts),
     }
     assert not any(step.get("uses", "").startswith(HARDEN_RUNNER) for step in rest)
+
+
+def test_the_attachments_are_downloaded_without_the_ai_and_reach_only_github():
+    """The files that a reporter attaches come from a stranger. A job of their own
+    downloads them, with a token that only reads, no secret and no AI, from GitHub's
+    hosts for attachments, and hands them to the AI's job as an artifact; the
+    firewall policy of the AI's job stays without those hosts (decision 0033)."""
+    job = JOBS["attachments"]
+    assert job["needs"] == "event" and job["runs-on"] == RUNNER
+    assert job["permissions"] == {"contents": "read", "issues": "read"}
+    assert "secrets." not in json.dumps(job) and "environment" not in job
+    condition = words(job["if"])
+    for part in ("!inputs.smoke", "!inputs.canary", "vars.ISSUE_ASSISTANT_AI != 'off'"):
+        assert part in condition
+    download, keep = (
+        step
+        for step in job["steps"]
+        if step.get("id") == "attachments"
+        or step.get("uses", "").startswith("actions/upload-artifact@")
+    )
+    assert download["uses"] == TOOL
+    assert download["with"]["command"] == "attachments"
+    assert keep["with"] == {
+        "name": "issue-assistant-attachments",
+        "path": ".issue-assistant/attachments/",
+        "if-no-files-found": "error",
+        "retention-days": 1,
+    }
+    assert keep["if"] == (
+        "steps.attachments.outputs.count != '' && "
+        "steps.attachments.outputs.count != '0'"
+    )
+    for name in ("analyze", RESERVE):
+        steps = [step.get("name") for step in JOBS[name]["steps"]]
+        engine = steps.index("Choose the engine and check its secret")
+        assert steps[engine + 1 : engine + 3] == [
+            TAKE_ATTACHMENTS,
+            "Collect the issue, earlier issues and discussions",
+        ], name
+        take = JOBS[name]["steps"][engine + 1]
+        assert take["uses"].startswith("actions/download-artifact@")
+        assert take["with"] == {
+            "name": "issue-assistant-attachments",
+            "path": ".issue-assistant/attachments",
+        }
+        # A failed handover leaves only the attachments out of the analysis.
+        assert take["continue-on-error"] is True
+        assert words(take["if"]).endswith(WITH_ATTACHMENTS)
+    policy = (TEMPLATES.parent / "egress-firewall.yaml").read_text("utf-8")
+    for host in ATTACHMENT_HOSTS:
+        assert host.removesuffix(":443") not in policy
 
 
 # The reusable workflows whose job analyze runs an engine, with their jobs.
@@ -749,6 +802,28 @@ JOBS_WITH_THE_AI = {
     "reusable-discussion-assistant.yml:analyze": DISCUSSION_JOBS["analyze"],
     "evaluate.yml:replay": EVALUATE["jobs"]["replay"],
 }
+# What the jobs of the AI wait for, and the hosts of Harden-Runner on the runner in
+# reserve: those of the firewall policy, and for the issues, while there are
+# attachments, GitHub's results service, which hands them on (decision 0033).
+NEEDS = {"issue-assistant.yml": ["event", "attachments"]}
+NEEDS[assistant.DISCUSSION_WORKFLOW] = "event"
+WITH_ATTACHMENTS = (
+    "needs.attachments.outputs.count != '' && needs.attachments.outputs.count != '0'"
+)
+ENDPOINTS = {
+    "issue-assistant.yml": "${{ needs.event.outputs.endpoints }} ${{ "
+    f"{WITH_ATTACHMENTS} && 'results-receiver.actions.githubusercontent.com:443' "
+    "|| '' }}",
+    assistant.DISCUSSION_WORKFLOW: "${{ needs.event.outputs.endpoints }}",
+}
+# The step of the jobs of the AI that takes the files of the job attachments.
+TAKE_ATTACHMENTS = "Take the attachments of the issue"
+# GitHub's hosts for attachments, which the job attachments alone reaches.
+ATTACHMENT_HOSTS = [
+    "objects.githubusercontent.com:443",
+    "private-user-images.githubusercontent.com:443",
+    "user-images.githubusercontent.com:443",
+]
 # The steps of analyze that run an engine, by their ids.
 ENGINE_STEPS = ("claude", "codex", "gemini", "copilot")
 
@@ -771,7 +846,7 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     analyze, reserve = jobs["analyze"], jobs[RESERVE]
     assert analyze["runs-on"] == assistant.FIREWALL_RUNNER
     assert reserve["runs-on"] == AI_RUNNERS[RESERVE]
-    assert analyze["needs"] == reserve["needs"] == "event"
+    assert analyze["needs"] == reserve["needs"] == NEEDS[name]
     # One of the two runs, by the variable, under the same other conditions.
     condition = words(analyze["if"]).removesuffix(f" && {ON_THE_FIREWALL_RUNNER}")
     assert "vars.ISSUE_ASSISTANT_AI != 'off'" in condition
@@ -787,7 +862,7 @@ def test_the_ai_runs_on_another_runner_only_behind_harden_runner(name):
     # The engines need sudo, to install what isolates them.
     assert block["with"] == {
         "egress-policy": "block",
-        "allowed-endpoints": "${{ needs.event.outputs.endpoints }}",
+        "allowed-endpoints": ENDPOINTS[name],
     }
     assert holds["name"] == NETWORK_BLOCK
     assert warm["name"] == WARM_UP
@@ -1237,7 +1312,7 @@ def test_the_jobs_that_make_sure_that_harden_runner_blocks_are_found():
         for workflow, name, _, block in HARDENED_JOBS
         if block["with"]["egress-policy"] == "block"
     }
-    assert len(found) == 22
+    assert len(found) == 23
 
 
 def test_the_step_that_makes_sure_that_harden_runner_blocks_is_the_blueprint_s():
@@ -2042,6 +2117,32 @@ def test_the_canary_checks_that_the_engine_answered(
     assert says in result.stdout
 
 
+def without_attachments(job):
+    """A job of the AI of the issues without what only the issues have: the job
+    attachments that it needs, the step that takes its files, and GitHub's results
+    service for them on the runner in reserve (decision 0033). Discussions have no
+    attachments yet."""
+    steps = [
+        dict(
+            step,
+            **{
+                "with": {
+                    **step["with"],
+                    "allowed-endpoints": ENDPOINTS[assistant.DISCUSSION_WORKFLOW],
+                }
+            },
+        )
+        if step.get("uses", "").startswith(HARDEN_RUNNER)
+        else step
+        for step in job["steps"]
+        if step.get("name") != TAKE_ATTACHMENTS
+    ]
+    condition = job["if"].replace(
+        "!cancelled() && needs.event.result == 'success' && ", ""
+    )
+    return dict(job, needs="event", steps=steps, **{"if": condition})
+
+
 def without_the_canary(job):
     """A job of the issues' reusable workflow as every repository's run has it:
     without the steps that only the Canary and the smoke test run, the values that
@@ -2744,9 +2845,9 @@ def test_the_discussions_analyze_as_the_issues_do():
     for name in ("analyze", RESERVE):
         # Both skip the engine in their smoke test, and only the issues have a
         # Canary.
-        assert DISCUSSION_JOBS[name]["if"] == JOBS[name]["if"], name
+        assert DISCUSSION_JOBS[name]["if"] == without_attachments(JOBS[name])["if"]
         assert without_the_canary(DISCUSSION_JOBS[name]) == without_the_canary(
-            JOBS[name]
+            without_attachments(JOBS[name])
         ), name
         assert not [
             step
@@ -2770,6 +2871,7 @@ def test_the_discussions_analyze_as_the_issues_do():
     )
     assert set(discussions) == {"inputs", "secrets"}
     assert list(DISCUSSION_JOBS) == ["event", "analyze", RESERVE, "apply"]
+    assert list(JOBS) == ["event", "attachments", "analyze", RESERVE, "apply"]
     assert DISCUSSION_JOBS["apply"]["needs"] == ["event", "analyze", RESERVE]
     # apply runs after an answer of the engine on either runner. It writes out what
     # GitHub otherwise adds, that the jobs that ran passed: one of the two jobs of the

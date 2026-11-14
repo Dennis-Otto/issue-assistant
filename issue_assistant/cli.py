@@ -15,6 +15,7 @@ from typing import Any
 
 from .accuracy import ACCURACY_PAGE, measurement_of, page_with_numbers
 from .applying import BacklogRow, apply_answer, render_backlog_row
+from .attachments import attachments_command
 from .cleaning import repository_refs
 from .code_scanning import (
     ALERT_LEFT,
@@ -169,6 +170,8 @@ SCRIPT_COMMANDS = {
     "and name the hosts of the firewall policy for Harden-Runner there",
     "engine": "name the engine, whether it can run, and the model, turns, budget and "
     "effort of the task",
+    "attachments": "download the text files and the images attached to the issue, "
+    "for the job of the engine",
     "context": "write the files the engine reads",
     "analyze": "run the command line of the engine of config.toml, for an engine "
     "without an action of its own, with tools that only read",
@@ -190,7 +193,7 @@ SCRIPT_COMMANDS = {
 }
 # The commands of one task of the engine, which take --issue and --mode, by default
 # from ISSUE and MODE.
-TASK_COMMANDS = ("engine", "context", "analyze", "apply", "usage")
+TASK_COMMANDS = ("engine", "attachments", "context", "analyze", "apply", "usage")
 # The commands that read only the checkout, so they run anywhere, also on a computer
 # without GH_REPO; the others, but install and accuracy-page, call GitHub.
 OFFLINE_COMMANDS = ("check", "endpoints", "engine", "analyze", "usage")
@@ -546,8 +549,8 @@ def issue_command(
     arguments: argparse.Namespace,
     fixture_name: str,
 ) -> int:
-    """The commands of an event and of the issues: event, context, apply, sweep and
-    sync-labels."""
+    """The commands of an event and of the issues: event, attachments, context,
+    apply, sweep and sync-labels."""
     if fixture_name:
         fixture = read_fixture(root, fixture_name)
         # The tasks of the discussions read a discussion, every other an issue.
@@ -586,6 +589,11 @@ def issue_command(
         output("task", written["task"])
         output("schema", written["schema"])
         output("engine-args", written["engine-args"])
+        return 0
+    if arguments.command == "attachments":
+        token = os.environ.get("GH_TOKEN", "")
+        count = attachments_command(github, arguments.issue, config.root, token)
+        output("count", str(count))
         return 0
     if arguments.command == "event":
         return event_command(run, github, config)
