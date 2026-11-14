@@ -3680,6 +3680,22 @@ def test_an_answer_that_is_no_json_is_refused(config):
         "https://github.com/owner/" + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p",
         "https://github.com/owner/project/blob/"
         + "Zx8Kq2mP9vL4tR7wY1bN6cJ3hF5gD0sA8eU2iO4p/README.md",
+        # Hex as long as a commit after a name that says it is a credential: a
+        # token of GitHub's old kind in a header, and a key or a password of hex
+        # in a variable, JSON, an option or a sentence.
+        "Authorization: token " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        "Authorization: Bearer " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        "GITHUB_TOKEN=" + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        '{"api_key": "' + "677B136666DC555B" + "19B50D237C5234F66D2847E8" + '"}',
+        "X-Api-Key:" + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        "os.environ['CLIENT_SECRET'] = '"
+        + "677b136666dc555b"
+        + "19b50d237c5234f66d2847e8'",
+        "--password " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        "the token " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        # A public fingerprint right after the word key is refused as well: it
+        # costs an answer, never a secret.
+        "the GPG key " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
         # Webhooks of Slack and Microsoft Teams, which post as their owner.
         "https://hooks.slack"
         + ".com/services/TY1Z2IXGC/BI5NQ1T06YW/ILALo5vR67b2rMQSkS3u9I5K",
@@ -3738,6 +3754,15 @@ def test_an_answer_with_something_like_a_secret_is_never_posted(config, secret):
         "sha512-" + "9f86d081884c7d65" * 8,
         "fingerprint 4AEE18F83AFDEB23ABCDEF0123456789ABCDEF01",
         "commit 677b136666dc555b19b50d237c5234f66d2847e8",
+        # A commit in a link, or after a credential that the sentence names elsewhere,
+        # and a commit in a repository or a branch named after one.
+        "https://github.com/Dennis-Otto/ha-autodarts/commit/"
+        "677b136666dc555b19b50d237c5234f66d2847e8",
+        "The token was rotated in commit 677b136666dc555b19b50d237c5234f66d2847e8",
+        "https://github.com/owner/api-key/tree/677b136666dc555b19b50d237c5234f66d2847e8",
+        "keys/677b136666dc555b19b50d237c5234f66d2847e8",
+        # The name of a credential before hex shorter than a commit.
+        "token " + "677b136",
         # Placeholders for the address of a webhook, without its secret.
         "Set SLACK_WEBHOOK_URL to https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
         "https://hooks.slack.com/services/T000/B000/XXXX",

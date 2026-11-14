@@ -54,6 +54,18 @@ NAMED_DIGEST = re.compile(
     r"(?<![A-Za-z0-9])(?i:sha-?(?:256|384|512))[:=\s-]\s*`?[0-9A-Fa-f]{64,}"
     r"(?![A-Za-z0-9])"
 )
+# Hex of 40 or more characters after a name that says it is a credential, such as
+# `Authorization: token`, `GITHUB_TOKEN=`, `"api_key": "` or `password `: a token of
+# GitHub's old kind, a key of an API or a password of hex, not a commit, which is as
+# long. The name may be a part of a longer one, as in `X-Api-Key`, and ends at most in
+# an s; between it and the value: a colon or an equals sign, or a space alone, quotes
+# and the bracket of a key in code, and the scheme of a header, such as `Bearer`.
+LABELED_HEX = re.compile(
+    r"(?<![\w-])(?i:[\w-]*"
+    r"(?:token|secret|password|passwd|passphrase|key|authorization|auth|credential)s?)"
+    r"[\"'`\]]*(?:\s*[:=]\s*|\s+)[\"'`]*"
+    r"(?:(?i:bearer|token)\s+)?[0-9A-Fa-f]{40}"
+)
 # A link to a repository on GitHub, whose owner and name people choose, up to the
 # path of a file or folder in it after the commit or branch. A name or a branch of 32
 # or more characters is checked like any other text, so that no key hides as one; a
@@ -363,7 +375,9 @@ def names_a_file(token: str, paths: str) -> bool:
 def looks_secret(text: str, files: Collection[str] = ()) -> bool:
     """Whether the text holds something that looks like a token or a key.
 
-    A known kind of token counts wherever it is. Any other run of 40 or more letters,
+    A known kind of token counts wherever it is, and so does hex of 40 or more
+    characters after a name such as token or password, as `LABELED_HEX` describes,
+    while a commit alone, in a link or after the word commit doesn't. Any other run of 40 or more letters,
     digits and `+/=_-` counts when it mixes lower case, upper case and digits, and
     either has the `+` or `=` of Base64, or its letters read like noise. So does a run
     of one case and digits in it, as `SINGLE_CASE` describes, but for a digest that
@@ -372,7 +386,7 @@ def looks_secret(text: str, files: Collection[str] = ()) -> bool:
     owner and the name of the repository, and the commit or branch of a file, are
     never keys.
     """
-    if SECRET.search(text):
+    if SECRET.search(text) or LABELED_HEX.search(text):
         return True
     paths = "\n".join(files)
     return any(
