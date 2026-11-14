@@ -3693,6 +3693,9 @@ def test_an_answer_that_is_no_json_is_refused(config):
         + "19b50d237c5234f66d2847e8'",
         "--password " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
         "the token " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        # A public fingerprint right after the word key is refused as well: it
+        # costs an answer, never a secret.
+        "the GPG key " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
         # Webhooks of Slack and Microsoft Teams, which post as their owner.
         "https://hooks.slack"
         + ".com/services/TY1Z2IXGC/BI5NQ1T06YW/ILALo5vR67b2rMQSkS3u9I5K",
