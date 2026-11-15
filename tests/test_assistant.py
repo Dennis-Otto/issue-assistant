@@ -3696,6 +3696,8 @@ def test_an_answer_that_is_no_json_is_refused(config):
         # The same after a longer name, in a list, and after a short word.
         "secret_key_base: " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
         "apiKeyId=" + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        "passwords_file: " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        "apiKeysId=" + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
         '"key": [ "' + "677b136666dc555b" + "19b50d237c5234f66d2847e8" + '" ]',
         "password is " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
         "The password was set to " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",

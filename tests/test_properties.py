@@ -458,6 +458,11 @@ CREDENTIALS = st.sampled_from(
         "api-key-id",
         "apiKeyId",
         "passwordHash",
+        # A plural that goes on as well.
+        "passwords_file",
+        "CREDENTIALS_JSON",
+        "SECRETS_BASE",
+        "apiKeysId",
     ]
 )
 BETWEEN = st.sampled_from(
