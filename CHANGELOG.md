@@ -4,6 +4,17 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.12.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.11.0...v1.12.0) (2026-11-14)
+
+### Features
+
+- The AI reads the text files and the screenshots that the reporter attaches to an issue or to their comments, such as a log, a configuration or the diagnostics of Home Assistant (`.txt`, `.log`, `.json`, `.yaml`, `.yml`), up to 20,000 characters of each and five files of an issue. A job without the AI downloads them from GitHub's own hosts alone, the AI reads each as the reporter's text, and what looks like a token or a key is replaced first. An engine that opens images, Claude or Gemini, also sees up to three screenshots of an issue (PNG, JPEG, GIF or WebP, up to 5 MB each); for Codex and Copilot, and for archives, `attachments.md` says that a file is attached and isn't read, and nothing is ever unpacked or run. Your `.github/egress-firewall.yaml` needs no change.
+- A project can add the hosts that the AI's links may lead to and the files that tell reporters which AI reads their issue in a file of its own, `.github/issue-assistant/config.project.toml`, whose `[links] hosts` and `[transparency] files` add to those of `config.toml`. A template that writes `config.toml` anew with each update, such as Repo Blueprint, no longer overwrites them. Nothing else may be set there: `check` fails on any other key, which changes nothing.
+
+### Bug fixes
+
+- An answer of the AI with 40 or more characters of hex right after the name of a credential, such as `Authorization: token`, `GITHUB_TOKEN=`, `"api_key": "` or `password`, is now refused as a secret instead of posted: a token of GitHub's old kind is as long as a commit, which let it pass before. A commit alone, in a link or after the word commit is still posted.
+
 ## [1.11.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.10.6...v1.11.0) (2026-11-13)
 
 ### Features
