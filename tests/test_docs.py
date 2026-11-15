@@ -1937,6 +1937,7 @@ SETTINGS = {
     "[context] max_issues": ("max_issues", 300),
     "[context] max_discussions": ("max_discussions", 0),
     "[context] max_analyzed": ("max_analyzed", 0),
+    "[attachments] images": ("read_images", False),
     "[related] repositories": ("related_repositories", ["owner/server"]),
     "[discussions] answer_categories": ("answer_categories", ["Q&A"]),
     "[maintainers] language": ("maintainer_language", "de"),

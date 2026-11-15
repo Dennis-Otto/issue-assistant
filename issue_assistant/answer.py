@@ -57,13 +57,20 @@ NAMED_DIGEST = re.compile(
 # Hex of 40 or more characters after a name that says it is a credential, such as
 # `Authorization: token`, `GITHUB_TOKEN=`, `"api_key": "` or `password `: a token of
 # GitHub's old kind, a key of an API or a password of hex, not a commit, which is as
-# long. The name may be a part of a longer one, as in `X-Api-Key`, and ends at most in
-# an s; between it and the value: a colon or an equals sign, or a space alone, quotes
-# and the bracket of a key in code, and the scheme of a header, such as `Bearer`.
+# long. The name may be a part of a longer one: after other words, as in `X-Api-Key`,
+# and before them, past an underscore, a dash or a capital, also after a plural, as in
+# `secret_key_base`, `apiKeyId` or `passwords_file`, but not as in `keyboard`, which
+# ends at most in an s. Between it and the
+# value: up to three short words such as `is` or `set to`, a colon or an equals sign,
+# or a space alone, quotes and the brackets of a key in code or of a list, and the
+# scheme of a header, such as `Bearer`. The lookahead finds the name in the word, which
+# the run of `[\w-]+` then takes whole, so that the time grows with the text alone.
 LABELED_HEX = re.compile(
-    r"(?<![\w-])(?i:[\w-]*"
-    r"(?:token|secret|password|passwd|passphrase|key|authorization|auth|credential)s?)"
-    r"[\"'`\]]*(?:\s*[:=]\s*|\s+)[\"'`]*"
+    r"(?<![\w-])(?=[\w-]*?"
+    r"(?i:token|secret|password|passwd|passphrase|key|authorization|auth|credential)"
+    r"(?i:s)?(?:[_-]|(?<=[a-z])[A-Z]|(?![\w-])))[\w-]+"
+    r"[\"'`\]]*(?:\s+(?i:is|was|are|were|be|been|set|to|now|equals)(?![\w-])){0,3}"
+    r"(?:\s*[:=]\s*|\s+)(?:[\[(]\s*)*[\"'`]*"
     r"(?:(?i:bearer|token)\s+)?[0-9A-Fa-f]{40}"
 )
 # A link to a repository on GitHub, whose owner and name people choose, up to the

@@ -127,6 +127,9 @@ UNREAD = {
     ),
     "missing": "Not read: it wasn't downloaded for this run.",
     "image": "Not read: an image, which the engine of this repository doesn't open.",
+    "images off": (
+        "Not read: an image, which the settings of this repository keep from the AI."
+    ),
     "other": (
         "Not read: a file that is neither a log nor JSON or YAML, such as an "
         "archive, which the assistant never opens or unpacks."
@@ -288,9 +291,12 @@ def decoded(data: bytes, cut: bool) -> str | None:
         return None
 
 
-def fetch(github: GitHub, number: int, root: Path, token: str) -> list[dict[str, Any]]:
-    """Download the text files and the images attached to issue `number` into
-    ATTACHMENTS, with the index of what became of each, and return the index.
+def fetch(
+    github: GitHub, number: int, root: Path, token: str, images: bool = True
+) -> list[dict[str, Any]]:
+    """Download the text files and, for an AI that opens `images`, the images
+    attached to issue `number` into ATTACHMENTS, with the index of what became of
+    each, and return the index.
 
     The files of the first MOST_FILES links of text files are downloaded, the bytes
     that MOST_BYTES allows of each, and each that is no text is left out; so are
@@ -305,7 +311,7 @@ def fetch(github: GitHub, number: int, root: Path, token: str) -> list[dict[str,
     found = [
         item
         for item in attachments_of(issue, comments, github.repository)
-        if item.kind in {"text", "image"}
+        if item.kind == "text" or (images and item.kind == "image")
     ]
     folder = root / ATTACHMENTS
     shutil.rmtree(folder, ignore_errors=True)
@@ -429,12 +435,15 @@ def render_attachments(
     repository: str,
     visible: Visible,
     images: bool = False,
+    images_off: bool = False,
 ) -> str | None:
     """attachments.md: each file attached to the issue and to the comments of its
     reporter, with the text of those that the job attachments downloaded, each in a
     code fence that nothing in it can close, as issue.md has the texts, and, for an
-    engine that opens `images`, the path of each image that it downloaded; None for
-    an issue without any. `visible` counts the invisible characters that went."""
+    AI that opens `images`, the path of each image that it downloaded; None for an
+    issue without any. An image that the AI doesn't open is named with the reason:
+    an engine that can't, or `images_off`, the settings of the repository.
+    `visible` counts the invisible characters that went."""
     found = attachments_of(issue, comments, repository)
     if not found:
         return None
@@ -456,6 +465,8 @@ def render_attachments(
             *(
                 image_text(index.get(item.url), folder)
                 if images and item.kind == "image"
+                else [UNREAD["images off"]]
+                if images_off and item.kind == "image"
                 else attachment_text(item, index.get(item.url), folder, visible)
             ),
         ]
@@ -535,13 +546,16 @@ def keep_shown(root: Path, attached: str | None, images: bool) -> None:
             path.unlink()
 
 
-def attachments_command(github: GitHub, number: int, root: Path, token: str) -> int:
-    """The command attachments: download the text files and the images of the issue,
-    and the number of lines of the index, for the job that keeps them for the AI."""
+def attachments_command(
+    github: GitHub, number: int, root: Path, token: str, images: bool = True
+) -> int:
+    """The command attachments: download the text files and, for an AI that opens
+    `images`, the images of the issue, and the number of lines of the index, for the
+    job that keeps them for the AI."""
     if not number:
         raise AssistantError("attachments needs an issue.")
     try:
-        return len(fetch(github, number, root, token))
+        return len(fetch(github, number, root, token, images))
     except GitHubError as error:
         # The attachments only add to what the AI reads, which goes on without them.
         command("warning", f"The attachments of #{number} weren't read: {error}")
