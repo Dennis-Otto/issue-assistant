@@ -4,6 +4,16 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.13.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.12.0...v1.13.0) (2026-11-15)
+
+### Features
+
+- You can keep every image that a reporter attaches away from the AI, whatever your engine can do: set `images = false` under `[attachments]` in `config.toml`. The assistant then downloads no image, and the AI reads that an image is attached and that your settings keep it out, so it doesn't ask for it again. Text files are still read.
+
+### Bug fixes
+
+- An answer that repeats hex as long as a commit after the name of a credential is now held back in more cases: after a longer name such as `secret_key_base` or `apiKeyId`, in a list such as `"key": [ "…" ]`, and after short words such as `password is` or `was set to`. A commit alone, in a link or after the word commit is still posted.
+
 ## [1.12.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.11.0...v1.12.0) (2026-11-14)
 
 ### Features
