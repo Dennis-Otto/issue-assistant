@@ -3701,6 +3701,10 @@ def test_an_answer_that_is_no_json_is_refused(config):
         '"key": [ "' + "677b136666dc555b" + "19b50d237c5234f66d2847e8" + '" ]',
         "password is " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
         "The password was set to " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        # And after a name that ends in a digit, as one of several keys does.
+        "key1=" + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        "token2: " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        "apiKey2Id=" + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
         # A public fingerprint right after the word key is refused as well: it
         # costs an answer, never a secret.
         "the GPG key " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
@@ -3772,6 +3776,9 @@ def test_an_answer_with_something_like_a_secret_is_never_posted(config, secret):
         "The key is in commit 677b136666dc555b19b50d237c5234f66d2847e8",
         # A word that only begins with the name of a credential.
         "The keyboard works since 677b136666dc555b19b50d237c5234f66d2847e8",
+        "The keyboard1 works since 677b136666dc555b19b50d237c5234f66d2847e8",
+        # A digest whose algorithm ends in a digit, which names no credential.
+        "sha1 677b136666dc555b19b50d237c5234f66d2847e8",
         # The name of a credential before hex shorter than a commit.
         "token " + "677b136",
         # Placeholders for the address of a webhook, without its secret.

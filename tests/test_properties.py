@@ -463,6 +463,14 @@ CREDENTIALS = st.sampled_from(
         "CREDENTIALS_JSON",
         "SECRETS_BASE",
         "apiKeysId",
+        # A name that ends in a digit, as one of several keys does.
+        "key1",
+        "token2",
+        "API_KEY_2",
+        "password12",
+        "secrets3",
+        "apiKey2Id",
+        "access_token2_old",
     ]
 )
 BETWEEN = st.sampled_from(
@@ -515,6 +523,11 @@ def test_hex_after_the_name_of_a_credential_is_refused(
             "The key is in commit {}.",
             "The secret_key_base was moved in commit {}.",
             "The keyboard works since {}.",
+            "The keyboard1 works since {}.",
+            "The key2 is in commit {}.",
+            "sha1 {}",
+            "sha1: {}",
+            "https://github.com/owner/key1/commit/{}",
             "Our tokenizer {} is faster.",
             "[{}]",
         ]
