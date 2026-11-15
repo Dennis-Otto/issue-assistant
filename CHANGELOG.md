@@ -4,6 +4,13 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.13.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.12.0...v1.13.0) (2026-11-15)
+
+
+### Features
+
+* **attachments:** a repository can keep every image from the AI, and the secret check catches more hex ([#428](https://github.com/Dennis-Otto/issue-assistant/issues/428)) ([13b4032](https://github.com/Dennis-Otto/issue-assistant/commit/13b4032cfcd0bd40a044bb27ee9e1a29b9914668))
+
 ## [1.12.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.11.0...v1.12.0) (2026-11-14)
 
 ### Features
