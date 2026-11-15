@@ -4,6 +4,13 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.13.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.0...v1.13.1) (2026-11-15)
+
+
+### Bug fixes
+
+* **answers:** refuse hex after the name of a credential that ends in a number ([#434](https://github.com/Dennis-Otto/issue-assistant/issues/434)) ([7aaff93](https://github.com/Dennis-Otto/issue-assistant/commit/7aaff934788f79524e5ff9f56827db92fdc34440))
+
 ## [1.13.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.12.0...v1.13.0) (2026-11-15)
 
 ### Features
