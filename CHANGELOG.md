@@ -6,10 +6,9 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## [1.13.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.0...v1.13.1) (2026-11-15)
 
-
 ### Bug fixes
 
-* **answers:** refuse hex after the name of a credential that ends in a number ([#434](https://github.com/Dennis-Otto/issue-assistant/issues/434)) ([7aaff93](https://github.com/Dennis-Otto/issue-assistant/commit/7aaff934788f79524e5ff9f56827db92fdc34440))
+- An answer that repeats hex as long as a commit after the name of a credential that ends in a number, such as `key1=`, `token2:` or `password12 is`, is now held back as well. A commit alone, in a link or after the word commit is still posted, and so is one after a word such as `keyboard1` or `sha1`.
 
 ## [1.13.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.12.0...v1.13.0) (2026-11-15)
 
