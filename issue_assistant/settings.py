@@ -122,6 +122,13 @@ def engine_problems(config: Config) -> list[str]:
     return problems
 
 
+def opens_images(config: Config) -> bool:
+    """Whether the AI sees the images that a reporter attaches: its engine opens
+    images, and [attachments] images of config.toml doesn't keep them out
+    (decision 0034)."""
+    return config.read_images and ENGINES[engine_named(config.engine)].reads_images
+
+
 def task_run(config: Config, mode: str | None) -> Run:
     """The model, turns, budget and effort of the engine for a task.
 
@@ -308,6 +315,9 @@ class Config:
     max_issues: int = MAX_ISSUES
     max_discussions: int = MAX_DISCUSSIONS
     max_analyzed: int = MAX_ANALYZED
+    # Whether an engine that opens images sees those that a reporter attaches; false
+    # keeps every image from the AI, whatever the engine can do. See opens_images.
+    read_images: bool = True
     # Public repositories that share users and topics with this one, as owner/name:
     # a first analysis searches their issues too; see siblings.
     related_repositories: tuple[str, ...] = ()
@@ -402,6 +412,7 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
         "max_discussions": Key("max_discussions", int),
         "max_analyzed": Key("max_analyzed", int),
     },
+    "attachments": {"images": Key("read_images", bool)},
     "related": {"repositories": Key("related_repositories", list, tuple)},
     "discussions": {"answer_categories": Key("answer_categories", list, tuple)},
     "maintainers": {"language": Key("maintainer_language", str)},

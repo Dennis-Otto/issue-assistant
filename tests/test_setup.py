@@ -252,8 +252,8 @@ def test_unknown_keys_are_named_with_the_key_they_probably_mean(
         f"{CONFIG}: hosts belongs in the section [links], not in [engine]",
         f"{CONFIG}: unknown section [release]; did you mean [releases]?",
         f"{CONFIG}: unknown key hots in [links]; did you mean hosts?",
-        f"{CONFIG}: unknown section [colours]; known: [engine], [context], [related], "
-        "[discussions], [maintainers], [links], [forms], [transparency], [releases], "
+        f"{CONFIG}: unknown section [colours]; known: [engine], [context], [attachments], "
+        "[related], [discussions], [maintainers], [links], [forms], [transparency], [releases], "
         "[lifecycle], [digest]",
     ]
     # The other commands keep the defaults and warn.

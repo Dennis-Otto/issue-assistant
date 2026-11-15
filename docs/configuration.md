@@ -54,6 +54,9 @@ max_issues = 1000               # closed issues that an analysis reads besides e
 max_discussions = 1000          # discussions that an analysis reads: those that changed last
 max_analyzed = 30               # issues analyzed last whose corrections by the maintainers a first analysis learns from; 0: none
 
+[attachments]
+images = true                   # false: the AI sees no image that a reporter attaches, whatever the engine can do
+
 [related]
 repositories = ["owner/server"] # public repositories whose issues a first analysis searches too, up to 5
 

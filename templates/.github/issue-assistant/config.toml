@@ -40,6 +40,14 @@ max_issues = 1000
 max_discussions = 1000
 max_analyzed = 30
 
+[attachments]
+# Whether the AI sees the images that a reporter attaches, such as a screenshot,
+# when the engine opens images, as Claude and Gemini do. Set to false to keep every
+# image from the AI, whatever the engine can do: the job of the attachments then
+# downloads none, and the AI reads that an image is attached and why it stays
+# closed. Text files are read either way.
+images = true
+
 [related]
 # Public repositories that share users and topics with this one, as "owner/name", up
 # to 5. A first analysis also searches their issues, links those that help, and says

@@ -3693,6 +3693,12 @@ def test_an_answer_that_is_no_json_is_refused(config):
         + "19b50d237c5234f66d2847e8'",
         "--password " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
         "the token " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        # The same after a longer name, in a list, and after a short word.
+        "secret_key_base: " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        "apiKeyId=" + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        '"key": [ "' + "677b136666dc555b" + "19b50d237c5234f66d2847e8" + '" ]',
+        "password is " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
+        "The password was set to " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
         # A public fingerprint right after the word key is refused as well: it
         # costs an answer, never a secret.
         "the GPG key " + "677b136666dc555b" + "19b50d237c5234f66d2847e8",
@@ -3761,6 +3767,9 @@ def test_an_answer_with_something_like_a_secret_is_never_posted(config, secret):
         "The token was rotated in commit 677b136666dc555b19b50d237c5234f66d2847e8",
         "https://github.com/owner/api-key/tree/677b136666dc555b19b50d237c5234f66d2847e8",
         "keys/677b136666dc555b19b50d237c5234f66d2847e8",
+        "The key is in commit 677b136666dc555b19b50d237c5234f66d2847e8",
+        # A word that only begins with the name of a credential.
+        "The keyboard works since 677b136666dc555b19b50d237c5234f66d2847e8",
         # The name of a credential before hex shorter than a commit.
         "token " + "677b136",
         # Placeholders for the address of a webhook, without its secret.

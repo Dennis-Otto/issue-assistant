@@ -652,6 +652,63 @@ def test_an_engine_that_opens_no_image_reads_that_it_can_t(config, root, opener)
 
 
 @pytest.mark.parametrize(
+    ("engine", "read_images", "opens"),
+    [
+        ("claude", True, True),
+        ("gemini", True, True),
+        ("claude", False, False),
+        ("gemini", False, False),
+        ("codex", True, False),
+        ("copilot", False, False),
+    ],
+)
+def test_the_settings_and_the_engine_decide_together_whether_images_are_seen(
+    config, engine, read_images, opens
+):
+    changed = dataclasses.replace(config, engine=engine, read_images=read_images)
+    assert assistant.opens_images(changed) is opens
+
+
+def test_a_repository_can_keep_every_image_from_the_ai(config, root, opener):
+    """Whatever the engine can do: no image is downloaded, and the AI reads why."""
+    off = dataclasses.replace(config, read_images=False)
+    issue = make_issue(body=f"[log]({LOG}) and ![shot]({IMAGE})")
+    github = FakeGitHub(off, issue)
+    github.public = lambda: True
+    # The opener knows no image, so that a download of one would fail the test.
+    fake = opener({LOG: b"2026-11-15 ERROR homedarts\n"})
+    index = assistant.fetch(github, 12, off.root, "", assistant.opens_images(off))
+    assert [request.full_url for request in fake.requests] == [LOG]
+    assert [entry["url"] for entry in index] == [LOG]
+    assistant.write_context(github, 12, "triage", off)
+    text = (root / FOLDER / "attachments.md").read_text("utf-8")
+    assert attachments.UNREAD["images off"] in text
+    assert attachments.UNREAD["image"] not in text
+    assert "image-1.png" not in text and "2026-11-15 ERROR homedarts" in text
+    assert not any((root / attachments.ATTACHMENTS).iterdir())
+
+
+def test_the_command_downloads_images_only_for_an_ai_that_opens_them(
+    monkeypatch, tmp_path, root, opener
+):
+    """[attachments] images = false of config.toml keeps the job from them."""
+    issue = make_issue(body=f"![shot]({IMAGE})")
+    settings = root / ".github" / "issue-assistant" / "config.toml"
+    for files, count in [({IMAGE: PNG}, 1), ({}, 0)]:
+        github = FakeGitHub(assistant.load_config(root, REPOSITORY), issue)
+        github.public = lambda: True
+        fake = opener(files)
+        code, outputs, _ = run_main(
+            monkeypatch, tmp_path, root, github, "attachments", ISSUE="12"
+        )
+        assert code == 0 and outputs.endswith(f"count={count}\n")
+        assert len(fake.requests) == count
+        settings.write_text(
+            settings.read_text("utf-8") + "\n[attachments]\nimages = false\n", "utf-8"
+        )
+
+
+@pytest.mark.parametrize(
     ("file", "data"),
     [
         ("../../secret.png", PNG),

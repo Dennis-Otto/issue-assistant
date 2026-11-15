@@ -452,10 +452,36 @@ CREDENTIALS = st.sampled_from(
         "Authorization",
         "auth",
         "credentials",
+        # Longer names that go on past the name of the credential.
+        "secret_key_base",
+        "SECRET_KEY_BASE",
+        "api-key-id",
+        "apiKeyId",
+        "passwordHash",
     ]
 )
 BETWEEN = st.sampled_from(
-    [": ", ":", "=", " = ", " ", "\t", ": token ", ": Bearer ", '": "', "='", "']='"]
+    [
+        ": ",
+        ":",
+        "=",
+        " = ",
+        " ",
+        "\t",
+        ": token ",
+        ": Bearer ",
+        '": "',
+        "='",
+        "']='",
+        # A list, a call and short words before the value.
+        '": [ "',
+        '":["',
+        "=('",
+        " is ",
+        " was ",
+        " is set to ",
+        " is: ",
+    ]
 )
 
 
@@ -481,6 +507,11 @@ def test_hex_after_the_name_of_a_credential_is_refused(
             "https://github.com/owner/project/commit/{}",
             "https://github.com/owner/secret-key/blob/{}/src/token.py#L3",
             "See `{}` for the key.",
+            "The key is in commit {}.",
+            "The secret_key_base was moved in commit {}.",
+            "The keyboard works since {}.",
+            "Our tokenizer {} is faster.",
+            "[{}]",
         ]
     ),
 )

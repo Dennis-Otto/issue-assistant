@@ -71,7 +71,7 @@ from .running import (
     runner_folder,
     summary,
 )
-from .settings import Config, load_config, task_run
+from .settings import Config, load_config, opens_images, task_run
 from .setup_check import (
     check,
     firewall_endpoints,
@@ -592,7 +592,9 @@ def issue_command(
         return 0
     if arguments.command == "attachments":
         token = os.environ.get("GH_TOKEN", "")
-        count = attachments_command(github, arguments.issue, config.root, token)
+        count = attachments_command(
+            github, arguments.issue, config.root, token, opens_images(config)
+        )
         output("count", str(count))
         return 0
     if arguments.command == "event":

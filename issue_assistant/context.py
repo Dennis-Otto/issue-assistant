@@ -30,7 +30,14 @@ from .issues import (
 from .languages import COMMON_WORDS, LOCALES
 from .learning import plural, render_learned
 from .paths import CONTEXT, PROMPTS
-from .settings import Config, label_names, limit, maintainers, siblings
+from .settings import (
+    Config,
+    label_names,
+    limit,
+    maintainers,
+    opens_images,
+    siblings,
+)
 from .values import command, fence, login
 
 # The most of one text, the issue's or a comment's, that the engine reads in
@@ -440,9 +447,15 @@ def write_context(
         (folder / "issue.md").write_text(
             render_issue(issue, comments, own), encoding="utf-8"
         )
-        images = ENGINES[engine_named(config.engine)].reads_images
+        images = opens_images(config)
         attached = render_attachments(
-            config.root, issue, comments, config.repository, own, images
+            config.root,
+            issue,
+            comments,
+            config.repository,
+            own,
+            images,
+            images_off=not config.read_images,
         )
         if attached:
             (folder / "attachments.md").write_text(attached, encoding="utf-8")
