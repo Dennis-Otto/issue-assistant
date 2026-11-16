@@ -4,6 +4,13 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.13.2](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.1...v1.13.2) (2026-11-16)
+
+### Bug fixes
+
+* **deps:** update the Copilot CLI to 1.0.107 (was 1.0.105) ([#440](https://github.com/Dennis-Otto/issue-assistant/issues/440)) ([fd20c79](https://github.com/Dennis-Otto/issue-assistant/commit/fd20c7997f79ae39cd0b47a58dc14bc41eec9fc3))
+* **deps:** update the Gemini CLI to 0.67.0 (was 0.66.0) ([#444](https://github.com/Dennis-Otto/issue-assistant/issues/444)) ([cea7fa6](https://github.com/Dennis-Otto/issue-assistant/commit/cea7fa6a88c354e74ecac551e9fa46c801dc5746))
+
 ## [1.13.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.0...v1.13.1) (2026-11-15)
 
 ### Bug fixes
