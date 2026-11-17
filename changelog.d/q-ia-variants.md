@@ -1,5 +1,0 @@
-### Features
-
-- A repository whose own workflow dismisses the accepted alerts of its pull requests can now keep Findings for the scans of `main`: with `pull_requests = false` under `[findings]` in `config.toml`, `install` writes `findings.yml` with `branches: [main]` under `workflow_run`, and `check` expects it, fails while no other workflow calls `reusable-findings.yml` on `workflow_run`, and fails when the default branch isn't `main`.
-- A repository whose release workflow starts the sweep itself, with `gh workflow run issue-lifecycle.yml -f dry_run=false` after it published a release, can now leave out the start of Issue lifecycle after every run of `Release`: with `sweep_after_release_workflow = false` under `[releases]` in `config.toml`, `install` writes `issue-lifecycle.yml` without that start, and `check` expects it. *From the fix to the release* says how each kind of release workflow starts the sweep.
-- Nothing changes for a repository without these keys, and it needs no `install` for this release; one that sets a key runs `install` again.
