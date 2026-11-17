@@ -4,6 +4,13 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.14.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.3...v1.14.0) (2026-11-17)
+
+
+### Features
+
+* **setup:** two keys of config.toml choose a variant of findings.yml and of issue-lifecycle.yml ([#459](https://github.com/Dennis-Otto/issue-assistant/issues/459)) ([a648941](https://github.com/Dennis-Otto/issue-assistant/commit/a648941350798ea444c91ae0081a7449b18a5918))
+
 ## [1.13.3](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.2...v1.13.3) (2026-11-17)
 
 ### Bug fixes
