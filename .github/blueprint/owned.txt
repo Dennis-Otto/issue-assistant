@@ -88,6 +88,7 @@
 .github/mkdocs_blueprint.py
 .github/mutation-requirements.txt
 .github/prose/cspell.json
+.github/prose/osv-scanner.toml
 .github/prose/package-lock.json
 .github/prose/package.json
 .github/pull_request_template.md
