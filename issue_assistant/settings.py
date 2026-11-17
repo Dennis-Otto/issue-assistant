@@ -304,6 +304,13 @@ class Config:
     credit: bool = True
     # Whether a fixed issue stays open until a release ships the fix.
     releases: bool = True
+    # Whether the end of the release workflow, Release, starts the sweep; false for
+    # a release workflow that starts it itself. See VARIANT_KEYS.
+    sweep_after_release_workflow: bool = True
+    # Whether Findings runs after the scans of pull requests too, and dismisses
+    # their accepted alerts; false where another workflow of the repository does.
+    # See VARIANT_KEYS.
+    findings_pull_requests: bool = True
     # The limits of the AI runs; see LIMITS.
     max_per_day: int = MAX_PER_DAY
     max_per_author_per_day: int = MAX_PER_AUTHOR_PER_DAY
@@ -426,7 +433,11 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
         "files": Key("notices", list, tuple),
         "credit": Key("credit", bool),
     },
-    "releases": {"close_with_release": Key("releases", bool)},
+    "releases": {
+        "close_with_release": Key("releases", bool),
+        "sweep_after_release_workflow": Key("sweep_after_release_workflow", bool),
+    },
+    "findings": {"pull_requests": Key("findings_pull_requests", bool)},
     # The attributes of Config.lifecycle.
     "lifecycle": {
         "remind_after_days": Key("lifecycle.remind_after_days", int),

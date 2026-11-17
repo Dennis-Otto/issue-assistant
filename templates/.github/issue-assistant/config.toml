@@ -94,6 +94,17 @@ credit = true
 # issue closes with a link to the first release that ships the fix. Set to false
 # for a repository without releases.
 close_with_release = true
+# The end of each run of the release workflow named Release starts the sweep, for a
+# release that it published with the job's GITHUB_TOKEN. Set to false when the
+# release workflow starts the sweep itself, and run install again.
+sweep_after_release_workflow = true
+
+[findings]
+# The Findings workflow also runs after the scans of pull requests and dismisses
+# their accepted alerts. Set to false when another workflow of the repository calls
+# its reusable workflow for that, and run install again; only for a default branch
+# named main.
+pull_requests = true
 
 [lifecycle]
 # The days of the lifecycle: a reminder after the last question without an answer,

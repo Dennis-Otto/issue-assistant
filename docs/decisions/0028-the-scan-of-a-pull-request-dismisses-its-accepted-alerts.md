@@ -1,6 +1,6 @@
 # The scan of a pull request dismisses its accepted alerts
 
-- Status: accepted
+- Status: accepted, amended by [0035](0035-a-key-of-config-toml-chooses-a-variant-of-a-template.md)
 - Date: 2026-11-09
 
 ## Context
@@ -35,3 +35,5 @@ An entry that a pull request adds to `findings.toml` counts once it is merged: t
 The threads of a fork's pull request stay with a person. An outsider's code could match an accepted rule in an accepted file with a real finding, such as an untrusted checkout in a workflow whose false positive the repository accepts, and the thread is where a reviewer sees it before the merge. For a pull request of the repository itself, whose author can push to it and dismiss alerts anyway, the dismissal follows only the acceptances of the default branch, and it dismisses only what the runs of the default branch would dismiss after the merge: an entry with a `path` keeps that narrow.
 
 The job keeps `contents: read` and `security-events: write`, which every repository's copy of the template grants, and the change reaches a repository with a move of the pin, without `install`.
+
+[Decision 0035](0035-a-key-of-config-toml-chooses-a-variant-of-a-template.md) amends this: the dismissal of a pull request may run in another workflow of the repository that calls `reusable-findings.yml` after the scans of pull requests, with `[findings] pull_requests = false` in `config.toml`, and `findings.yml` then runs after the scans of `main` alone.
