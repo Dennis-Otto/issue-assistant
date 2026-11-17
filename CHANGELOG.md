@@ -6,7 +6,6 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## [1.13.3](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.2...v1.13.3) (2026-11-17)
 
-
 ### Bug fixes
 
 * **deps:** update the Copilot CLI to 1.0.108 (was 1.0.107) ([#450](https://github.com/Dennis-Otto/issue-assistant/issues/450)) ([28ddd04](https://github.com/Dennis-Otto/issue-assistant/commit/28ddd0477aaf7a6562922a78d7109fb7cec27dff))
