@@ -6,10 +6,11 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## [1.14.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.3...v1.14.0) (2026-11-17)
 
-
 ### Features
 
-* **setup:** two keys of config.toml choose a variant of findings.yml and of issue-lifecycle.yml ([#459](https://github.com/Dennis-Otto/issue-assistant/issues/459)) ([a648941](https://github.com/Dennis-Otto/issue-assistant/commit/a648941350798ea444c91ae0081a7449b18a5918))
+- A repository whose own workflow dismisses the accepted alerts of its pull requests can now keep Findings for the scans of `main`: with `pull_requests = false` under `[findings]` in `config.toml`, `install` writes `findings.yml` with `branches: [main]` under `workflow_run`, and `check` expects it, fails while no other workflow calls `reusable-findings.yml` on `workflow_run`, and fails when the default branch isn't `main`.
+- A repository whose release workflow starts the sweep itself, with `gh workflow run issue-lifecycle.yml -f dry_run=false` after it published a release, can now leave out the start of Issue lifecycle after every run of `Release`: with `sweep_after_release_workflow = false` under `[releases]` in `config.toml`, `install` writes `issue-lifecycle.yml` without that start, and `check` expects it. *From the fix to the release* says how each kind of release workflow starts the sweep.
+- Nothing changes for a repository without these keys, and it needs no `install` for this release; one that sets a key runs `install` again.
 
 ## [1.13.3](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.2...v1.13.3) (2026-11-17)
 
