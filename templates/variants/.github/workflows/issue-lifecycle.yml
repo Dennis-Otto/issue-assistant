@@ -1,0 +1,45 @@
+name: Issue lifecycle
+
+# Without AI: reminds reporters who were asked for information after 15 days,
+# closes their issue after 30 days without an answer, closes a possible duplicate
+# 3 days after the notice unless someone objected, labels the issues that a merged
+# pull request fixes, and closes them with a link once a release ships the fix.
+# Merges and releases start it at once, and every morning catches what was missed.
+# A fixed issue that a release closes is filed under the release's milestone. The
+# job is the issue assistant's reusable workflow at the commit of a release, so an
+# update is a move of the pin below; it blocks every host but GitHub's.
+#
+# This is the form for [releases] sweep_after_release_workflow = false of
+# .github/issue-assistant/config.toml: the release workflow of the repository starts
+# this one itself once it published a release, with
+# gh workflow run issue-lifecycle.yml -f dry_run=false, so the end of its runs
+# doesn't.
+# https://github.com/Dennis-Otto/issue-assistant
+
+on:
+  schedule:
+    - cron: "41 6 * * *"
+  # The job reads which issues a merged pull request fixes, never its code.
+  pull_request_target:
+    types: [closed]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only show what would happen
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  lifecycle:
+    name: Issue lifecycle
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    uses: Dennis-Otto/issue-assistant/.github/workflows/reusable-issue-lifecycle.yml@a12fb7227ff7d966809cad4e043e159977fccfcd # v1.2.2
+    with:
+      dry_run: ${{ inputs.dry_run || false }}

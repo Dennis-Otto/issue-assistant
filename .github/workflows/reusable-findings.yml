@@ -11,7 +11,11 @@ name: Findings
 # names an open alert by its number and link only, which only maintainers can
 # follow; nothing becomes a public issue. The job blocks every host but GitHub's with
 # Harden-Runner and runs the issue assistant of this workflow's own commit (decision
-# 0015).
+# 0015). Another workflow of a repository may call it after the scans of pull
+# requests in place of findings.yml, with [findings] pull_requests = false of
+# config.toml (decision 0035): so its jobs decide by the event of the scan alone,
+# never by the name of the workflow that calls them, and the group of a pull request
+# is the same for every caller.
 # https://github.com/Dennis-Otto/issue-assistant
 
 on:

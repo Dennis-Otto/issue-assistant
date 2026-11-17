@@ -33,12 +33,15 @@ from .paths import (
 from .patterns import SHA
 from .settings import Config, lifecycle_problems, load_config
 from .setup_check import (
+    chosen_variant,
     configured_engine,
     firewall_policy,
     notice_language,
     notice_template,
     stale_notice,
+    template_of,
     turned_off,
+    variant_settings,
 )
 
 # The environment that holds the engine's secret, limited to the default branch.
@@ -345,9 +348,10 @@ def pinned(template: str, ref: str, version: str) -> str:
 def install(root: Path, ref: str, version: str, repository: str = "") -> list[str]:
     """Write the workflows and the firewall policy of the templates into a repository.
 
-    The workflow of the discussions only when config.toml names categories whose
-    discussions get a first answer, as the starter does, or when it is there
-    already. The starters are only written when they are missing: labels,
+    Each workflow from its template, or from its variant where a key of config.toml
+    chooses one (VARIANT_KEYS). The workflow of the discussions only when
+    config.toml names categories whose discussions get a first answer, as the
+    starter does, or when it is there already. The starters are only written when they are missing: labels,
     project.md, config.toml, findings.toml, and, with the starter labels, the forms of
     a bug report and a feature request with their chooser, whose links name
     `repository`, in a repository without issue forms. The notice to reporters, the
@@ -357,15 +361,19 @@ def install(root: Path, ref: str, version: str, repository: str = "") -> list[st
     if not SHA.fullmatch(ref):
         raise AssistantError("Give the commit hash of the issue assistant's release.")
     done = []
+    # The keys of config.toml that choose a variant of a template (VARIANT_KEYS).
+    variants = variant_settings(root)
 
     def write(name: str) -> None:
         target = root / WORKFLOWS / name
         target.parent.mkdir(parents=True, exist_ok=True)
         content = pinned(
-            (TEMPLATES / WORKFLOWS / name).read_text(encoding="utf-8"), ref, version
+            template_of(name, variants).read_text(encoding="utf-8"), ref, version
         )
         target.write_text(content, encoding="utf-8", newline="\n")
-        done.append(f"wrote {WORKFLOWS / name}")
+        key = chosen_variant(name, variants)
+        form = f" for {key} = false" if key else ""
+        done.append(f"wrote {WORKFLOWS / name}{form}")
 
     for name in TEMPLATE_WORKFLOWS:
         if name != DISCUSSION_WORKFLOW:

@@ -1,0 +1,45 @@
+name: Findings
+
+# Without AI, every morning, after each scan of code scanning on main and when the
+# accepted findings change: dismisses the code scanning alerts that
+# .github/findings.toml accepts, with its reason, and fails while any other alert is
+# open. The run names an open alert by its number and link only, which only
+# maintainers can follow; nothing becomes a public issue. The job is the issue
+# assistant's reusable workflow at the commit of a release, so an update is a move of
+# the pin below; it blocks every host but GitHub's.
+#
+# This is the form for [findings] pull_requests = false of
+# .github/issue-assistant/config.toml: another workflow of the repository calls the
+# reusable workflow after the scans of pull requests and dismisses their accepted
+# alerts, so this one runs after the scans of main alone, the default branch.
+# https://github.com/Dennis-Otto/issue-assistant
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  push:
+    branches: [main]
+    paths: [.github/findings.toml]
+  # The workflows of the repository blueprint that report to code scanning.
+  workflow_run:
+    workflows: [CodeQL, OpenSSF Scorecard, Workflow security, OSV-Scanner]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only show what would happen
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  findings:
+    name: Findings
+    permissions:
+      contents: read
+      security-events: write
+    uses: Dennis-Otto/issue-assistant/.github/workflows/reusable-findings.yml@a12fb7227ff7d966809cad4e043e159977fccfcd # v1.2.2
+    with:
+      dry_run: ${{ inputs.dry_run || false }}

@@ -40,8 +40,9 @@ says in its own explanation how it is fixed."""
 
 [check.template-lint]
 title = "The workflows of the templates (actionlint)"
-problem = """A workflow in `templates/.github/workflows/`, which `install` writes into
-every repository that uses the action, breaks a rule of actionlint, such as an
+problem = """A workflow in `templates/.github/workflows/` or a variant of one in
+`templates/variants/.github/workflows/`, which `install` writes into every repository
+that uses the action or chooses it, breaks a rule of actionlint, such as an
 expression with a mistake, an input or an output that doesn't exist, or a shell script
 that ShellCheck flags; the log of the step names the file and the line."""
 why = """The Lint workflow lints the workflows of this repository only, whose copies of
@@ -50,7 +51,7 @@ it runs, in every repository that installed it."""
 fix = """Fix each line that the log names, in `templates/`, never in the copies in
 `.github/`. actionlint runs on your machine with Docker, as the check runs it:"""
 commands = [
-  "docker run --rm -v \"$PWD:/repo\" -w /repo rhysd/actionlint:1.7.12 -config-file .github/actionlint.yaml -ignore 'unexpected key \"queue\" for \"concurrency\" section' templates/.github/workflows/*.yml",
+  "docker run --rm -v \"$PWD:/repo\" -w /repo rhysd/actionlint:1.7.12 -config-file .github/actionlint.yaml -ignore 'unexpected key \"queue\" for \"concurrency\" section' templates/.github/workflows/*.yml templates/variants/.github/workflows/*.yml",
 ]
 docs = "docs/architecture/templates.md"
 autofix = """A mistake of a workflow needs a person, who knows what the template should
@@ -59,7 +60,8 @@ do, and no bot writes a template that every repository runs."""
 [check.template-security]
 title = "The security of the templates (zizmor)"
 problem = """zizmor found a security problem in a workflow in
-`templates/.github/workflows/`, such as an expression of the event in a script, the
+`templates/.github/workflows/` or in a variant of one in
+`templates/variants/.github/workflows/`, such as an expression of the event in a script, the
 credentials that a checkout keeps or an action that isn't pinned to a commit; the log
 of the step names the file, the line and the audit."""
 why = """Every repository that uses the action runs these workflows with its own token,

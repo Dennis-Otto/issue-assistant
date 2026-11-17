@@ -1,10 +1,11 @@
 name: Action test
 
 # The templates in templates/, which every repository that uses the action gets,
-# pass actionlint and zizmor. Then the action runs as its users run it, on the
-# runner of the templates and on the two others that the README names, whose images
-# differ, as ubuntu-latest and the free ARM runners do from the runner of the
-# templates: installed into the sample repository and into a copy of this repository,
+# and their variants, which a key of config.toml chooses, pass actionlint and
+# zizmor. Then the action runs as its users run it, on the runner of the templates
+# and on the two others that the README names, whose images differ, as ubuntu-latest
+# and the free ARM runners do from the runner of the templates: installed into the
+# sample repository and into a copy of this repository,
 # whose set-ups it checks, and behind the egress block of the templates. The legs
 # run side by side, so they add no time to the check, and the leg on the runner of
 # the templates keeps the name of the job, which main requires. The block of the AI's
@@ -82,7 +83,7 @@ jobs:
           docker run --rm --volume "$PWD:/repo" --workdir /repo "$ACTIONLINT" \
             -config-file .github/actionlint.yaml \
             -ignore 'unexpected key "queue" for "concurrency" section' \
-            templates/.github/workflows/*.yml
+            templates/.github/workflows/*.yml templates/variants/.github/workflows/*.yml
       # The Workflow security workflow reports zizmor's findings to code scanning;
       # a finding in the templates fails this check, before any repository gets it.
       # The log names the files of a finding; annotations would name them relative

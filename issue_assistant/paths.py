@@ -74,6 +74,20 @@ TEMPLATE_WORKFLOWS = (
 # issue-assistant.yml doesn't grant, so the discussions have a reusable workflow of
 # their own; decision 0018 says why.
 DISCUSSION_WORKFLOW = "discussion-assistant.yml"
+# The variants of the templates: a workflow of the same name that differs from its
+# template in exactly one thing, which a boolean key of config.toml, by its section
+# and name, chooses when it is false. Without the key a repository gets the
+# template; with it false, install writes the variant and check expects it
+# (decision 0035). They are kept out of templates/.github/workflows/, each of whose
+# *.yml the repository blueprint takes over as a workflow of its own.
+VARIANTS = TEMPLATES / "variants"
+VARIANT_KEYS = {
+    # Another workflow of the repository dismisses the accepted alerts of its pull
+    # requests, so Findings runs after the scans of main alone.
+    "findings.yml": ("findings", "pull_requests"),
+    # The release workflow starts the sweep itself, so the end of Release doesn't.
+    "issue-lifecycle.yml": ("releases", "sweep_after_release_workflow"),
+}
 # The files that turn on the updates of a repository's pins, which bring it each
 # release of the issue assistant: Dependabot's, with the ecosystem github-actions,
 # and every configuration of Renovate, whose defaults move pinned actions and

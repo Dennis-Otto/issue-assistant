@@ -27,3 +27,23 @@ The fixes of an issue are the pull requests of the repository that close it, as 
 </picture>
 
 GitHub closes linked issues when a pull request is merged unless the repository turns this off: under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**. A repository without releases sets `close_with_release = false` in `config.toml`.
+
+## How a release starts the sweep
+
+The sweep of `issue-lifecycle.yml` closes the fixed issues of a release, and three things start it at once:
+
+- **A release that a person, a personal token or a GitHub App publishes** starts it by `release: published`.
+- **A release that the job's `GITHUB_TOKEN` publishes** starts no workflow by `release: published`, as GitHub keeps such a token from starting workflows. So the end of each run of a release workflow named `Release` starts the sweep too, by `workflow_run`, as release-please's workflow publishes with its default token. A run that failed or that a schedule started is left out, and a run that published nothing finds nothing to close.
+- **A release workflow with another name, or one that starts the sweep itself,** adds a step after the publication that runs the sweep by hand, which GitHub allows the job's token: a run by `workflow_dispatch` is the exception to its rule. The job needs `actions: write`, and the step runs only when a release was published:
+
+  ```yaml
+      - name: Close the issues that the release fixes
+        if: steps.release.outputs.release_created
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run issue-lifecycle.yml --repo "$GITHUB_REPOSITORY" -f dry_run=false
+  ```
+
+  A workflow named `Release` that starts the sweep so sets `sweep_after_release_workflow = false` under `[releases]` of `config.toml`, and `install` writes `issue-lifecycle.yml` without the start at the end of `Release`, which would otherwise run a second sweep, or one after each run that released nothing. `check` then expects that form; it can't see whether the release workflow starts the sweep.
+
+Without any of them, the morning sweep closes the issues, a day later at most. The template keeps the start at the end of `Release`, so that no repository whose release workflow publishes with the job's token loses the closing at the release ([decision 0036](../decisions/0036-the-end-of-release-starts-the-sweep-unless-the-release-starts-it.md)).

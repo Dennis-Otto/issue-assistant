@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -45,20 +47,25 @@ from .paths import (
     TEMPLATE_WORKFLOWS,
     TEMPLATES,
     UPDATES_GUIDE,
+    VARIANT_KEYS,
+    VARIANTS,
     VERSION_FILE,
     WORKFLOWS,
 )
 from .patterns import SHA
 from .settings import (
+    CONFIG_KEYS,
     Config,
     Label,
     Lifecycle,
+    Problems,
     backlog_size,
     engine_problems,
     is_repository,
     lifecycle_problems,
     limit,
     load_findings,
+    read_settings,
 )
 from .values import did_you_mean
 
@@ -75,6 +82,10 @@ HOST_NAME = re.compile(
     r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+",
     re.IGNORECASE,
 )
+
+# The reusable workflow of the findings, which findings.yml calls, and another
+# workflow of a repository may call after the scans of pull requests.
+FINDINGS_WORKFLOW = "reusable-findings.yml"
 
 # The reasons GitHub accepts for dismissing a code scanning alert.
 DISMISS_REASONS = ("false positive", "won't fix", "used in tests")
@@ -418,10 +429,50 @@ def configured_engine(root: Path) -> str:
     return name if name in ENGINES else DEFAULT_ENGINE
 
 
+def variant_settings(root: Path) -> Config:
+    """The settings of the repository in `root` that choose the variants of the
+    templates, for install, which runs before the starters are there: the defaults
+    without config.toml, with a value that isn't a boolean, and with a file that
+    isn't TOML, which load_config stops at afterwards."""
+    try:
+        values = read_settings(root / SETTINGS / "config.toml", Problems())
+    except SettingsError:
+        values = {}
+    chosen = {
+        CONFIG_KEYS[section][key].attribute for section, key in VARIANT_KEYS.values()
+    }
+    return Config(
+        root,
+        "",
+        (),
+        "",
+        **{name: value for name, value in values.items() if name in chosen},
+    )
+
+
+def chosen_variant(name: str, config: Config) -> str:
+    """The key of config.toml, as `[section] key`, that chooses the variant of the
+    template of the workflow `name` with these settings; empty where the template
+    itself is wanted: the key is true or left out, or the workflow has no variant."""
+    if name not in VARIANT_KEYS:
+        return ""
+    section, key = VARIANT_KEYS[name]
+    if getattr(config, CONFIG_KEYS[section][key].attribute):
+        return ""
+    return f"[{section}] {key}"
+
+
+def template_of(name: str, config: Config) -> Path:
+    """The template of the workflow `name` that install writes and check expects
+    with these settings: its variant where a key chooses it, else the template."""
+    folder = VARIANTS if chosen_variant(name, config) else TEMPLATES
+    return folder / WORKFLOWS / name
+
+
 def check_workflows(config: Config) -> list[str]:
     problems: list[str] = []
     for name in TEMPLATE_WORKFLOWS:
-        template = TEMPLATES / WORKFLOWS / name
+        template = template_of(name, config)
         path = config.root / WORKFLOWS / name
         where = str(WORKFLOWS / name)
         if not path.is_file():
@@ -431,10 +482,13 @@ def check_workflows(config: Config) -> list[str]:
         expected = normalized(load_yaml(template), [], template.name)
         actual = normalized(load_yaml(path, where), problems, where)
         if actual != expected:
+            key = chosen_variant(name, config)
+            form = f" for {key} = false of config.toml" if key else ""
             problems.append(
-                f"{where} differs from the template of the issue assistant, and "
-                f"only the refs of its actions may differ; {reinstall()}"
+                f"{where} differs from the template of the issue assistant{form}, "
+                f"and only the refs of its actions may differ; {reinstall()}"
             )
+    problems += findings_variant_problems(config)
     firewall = config.root / FIREWALL
     if not firewall.is_file():
         problems.append(f"{FIREWALL} is missing; {reinstall()}")
@@ -446,6 +500,94 @@ def check_workflows(config: Config) -> list[str]:
     if not ignore.is_file() or f"/{CONTEXT}/" not in ignore.read_text("utf-8"):
         problems.append(f".gitignore: add /{CONTEXT}/")
     return problems
+
+
+def default_branch_name(root: Path) -> str:
+    """The name of the default branch of the repository in `root`: from the event of
+    the run in GitHub Actions, or from the remote origin of the checkout; empty when
+    neither names it, such as in a clone whose origin/HEAD git doesn't know."""
+    path = os.environ.get("GITHUB_EVENT_PATH")
+    try:
+        event = json.loads(Path(path).read_text("utf-8")) if path else {}
+    except (OSError, ValueError):
+        event = {}
+    repository = event.get("repository") if isinstance(event, dict) else None
+    branch = repository.get("default_branch") if isinstance(repository, dict) else None
+    if isinstance(branch, str) and branch:
+        return branch
+    try:
+        origin = subprocess.run(
+            ["git", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+            cwd=root,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return ""
+    named = origin.stdout.decode("utf-8", "replace").strip()
+    return named.removeprefix("origin/") if origin.returncode == 0 else ""
+
+
+def dismisses_in_pull_requests(workflow: object) -> bool:
+    """Whether a workflow starts on workflow_run and has a job that calls the
+    reusable workflow of the findings: the one that dismisses the accepted alerts
+    of the pull requests where findings.yml runs after the scans of main alone."""
+    if not isinstance(workflow, dict):
+        return False
+    # PyYAML reads the key `on` as True, and yq as "on".
+    events = workflow.get("on", workflow.get(True))
+    if isinstance(events, (str, list)):
+        events = {
+            str(event): None
+            for event in ([events] if isinstance(events, str) else events)
+        }
+    jobs = workflow.get("jobs")
+    if not isinstance(events, dict) or "workflow_run" not in events:
+        return False
+    called = f"{ACTION}/{WORKFLOWS}/{FINDINGS_WORKFLOW}@".casefold()
+    return isinstance(jobs, dict) and any(
+        isinstance(job, dict) and str(job.get("uses", "")).casefold().startswith(called)
+        for job in jobs.values()
+    )
+
+
+def findings_variant_problems(config: Config) -> list[str]:
+    """What keeps [findings] pull_requests = false from working: a default branch
+    that isn't main, which the variant of findings.yml names, and a repository
+    whose other workflows leave the accepted alerts of its pull requests alone."""
+    if config.findings_pull_requests:
+        return []
+    key = f"{SETTINGS / 'config.toml'}: [findings] pull_requests = false"
+    problems = []
+    branch = default_branch_name(config.root)
+    if branch and branch != "main":
+        problems.append(
+            f"{key} runs Findings after the scans of main alone, and the default "
+            f"branch is {branch}; take the key out"
+        )
+    others = sorted(
+        path
+        for pattern in ("*.yml", "*.yaml")
+        for path in (config.root / WORKFLOWS).glob(pattern)
+        if path.name != "findings.yml"
+    )
+    if not any(dismisses_in_pull_requests(readable_yaml(path)) for path in others):
+        problems.append(
+            f"{key} needs another workflow of {WORKFLOWS} that starts on "
+            f"workflow_run and calls {ACTION}/{WORKFLOWS}/{FINDINGS_WORKFLOW} after "
+            "the scans of pull requests, or nothing dismisses their accepted alerts; "
+            "add one, or take the key out"
+        )
+    return problems
+
+
+def readable_yaml(path: Path) -> object:
+    """A workflow as data; None for one that isn't YAML, which isn't check's to
+    judge in a workflow other than the templates."""
+    try:
+        return load_yaml(path, str(path.name))
+    except SettingsError:
+        return None
 
 
 def policy_problems(policy: dict[str, Any], engine: str) -> list[str]:

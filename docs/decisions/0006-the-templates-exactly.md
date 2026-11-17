@@ -1,6 +1,6 @@
 # Every repository uses the workflows exactly as the templates have them
 
-- Status: accepted, amended by [0007](0007-templates-live-in-templates.md) and [0015](0015-reusable-workflows.md)
+- Status: accepted, amended by [0007](0007-templates-live-in-templates.md), [0015](0015-reusable-workflows.md) and [0035](0035-a-key-of-config-toml-chooses-a-variant-of-a-template.md)
 - Date: 2026-10-07
 
 ## Context
@@ -23,3 +23,5 @@ A change of a template is a change for every repository that uses the action, wh
 [Decision 0007](0007-templates-live-in-templates.md) amends this: the templates are in `templates/`, and this repository's own workflows take a change of a template over from the repository blueprint, with the next release.
 
 [Decision 0015](0015-reusable-workflows.md) amends it again: the templates call the jobs as reusable workflows of a release, so only a change of a template needs `install` again, and an update is otherwise a move of the pins.
+
+[Decision 0035](0035-a-key-of-config-toml-chooses-a-variant-of-a-template.md) amends it once more: a boolean key of `config.toml` may choose a variant of a template, a second form that differs from it in one thing, and `check` compares the workflow exactly with the form that the settings choose.

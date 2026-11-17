@@ -80,6 +80,10 @@ credit = true                   # false: the footers of the AI's comments don't 
 
 [releases]
 close_with_release = true       # false: fixed issues don't wait for a release
+sweep_after_release_workflow = true   # false: the release workflow starts the sweep itself
+
+[findings]
+pull_requests = true            # false: another workflow dismisses the accepted alerts of pull requests
 
 [lifecycle]
 remind_after_days = 15          # the reminder after the last question without an answer
@@ -136,6 +140,27 @@ comment = "One maintainer: nobody else can approve a pull request."
 The Findings workflow dismisses every open alert that an entry covers, with the entry's reason and comment, and fails for any other alert once, in the first run that finds it open. GitHub tells the maintainer about the failed run; its summary links the alerts by number. The workflow runs after every scan and every morning, so the runs after it pass and name the alert as still open, with a warning, until it is fixed or accepted; an alert that a scan finds again after its fix opens again and fails a run again. For that the job keeps a record of the alerts that it reported, each with the time that GitHub gives for its opening, in the Actions cache of the default branch, and writes it anew only when an alert opens. The runs after the scans of a push overlap: a run whose turn comes after another run kept a newer record than the one it read fails for none of the alerts that its record lacks, names them with a warning and leaves them to that record, so one new alert fails one run. Without a record, as in its first run or when the cache fails, every open alert counts as new, so a run may fail once more but never hides an alert ([decision 0026](decisions/0026-an-open-alert-fails-one-run.md)). `check` makes sure that every entry has a tool, a rule, one of GitHub's reasons and a comment, and no key that it doesn't know: a typo such as `paths` would accept the alerts of the rule in every file, so it stops the Findings workflow too. Code scanning needs the workflow's `security-events: write`; Dependabot's and secret scanning's alerts are out of its reach and stay with Dependabot's own pull requests and notifications.
 
 A pull request gets the same help. GitHub posts each alert that the scan of a pull request finds in its changes as a review thread, and a ruleset that requires every conversation to be resolved blocks the merge until then. A pull request that only moves an accepted finding, such as a false positive on a line that now has another number, makes a new alert, which only its own scans know. So after each scan of a pull request of the repository itself, the Findings workflow dismisses the alerts of the pull request that `findings.toml` of the default branch accepts, which resolves their threads, and the alerts stay dismissed after the merge. It fails for none of the others there, which the pull request's own check of code scanning shows. An entry that the pull request adds counts once it is merged, and a fork's pull request keeps its threads for a person, since an outsider's code could match an accepted rule with a real finding ([decision 0028](decisions/0028-the-scan-of-a-pull-request-dismisses-its-accepted-alerts.md)).
+
+Each scan of a pull request starts a run of Findings for that. A repository that runs a workflow of its own after these scans anyway, such as *After the checks* of the [repository blueprint](https://github.com/Dennis-Otto/repo-blueprint), can dismiss the alerts there, with a job that calls the reusable workflow itself, and keep Findings for the scans of `main`:
+
+```yaml
+on:
+  workflow_run:
+    workflows: [CodeQL, OpenSSF Scorecard, Workflow security, OSV-Scanner]
+    types: [completed]
+
+jobs:
+  findings:
+    # After the scans of pull requests alone: after a scan of the default branch,
+    # the reusable workflow runs all of Findings.
+    if: github.event.workflow_run.event == 'pull_request'
+    permissions:
+      contents: read
+      security-events: write
+    uses: Dennis-Otto/issue-assistant/.github/workflows/reusable-findings.yml@<commit> # vX.Y.Z
+```
+
+It sets `pull_requests = false` under `[findings]` of `config.toml`, and `install` writes `findings.yml` with `branches: [main]` under `workflow_run`, so that the scans of pull requests no longer start it; nothing else of it changes. The reusable workflow decides by the event of the scan alone, never by the name of the workflow that calls it, and its group for a pull request is the same for every caller, so two callers never dismiss at once. `check` then expects that form of `findings.yml`, and fails while no other workflow starts on `workflow_run` and calls `reusable-findings.yml`, since nothing would dismiss the accepted alerts of the pull requests, and when the default branch isn't `main`, which the form names ([decision 0035](decisions/0035-a-key-of-config-toml-chooses-a-variant-of-a-template.md)).
 
 A daily run with one accepted and one open finding, in a demo project:
 

@@ -48,11 +48,11 @@ Eine Einrichtung hat drei Teile: was `install` schreibt, was du bearbeitest und 
     PYTHONPATH="$dir" python3 -P -m issue_assistant check
     ```
 
-3. **Lass das Release behobene Issues schließen:** Entferne unter *Settings → General → Issues* den Haken bei **Auto-close issues with merged linked pull requests**, damit ein behobenes Issue bis zum Release mit dem Fix offen bleibt. Dafür hat GitHub keine API. Ein Repository ohne Releases setzt stattdessen `close_with_release = false` in `config.toml`.
+3. **Lass das Release behobene Issues schließen:** Entferne unter *Settings → General → Issues* den Haken bei **Auto-close issues with merged linked pull requests**, wofür GitHub keine API hat. Ein Repository ohne Releases setzt `close_with_release = false` in `config.toml`, eines, dessen Release-Workflow den [Sweep selbst startet](features/fix-to-release.md#how-a-release-starts-the-sweep), `sweep_after_release_workflow = false`.
 
     **Schalte ein, worauf die Auswahl verlinkt,** wenn `install` `.github/ISSUE_TEMPLATE/config.yml` geschrieben hat, da beide Links sonst ins Leere führen: *Settings → General → Features → Discussions* und *Settings → Advanced Security → Private vulnerability reporting*. Private Meldungen gibt es nur für öffentliche Repositorys, ein privates streicht ihn.
 
-    **[Schalte Updates ein](getting-started.md#turn-on-updates)** durch Dependabot oder Renovate, falls sich noch keins von beiden um das Repository kümmert.
+    **[Schalte Updates ein](getting-started.md#turn-on-updates)** durch Dependabot oder Renovate, falls noch keins von beiden das Repository betreut.
 
 4. **Probiere es aus:** Committe die Einrichtung, pushe sie auf den Standard-Branch und gib unter *Actions → Issue assistant → Run workflow* die Nummer eines Issues ein. Ein Lauf von Hand startet als Probelauf, der nichts schreibt; die Zusammenfassung des Jobs *Check and post the analysis* (`apply`) zeigt die Labels und den Kommentar, die er posten würde:
 

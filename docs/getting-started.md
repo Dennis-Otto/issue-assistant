@@ -42,7 +42,7 @@ A set-up has three parts: what `install` writes, what you edit, and what you set
     PYTHONPATH="$dir" python3 -P -m issue_assistant check
     ```
 
-3. **Let the release close fixed issues:** under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**, so that a fixed issue stays open until the release that ships the fix. GitHub has no API for this setting. A repository without releases sets `close_with_release = false` in `config.toml` instead.
+3. **Let the release close fixed issues:** under *Settings → General → Issues*, clear **Auto-close issues with merged linked pull requests**, which has no API. A repository without releases sets `close_with_release = false` in `config.toml`, and one whose release workflow [starts the sweep itself](features/fix-to-release.md#how-a-release-starts-the-sweep) `sweep_after_release_workflow = false`.
 
     **Turn on what the chooser links to,** when `install` wrote `.github/ISSUE_TEMPLATE/config.yml`, as both links lead nowhere until then: *Settings → General → Features → Discussions*, and *Settings → Advanced Security → Private vulnerability reporting*. GitHub offers private vulnerability reporting only for public repositories, so a private repository removes that link.
 
