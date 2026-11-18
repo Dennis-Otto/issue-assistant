@@ -109,7 +109,6 @@
 .github/workflows/codeql.yml
 .github/workflows/commands.yml
 .github/workflows/dependabot-automerge.yml
-.github/workflows/dependency-review.yml
 .github/workflows/diagrams.yml
 .github/workflows/docs.yml
 .github/workflows/findings.yml
@@ -124,11 +123,11 @@
 .github/workflows/osv-scanner.yml
 .github/workflows/properties.yml
 .github/workflows/pull-request-title.yml
+.github/workflows/quick-checks.yml
 .github/workflows/release.yml
 .github/workflows/sbom.yml
 .github/workflows/scorecard.yml
 .github/workflows/screenshot-bot.yml
-.github/workflows/secret-scan.yml
 .github/workflows/settings.yml
 .github/workflows/update-branches.yml
 .github/workflows/verify-release.yml
