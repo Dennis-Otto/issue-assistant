@@ -254,7 +254,7 @@ def test_unknown_keys_are_named_with_the_key_they_probably_mean(
         f"{CONFIG}: unknown key hots in [links]; did you mean hosts?",
         f"{CONFIG}: unknown section [colours]; known: [engine], [context], [attachments], "
         "[related], [discussions], [maintainers], [links], [forms], [transparency], [releases], "
-        "[findings], [lifecycle], [digest]",
+        "[findings], [failures], [lifecycle], [digest]",
     ]
     # The other commands keep the defaults and warn.
     config = assistant.load_config(root, REPOSITORY)

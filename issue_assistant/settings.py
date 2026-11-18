@@ -3,6 +3,7 @@ config.project.toml, and findings.toml."""
 
 from __future__ import annotations
 
+import re
 import tomllib
 from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
@@ -29,7 +30,13 @@ from .engines import (
 )
 from .errors import AssistantError, SettingsError
 from .languages import LOCALES, plural_form, say
-from .paths import FINDINGS_FILE, LABELS_FILE, PROJECT_CONFIG, SETTINGS
+from .paths import (
+    FINDINGS_FILE,
+    LABELS_FILE,
+    PROJECT_CONFIG,
+    SETTINGS,
+    WORKFLOW_FILE,
+)
 from .values import command, did_you_mean, fits
 
 # The periods of the lifecycle are in Lifecycle, which [lifecycle] in config.toml
@@ -311,6 +318,10 @@ class Config:
     # their accepted alerts; false where another workflow of the repository does.
     # See VARIANT_KEYS.
     findings_pull_requests: bool = True
+    # The workflow of the repository, by the name of its file, that the last job of
+    # issue-assistant.yml starts with a run that failed; empty for none. See
+    # VARIANT_KEYS.
+    failure_workflow: str = ""
     # The limits of the AI runs; see LIMITS.
     max_per_day: int = MAX_PER_DAY
     max_per_author_per_day: int = MAX_PER_AUTHOR_PER_DAY
@@ -397,6 +408,16 @@ class Key:
     kind: type
     # The value of the attribute, from the value in the file.
     convert: Callable[[Any], Any] = lambda value: value
+    # For a string: the form that a value other than the empty one must have, and
+    # how the message of one that hasn't says it.
+    form: re.Pattern[str] | None = None
+    described: str = ""
+
+    def fits(self, value: Any) -> bool:
+        """Whether a value of config.toml is one of this key."""
+        if not fits(value, self.kind):
+            return False
+        return not (self.form and value and not self.form.fullmatch(value))
 
 
 # Every key of config.toml, by its section. A key that isn't here is a typo, which
@@ -438,6 +459,17 @@ CONFIG_KEYS: dict[str, dict[str, Key]] = {
         "sweep_after_release_workflow": Key("sweep_after_release_workflow", bool),
     },
     "findings": {"pull_requests": Key("findings_pull_requests", bool)},
+    "failures": {
+        "workflow": Key(
+            "failure_workflow",
+            str,
+            form=WORKFLOW_FILE,
+            described=(
+                "the name of a file of .github/workflows, such as bot-health.yml, "
+                "or empty"
+            ),
+        )
+    },
     # The attributes of Config.lifecycle.
     "lifecycle": {
         "remind_after_days": Key("lifecycle.remind_after_days", int),
@@ -602,9 +634,10 @@ def read_settings(path: Path, problems: Problems) -> dict[str, Any]:
                             f"{where}: unknown key {name} in [{section}]", name, keys
                         )
                     )
-                elif not fits(value, key.kind):
+                elif not key.fits(value):
                     problems.wrong.append(
-                        f"{where}: [{section}] {name} must be {KINDS[key.kind]}"
+                        f"{where}: [{section}] {name} must be "
+                        f"{key.described or KINDS[key.kind]}"
                     )
                 else:
                     values[key.attribute] = key.convert(value)

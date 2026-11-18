@@ -1145,9 +1145,18 @@ WITH_THE_FIREWALL_POLICY = {
     ("reusable-discussion-assistant.yml", RESERVE),
     ("reusable-issue-assistant.yml", RESERVE),
 }
+# The variants of the templates, of which that of issue-assistant.yml has a job of
+# its own behind Harden-Runner (decision 0037).
+VARIANT_WORKFLOWS = {
+    f"variants/{path.name}": path
+    for path in sorted((assistant.VARIANTS / assistant.WORKFLOWS).glob("*.yml"))
+}
 HARDENED_JOBS = [
-    (path.name, name, job, step)
-    for path in PROJECT_WORKFLOWS
+    (label, name, job, step)
+    for label, path in [
+        *((path.name, path) for path in PROJECT_WORKFLOWS),
+        *VARIANT_WORKFLOWS.items(),
+    ]
     for name, job in load(path)["jobs"].items()
     for step in job.get("steps", [])
     if step.get("uses", "").startswith(f"{HARDEN_RUNNER}@")
@@ -1181,6 +1190,7 @@ def test_the_jobs_behind_harden_runner_are_found():
         ("release-gate.yml", "canary"),
         ("workflow-test.yml", "changes"),
         ("workflow-test.yml", "gate"),
+        ("variants/issue-assistant.yml", "failure"),
     } <= found
     assert found >= WITH_THE_FIREWALL_POLICY
 
@@ -1312,7 +1322,7 @@ def test_the_jobs_that_make_sure_that_harden_runner_blocks_are_found():
         for workflow, name, _, block in HARDENED_JOBS
         if block["with"]["egress-policy"] == "block"
     }
-    assert len(found) == 23
+    assert len(found) == 24
 
 
 def test_the_step_that_makes_sure_that_harden_runner_blocks_is_the_blueprint_s():

@@ -85,6 +85,9 @@ sweep_after_release_workflow = true   # false: the release workflow starts the s
 [findings]
 pull_requests = true            # false: another workflow dismisses the accepted alerts of pull requests
 
+[failures]
+workflow = ""                   # "bot-health.yml": a failed run starts this workflow for a second try
+
 [lifecycle]
 remind_after_days = 15          # the reminder after the last question without an answer
 close_after_days = 30           # the closing, on the day that the reminder names; more than remind_after_days
