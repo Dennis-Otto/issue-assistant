@@ -9,7 +9,7 @@ the German pages where there are any, and to the English ones otherwise. -->
 [![GitHub Marketplace](https://img.shields.io/badge/marketplace-read--only%20issue%20assistant-purple?logo=github)](https://github.com/marketplace/actions/read-only-issue-assistant)
 [![CI](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/codeql.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/codeql.yml)
-[![Secret scan](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/secret-scan.yml)
+[![Quick checks: Secrets und Abhängigkeiten](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/quick-checks.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/quick-checks.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Dennis-Otto/issue-assistant/badge)](https://scorecard.dev/viewer/?uri=github.com/Dennis-Otto/issue-assistant)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15278/badge)](https://www.bestpractices.dev/projects/15278)
 [![REUSE](https://api.reuse.software/badge/github.com/Dennis-Otto/issue-assistant)](https://api.reuse.software/info/github.com/Dennis-Otto/issue-assistant)
@@ -18,7 +18,7 @@ the German pages where there are any, and to the English ones otherwise. -->
 [English version](https://github.com/Dennis-Otto/issue-assistant/blob/main/README.md)
 
 - **Prompt-Injection kann nicht schreiben.** Die KI läuft mit Werkzeugen, die nur lesen, hinter einer Firewall und mit einem Token, das nur liest, oder ganz ohne. Ihre Antwort erreicht GitHub nur über einen Job ohne KI, der sie gegen ein Schema, deine Labels und deine Issues prüft.
-- **Antworten, die sich zu lesen lohnen.** Die wahrscheinliche Ursache mit Links zu den Zeilen im Code, was die meldende Person versuchen kann, die noch fehlenden Angaben, Duplikate und Labels, in der Sprache der meldenden Person.
+- **Antworten, die sich zu lesen lohnen.** Die wahrscheinliche Ursache mit Links zu den Zeilen im Code, was die meldende Person versuchen kann, die noch fehlenden Angaben, Duplikate und Labels, in ihrer Sprache.
 - **Das ganze Leben eines Issues.** Erinnerungen und Schließen für unbeantwortete Issues, Duplikate, die nach drei Tagen schließen, und behobene Issues, die mit dem Release des Fixes schließen, alles ohne KI.
 
 Im Wurzelordner deines Repositorys installieren diese Befehle die Workflows des neuesten Releases, jedes Mal aus einer frischen Kopie, und richten auf GitHub die Umgebung für das Secret der KI ein:
@@ -100,7 +100,7 @@ Issues kommen von jedem, also nimmt das Design an, dass ein Issue versucht, die 
 - **Kein Fremder kann die Rechnung in die Höhe treiben.** Personen, die das Repository nicht pflegen, starten standardmäßig höchstens 20 Läufe der KI am Tag, jeden mit [seinen Grenzen](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/limits.md).
 - **Das Secret bleibt an einem Ort:** in der Umgebung `issue-assistant`, die nur der Standard-Branch nutzen darf, und kein Code eines Pull Requests läuft.
 
-[What keeps it safe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/how-it-works.md#security) hat alles davon, und das [Sicherheitsdesign](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md) die Bedrohungen, ihre Gegenmaßnahmen und die Tests, die sie festhalten. Melde Sicherheitslücken privat, wie in [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md) beschrieben.
+[What keeps it safe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/how-it-works.md#security) hat alles davon, und das [Sicherheitsdesign](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md) die Bedrohungen, ihre Gegenmaßnahmen und die Tests, die sie festhalten. Melde Sicherheitslücken privat, wie [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md) sagt.
 
 ## Im Vergleich mit anderen Werkzeugen
 
@@ -159,7 +159,7 @@ Die Action braucht Python 3.12 oder neuer als `python3`, mit `gh` und `git`; `ch
 
 ## Entwicklung
 
-Siehe [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). Das Skript braucht nur die Standardbibliothek von Python, `gh` und `git`. Die Tests prüfen jede GraphQL-Anfrage gegen GitHubs Schema, [Probeläufe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) spielen ein Issue durch die KI und jeden wiederverwendbaren Workflow durch, wie ein Repository sie aufruft.
+Siehe [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). Das Skript braucht nur Pythons Standardbibliothek, `gh` und `git`. Die Tests prüfen jede GraphQL-Anfrage gegen GitHubs Schema, [Probeläufe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) spielen ein Issue durch die KI und jeden wiederverwendbaren Workflow durch, wie ein Repository sie aufruft.
 
 ## Lizenz
 

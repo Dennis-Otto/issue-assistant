@@ -6,7 +6,7 @@
 [![GitHub Marketplace](https://img.shields.io/badge/marketplace-read--only%20issue%20assistant-purple?logo=github)](https://github.com/marketplace/actions/read-only-issue-assistant)
 [![CI](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/codeql.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/codeql.yml)
-[![Secret scan](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/secret-scan.yml)
+[![Quick checks: secrets and dependencies](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/quick-checks.yml/badge.svg)](https://github.com/Dennis-Otto/issue-assistant/actions/workflows/quick-checks.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Dennis-Otto/issue-assistant/badge)](https://scorecard.dev/viewer/?uri=github.com/Dennis-Otto/issue-assistant)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15278/badge)](https://www.bestpractices.dev/projects/15278)
 [![REUSE](https://api.reuse.software/badge/github.com/Dennis-Otto/issue-assistant)](https://api.reuse.software/info/github.com/Dennis-Otto/issue-assistant)
@@ -97,7 +97,7 @@ Issues come from anyone, so the design assumes that an issue tries to steer the 
 - **No stranger can run up the bill.** People who don't maintain the repository start at most 20 runs of the AI a day by default, each with [its limits](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/features/limits.md).
 - **The secret stays in one place:** the environment `issue-assistant`, which only the default branch may use, and no code of a pull request runs.
 
-[What keeps it safe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/how-it-works.md#security) has all of it, and the [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md) the threats, their countermeasures and the tests that pin them. Report vulnerabilities privately, as described in [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md).
+[What keeps it safe](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/how-it-works.md#security) has all of it, and the [security design](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/security.md) the threats, their countermeasures and the tests that pin them. Report vulnerabilities privately, as [SECURITY.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/SECURITY.md) says.
 
 ## Compared with other tools
 
@@ -152,11 +152,11 @@ The workflows that `install` writes choose their own runners: `ubuntu-24.04`, an
 | `ubuntu-26.04` | 3.14 | What `ubuntu-latest` means since 2026-10-19 |
 | `ubuntu-24.04-arm` | 3.12 | ARM, free in public repositories |
 
-The action needs Python 3.12 or newer as `python3`, with `gh` and `git`; `check` and `evaluate` also read YAML with PyYAML or `yq`. On an older Python, such as on `ubuntu-22.04`, the action stops in its first step with an error that names the fix: run the job on `ubuntu-24.04`, or add `actions/setup-python` with `python-version: 3.12` before the action.
+The action needs Python 3.12 or newer as `python3`, with `gh` and `git`; `check` and `evaluate` also read YAML with PyYAML or `yq`. On an older Python, such as on `ubuntu-22.04`, the action's first step stops and names the fix: run the job on `ubuntu-24.04`, or add `actions/setup-python` with `python-version: 3.12` before the action.
 
 ## Development
 
-See [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). The script needs only the standard library of Python, `gh` and `git`. The tests check every GraphQL request against GitHub's schema, [dry runs](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) run the path of an issue through the AI and each reusable workflow as a repository calls them.
+See [CONTRIBUTING.md](https://github.com/Dennis-Otto/issue-assistant/blob/main/CONTRIBUTING.md). The script needs only Python's standard library, `gh` and `git`. The tests check every GraphQL request against GitHub's schema, [dry runs](https://github.com/Dennis-Otto/issue-assistant/blob/main/docs/architecture/dry-runs.md) run the path of an issue through the AI and each reusable workflow as a repository calls them.
 
 ## License
 
