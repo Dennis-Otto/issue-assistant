@@ -33,9 +33,9 @@ and runs `install` again, which writes `issue-assistant.yml` with one more job, 
 So the workflow that the key names must:
 
 - be a file of `.github/workflows`, named without a folder, such as `bot-health.yml`;
-- start on `workflow_dispatch` with an input `run`, which gets the id of the failed run;
+- start on `workflow_dispatch` with an input `run`, which gets the id of the failed run, and no other input that is required without a default;
 - run on the default branch, whose version of it GitHub starts.
 
-`check` expects that form of `issue-assistant.yml`, with the name of the key in the job, and fails while the workflow isn't there or has no input `run`. Without the key, or with it empty, nothing changes ([decision 0037](../decisions/0037-a-failed-run-of-the-assistant-can-start-a-workflow-of-the-repository.md)).
+`check` expects that form of `issue-assistant.yml`, with the name of the key in the job, and fails while the workflow isn't there, has no input `run` or has another input that is required without a default. Without the key, or with it empty, nothing changes ([decision 0037](../decisions/0037-a-failed-run-of-the-assistant-can-start-a-workflow-of-the-repository.md)).
 
 A second try runs the failed jobs alone, and nothing is posted twice: GitHub keeps the jobs that passed, with their outputs, when it runs the failed jobs of a run again, also those inside the reusable workflow of the issue assistant, so the engine doesn't analyze the issue a second time. On 2026-11-18, *Check and post the analysis* of a run for a new issue stopped because Harden-Runner didn't block; when its failed jobs ran again an hour later, its second attempt took *Handle the event*, *Download the attachments of the issue* and *Analyze with the AI engine* from the first one, with their times of then, and ran only the job that posts, which found the analysis that a run by hand had posted in the meantime and posted nothing. A job that posts always leaves an issue alone that has the comment of its task.

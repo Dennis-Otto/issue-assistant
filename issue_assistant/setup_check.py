@@ -629,26 +629,45 @@ def failures_variant_problems(config: Config) -> list[str]:
     key = f"{SETTINGS / 'config.toml'}: [failures] workflow = {json.dumps(name)}"
     path = config.root / WORKFLOWS / name
     if not path.is_file():
-        return [f"{key} names no workflow of {WORKFLOWS}; add it, or take the key out"]
+        return [
+            f"{key} names no workflow of {WORKFLOWS}; add it, or take the key out "
+            "and run install again"
+        ]
     if name == ASSISTANT_WORKFLOW or not takes_a_run(readable_yaml(path)):
         return [
             f"{key} names a workflow that the last job of {ASSISTANT_WORKFLOW} can't "
             "start with the failed run: it needs the input run under "
-            "workflow_dispatch, which gets the id of the run, as the bot-health bot "
-            "of the Repo Blueprint has it"
+            "workflow_dispatch, which gets the id of the run, and no other input "
+            "that is required without a default, as the bot-health bot of the Repo "
+            "Blueprint has it"
         ]
     return []
 
 
 def takes_a_run(workflow: object) -> bool:
-    """Whether a workflow starts on workflow_dispatch with an input `run`."""
+    """Whether a workflow starts on workflow_dispatch with an input `run` and no
+    other input that is required without a default, which `gh workflow run` with
+    the run alone would leave out, so that GitHub refuses the start."""
     if not isinstance(workflow, dict):
         return False
     # PyYAML reads the key `on` as True, and yq as "on".
     events = workflow.get("on", workflow.get(True))
     dispatch = events.get("workflow_dispatch") if isinstance(events, dict) else None
     inputs = dispatch.get("inputs") if isinstance(dispatch, dict) else None
-    return isinstance(inputs, dict) and "run" in inputs
+    return (
+        isinstance(inputs, dict)
+        and "run" in inputs
+        and not any(required_without_default(spec) for spec in inputs.values())
+    )
+
+
+def required_without_default(spec: object) -> bool:
+    """Whether an input of workflow_dispatch must be given, having no default."""
+    return (
+        isinstance(spec, dict)
+        and spec.get("required") is True
+        and "default" not in spec
+    )
 
 
 def readable_yaml(path: Path) -> object:

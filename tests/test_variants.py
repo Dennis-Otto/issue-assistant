@@ -612,8 +612,14 @@ def test_install_and_check_follow_failures_workflow(tmp_path, name):
         BOT_HEALTH,
         # yq reads the key on as "on".
         BOT_HEALTH.replace("\non:", '\n"on":'),
+        # Other inputs that the job may leave out.
+        BOT_HEALTH.replace(
+            "permissions:",
+            "      job:\n        required: true\n        default: all\n"
+            "      note:\n        required: false\n      plain:\npermissions:",
+        ),
     ],
-    ids=["pyyaml", "on-as-a-string"],
+    ids=["pyyaml", "on-as-a-string", "optional-inputs"],
 )
 def test_check_finds_the_workflow_for_failed_runs(root, workflow):
     config = dataclasses.replace(
@@ -636,8 +642,21 @@ def test_check_finds_the_workflow_for_failed_runs(root, workflow):
         # Not YAML, and no mapping.
         "on: [workflow_dispatch\n",
         "- workflow_dispatch\n",
+        # Another input that GitHub wants and the job doesn't give.
+        BOT_HEALTH.replace(
+            "permissions:", "      job:\n        required: true\npermissions:"
+        ),
     ],
-    ids=["no-run", "no-inputs", "list", "push", "inputs-list", "no-yaml", "no-map"],
+    ids=[
+        "no-run",
+        "no-inputs",
+        "list",
+        "push",
+        "inputs-list",
+        "no-yaml",
+        "no-map",
+        "required",
+    ],
 )
 def test_check_fails_while_the_workflow_can_t_take_the_run(root, workflow):
     config = dataclasses.replace(
@@ -648,7 +667,8 @@ def test_check_fails_while_the_workflow_can_t_take_the_run(root, workflow):
         f'{SETTINGS}: [failures] workflow = "bot-health.yml" names a workflow that '
         "the last job of issue-assistant.yml can't start with the failed run: it "
         "needs the input run under workflow_dispatch, which gets the id of the run, "
-        "as the bot-health bot of the Repo Blueprint has it"
+        "and no other input that is required without a default, as the bot-health "
+        "bot of the Repo Blueprint has it"
     ]
 
 
@@ -658,7 +678,7 @@ def test_check_fails_while_the_workflow_for_failed_runs_is_missing(root):
     )
     assert assistant.failures_variant_problems(config) == [
         f'{SETTINGS}: [failures] workflow = "bot-health.yml" names no workflow of '
-        f"{assistant.WORKFLOWS}; add it, or take the key out"
+        f"{assistant.WORKFLOWS}; add it, or take the key out and run install again"
     ]
     # Nor may it name the workflow whose job starts it.
     itself = dataclasses.replace(config, failure_workflow=ASSISTANT)

@@ -17,7 +17,7 @@ The blueprint has a bot for such runs: a last job of each of its bots of events 
 
 ## Decision
 
-Option 3, `[failures] workflow` of `config.toml`, empty by default. With a name, such as `bot-health.yml`, `install` writes the variant of `issue-assistant.yml`, whose one difference is the job `failure`, with the name in its environment, and `check` expects it, exactly, but for the pins. The name is that of a file of `.github/workflows`, without a folder: any other value stops every command, so nothing but a name reaches the YAML or the shell. `check` fails while the workflow isn't there, or doesn't start on `workflow_dispatch` with an input `run`.
+Option 3, `[failures] workflow` of `config.toml`, empty by default. With a name, such as `bot-health.yml`, `install` writes the variant of `issue-assistant.yml`, whose one difference is the job `failure`, with the name in its environment, and `check` expects it, exactly, but for the pins. The name is that of a file of `.github/workflows`, without a folder: any other value stops every command, so nothing but a name reaches the YAML or the shell. `check` fails while the workflow isn't there, or doesn't start on `workflow_dispatch` with an input `run` and no other input that is required without a default.
 
 The job is the one that the blueprint's bots of events carry. It needs the two other jobs and runs on `failure()` at the first attempt alone, so each run gets one second try; never in a fork, and never for a run by hand, whose second try would check the role of the person who ran it again. It holds `actions: write` alone, blocks every host but `api.github.com` and makes sure that the block holds, checks out nothing, and starts the workflow with the id of the run, twice more when GitHub fails the call.
 
