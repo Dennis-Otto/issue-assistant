@@ -1,6 +1,7 @@
 """The variants of the templates, which a key of config.toml chooses: findings.yml for
-the scans of main alone, and issue-lifecycle.yml without the start at the end of
-Release (decisions 0035 and 0036)."""
+the scans of main alone, issue-lifecycle.yml without the start at the end of
+Release, and issue-assistant.yml with a last job that starts a workflow of the
+repository for failed runs (decisions 0035, 0036 and 0037)."""
 
 import dataclasses
 import json
@@ -21,6 +22,7 @@ SETTINGS = assistant.SETTINGS / "config.toml"
 VARIANTS = sorted(assistant.VARIANT_KEYS)
 FINDINGS = "findings.yml"
 LIFECYCLE = "issue-lifecycle.yml"
+ASSISTANT = "issue-assistant.yml"
 # A workflow of a repository that dismisses the accepted alerts of its pull requests
 # in place of findings.yml, as the pages of the configuration show it.
 CALLER = f"""name: After the checks
@@ -89,9 +91,12 @@ def test_each_variant_is_a_template_with_a_key_of_config_toml():
     defaults = assistant.Config(Path(), REPOSITORY, (), "")
     for name, (section, key) in assistant.VARIANT_KEYS.items():
         found = assistant.CONFIG_KEYS[section][key]
-        # A boolean that is true without the key: the template is the default.
-        assert found.kind is bool, name
-        assert getattr(defaults, found.attribute) is True, name
+        # A boolean that is true without the key, or a string that is empty: the
+        # template is the default.
+        assert (found.kind, getattr(defaults, found.attribute)) in {
+            (bool, True),
+            (str, ""),
+        }, name
         assert assistant.template_of(name, defaults) == template(name)
         assert assistant.chosen_variant(name, defaults) == ""
 
@@ -134,7 +139,9 @@ def test_each_variant_has_the_pin_and_says_which_key_chooses_it(name):
     pins = assistant.ACTION_PIN.findall(template(name).read_text("utf-8"))
     assert assistant.ACTION_PIN.findall(text) == pins
     section, key = assistant.VARIANT_KEYS[name]
-    assert f"[{section}] {key} = false" in " ".join(text.split())
+    kind = assistant.CONFIG_KEYS[section][key].kind
+    said = f"[{section}] {key} = false" if kind is bool else f"[{section}] {key}"
+    assert said in " ".join(text.split())
     # The template names the key too, in a comment, which check ignores.
     assert f"[{section}] {key}" in " ".join(template(name).read_text("utf-8").split())
 
@@ -178,9 +185,10 @@ def test_the_reusable_workflow_of_the_findings_decides_by_the_event_alone():
     [
         "",
         "[releases]\nsweep_after_release_workflow = true\n\n"
-        "[findings]\npull_requests = true",
+        "[findings]\npull_requests = true\n\n"
+        '[failures]\nworkflow = ""',
     ],
-    ids=["without the keys", "with the keys true"],
+    ids=["without the keys", "with the keys at their defaults"],
 )
 def test_without_the_keys_nothing_changes(tmp_path, settings):
     """A repository without the keys, or with them true, gets every file as before
@@ -416,8 +424,12 @@ def test_install_and_check_follow_sweep_after_release_workflow(tmp_path):
         "[releases\n",
         # Not a boolean, which check names; install keeps the template.
         '[releases]\nsweep_after_release_workflow = "no"',
+        # No name of a workflow file, which would reach the YAML; check names it.
+        '[failures]\nworkflow = "../bot-health.yml"',
+        '[failures]\nworkflow = "x.yml\\n  evil: true"',
+        "[failures]\nworkflow = true",
     ],
-    ids=["no-toml", "no-boolean"],
+    ids=["no-toml", "no-boolean", "folder", "newline", "no-string"],
 )
 def test_install_writes_the_templates_where_the_settings_choose_nothing(
     tmp_path, settings
@@ -438,22 +450,236 @@ def test_the_settings_of_the_variants_are_read_before_the_starters(tmp_path):
     starter = assistant.load_config(tmp_path, REPOSITORY)
     assert starter.findings_pull_requests is True
     assert starter.sweep_after_release_workflow is True
+    assert starter.failure_workflow == ""
     for name in VARIANTS:
         assert (tmp_path / assistant.WORKFLOWS / name).read_text("utf-8") == (
             assistant.pinned(template(name).read_text("utf-8"), REF, "v1.0.0")
         )
 
 
-def test_a_copy_of_the_settings_keeps_both_keys(config):
+def test_a_copy_of_the_settings_keeps_every_key(config):
     changed = dataclasses.replace(
-        config, findings_pull_requests=False, sweep_after_release_workflow=False
+        config,
+        findings_pull_requests=False,
+        sweep_after_release_workflow=False,
+        failure_workflow="bot-health.yml",
     )
     assert [assistant.chosen_variant(name, changed) for name in VARIANTS] == [
-        "[findings] pull_requests",
-        "[releases] sweep_after_release_workflow",
+        "[findings] pull_requests = false",
+        '[failures] workflow = "bot-health.yml"',
+        "[releases] sweep_after_release_workflow = false",
     ]
     assert [assistant.template_of(name, changed) for name in VARIANTS] == [
         variant(name) for name in VARIANTS
     ]
     # Every other workflow is its template.
     assert assistant.chosen_variant("labels.yml", changed) == ""
+
+
+# The variant of issue-assistant.yml
+
+# The bot-health bot of the Repo Blueprint, as far as the last job needs it: a run
+# by hand with the id of a run as its input run.
+BOT_HEALTH = """name: Bot health
+on:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: The id of a run whose failed jobs may run again
+        type: string
+permissions: {}
+jobs: {}
+"""
+START = "Start the workflow for failed runs"
+
+
+def add_workflow(root, name="bot-health.yml", text=BOT_HEALTH):
+    (root / assistant.WORKFLOWS / name).write_text(text, "utf-8")
+
+
+def named(text, name):
+    """The text of the variant of issue-assistant.yml with the workflow `name`."""
+    return re.sub(r"(?m)^(      WORKFLOW: ).*$", rf"\g<1>{name}", text)
+
+
+def test_the_variant_of_issue_assistant_yml_has_a_last_job_for_failed_runs():
+    expected = load(template(ASSISTANT))
+    workflow = load(variant(ASSISTANT))
+    assert list(workflow["jobs"])[-1] == assistant.FAILURE_JOB
+    job = workflow["jobs"].pop(assistant.FAILURE_JOB)
+    # Nothing else differs.
+    assert workflow == expected
+    # It waits for every other job, and runs when one of them failed at the first
+    # attempt, not in a fork and not for a run by hand.
+    assert job["needs"] == list(expected["jobs"])
+    assert job["if"] == (
+        "failure() && github.run_attempt == 1 && !github.event.repository.fork "
+        "&& github.event_name != 'workflow_dispatch'"
+    )
+    assert job["permissions"] == {"actions": "write"}
+    assert job["runs-on"] == "ubuntu-24.04"
+    assert job["timeout-minutes"] == 5
+    assert job["env"] == {"WORKFLOW": "bot-health.yml"}
+    # The one line of the name, which install writes.
+    text = variant(ASSISTANT).read_text("utf-8")
+    assert [line[0] for line in assistant.FAILURE_WORKFLOW.finditer(text)] == [
+        "      WORKFLOW: bot-health.yml"
+    ]
+    steps = job["steps"]
+    assert steps[0]["uses"].startswith("step-security/harden-runner@")
+    assert steps[0]["with"] == {
+        "egress-policy": "block",
+        "disable-sudo-and-containers": True,
+        "allowed-endpoints": "api.github.com:443",
+    }
+    # It checks out nothing, and starts the workflow with the run, by its token.
+    assert not any("checkout" in step.get("uses", "") for step in steps)
+    start = next(step for step in steps if step.get("name") == START)
+    assert start["env"] == {
+        "GH_TOKEN": "${{ github.token }}",
+        "GH_REPO": "${{ github.repository }}",
+        "RUN": "${{ github.run_id }}",
+    }
+    assert 'gh workflow run "$WORKFLOW" --field run="$RUN"' in start["run"]
+    assert "for wait in 10 20 0; do" in start["run"]
+
+
+def test_the_variant_s_last_job_blocks_as_the_jobs_of_the_reusable_workflow():
+    """The steps of Harden-Runner around the start are those of the jobs of the
+    reusable workflow that reach only GitHub, so that a fix of them reaches the
+    variant too."""
+    job = load(variant(ASSISTANT))["jobs"][assistant.FAILURE_JOB]
+    reusable = load(ROOT / assistant.WORKFLOWS / "reusable-issue-assistant.yml")
+    apply = reusable["jobs"]["apply"]["steps"]
+    own = {step["name"]: step for step in job["steps"]}
+    for name in (
+        "Make sure that Harden-Runner blocks",
+        "Wait until Harden-Runner lets the hosts through",
+        "Wait until Harden-Runner has removed Docker",
+    ):
+        (theirs,) = [step for step in apply if step.get("name") == name]
+        assert own[name]["run"] == theirs["run"], name
+
+
+@pytest.mark.parametrize("name", ["bot-health.yml", "second_try.yaml"])
+def test_install_and_check_follow_failures_workflow(tmp_path, name):
+    root = project(tmp_path, f'[failures]\nworkflow = "{name}"')
+    done = assistant.install(root, REF, "v1.0.0", REPOSITORY)
+    where = assistant.WORKFLOWS / ASSISTANT
+    assert f'wrote {where} for [failures] workflow = "{name}"' in done
+    written = (root / where).read_text("utf-8")
+    assert written == assistant.pinned(
+        named(variant(ASSISTANT).read_text("utf-8"), name), REF, "v1.0.0"
+    )
+    assert load(root / where)["jobs"][assistant.FAILURE_JOB]["env"] == {
+        "WORKFLOW": name
+    }
+    # The other workflows are their templates.
+    for other in (FINDINGS, LIFECYCLE, "labels.yml"):
+        assert (root / assistant.WORKFLOWS / other).read_text("utf-8") == (
+            assistant.pinned(template(other).read_text("utf-8"), REF, "v1.0.0")
+        )
+    add_workflow(root, name)
+    config = assistant.load_config(root, REPOSITORY)
+    assert config.failure_workflow == name
+    assert assistant.check(config) == []
+    # Another workflow in the job, or the template without it, is no longer what
+    # the settings want, and the message says why.
+    differs = [
+        f"{where} differs from the template of the issue assistant for [failures] "
+        f'workflow = "{name}" of config.toml, and only the refs of its actions may '
+        f"differ; {assistant.reinstall()}"
+    ]
+    (root / where).write_text(named(written, "other.yml"), "utf-8")
+    assert assistant.check_workflows(config) == differs
+    (root / where).write_text(
+        assistant.pinned(template(ASSISTANT).read_text("utf-8"), REF, "v1.0.0"),
+        "utf-8",
+    )
+    assert assistant.check_workflows(config) == differs
+    # Running install again with the key empty writes the template again.
+    settings = root / SETTINGS
+    settings.write_text(settings.read_text("utf-8").replace(f'"{name}"', '""'), "utf-8")
+    assistant.install(root, REF, "v1.0.1", REPOSITORY)
+    assert (root / where).read_text("utf-8") == assistant.pinned(
+        template(ASSISTANT).read_text("utf-8"), REF, "v1.0.1"
+    )
+
+
+@pytest.mark.parametrize(
+    "workflow",
+    [
+        BOT_HEALTH,
+        # yq reads the key on as "on".
+        BOT_HEALTH.replace("\non:", '\n"on":'),
+    ],
+    ids=["pyyaml", "on-as-a-string"],
+)
+def test_check_finds_the_workflow_for_failed_runs(root, workflow):
+    config = dataclasses.replace(
+        assistant.load_config(root, REPOSITORY), failure_workflow="bot-health.yml"
+    )
+    add_workflow(root, text=workflow)
+    assert assistant.failures_variant_problems(config) == []
+
+
+@pytest.mark.parametrize(
+    "workflow",
+    [
+        # No input run.
+        BOT_HEALTH.replace("      run:", "      id:"),
+        # No inputs, or no run by hand at all.
+        "on:\n  workflow_dispatch:\njobs: {}\n",
+        "on: [workflow_dispatch]\njobs: {}\n",
+        "on:\n  push:\njobs: {}\n",
+        "on:\n  workflow_dispatch:\n    inputs: [run]\njobs: {}\n",
+        # Not YAML, and no mapping.
+        "on: [workflow_dispatch\n",
+        "- workflow_dispatch\n",
+    ],
+    ids=["no-run", "no-inputs", "list", "push", "inputs-list", "no-yaml", "no-map"],
+)
+def test_check_fails_while_the_workflow_can_t_take_the_run(root, workflow):
+    config = dataclasses.replace(
+        assistant.load_config(root, REPOSITORY), failure_workflow="bot-health.yml"
+    )
+    add_workflow(root, text=workflow)
+    assert assistant.failures_variant_problems(config) == [
+        f'{SETTINGS}: [failures] workflow = "bot-health.yml" names a workflow that '
+        "the last job of issue-assistant.yml can't start with the failed run: it "
+        "needs the input run under workflow_dispatch, which gets the id of the run, "
+        "as the bot-health bot of the Repo Blueprint has it"
+    ]
+
+
+def test_check_fails_while_the_workflow_for_failed_runs_is_missing(root):
+    config = dataclasses.replace(
+        assistant.load_config(root, REPOSITORY), failure_workflow="bot-health.yml"
+    )
+    assert assistant.failures_variant_problems(config) == [
+        f'{SETTINGS}: [failures] workflow = "bot-health.yml" names no workflow of '
+        f"{assistant.WORKFLOWS}; add it, or take the key out"
+    ]
+    # Nor may it name the workflow whose job starts it.
+    itself = dataclasses.replace(config, failure_workflow=ASSISTANT)
+    add_workflow(root, ASSISTANT, BOT_HEALTH)
+    assert assistant.failures_variant_problems(itself)[0].endswith(
+        "as the bot-health bot of the Repo Blueprint has it"
+    )
+    # Without the key, check asks for nothing of the kind.
+    default = dataclasses.replace(config, failure_workflow="")
+    assert assistant.failures_variant_problems(default) == []
+
+
+@pytest.mark.parametrize(
+    "value", ['"../bot-health.yml"', '"bot-health"', '"a b.yml"', "true"]
+)
+def test_a_value_that_names_no_workflow_file_stops_every_command(root, value):
+    with (root / SETTINGS).open("a", encoding="utf-8") as file:
+        file.write(f"\n[failures]\nworkflow = {value}\n")
+    with pytest.raises(assistant.SettingsError) as error:
+        assistant.load_config(root, REPOSITORY)
+    assert error.value.problems == [
+        f"{SETTINGS}: [failures] workflow must be the name of a file of "
+        ".github/workflows, such as bot-health.yml, or empty"
+    ]

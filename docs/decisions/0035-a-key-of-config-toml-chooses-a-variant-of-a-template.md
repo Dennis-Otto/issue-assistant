@@ -1,6 +1,6 @@
 # A key of config.toml chooses a variant of a template
 
-- Status: accepted
+- Status: accepted, amended by [0037](0037-a-failed-run-of-the-assistant-can-start-a-workflow-of-the-repository.md)
 - Date: 2026-11-17
 
 ## Context

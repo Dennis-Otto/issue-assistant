@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path, PurePosixPath
 
 TOOL = Path(__file__).resolve().parent.parent
@@ -75,11 +76,12 @@ TEMPLATE_WORKFLOWS = (
 # their own; decision 0018 says why.
 DISCUSSION_WORKFLOW = "discussion-assistant.yml"
 # The variants of the templates: a workflow of the same name that differs from its
-# template in exactly one thing, which a boolean key of config.toml, by its section
-# and name, chooses when it is false. Without the key a repository gets the
-# template; with it false, install writes the variant and check expects it
-# (decision 0035). They are kept out of templates/.github/workflows/, each of whose
-# *.yml the repository blueprint takes over as a workflow of its own.
+# template in exactly one thing, which a key of config.toml, by its section and
+# name, chooses when it differs from its default: a boolean when it is false, a
+# string when it names something. Without the key a repository gets the template;
+# with it, install writes the variant and check expects it (decisions 0035 and
+# 0037). They are kept out of templates/.github/workflows/, each of whose *.yml the
+# repository blueprint takes over as a workflow of its own.
 VARIANTS = TEMPLATES / "variants"
 VARIANT_KEYS = {
     # Another workflow of the repository dismisses the accepted alerts of its pull
@@ -87,7 +89,19 @@ VARIANT_KEYS = {
     "findings.yml": ("findings", "pull_requests"),
     # The release workflow starts the sweep itself, so the end of Release doesn't.
     "issue-lifecycle.yml": ("releases", "sweep_after_release_workflow"),
+    # A workflow of the repository gives a failed run a second try, such as the
+    # bot-health bot of the Repo Blueprint, and a last job starts it.
+    "issue-assistant.yml": ("failures", "workflow"),
 }
+# The workflow of the issue assistant that has the last job for failed runs, the
+# job, and the line of its environment that names the workflow that it starts:
+# install writes the name of [failures] workflow there, and check expects it.
+ASSISTANT_WORKFLOW = "issue-assistant.yml"
+FAILURE_JOB = "failure"
+FAILURE_WORKFLOW = re.compile(r"^(?P<key> +WORKFLOW: ).*$", re.MULTILINE)
+# The name of a workflow file, which [failures] workflow may be: no folder, nothing
+# that YAML or the shell would read as more than a name.
+WORKFLOW_FILE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*\.ya?ml")
 # The files that turn on the updates of a repository's pins, which bring it each
 # release of the issue assistant: Dependabot's, with the ecosystem github-actions,
 # and every configuration of Renovate, whose defaults move pinned actions and

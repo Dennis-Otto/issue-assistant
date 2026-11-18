@@ -24,4 +24,4 @@ Every feature of the issue assistant has a page of its own, which opens with a p
 - **[What one run may cost](cost.md):** each run stops at its turns and its dollars, and the summary of its job says what it cost.
 - **[What the sweep tells the maintainers](digest.md):** every morning what waits on whom, if you want in a pinned issue, and once a month how well it did.
 - **[Good first issue candidates](good-first-issues.md):** the digest names the issues that someone new could take; only a maintainer adds the label.
-- **[When GitHub fails](github-failures.md):** a rate limit, a server error or an incident never changes what the assistant posts.
+- **[When GitHub fails](github-failures.md):** a rate limit, a server error or an incident never changes what the assistant posts, and a run that a failure stopped can get a [second try](github-failures.md#a-second-try-for-failed-runs) from a workflow of the repository.

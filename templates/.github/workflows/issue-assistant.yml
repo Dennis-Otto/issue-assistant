@@ -24,6 +24,11 @@ name: Issue assistant
 # analysis one each, the oldest after the number of issue first, up to [engine]
 # backlog_per_run of config.toml: the job assistant chooses them, and the job
 # backlog analyzes each. It sets labels only, unless comment is ticked.
+#
+# A repository with a workflow of its own that gives a failed run a second try,
+# such as the bot-health bot of the Repo Blueprint, names it in [failures] workflow
+# of .github/issue-assistant/config.toml, and install writes this workflow with a
+# last job that starts it.
 
 on:
   issues:

@@ -1950,6 +1950,7 @@ SETTINGS = {
     "[releases] close_with_release": ("releases", False),
     "[releases] sweep_after_release_workflow": ("sweep_after_release_workflow", False),
     "[findings] pull_requests": ("findings_pull_requests", False),
+    "[failures] workflow": ("failure_workflow", "bot-health.yml"),
     "[lifecycle] remind_after_days": ("lifecycle.remind_after_days", 20),
     "[lifecycle] close_after_days": ("lifecycle.close_after_days", 45),
     "[lifecycle] duplicate_grace_days": ("lifecycle.duplicate_grace_days", 7),

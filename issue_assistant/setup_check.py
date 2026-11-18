@@ -8,7 +8,7 @@ import re
 import subprocess
 import tomllib
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -32,10 +32,13 @@ from .errors import AssistantError, SettingsError
 from .issues import labels_of_form
 from .languages import LANGUAGES, LOCALES, texts
 from .paths import (
+    ASSISTANT_WORKFLOW,
     CHOOSER_REPOSITORY,
     CONTEXT,
     DEPENDABOT_FILES,
     DISCUSSION_WORKFLOW,
+    FAILURE_JOB,
+    FAILURE_WORKFLOW,
     FINDINGS_FILE,
     FIREWALL,
     FORMS,
@@ -451,15 +454,28 @@ def variant_settings(root: Path) -> Config:
 
 
 def chosen_variant(name: str, config: Config) -> str:
-    """The key of config.toml, as `[section] key`, that chooses the variant of the
-    template of the workflow `name` with these settings; empty where the template
-    itself is wanted: the key is true or left out, or the workflow has no variant."""
+    """The setting of config.toml, as `[section] key = value`, that chooses the
+    variant of the template of the workflow `name` with these settings; empty where
+    the template itself is wanted: the key has its default or is left out, or the
+    workflow has no variant."""
     if name not in VARIANT_KEYS:
         return ""
     section, key = VARIANT_KEYS[name]
-    if getattr(config, CONFIG_KEYS[section][key].attribute):
+    attribute = CONFIG_KEYS[section][key].attribute
+    value = getattr(config, attribute)
+    if value == VARIANT_DEFAULTS[attribute]:
         return ""
-    return f"[{section}] {key}"
+    # As config.toml has it: false, or the name in quotes.
+    return f"[{section}] {key} = {json.dumps(value)}"
+
+
+# The defaults of the keys that choose a variant, which choose the template.
+VARIANT_DEFAULTS = {
+    field.name: field.default
+    for field in fields(Config)
+    if field.name
+    in {CONFIG_KEYS[section][key].attribute for section, key in VARIANT_KEYS.values()}
+}
 
 
 def template_of(name: str, config: Config) -> Path:
@@ -469,26 +485,48 @@ def template_of(name: str, config: Config) -> Path:
     return folder / WORKFLOWS / name
 
 
+def template_text(name: str, config: Config) -> str:
+    """The text of the template of the workflow `name` that install writes with
+    these settings: that of template_of, with the workflow of [failures] workflow in
+    the last job of the variant of issue-assistant.yml."""
+    text = template_of(name, config).read_text(encoding="utf-8")
+    if name == ASSISTANT_WORKFLOW and chosen_variant(name, config):
+        text = FAILURE_WORKFLOW.sub(
+            lambda line: line["key"] + config.failure_workflow, text
+        )
+    return text
+
+
+def expected_workflow(name: str, config: Config) -> Any:
+    """The workflow `name` as check expects it with these settings, without the
+    refs of its actions: the YAML of template_text."""
+    template = template_of(name, config)
+    expected = normalized(load_yaml(template), [], template.name)
+    if name == ASSISTANT_WORKFLOW and chosen_variant(name, config):
+        expected["jobs"][FAILURE_JOB]["env"]["WORKFLOW"] = config.failure_workflow
+    return expected
+
+
 def check_workflows(config: Config) -> list[str]:
     problems: list[str] = []
     for name in TEMPLATE_WORKFLOWS:
-        template = template_of(name, config)
         path = config.root / WORKFLOWS / name
         where = str(WORKFLOWS / name)
         if not path.is_file():
             if name != DISCUSSION_WORKFLOW or config.answer_categories:
                 problems.append(f"{where} is missing; {reinstall()}")
             continue
-        expected = normalized(load_yaml(template), [], template.name)
+        expected = expected_workflow(name, config)
         actual = normalized(load_yaml(path, where), problems, where)
         if actual != expected:
             key = chosen_variant(name, config)
-            form = f" for {key} = false of config.toml" if key else ""
+            form = f" for {key} of config.toml" if key else ""
             problems.append(
                 f"{where} differs from the template of the issue assistant{form}, "
                 f"and only the refs of its actions may differ; {reinstall()}"
             )
     problems += findings_variant_problems(config)
+    problems += failures_variant_problems(config)
     firewall = config.root / FIREWALL
     if not firewall.is_file():
         problems.append(f"{FIREWALL} is missing; {reinstall()}")
@@ -579,6 +617,38 @@ def findings_variant_problems(config: Config) -> list[str]:
             "add one, or take the key out"
         )
     return problems
+
+
+def failures_variant_problems(config: Config) -> list[str]:
+    """What keeps [failures] workflow from working: a workflow of that name that
+    isn't there, or that the last job of issue-assistant.yml can't start with the
+    run, since it has no input `run` of workflow_dispatch."""
+    name = config.failure_workflow
+    if not name:
+        return []
+    key = f"{SETTINGS / 'config.toml'}: [failures] workflow = {json.dumps(name)}"
+    path = config.root / WORKFLOWS / name
+    if not path.is_file():
+        return [f"{key} names no workflow of {WORKFLOWS}; add it, or take the key out"]
+    if name == ASSISTANT_WORKFLOW or not takes_a_run(readable_yaml(path)):
+        return [
+            f"{key} names a workflow that the last job of {ASSISTANT_WORKFLOW} can't "
+            "start with the failed run: it needs the input run under "
+            "workflow_dispatch, which gets the id of the run, as the bot-health bot "
+            "of the Repo Blueprint has it"
+        ]
+    return []
+
+
+def takes_a_run(workflow: object) -> bool:
+    """Whether a workflow starts on workflow_dispatch with an input `run`."""
+    if not isinstance(workflow, dict):
+        return False
+    # PyYAML reads the key `on` as True, and yq as "on".
+    events = workflow.get("on", workflow.get(True))
+    dispatch = events.get("workflow_dispatch") if isinstance(events, dict) else None
+    inputs = dispatch.get("inputs") if isinstance(dispatch, dict) else None
+    return isinstance(inputs, dict) and "run" in inputs
 
 
 def readable_yaml(path: Path) -> object:

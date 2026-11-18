@@ -106,6 +106,14 @@ sweep_after_release_workflow = true
 # named main.
 pull_requests = true
 
+[failures]
+# The workflow of the repository, by the name of its file in .github/workflows,
+# that a run of Issue assistant starts when one of its jobs failed, for a second
+# try, such as bot-health.yml of the Repo Blueprint; it starts on workflow_dispatch
+# with an input run, the id of the run. Name it and run install again; empty for
+# none.
+workflow = ""
+
 [lifecycle]
 # The days of the lifecycle: a reminder after the last question without an answer,
 # the closing on the day that the reminder names, the closing of a sure duplicate

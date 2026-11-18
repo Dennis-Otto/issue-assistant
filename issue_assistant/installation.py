@@ -39,7 +39,7 @@ from .setup_check import (
     notice_language,
     notice_template,
     stale_notice,
-    template_of,
+    template_text,
     turned_off,
     variant_settings,
 )
@@ -367,12 +367,10 @@ def install(root: Path, ref: str, version: str, repository: str = "") -> list[st
     def write(name: str) -> None:
         target = root / WORKFLOWS / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        content = pinned(
-            template_of(name, variants).read_text(encoding="utf-8"), ref, version
-        )
+        content = pinned(template_text(name, variants), ref, version)
         target.write_text(content, encoding="utf-8", newline="\n")
         key = chosen_variant(name, variants)
-        form = f" for {key} = false" if key else ""
+        form = f" for {key}" if key else ""
         done.append(f"wrote {WORKFLOWS / name}{form}")
 
     for name in TEMPLATE_WORKFLOWS:
