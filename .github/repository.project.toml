@@ -42,6 +42,15 @@ required_checks = ["reusable workflows", "engine contracts", "the Canary of main
 [actions.selected]
 patterns_allowed = ["openai/codex-action@*"]
 
+# The release bot merges every release by itself, once a day in its daily run at
+# 02:25 UTC when its checks pass, the Canary of main included, and says when in a
+# comment of the release pull request (the maintainer's decision of 2026-11-18).
+# Each release moves the tag v1 that the repositories using the action pin. A fix
+# that can't wait goes at once by a start of the workflow Release by hand (decision
+# 0180 of the blueprint).
+[variables]
+RELEASE_MERGE = "daily"
+
 # An environment of this project and the secrets it needs:
 # [environments.deploy]
 # secrets = ["DEPLOY_TOKEN"]
