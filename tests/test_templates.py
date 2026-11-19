@@ -3375,6 +3375,48 @@ def test_the_action_metadata_is_complete():
     assert len(ACTION["description"]) <= 125, "the Marketplace shows 125 characters"
 
 
+def own_workflow_line(name, config):
+    """The line of install for the workflow `name` with the settings `config`, in
+    the words that tests/test_variants.py pins: the plain line where the template is
+    written, and the key of config.toml as it is set where a variant is: false, or
+    the name of a workflow in quotes."""
+    line = f"wrote {assistant.WORKFLOWS / name}"
+    if name not in assistant.VARIANT_KEYS:
+        return line
+    section, key = assistant.VARIANT_KEYS[name]
+    value = getattr(config, assistant.CONFIG_KEYS[section][key].attribute)
+    if value is False:
+        return f"{line} for [{section}] {key} = false"
+    if isinstance(value, str) and value:
+        return f'{line} for [{section}] {key} = "{value}"'
+    return line
+
+
+def test_the_own_workflow_lines_follow_the_settings():
+    """The lines that test_this_repository_s_own_settings_fit expects, with each
+    setting that the blueprint may write into the repository's config.toml."""
+    config = assistant.Config(Path(), "Dennis-Otto/issue-assistant", (), "")
+    chosen = dataclasses.replace(
+        config,
+        findings_pull_requests=False,
+        sweep_after_release_workflow=False,
+        failure_workflow="bot-health.yml",
+    )
+    where = assistant.WORKFLOWS
+    names = ("findings.yml", "issue-assistant.yml", "issue-lifecycle.yml", "labels.yml")
+    assert [own_workflow_line(name, config) for name in names] == [
+        f"wrote {where / name}" for name in names
+    ]
+    assert [own_workflow_line(name, chosen) for name in names] == [
+        f"wrote {where / 'findings.yml'} for [findings] pull_requests = false",
+        f"wrote {where / 'issue-assistant.yml'} for [failures] workflow = "
+        '"bot-health.yml"',
+        f"wrote {where / 'issue-lifecycle.yml'} for [releases] "
+        "sweep_after_release_workflow = false",
+        f"wrote {where / 'labels.yml'}",
+    ]
+
+
 def test_this_repository_s_own_settings_fit(tmp_path):
     """The repository uses the action itself, so the whole check applies.
 
@@ -3382,6 +3424,8 @@ def test_this_repository_s_own_settings_fit(tmp_path):
     the release that it pins, which the check issue-assistant of the Lint workflow
     compares with them. Here the check of this commit sees the set-up as the
     blueprint brings it with the next release: with the templates of this commit.
+    The settings of the repository, which the blueprint writes, may choose the
+    variant of a template (VARIANT_KEYS), and install names the key that chose it.
     """
     config = assistant.load_config(ROOT, "Dennis-Otto/issue-assistant")
     own = tmp_path / "issue-assistant"
@@ -3399,9 +3443,11 @@ def test_this_repository_s_own_settings_fit(tmp_path):
     # and the runner in actionlint's settings are all there already; the settings
     # of the blueprint may not ignore the queue of issue-assistant.yml yet.
     queue = f"let actionlint ignore the queue of issue-assistant.yml in {assistant.ACTIONLINT}"
-    # Its settings answer no discussions, so it gets no workflow of the discussions.
+    # Its settings answer no discussions, so it gets no workflow of the discussions;
+    # each other workflow comes from the template or from the variant that its
+    # settings choose.
     assert [line for line in done if line != queue] == [
-        f"wrote {assistant.WORKFLOWS / name}"
+        own_workflow_line(name, config)
         for name in NAMES
         if name != assistant.DISCUSSION_WORKFLOW
     ] + [f"wrote {assistant.FIREWALL} for the engine {config.engine}"]
