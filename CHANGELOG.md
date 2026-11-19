@@ -6,10 +6,9 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## [1.15.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.14.0...v1.15.0) (2026-11-19)
 
-
 ### Features
 
-* a failed run of the issue assistant can start a workflow of the repository ([#469](https://github.com/Dennis-Otto/issue-assistant/issues/469)) ([450fa51](https://github.com/Dennis-Otto/issue-assistant/commit/450fa51a9d5d3dbbcf8405a38dd4112ecab7a681))
+- A failed run of *Issue assistant* can get a second try: `[failures] workflow` of `config.toml` names a workflow of the repository, such as `bot-health.yml` of the Repo Blueprint, and `install` writes `issue-assistant.yml` with a last job that starts it with the run when a job failed at the first attempt. A stopped analysis is then posted within minutes, without running the engine again; `check` makes sure that the workflow is there and takes the run as its input `run`. Without the key nothing changes.
 
 ## [1.14.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.3...v1.14.0) (2026-11-17)
 
