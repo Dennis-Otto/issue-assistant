@@ -8110,6 +8110,11 @@
     "query": {}
    }
   },
+  "/repos/{owner}/{repo}/planning-statuses": {
+   "get": {
+    "query": {}
+   }
+  },
   "/repos/{owner}/{repo}/private-vulnerability-reporting": {
    "delete": {
     "query": {}
