@@ -4,6 +4,13 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.15.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.14.0...v1.15.0) (2026-11-19)
+
+
+### Features
+
+* a failed run of the issue assistant can start a workflow of the repository ([#469](https://github.com/Dennis-Otto/issue-assistant/issues/469)) ([450fa51](https://github.com/Dennis-Otto/issue-assistant/commit/450fa51a9d5d3dbbcf8405a38dd4112ecab7a681))
+
 ## [1.14.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.13.3...v1.14.0) (2026-11-17)
 
 ### Features
