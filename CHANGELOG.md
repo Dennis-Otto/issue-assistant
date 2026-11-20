@@ -4,6 +4,18 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.15.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.0...v1.15.1) (2026-11-20)
+
+### Bug fixes
+
+- The AI reads a few more link reference definitions and footnotes as GitHub shows them: as nothing. That covers a definition over a row of `=` or `-` without the `>` of its quote or the indentation of its list item, one after indented code that starts with `>` or a list mark, one after HTML in a quote or a list item, and a footnote whose only reference stands in code in a quote or a list item or where HTML could hold it. A row of `=` or `-` that underlines a heading still ends a definition, as GitHub shows the heading.
+- The AI no longer reads the rows of an HTML tag that runs over several rows, which GitHub shows nothing of: GitHub reads every row of a block such as `<div` up to the `>` of the tag, or up to the end of the block when no `>` comes, as part of the tag, also in a quote or a list item, and so does a tag of a paragraph that Markdown reads as one over its rows. What follows the tag reaches the AI, also after a quoted value that ends in a later row, which used to end the text for the AI there. A tag that GitHub shows as text, such as `<a` above a row that starts a quote or `<script`, still reaches the AI as text, and so does fenced code, whose rows GitHub shows as they are.
+- The AI reads what follows an HTML comment that never ends as GitHub shows it in a few more places: as nothing. That covers a comment at the start of a quote, a list item or a footnote, of any mark and at any depth, one anywhere in a row of HTML such as `<div>` or `<p>`, also after the end of the quote or the list that holds it, and a quoted value of a tag in such a row that doesn't end on its row. A `<!--` in a paragraph still reaches the AI as text, as GitHub shows it.
+
+### Performance
+
+- The new reading of a tag that runs over several rows takes about a quarter less time than it first did, and up to half for texts full of tags, such as fenced code of HTML or tags over many rows; a tag in an HTML block followed by many blank rows no longer makes the reading slow. Every text is read exactly as before.
+
 ## [1.15.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.14.0...v1.15.0) (2026-11-19)
 
 ### Features
