@@ -20,7 +20,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 import issue_assistant as assistant
-from oracle import PARSER, headings, problems
+from oracle import PARSER, headings, hides_the_rest, problems
 from support import (
     BOT_USER,
     BOX,
@@ -721,13 +721,13 @@ HTML_TEXT = st.lists(
 
 
 def shown(text):
-    """What GitHub shows of a text: all of it, but nothing after a line that starts
-    with a `<!--` that no `-->` follows. The earlier pattern left such a comment as
-    text; now it hides the rest, as GitHub does."""
-    for line in re.finditer(r"^ {0,3}<!--", text, re.MULTILINE):
-        if "-->" not in text[line.start() :]:
-            return text[: line.start()]
-    return text
+    """What GitHub shows of a text: all of it up to where an HTML block holds a
+    `<!--` that no `-->` follows. The earlier pattern left such a comment as text;
+    now it hides the rest, as GitHub does. Where it ends the text,
+    test_the_engine_reads_nothing_that_an_html_block_hides holds against a CommonMark
+    parser."""
+    comments, rest = assistant.comment_parts(text)
+    return text[: len(comments) + len(rest)]
 
 
 @given(HTML_TEXT)
@@ -928,6 +928,62 @@ def test_the_engine_reads_no_text_that_github_hides(text):
     inner = rest[: rest.rfind("\n" + marks)]
     assert subsequence(inner, assistant.shown_text(text)[0])
     assert not assistant.INVISIBLE.search(inner)
+
+
+# Text made of the pieces of HTML blocks, of the quotes and list items that may hold
+# them, and of what keeps a row from starting one.
+HTML_BLOCKS = st.lists(
+    st.sampled_from(
+        [
+            "<!--",
+            "-->",
+            "<div>",
+            "</p>",
+            "<pre>",
+            "</pre>",
+            "<?",
+            "?>",
+            "<!X",
+            "<![CDATA[",
+            "]]>",
+            "<b>",
+            "<x-y>",
+            "<span>",
+            ">",
+            "> ",
+            "- ",
+            "* ",
+            "1. ",
+            "2) ",
+            "[ ] ",
+            "  ",
+            "    ",
+            "\t",
+            " ",
+            "\n",
+            "\n\n",
+            "x",
+            "```",
+        ]
+    ),
+    max_size=30,
+).map("".join)
+
+
+@hypothesis.example("x\n\n> <!--\n> a")
+@hypothesis.example("> x\n> <!--\n> a")
+@hypothesis.example("> - <!--\nx")
+@hypothesis.example("- a\n  - b\n    <!--")
+@hypothesis.example("<div>\n> x <!--")
+@hypothesis.example("> <pre>\n<?\n</pre>\nx <!--")
+@hypothesis.example("<!-- a --> <!--")
+@given(st.one_of(STRUCTURE, HTML_BLOCKS))
+def test_the_engine_reads_nothing_that_an_html_block_hides(text):
+    """Nothing after an HTML block that holds a `<!--` that no `-->` follows reaches
+    the engine, wherever a CommonMark parser finds the block: GitHub shows none of
+    it."""
+    text += "\n\nXyzzy"
+    assert not hides_the_rest(text) or "Xyzzy" not in assistant.shown_text(text)[0]
 
 
 # Forms with HTML: headings, answers, comments and tags with attributes.
