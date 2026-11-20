@@ -964,6 +964,12 @@ HTML_BLOCKS = st.lists(
             "\n\n",
             "x",
             "```",
+            '<a title=">">',
+            '"',
+            "'",
+            "--!>",
+            "[^1]: ",
+            "<https://x>",
         ]
     ),
     max_size=30,
@@ -981,9 +987,12 @@ HTML_BLOCKS = st.lists(
 def test_the_engine_reads_nothing_that_an_html_block_hides(text):
     """Nothing after an HTML block that holds a `<!--` that no `-->` follows reaches
     the engine, wherever a CommonMark parser finds the block: GitHub shows none of
-    it."""
+    it. And without a `<!--` or a quote, which alone can hide it, nothing ends the
+    text early."""
     text += "\n\nXyzzy"
-    assert not hides_the_rest(text) or "Xyzzy" not in assistant.shown_text(text)[0]
+    shown = assistant.shown_text(text)[0]
+    assert not hides_the_rest(text) or "Xyzzy" not in shown
+    assert any(mark in text for mark in ("<!--", '"', "'")) or "Xyzzy" in shown
 
 
 # Forms with HTML: headings, answers, comments and tags with attributes.

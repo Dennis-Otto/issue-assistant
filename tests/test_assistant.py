@@ -201,6 +201,9 @@ SLOW_TEXTS = {
     "attributes on one row": '<a b="c" ' * 7_000 + "<!--",
     "values that never end": '<a b="' * 10_000,
     "names before a value that never ends": "<a b " * 13_000 + '="',
+    "quoted values with a > in tags": '<a b=">' * 9_000 + "\n<!--",
+    "footnote marks in a row": "[^a]: " * 10_000 + "<div> <!--",
+    "footnote labels that never end": "[^a" * 21_000 + "\n<!--",
 }
 
 
@@ -324,6 +327,17 @@ def test_html_is_removed_as_github_hides_it():
         ('<p>x <a title="\n\nhidden', "x "),
         ('<div><a title="\n\nhidden', ""),
         ('<div title="x -->\n\nhidden', ""),
+        # A tag alone on its row whose quoted value holds a `<` or a `>`.
+        ('<a title=">">\nx <!--\n\nhidden', '">\nx '),
+        ('<a title="<">\nx <!--\n\nhidden', "\nx "),
+        # GitHub's HTML parser ends a comment at `--!>`, but the block runs on to the
+        # row of its `-->`, where a `<!--` still hides the rest.
+        ("<!-- a --!>\nx -->b <!--\n\nhidden", "b "),
+        ('<!-- a --!>\n<a title="\n\nhidden -->', ""),
+        # A footnote holds blocks as a list item does.
+        ("x[^1]\n\n[^1]: <div> <!--\n    hidden words\n\nhidden", "x[^1]\n\n[^1]:  "),
+        ("x[^1]\n\n[^1]: a\n\n    <div> <!--\n    hidden", "x[^1]\n\n[^1]: a\n\n     "),
+        ("> x[^1]\n>\n> [^1]: <div> <!--\n>     hidden", "> x[^1]\n>\n> [^1]:  "),
     ],
 )
 def test_a_comment_that_an_html_block_holds_hides_the_rest(text, shown):
@@ -361,6 +375,9 @@ def test_html_that_may_hide_the_rest_takes_it_out():
         "<br> <!--\n\nshown",
         # A tag alone on its row starts no block below a paragraph.
         "x\n<x-y> <!--\n\nshown",
+        # An autolink alone on its row is no tag and starts no block.
+        "<https://example.com>\nsee `<!--` here\n\nshown",
+        "<user@example.com>\nsee `<!--` here\n\nshown",
         # A blank row, also in a quote, ends a block that starts with a tag, and a
         # block of its own kind ends where its end stands.
         "<div>\n\nx <!--\n\nshown",

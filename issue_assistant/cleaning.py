@@ -87,7 +87,10 @@ ROW_ENDS = r"(?=[\r\n]|\Z)"
 # and list items: GitHub hands each row of such a block on as HTML, so that a `<!--`
 # in it that no `-->` follows hides the rest of the text, also what follows the
 # quote or the list. A tag alone on its row starts a block, which only a paragraph
-# above it would keep from it.
+# above it would keep from it: a tag of a valid name, whose quoted values may hold a
+# `<` or a `>`, not an autolink such as <https://example.com>. A footnote holds
+# blocks as a list item does.
+FOOTNOTE_MARK = r"\[\^[^\]\r\n]++\]:"
 BLOCK_TAGS = (
     "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup"
     "|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame"
@@ -96,20 +99,25 @@ BLOCK_TAGS = (
     "|tbody|td|tfoot|th|thead|title|tr|track|ul"
 )
 HTML_ROW = re.compile(
-    rf"{ROW_START}(?P<marks>(?:[ \t]*+{CONTAINER_MARK})*+[ \t]*+)(?:"
-    rf"(?P<raw><(?:pre|script|style|textarea)(?=[\s>]|{ROW_ENDS}))"
+    rf"{ROW_START}(?P<marks>(?:[ \t]*+(?:{CONTAINER_MARK}|{FOOTNOTE_MARK}))*+[ \t]*+)"
+    rf"(?:(?P<raw><(?:pre|script|style|textarea)(?=[\s>]|{ROW_ENDS}))"
     r"|(?P<comment><!--)|(?P<processing><\?)|(?P<cdata><!\[CDATA\[)"
     r"|(?P<declaration><![A-Za-z])"
     rf"|(?P<tag></?(?:{BLOCK_TAGS})(?=[\s>]|/>|{ROW_ENDS})"
-    rf"|</?[A-Za-z][^<>\r\n]*+>[ \t]*+{ROW_ENDS}))",
+    r"|</?[A-Za-z][A-Za-z0-9-]*+(?=[\t />])"
+    r"(?:[^<>\"'\r\n]|\"[^\"\r\n]*+\"|'[^'\r\n]*+')*+>"
+    rf"[ \t]*+{ROW_ENDS}))",
     re.IGNORECASE,
 )
 # What ends each kind of block but a tag's, which a blank row ends: a row that holds
 # it. For a declaration, that is a `>` on its first row, after its start, or one
-# after the marks of a later row, which may be those of the quote around it.
+# after the marks of a later row, which may be those of the quote around it. A
+# comment's end is its first `-->`, which block_end finds with str.find: CommonMark
+# ends the block only there, also after a `--!>`, at which GitHub's HTML parser ends
+# the comment and reads the rest of the block as HTML, where a `<!--` still hides the
+# rest of the text.
 HTML_ENDS = {
     "raw": re.compile(r"</(?:pre|script|style|textarea)>", re.IGNORECASE),
-    "comment": re.compile(r"-->"),
     "processing": re.compile(r"\?>"),
     "cdata": re.compile(r"\]\]>"),
     "declaration": re.compile(
@@ -123,9 +131,11 @@ BLANK_ROWS = tuple(
     re.compile(rf"{ROW_START}(?:[ \t]*>){{0,{depth}}}[ \t]*{ROW_ENDS}")
     for depth in range(4)
 )
-# A row that starts a list item, perhaps in a quote, also an empty one.
+# A row that starts a list item or a footnote, perhaps in a quote, also an empty
+# one.
 LIST_ROW = re.compile(
-    rf"{ROW_START}(?:[ \t]*+>)*+[ \t]*+(?:[-+*]|\d{{1,9}}[.)])(?:[ \t]|{ROW_ENDS})"
+    rf"{ROW_START}(?:[ \t]*+>)*+[ \t]*+"
+    rf"(?:(?:[-+*]|\d{{1,9}}[.)])(?:[ \t]|{ROW_ENDS})|{FOOTNOTE_MARK})"
 )
 COMMENT_START = re.compile("<!--")
 # A tag on one row, as GitHub's HTML parser reads it: its name and its attributes,
@@ -482,7 +492,8 @@ def hidden_html(text: str, start: int, first: Callable[[int], int | None]) -> in
             if row.start() >= lists or not code(row["marks"]):
                 kind = row.lastgroup
                 depth = min(row["marks"].count(">"), len(BLANK_ROWS) - 1)
-                latest[kind if kind in HTML_ENDS else depth] = row
+                ends = kind == "comment" or kind in HTML_ENDS
+                latest[kind if ends else depth] = row
             row = next(rows, None)
         if any(position < block_end(text, block) for block in latest.values()):
             # What starts the text of its row takes the marks of the row along.
@@ -499,6 +510,9 @@ def block_end(text: str, row: re.Match[str]) -> int:
     """Where the HTML block ends that a row starts: at the start of a blank row, or
     at the end of the row of its end."""
     end = row_end(text, row.end())
+    if row.lastgroup == "comment":
+        closed = text.find("-->", row.end("marks"))
+        return row_end(text, closed + 3) if closed >= 0 else len(text)
     ending = HTML_ENDS.get(row.lastgroup or "")
     if ending is None:
         depth = min(row["marks"].count(">"), len(BLANK_ROWS) - 1)
