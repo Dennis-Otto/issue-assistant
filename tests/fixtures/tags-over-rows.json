@@ -1,0 +1,3629 @@
+{
+ "about": "Texts with a tag over several rows, made of pieces, and the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, 2026-11-20). Where it is hard to tell whether a block holds a row, the cleaning takes out a marker that GitHub shows: those are listed.",
+ "texts": [
+  {
+   "text": "x\n\n- <a\n  t=\"zqa>zqb\"\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <a\n  zqa\n  > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <a\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <b\nzqa <b\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <details\n  zqa\n  />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <details\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <details\nzqa zqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <div\n  zqa\n  />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <div\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <p t=\n  \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <pre\n  t=\"zqa>zqb\"\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- <pre\nzqa\n/>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <pre\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <pre t='zqa\n  zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- <script\n  zqa zqb\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <script\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <script\nzqa zqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <script t=\n\"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <script t='zqa\n  zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <span\n  zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- <span\n  zqa=\"v\"\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <span t='zqa\n  zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- <table\n  zqa\n  />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <table\n  zqa zqb\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- <table\nzqa <b\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <table\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <textarea\n  zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <x-y\nzqa\n/>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <x-y t=\"zqa\n  \n  zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y </div\n  zqa <b\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y </div t=\"zqa\n  \n  zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <a\n  zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <a\n  zqa=\n  zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- y <details\nzqa=\nzqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- y <div t=\"\nzqa\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- y <img\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- y <p\n  zqa zqb\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <p\nzqa <b\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <p t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <p t=\"zqa\n  \n  zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <pre\n  zqa\n  />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y <pre\n  zqa=\n  zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- y <script t=\n  \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <script t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <span\n  zqa\n  zqb\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <span\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <table\n  zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <table\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <table t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <textarea\n  t=\"zqa>zqb\"\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <textarea\nzqa <b\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <textarea t=\n\"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <textarea t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <x-y\n  zqa <b\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. </div\n   zqa=\n   zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. <a\n   zqa\n   > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. <a\n   zqa=\n   zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. <a t=\"\n   zqa\n   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. <details\n   zqa <b\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. <details\n   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. <div\n   zqa\n   />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. <div\n   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. <div t=\"zqa\n   \n   zqb\">zqc\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\n1. <p\n   zqa zqb\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. <script\n   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. <script\n   zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. <span\n   zqa\n   zqb\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. <table\n   zqa=\"v\"\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. <textarea\n   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. y <a\n   zqa\n   zqb\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. y <a\n   zqa <b\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. y <b t=\"zqa\n   \n   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. y <details\n   zqa\n   />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <details\n   zqa zqb\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. y <div\n   zqa=\n   zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <p\n   zqa\n   > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. y <p\n   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. y <pre\n   zqa\n   />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <pre t=\"\n   zqa\n   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <script t=\n   \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. y <span t=\n   \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <span t='zqa\n   zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <table\n   zqa=\"v\"\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. y <x-y t=\"\n   zqa\n   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<a\nzqa zqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<b\nt=\"zqa>zqb\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<b\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<b t=\n\"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<b t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n</div t=\n\"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<b\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<b\nzqa=\nzqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<details\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<details\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<details\nzqa=\nzqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<details\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<div\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<img\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<p\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<p\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<p\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<pre\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<script\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\n<script\nzqa zqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\n<script t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\n<table\nzqa\n/>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<table\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<x-y\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny </div\nzqa\n/>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny </div\nzqa <b\n>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <a t=\n\"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <b\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <b\nzqa=\nzqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <details\nzqa=\nzqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <details t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <div\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <div\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <div t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <img\nzqa\n/>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <img t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <p t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <script\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\ny <script\nzqa zqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\ny <script\nzqa=\nzqb>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\ny <script t=\n\"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\ny <span\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <table\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <table\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <x-y t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\n<p\nzqa=\nzqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<pre t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<span\nzqa <b\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<textarea\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<x-y\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<x-y\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - <a\n>   zqa zqb\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - <b\n>   zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - <b t=\"zqa\n>   \n>   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - <div\n>   zqa=\"v\"\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> - <div t=\"\n>   zqa\n>   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - <img\n>   zqa <b\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - <p t='zqa\n>   zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - <pre\n>   zqa\n>   />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> - <pre\n>   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - <pre t=\"zqa\n>   \n>   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - <script\n>   zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - <table\n>   zqa zqb\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - <table t=\"zqa\n>   \n>   zqb\">zqc\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\n> - <textarea\n>   zqa <b\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - <textarea\n>   zqa=\n>   zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - <textarea t='zqa\n>   zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - <x-y\n>   zqa\n>   />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> - y </div\n>   zqa=\"v\"\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y <a\n>   zqa\n>   zqb\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y <a t=\"\n>   zqa\n>   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - y <img\n>   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y <img\n>   zqa=\n>   zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - y <script\n>   zqa\n>   />zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y <script t=\n>   \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y <table\n>   zqa\n>   > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y <textarea\n>   zqa\n>   zqb\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y <textarea\n>   zqa <b\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <a\n> zqa <b\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <a\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <a\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <a t=\"\n> zqa\n> zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> <a t=\"\nzqa\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> <b\n> t=\"zqa>zqb\"\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <b\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <b t=\"\nzqa\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> <div\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <div\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <img\n> zqa\n> />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> <img\n> zqa\n> zqb\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <img\n> zqa zqb\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <img t=\n\"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> <p\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <pre\nt=\"zqa>zqb\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <pre\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <script\n> zqa zqb\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <script\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <script t='zqa\n> zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <span\n> zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> <table\nzqa=\nzqb>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <textarea\n> zqa\n> zqb\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <textarea\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <textarea t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <x-y\n> zqa\n> > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <x-y\nzqa <b\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <x-y t=\"\n> zqa\n> zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > </div\n> > zqa\n> > zqb\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > </div\n> > zqa=\"v\"\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <a\n> > zqa zqb\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > <b t=\"zqa\n> > \n> > zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > <div\n> > zqa\n> > />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <img\n> > zqa\n> > />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <p\n> > zqa=\n> > zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > <p\n> > zqa=\"v\"\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <pre\n> > zqa\n> > > zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <pre\n> > zqa=\"v\"\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <span\n> > t=\"zqa>zqb\"\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > <table\n> > zqa\n> > />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <table t='zqa\n> > zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > <x-y\n> > zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > <x-y\n> > zqa=\n> > zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > y </div\n> > zqa\n> > > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > y <a t=\n> > \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <b\n> > zqa zqb\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > y <b t=\"\n> > zqa\n> > zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <details\n> > zqa=\"v\"\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > y <p\n> > zqa zqb\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > y <p\n> > zqa=\n> > zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <pre t='zqa\n> > zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <script\n> > t=\"zqa>zqb\"\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y </div\nt=\"zqa>zqb\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y </div t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <a\nzqa zqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <a\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <a t=\"\n> zqa\n> zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <b\n> zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <b\n> zqa=\n> zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <details\n> zqa\n> > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <details\n> zqa\n> zqb\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <details t='zqa\n> zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <div\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <pre\n> zqa\n> > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <pre\n> zqa <b\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <pre t=\n> \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> y <pre t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <pre t='zqa\n> zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <script t=\n\"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <script t=\"\n> zqa\n> zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <span\n> zqa=\"v\"\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <span\nzqa=\nzqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <table t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <textarea\n> zqa=\n> zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <textarea\n> zqa=\"v\"\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <textarea\nzqa\n/>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <x-y\n> zqa zqb\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <x-y\n> zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <x-y t=\"\nzqa\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\ny <b\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\ny <details\nzqa zqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\ny <div\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\ny <div t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\ny <p t=\n\"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\ny <script t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\ny <span t=\n\"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\ny <table\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\ny <textarea t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\ny <x-y\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\ny <x-y t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- </div\n  t=\"zqa>zqb\"\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- </div\nt=\"zqa>zqb\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- </div t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n- </div t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ],
+   "the cleaning takes out": [
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n- <a\nzqa zqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <a t='zqa\n  zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- <details\n  zqa <b\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <details\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <div\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <div\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <img\n  zqa\n  > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <p\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <p\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <pre t=\"\n  zqa\n  zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- <script\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <span\nt=\"zqa>zqb\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <span\nzqa <b\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <span\nzqa zqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <span\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <table\n  zqa=\n  zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- <table\n  zqa=\"v\"\n  >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <textarea\n  zqa\n  > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <textarea\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <x-y\n  zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- <x-y\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n1. </div t=\"\n   zqa\n   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n1. <b\n   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n1. <b t=\n   \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. <details\n   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n1. <details\n   zqa zqb\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n1. <details\n   zqa=\"v\"\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. <pre\n   zqa\n   zqb\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n1. <pre\n   zqa=\"v\"\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. <script\n   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n1. <script t=\n   \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n1. <script t=\"zqa\n   \n   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n1. <table\n   zqa <b\n   >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. <textarea\n   zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n1. <x-y t='zqa\n   zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n</div\nzqa <b\n>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n</div\nzqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n<a t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n<img\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n<p\nzqa zqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n<script\nt=\"zqa>zqb\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n<span t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n<table\nzqa\n> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n<textarea\nzqa\nzqb\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> - </div\n>   zqa=\n>   zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <a\n>   zqa\n>   />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> - <a t=\"\n>   zqa\n>   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <div t=\"\n>   zqa\n>   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <img\n>   zqa zqb\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> - <img\n>   zqa=\n>   zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <pre\n>   zqa=\n>   zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <pre t=\n>   \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> - <script t='zqa\n>   zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> - <span t=\"\n>   zqa\n>   zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <table\n>   zqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <textarea\n>   zqa=\n>   zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> - <textarea t='zqa\n>   zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> - <x-y\n>   zqa zqb\n>   >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> - <x-y\n>   zqa=\n>   zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> </div\nt=\"zqa>zqb\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <a\n> zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <a t=\"\nzqa\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <a t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <b\n> zqa=\n> zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <div\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <div t='zqa\n> zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <img\n> zqa\n> />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <p\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <p t='zqa\nzqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ],
+   "the cleaning takes out": [
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n> <pre\n> zqa\n> > zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <pre\n> zqa <b\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <pre\n> zqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <pre t=\n> \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <script\n> zqa\n> > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <script\n> zqa=\n> zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <span\n> t=\"zqa>zqb\"\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <span\n> zqa zqb\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <span t=\"\n> zqa\n> zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <table\n> zqa=\"v\"\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <table t='zqa\n> zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <textarea\n> zqa=\"v\"\n> >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <textarea t=\"zqa\n\nzqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <x-y\nzqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <x-y\nzqa=\"v\"\n>zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> > </div\n> > zqa <b\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> > </div\n> > zqa=\n> > zqb>zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> > <b\n> > zqa <b\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> > <details\n> > zqa\n> > zqb\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> > <img\n> > t=\"zqa>zqb\"\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> > <img\n> > zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> > <img t=\"zqa\n> > \n> > zqb\">zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> > <img t='zqa\n> > zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> > <p\n> > zqa\n> > />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> > <p t=\n> > \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> > <pre\n> > zqa zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> > <pre t='zqa\n> > zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> > <span\n> > zqa\n> > />zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> > <table\n> > zqa\n> > > zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> > <table\n> > zqa <b\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> > <table t=\n> > \"zqa\">zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> > <textarea\n> > zqa zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> > <textarea\n> > zqa zqb >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> > <x-y\n> > zqa zqb\n> > >zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> > <x-y t='zqa\n> > zqb' >zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  }
+ ]
+}

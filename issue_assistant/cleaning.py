@@ -14,10 +14,10 @@ from urllib.parse import quote, unquote, urlsplit
 
 from .constants import MAX_NUMBER
 from .languages import say
+from .markup import CONTAINER, CONTAINER_MARK, ROW_END, strip_html
 from .patterns import (
     CODE,
     CROSS_REFERENCE,
-    HTML_COMMENT,
     INVISIBLE,
     ISSUE_REFERENCE,
     Checked,
@@ -76,92 +76,6 @@ TILDE_FENCE = re.compile(r"^([ \t]*)(?=~~~)", re.MULTILINE)
 # below the header of a table, and GitHub splits every row of a table at each pipe,
 # also inside code, so that the rest of the code would become text.
 TABLE_HYPHEN = re.compile(r"(?<=[|:])([ \t]*)-|-(?=[ \t]*[|:])")
-
-# The mark of a quote or of a list item: a `>` needs no space after it, a list mark
-# does.
-CONTAINER_MARK = r"(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$))"
-# The start of a row, after a line break as GitHub reads one, and its end.
-ROW_START = r"(?:\A|(?<=\n)|(?<=\r)(?!\n))"
-ROW_ENDS = r"(?=[\r\n]|\Z)"
-# A row whose text starts an HTML block of CommonMark, after the marks of its quotes
-# and list items: GitHub hands each row of such a block on as HTML, so that a `<!--`
-# in it that no `-->` follows hides the rest of the text, also what follows the
-# quote or the list. A tag alone on its row starts a block, which only a paragraph
-# above it would keep from it: a tag of a valid name, whose quoted values may hold a
-# `<` or a `>`, not an autolink such as <https://example.com>. A footnote holds
-# blocks as a list item does.
-FOOTNOTE_MARK = r"\[\^[^\]\r\n]++\]:"
-BLOCK_TAGS = (
-    "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup"
-    "|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame"
-    "|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem"
-    "|nav|noframes|ol|optgroup|option|p|param|search|section|source|summary|table"
-    "|tbody|td|tfoot|th|thead|title|tr|track|ul"
-)
-HTML_ROW = re.compile(
-    rf"{ROW_START}(?P<marks>(?:[ \t]*+(?:{CONTAINER_MARK}|{FOOTNOTE_MARK}))*+[ \t]*+)"
-    rf"(?:(?P<raw><(?:pre|script|style|textarea)(?=[\s>]|{ROW_ENDS}))"
-    r"|(?P<comment><!--)|(?P<processing><\?)|(?P<cdata><!\[CDATA\[)"
-    r"|(?P<declaration><![A-Za-z])"
-    rf"|(?P<tag></?(?:{BLOCK_TAGS})(?=[\s>]|/>|{ROW_ENDS})"
-    r"|</?[A-Za-z][A-Za-z0-9-]*+(?=[\t />])"
-    r"(?:[^<>\"'\r\n]|\"[^\"\r\n]*+\"|'[^'\r\n]*+')*+>"
-    rf"[ \t]*+{ROW_ENDS}))",
-    re.IGNORECASE,
-)
-# What ends each kind of block but a tag's, which a blank row ends: a row that holds
-# it. For a declaration, that is a `>` on its first row, after its start, or one
-# after the marks of a later row, which may be those of the quote around it. A
-# comment's end is its first `-->`, which block_end finds with str.find: CommonMark
-# ends the block only there, also after a `--!>`, at which GitHub's HTML parser ends
-# the comment and reads the rest of the block as HTML, where a `<!--` still hides the
-# rest of the text.
-HTML_ENDS = {
-    "raw": re.compile(r"</(?:pre|script|style|textarea)>", re.IGNORECASE),
-    "processing": re.compile(r"\?>"),
-    "cdata": re.compile(r"\]\]>"),
-    "declaration": re.compile(
-        rf"{ROW_START}(?:[ \t]*+{CONTAINER_MARK})*+[ \t]*+[^>\r\n]*+>"
-    ),
-}
-# A blank row, or one of no more quotes than the index: it ends a block that starts
-# with a tag at the depth of the index. A block deeper in quotes ends only where a
-# blank row of the deepest of them would end it.
-BLANK_ROWS = tuple(
-    re.compile(rf"{ROW_START}(?:[ \t]*>){{0,{depth}}}[ \t]*{ROW_ENDS}")
-    for depth in range(4)
-)
-# A row that starts a list item or a footnote, perhaps in a quote, also an empty
-# one.
-LIST_ROW = re.compile(
-    rf"{ROW_START}(?:[ \t]*+>)*+[ \t]*+"
-    rf"(?:(?:[-+*]|\d{{1,9}}[.)])(?:[ \t]|{ROW_ENDS})|{FOOTNOTE_MARK})"
-)
-COMMENT_START = re.compile("<!--")
-# A tag on one row, as GitHub's HTML parser reads it: its name and its attributes,
-# each value quoted or not, and `quote` where a quoted value doesn't end on the row.
-# In an HTML block, GitHub reads on to the next such quote for the end of the value,
-# past the end of the block, and shows nothing of what it read, so the cleaning
-# takes out the rest of the text. A tag ends where the next one might start, so
-# that each row is read once.
-OPEN_VALUE = re.compile(
-    r"<[A-Za-z][^\t\n\f\r />]*+(?:[\t\f /]++|[^\t\n\f\r />=]++"
-    r"|=[\t\f ]*+(?:\"[^\"\r\n]*+\"|'[^'\r\n]*+'|(?![\"'])[^\t\n\f\r >]++))*+"
-    r"(?P<quote>=[\t\f ]*+[\"'])?"
-)
-# An HTML tag within one line.
-TAG = r"</?[A-Za-z][^>\n]*>"
-# An HTML comment, or a tag. When no `>` closes a tag on its line, no later tag on
-# that line can close either: the third alternative takes them all in one step, up
-# to the next comment, and strip_html keeps them as they are.
-HTML = re.compile(
-    rf"{HTML_COMMENT.pattern}|{TAG}"
-    r"|(?P<open></?[A-Za-z][^>\n<]*(?:<(?!!--)[^>\n<]*)*)",
-    re.DOTALL,
-)
-# The same for the part of a text after its last `-->`, where no comment can end:
-# a `<!--` there is text, and a tag start without its `>` takes the rest of its line.
-HTML_TAG = re.compile(rf"{TAG}|(?P<open></?[A-Za-z][^>\n]*)")
 
 # The marks of a heading, without the line break after them, also in a quote or a
 # list item, whose marks stay: at most 3 spaces before it, or 4 after such a mark,
@@ -429,132 +343,6 @@ def settled(
     return text
 
 
-def comment_parts(text: str) -> tuple[str, str]:
-    """A text in two parts: up to the end of its last `-->`, and what GitHub shows of
-    the rest.
-
-    In the first part, a `-->` follows every `<!--`, so a pattern finds the end of
-    each comment without reading on to the end of the text. In the rest, no comment
-    can end: a `<!--` in a paragraph stays text, as GitHub shows it, and one in an
-    HTML block hides the rest of the text, as GitHub hides it. Before both, the text
-    ends at a tag in an HTML block with a quoted value that doesn't end on its row:
-    GitHub looks for the end of the value in the rest of the text and hides it.
-    """
-    tags = (tag.start() for tag in OPEN_VALUE.finditer(text) if tag["quote"])
-    text = text[: hidden_html(text, 0, Following(tags))]
-    last = text.rfind("-->")
-    middle = last + 3 if last >= 0 else 0
-    comments = (comment.start() for comment in COMMENT_START.finditer(text, middle))
-    return text[:middle], text[middle : hidden_html(text, middle, Following(comments))]
-
-
-class Following:
-    """The first of rising positions at or after a position, for positions that
-    never fall, each position taken once."""
-
-    def __init__(self, positions: Iterator[int]) -> None:
-        self.positions = positions
-        self.current = next(positions, None)
-
-    def __call__(self, position: int) -> int | None:
-        while self.current is not None and self.current < position:
-            self.current = next(self.positions, None)
-        return self.current
-
-
-def hidden_html(text: str, start: int, first: Callable[[int], int | None]) -> int:
-    """Where GitHub stops showing a text: at the first position from `start` on that
-    `first` finds in a row that an HTML block may hold, at the start of its row when
-    it starts the text of the row, or at the end of the text.
-
-    Where it is hard to tell whether a row is in a block, it counts as one: a block
-    in a quote or a list item runs on past their end, a block may start in fenced
-    code, below a paragraph and within another block, since the block around it may
-    have ended with its quote or list item. Only a row indented as code, where no
-    list item could hold it, starts none.
-
-    Of the blocks of one kind that start before a position, only the last can hold
-    it: one that starts earlier ends no later. So each block is judged once at most,
-    and the searches for the ends of the blocks of one kind read no part of the text
-    twice: a block that ends before a position ends before the next block of its
-    kind starts.
-    """
-    position = first(start)
-    if position is None:
-        return len(text)
-    listed = LIST_ROW.search(text)
-    lists = listed.start() if listed else len(text)
-    rows = HTML_ROW.finditer(text)
-    row = next(rows, None)
-    latest: dict[str | int | None, re.Match[str]] = {}
-    while position is not None:
-        while row is not None and row.start() <= position:
-            if row.start() >= lists or not code(row["marks"]):
-                kind = row.lastgroup
-                depth = min(row["marks"].count(">"), len(BLANK_ROWS) - 1)
-                ends = kind == "comment" or kind in HTML_ENDS
-                latest[kind if ends else depth] = row
-            row = next(rows, None)
-        if any(position < block_end(text, block) for block in latest.values()):
-            # What starts the text of its row takes the marks of the row along.
-            begin = max(text.rfind("\n", 0, position), text.rfind("\r", 0, position))
-            if CONTAINER.fullmatch(text, begin + 1, position):
-                return max(begin + 1, start)
-            return position
-        latest.clear()
-        position = first(row.start()) if row else None
-    return len(text)
-
-
-def block_end(text: str, row: re.Match[str]) -> int:
-    """Where the HTML block ends that a row starts: at the start of a blank row, or
-    at the end of the row of its end."""
-    end = row_end(text, row.end())
-    if row.lastgroup == "comment":
-        closed = text.find("-->", row.end("marks"))
-        return row_end(text, closed + 3) if closed >= 0 else len(text)
-    ending = HTML_ENDS.get(row.lastgroup or "")
-    if ending is None:
-        depth = min(row["marks"].count(">"), len(BLANK_ROWS) - 1)
-        found = BLANK_ROWS[depth].search(text, end)
-        return found.start() if found else len(text)
-    if row.lastgroup == "declaration":
-        if text.find(">", row.end(), end) >= 0:
-            return end
-        found = ending.search(text, end)
-    else:
-        found = ending.search(text, row.end("marks"))
-    return row_end(text, found.end()) if found else len(text)
-
-
-def row_end(text: str, position: int) -> int:
-    """Where the row of a position ends, before its line break."""
-    found = ROW_END.search(text, position)
-    return found.start() if found else len(text)
-
-
-def code(marks: str) -> bool:
-    """Whether the text of a row after the marks of its quotes, without a list mark,
-    is indented code: by four columns or more before the first `>`, or after the
-    last and the one blank that it takes, with a tab up to the next fourth column."""
-    columns = marks.expandtabs(4)
-    lead = len(columns) - len(columns.lstrip(" "))
-    quote = columns.rfind(">")
-    return lead >= 4 or (quote >= 0 and len(columns) - quote - 1 >= 5)
-
-
-def strip_html(text: str) -> str:
-    """The text as GitHub shows it, without HTML comments and tags, in time linear
-    in its length."""
-    comments, rest = comment_parts(text)
-    return HTML.sub(open_tag, comments) + HTML_TAG.sub(open_tag, rest)
-
-
-def open_tag(match: re.Match[str]) -> str:
-    """What stays of an HTML match: a tag start that no `>` closes, or nothing."""
-    return match["open"] or ""
-
-
 # Besides HTML, GitHub shows nothing of a link reference definition, such as
 # `[//]: # (a comment)` or `[x]: <> "a comment"`, the usual ways to write a comment
 # in Markdown, and of a footnote that nothing refers to, such as `[^1]: a comment`.
@@ -563,9 +351,6 @@ def open_tag(match: re.Match[str]) -> str:
 DEFINITION_NOTE = "(link definition removed)"
 FOOTNOTE_NOTE = "(footnote removed)"
 
-ROW_END = re.compile(r"(\r\n|\r|\n)")
-# The marks of the quotes and list items that hold a row, before its text.
-CONTAINER = re.compile(r"(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)))*[ \t]*")
 LIST_MARK = re.compile(r"(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)")
 # A row that may open a fence, after the marks of quotes and list items and at any
 # indentation.

@@ -20,7 +20,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 import issue_assistant as assistant
-from oracle import PARSER, headings, hides_the_rest, problems
+from oracle import PARSER, browser_text, headings, hides_the_rest, problems
 from support import (
     BOT_USER,
     BOX,
@@ -722,12 +722,13 @@ HTML_TEXT = st.lists(
 
 def shown(text):
     """What GitHub shows of a text: all of it up to where an HTML block holds a
-    `<!--` that no `-->` follows. The earlier pattern left such a comment as text;
-    now it hides the rest, as GitHub does. Where it ends the text,
+    `<!--` that no `-->` follows, without the tags that run past their rows. The
+    earlier pattern left such a comment and such a tag as text; now both go, as
+    GitHub hides them. Where they go,
     test_the_engine_reads_nothing_that_an_html_block_hides holds against a CommonMark
-    parser."""
-    comments, rest = assistant.comment_parts(text)
-    return text[: len(comments) + len(rest)]
+    parser and a browser's reading of its HTML."""
+    spans, _, end = assistant.html_parts(text)
+    return assistant.without(text, spans, 0, end)
 
 
 @given(HTML_TEXT)
@@ -970,6 +971,13 @@ HTML_BLOCKS = st.lists(
             "--!>",
             "[^1]: ",
             "<https://x>",
+            "<div",
+            "<a",
+            "</div",
+            "<pre",
+            " t=",
+            "=",
+            "Plugh",
         ]
     ),
     max_size=30,
@@ -983,16 +991,32 @@ HTML_BLOCKS = st.lists(
 @hypothesis.example("<div>\n> x <!--")
 @hypothesis.example("> <pre>\n<?\n</pre>\nx <!--")
 @hypothesis.example("<!-- a --> <!--")
+@hypothesis.example("<div\nPlugh\n")
+@hypothesis.example("> <a t=\n> Plugh>")
+@hypothesis.example("<pre")
 @given(st.one_of(STRUCTURE, HTML_BLOCKS))
 def test_the_engine_reads_nothing_that_an_html_block_hides(text):
     """Nothing after an HTML block that holds a `<!--` that no `-->` follows reaches
     the engine, wherever a CommonMark parser finds the block: GitHub shows none of
-    it. And without a `<!--` or a quote, which alone can hide it, nothing ends the
-    text early."""
+    it. Nor does a word of a tag that runs over several rows, as a browser reads the
+    HTML of a CommonMark parser, in a text without comments and declarations, which
+    tests of their own judge, and outside code, whose language a browser doesn't
+    show. And without a `<!--`, a quote or a tag over rows, which alone can hide it,
+    nothing ends the text early."""
     text += "\n\nXyzzy"
     shown = assistant.shown_text(text)[0]
-    assert not hides_the_rest(text) or "Xyzzy" not in shown
-    assert any(mark in text for mark in ("<!--", '"', "'")) or "Xyzzy" in shown
+    seen = browser_text(text)
+    # A `<!--` in a tag is part of the tag: GitHub showed `zqd` after `<div><div<!--`
+    # and a blank row (`gh api markdown -f mode=gfm`, 2026-11-20).
+    assert not hides_the_rest(text) or "Xyzzy" not in shown or "Xyzzy" in seen
+    if not any(mark in text for mark in ("<!", "<?", "-->", "`")):
+        assert shown.count("Plugh") <= seen.count("Plugh")
+        assert "Xyzzy" in seen or "Xyzzy" not in shown
+    assert (
+        any(mark in text for mark in ("<!--", '"', "'"))
+        or assistant.long_tags(text) != ([], len(text))
+        or "Xyzzy" in shown
+    )
 
 
 # Forms with HTML: headings, answers, comments and tags with attributes.
