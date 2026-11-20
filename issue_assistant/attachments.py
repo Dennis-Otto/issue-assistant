@@ -19,6 +19,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+from html import unescape
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -28,9 +29,18 @@ from .cleaning import EMAIL, strip_definitions
 from .errors import AssistantError, GitHubError
 from .github import GitHub
 from .issues import Visible, text_of
-from .markup import comment_parts
+from .markup import (
+    FILTERED_TAG,
+    INLINE_TAG,
+    TAG_NAME,
+    Blocks,
+    Fences,
+    HtmlRows,
+    html_parts,
+    row_end,
+)
 from .paths import CONTEXT
-from .patterns import HTML_COMMENT
+from .patterns import INVISIBLE
 from .values import command, fence, login
 
 # Where the job attachments puts the files, and where the job of the AI finds them.
@@ -82,6 +92,37 @@ MOST_REDIRECTS = 3
 
 # A character that ends a link in Markdown or in the attribute of an HTML tag.
 LINK_END = r"\s()<>\[\]\"'`"
+
+# The attribute of each tag whose address GitHub shows as a link or an image: its
+# sanitizer keeps others with an address, such as `title`, `alt`, `name` and `cite`,
+# and `srcset` of a `source` and `src` of a `video`, but the page shows no link and
+# no image for them, or one only for some readers, as a `source` of a `picture`
+# for those of a colour scheme. GitHub reads an `image` as an `img`.
+SHOWN = {"a": "href", "img": "src", "image": "src"}
+# Where the reading of the tags stops: at a comment, where the comments can end, and
+# at the start of a tag.
+TAG_OPENING = re.compile(r"</?[A-Za-z]")
+COMMENT_OR_TAG = re.compile(rf"<!--|{TAG_OPENING.pattern}")
+# A tag that ends on its row, as the HTML parser reads it: its name, then its
+# attributes, each a name, perhaps with an `=` and a value, quoted or not, up to its
+# `>`. A name may start with an `=` or a quote, and an `=` without a value gives it
+# an empty one; a quoted value that doesn't end on the row ends no tag on it.
+TAG_IN_ROW = re.compile(
+    r"</?[A-Za-z][^\t\n\f\r />]*+(?:[\t\f /]++|[^\t\n\f\r />][^\t\n\f\r />=]*+"
+    r"(?:[\t\f ]*+=[\t\f ]*+(?:\"[^\"\r\n]*+\"|'[^'\r\n]*+'|(?![\"'])[^\t\n\f\r >]*+)"
+    r"|(?![\t\f ]*+=)))*+>"
+)
+# An attribute of a tag as the HTML parser reads it, over several rows: its name,
+# and its value, quoted or not, after an `=`. A quote that doesn't end takes the
+# rest of the tag, as a value of none of the groups.
+ATTRIBUTE = re.compile(
+    r"[\t\n\f\r /]*+(?P<name>[^\t\n\f\r />][^\t\n\f\r />=]*+)"
+    r"(?:[\t\n\f\r ]*+=[\t\n\f\r ]*+(?:\"(?P<double>[^\"]*+)\"|'(?P<single>[^']*+)'"
+    r"|(?P<bare>(?![\"'])[^\t\n\f\r >]*+)|[\"'][\s\S]*+))?+"
+)
+# The value of an attribute that GitHub keeps as a link: no space, not even around
+# it, no quote, backtick or angle bracket.
+ADDRESS = re.compile(r"[^\s<>\"'`]++")
 
 
 def file_link(repository: str) -> str:
@@ -184,11 +225,121 @@ class Attachment:
 
 def shown_links(text: str) -> str:
     """The part of a text whose links GitHub shows: without HTML comments and link
-    reference definitions, which it hides, and without invisible characters; with
-    the tags of HTML, which hold the images that GitHub inserts."""
-    comments, rest = comment_parts(text)
-    text = HTML_COMMENT.sub("", comments) + rest
-    return Visible()(strip_definitions(text)[0])
+    reference definitions, which it hides, and without invisible characters; each
+    tag of HTML in place of the addresses that GitHub shows of it, as a link or an
+    image, and of none other."""
+    spans, middle, end = html_parts(text)
+    tags = ShownTags(text, spans)
+    shown = tags.part(0, min(middle, end), COMMENT_OR_TAG) + tags.part(
+        middle, end, TAG_OPENING
+    )
+    return Visible()(strip_definitions(shown)[0])
+
+
+class ShownTags:
+    """Reads the tags of a text as GitHub does, and puts the addresses that it shows
+    of each in its place.
+
+    GitHub's sanitizer keeps a few attributes of a few tags, and the page shows a
+    link or an image for those of SHOWN alone: an address in any other attribute,
+    such as `title`, which the page shows only while the pointer rests on it, `alt`
+    or `name`, counts as none. A tag ends at its `>`, past a `>` in a quoted value,
+    and runs past the end of its row where `spans`, the tags that html_parts reads
+    over several rows, say so. Where GitHub shows a tag as text, it stays, as
+    as_text finds it. Where it is hard to tell, the address counts as none: a tag
+    that no `>` ends on its row takes the rest of the row, and a tag in a code span,
+    which the reading doesn't tell apart, shows what it would show as a tag.
+
+    The reading goes on from where it stopped, so it reads each part of the text
+    once, and asks the fences and the blocks for positions that never fall.
+    """
+
+    def __init__(self, text: str, spans: list[tuple[int, int]]) -> None:
+        self.text = text
+        self.spans = spans
+        self.index = 0
+        rows = HtmlRows(text)
+        self.fences = Fences(text, rows)
+        self.rows = rows
+        self.blocks: Blocks | None = None
+
+    def part(self, start: int, stop: int, openings: re.Pattern[str]) -> str:
+        """The part of the text from `start` to `stop`, with each tag read; with
+        COMMENT_OR_TAG, also without the HTML comments, which end in the part."""
+        text, position = self.text, start
+        pieces: list[str] = []
+        while True:
+            found = openings.search(text, position, stop)
+            # A tag over several rows that starts before the next opening, or before
+            # the end of the part where none follows.
+            span = self.next_span(found.start() + 1 if found else stop)
+            if span is not None:
+                position = self.take(span, position, pieces)
+                continue
+            if found is None:
+                break
+            opening = found.start()
+            pieces.append(text[position:opening])
+            if found[0] == "<!--":
+                closed = text.find("-->", found.end(), stop)
+                position = stop if closed < 0 else closed + len("-->")
+            elif self.as_text(opening):
+                pieces.append("<")
+                position = opening + 1
+            elif tag := TAG_IN_ROW.match(text, opening):
+                pieces.append(self.addresses(opening, tag.end()))
+                position = tag.end()
+            else:
+                position = row_end(text, opening)
+        pieces.append(text[position:stop])
+        return "".join(pieces)
+
+    def next_span(self, before: int) -> tuple[int, int] | None:
+        """The next tag over several rows that starts before `before`, or None."""
+        if self.index < len(self.spans) and self.spans[self.index][0] < before:
+            self.index += 1
+            return self.spans[self.index - 1]
+        return None
+
+    def take(self, span: tuple[int, int], position: int, pieces: list[str]) -> int:
+        """Adds the text up to a tag over several rows and what it shows, and returns
+        its end. The tag counts as html_parts reads it, from its start, also where
+        the reading of a tag in a row before took more than html_parts did."""
+        start, end = span
+        pieces += [self.text[position:start], self.addresses(start, end)]
+        return max(end, position)
+
+    def as_text(self, opening: int) -> bool:
+        """Whether GitHub shows the `<` of a tag as text: in fenced code, where its
+        filter shows the tag as text, and in a paragraph, where it is no tag by the
+        rules of CommonMark, as in the autolink `<https://…>`. An HTML block, which
+        hands it to the HTML parser as a tag, may hold it wherever that is hard to
+        tell."""
+        text = self.text
+        if self.fences.holds(opening) or FILTERED_TAG.match(text, opening):
+            return True
+        if self.blocks is None:
+            self.blocks = Blocks(text, self.rows, self.fences)
+        return not self.blocks.holding(opening) and not INLINE_TAG.match(text, opening)
+
+    def addresses(self, start: int, end: int) -> str:
+        """What GitHub shows of the tag from `start` to `end` as a link or an image:
+        the value of the first attribute of its name that SHOWN names for the tag,
+        once its entities are read, when it is an address without spaces and
+        invisible characters; or nothing."""
+        tag = self.text[start:end]
+        name = TAG_NAME.match(tag)
+        assert name is not None  # Every tag starts with its name.
+        wanted = SHOWN.get(name[0][1:].lower())
+        if wanted is None:
+            return ""
+        for attribute in ATTRIBUTE.finditer(tag, name.end()):
+            if attribute["name"].lower() == wanted:
+                quoted = attribute["double"] or attribute["single"]
+                value = unescape(quoted or attribute["bare"] or "")
+                shown = ADDRESS.fullmatch(value) and not INVISIBLE.search(value)
+                return f" {value} " if shown else ""
+        return ""
 
 
 def attachments_of(

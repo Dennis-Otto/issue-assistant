@@ -158,13 +158,6 @@ ROW_END = re.compile(r"(\r\n|\r|\n)")
 CONTAINER = re.compile(r"(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)))*[ \t]*")
 
 
-def comment_parts(text: str) -> tuple[str, str]:
-    """A text in two parts, with its tags: up to the end of its last `-->`, and what
-    GitHub shows of the rest, as html_parts finds them."""
-    _, middle, end = html_parts(text)
-    return text[: min(middle, end)], text[middle:end]
-
-
 def html_parts(text: str) -> tuple[list[tuple[int, int]], int, int]:
     """The tags of a text that GitHub reads past their rows, as long_tags finds
     them; the end of its last `-->`; and where GitHub stops showing it.
