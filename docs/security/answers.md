@@ -36,7 +36,7 @@ Every text of an answer passes `sanitize` in the `apply` job before it becomes p
 
 ### How the cleaning is tested
 
-What the cleaning lets through is judged where it ends up, by an oracle of the tests' own, `tests/oracle.py`, which shares no code with the cleaning. A CommonMark parser decides what is code. On top of it, the oracle follows what GitHub adds: tables that split code at a pipe, autolinks that run over the source to the next space, past brackets, entities and into code, where a browser goes for a link and which ref a link into the repository names, and mentions and references, also of commits of other repositories. `tests/test_oracle.py` holds it to what GitHub's own renderer made of the same Markdown.
+What the cleaning lets through is judged where it ends up, by an oracle of the tests' own, `tests/oracle.py`, which shares no code with the cleaning. A CommonMark parser decides what is code. On top of it, the oracle follows what GitHub adds: tables that split code at a pipe, autolinks that run over the source to the next space, past brackets, entities and into code, where a browser goes for a link and which ref a link into the repository names, and mentions and references, also of commits of other repositories. For HTML, `browser_text` reads the parser's HTML as a browser does after GitHub's filter of tags, and `tests/test_oracle.py` holds it to the texts of `tests/fixtures/tags-over-rows.json`. `tests/test_oracle.py` holds it to what GitHub's own renderer made of the same Markdown.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/how-the-tests-judge-what-the-cleaning-lets-through.dark.svg">

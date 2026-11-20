@@ -77,7 +77,6 @@ LIST_ROW = re.compile(
     rf"(?:(?:[-+*]|\d{{1,9}}[.)])(?:[ \t]|{ROW_ENDS})|{FOOTNOTE_MARK})"
 )
 COMMENT_START = re.compile("<!--")
-COMMENT_END = re.compile("-->")
 # Where the reading of the tags takes its next step: at a comment, in which no tag
 # is one, or at the start of a tag that a `>` doesn't end before a quote, a `<` or
 # the end of its row. The search passes over the others, which HTML takes out as it
@@ -211,11 +210,21 @@ class Following:
 class Searches:
     """The first match of a pattern at or after a position, read again only where
     the last search of the pattern can't tell: from rising positions, each pattern
-    reads no part of the text twice."""
+    reads no part of the text twice. The same for the end of a comment, `-->`, which
+    is found as a string: CommonMark ends a comment's block only there."""
 
     def __init__(self, text: str) -> None:
         self.text = text
         self.found: dict[re.Pattern[str], tuple[int, re.Match[str] | None]] = {}
+        self.comment = (len(text) + 1, -1)
+
+    def comment_end(self, position: int) -> int:
+        """Where the first `-->` at or after a position ends, or -1."""
+        start, found = self.comment
+        if not start <= position <= (len(self.text) if found < 0 else found):
+            found = self.text.find("-->", position)
+            self.comment = (position, found)
+        return found + 3 if found >= 0 else -1
 
     def __call__(self, pattern: re.Pattern[str], position: int) -> re.Match[str] | None:
         start, match = self.found.get(pattern, (len(self.text) + 1, None))
@@ -298,9 +307,10 @@ class Blocks:
 
     Where it is hard to tell whether a row is in a block, it counts as one: a block
     in a quote or a list item runs on past their end, a block may start in fenced
-    code, below a paragraph and within another block, since the block around it may
-    have ended with its quote or list item. Only a row indented as code, where no
-    list item could hold it, starts none.
+    code that `fences` doesn't surely find, below a paragraph and within another
+    block, since the block around it may have ended with its quote or list item.
+    Only a row indented as code, where no list item could hold it, and a row of the
+    fenced code that `fences` finds start none.
 
     Of the blocks of one kind that start before a position, only the last can hold
     it: one that starts earlier ends no later. So each block is judged once, and
@@ -309,8 +319,9 @@ class Blocks:
     marks of both.
     """
 
-    def __init__(self, text: str, rows: HtmlRows) -> None:
+    def __init__(self, text: str, rows: HtmlRows, fences: Fences | None = None) -> None:
         self.text = text
+        self.fences = fences
         self.found, self.lists = rows.found(), rows.lists()
         self.index = 0
         self.latest: dict[str | int | None, Block] = {}
@@ -324,7 +335,9 @@ class Blocks:
         found, index, latest = self.found, self.index, self.latest
         while index < len(found) and found[index].start() <= position:
             row = found[index]
-            if row.start() >= self.lists or not code(row["marks"]):
+            if (row.start() >= self.lists or not code(row["marks"])) and (
+                self.fences is None or not self.fences.holds(row.start())
+            ):
                 kind = row.lastgroup
                 depth = min(row["marks"].count(">"), len(BLANK_ROWS) - 1)
                 key = kind if kind == "comment" or kind in HTML_ENDS else depth
@@ -395,8 +408,8 @@ def block_end(text: str, row: re.Match[str], search: Searches) -> int:
     at the end of the row of its end."""
     end = row_end(text, row.end())
     if row.lastgroup == "comment":
-        found = search(COMMENT_END, row.end("marks"))
-        return row_end(text, found.end()) if found else len(text)
+        closed = search.comment_end(row.end("marks"))
+        return row_end(text, closed) if closed >= 0 else len(text)
     ending = HTML_ENDS.get(row.lastgroup or "")
     if ending is None:
         depth = min(row["marks"].count(">"), len(BLANK_ROWS) - 1)
@@ -431,6 +444,133 @@ QUOTES = frozenset("\"'")
 GOES_ON = frozenset("\"'\r\n")
 
 
+# A row that may open or close fenced code: three backticks or tildes or more, after
+# any marks of quotes, list items and footnotes and any blanks. Fenced code shows
+# its rows as they are, also a tag that runs over them.
+FENCE_ROW = re.compile(
+    rf"{ROW_START}(?P<marks>(?:[ \t]*+(?:{CONTAINER_MARK}|{FOOTNOTE_MARK}))*+)"
+    r"(?P<indent>[ \t]*+)(?P<fence>`{3,}|~{3,})(?P<info>[^\r\n]*+)"
+)
+# The marks of a row, each with the blanks before it.
+SPACED_MARK = re.compile(r"( *+)(>|[-+*]|\d{1,9}[.)])")
+
+
+class Fences:
+    """The fenced code of a text, for positions that never fall: from the row that
+    surely opens it to the row that closes it, or to the end of the text.
+
+    Only what surely is fenced code counts: the rows below the fence that start
+    with the marks of its quotes and with spaces as wide as its list items and its
+    indentation, or that are blank in its quotes, up to a fence of that start, its
+    character and at least its length. Where that is hard to tell, as for a row of
+    another start, a fence with tabs or with more blanks before it, in a footnote, or
+    in a row that an HTML block may hold, a row could open or close fenced code in
+    GitHub's reading and not in this one: so no later fence counts, and the tags
+    there are read as GitHub reads them outside code. Each row is read once, and a
+    position before the last one read is looked up among the fenced code found.
+    """
+
+    def __init__(self, text: str, rows: HtmlRows) -> None:
+        self.text = text
+        self.blocks = Blocks(text, rows, self)
+        self.starts: list[int] = []
+        self.ends: list[int] = []
+        self.after = 0
+        self.pending: re.Match[str] | None = None
+        self.done = False
+
+    def holds(self, position: int) -> bool:
+        """Whether fenced code surely holds a position."""
+        while not self.done and self.after <= position:
+            row = self.pending or FENCE_ROW.search(self.text, self.after)
+            if row is None or row.start() > position:
+                self.pending, self.done = row, row is None
+                break
+            # The blocks that may hold the row ask for the rows before it.
+            self.pending, self.after = None, row.end()
+            opens = self.opens(row)
+            if opens is None:
+                self.done = True
+            elif opens:
+                end, clear = self.closed(row)
+                self.starts.append(row.start())
+                self.ends.append(end)
+                self.after, self.done = end, not clear
+        index = bisect_right(self.starts, position) - 1
+        return index >= 0 and position < self.ends[index]
+
+    def opens(self, row: re.Match[str]) -> bool | None:
+        """Whether a row opens fenced code, or None where that is hard to tell. A
+        backtick after a fence of backticks makes it none: it starts code of a row."""
+        if row["fence"][0] == "`" and "`" in row["info"]:
+            return False
+        lead = row["marks"] + row["indent"]
+        if "\t" in lead or "[" in lead or self.blocks.holding(row.start()):
+            return None
+        mark = ""
+        for found in SPACED_MARK.finditer(row["marks"]):
+            if not blanks_fit(mark, found[1]):
+                return None
+            mark = found[2]
+        return True if blanks_fit(mark, row["indent"]) else None
+
+    def closed(self, row: re.Match[str]) -> tuple[int, bool]:
+        """Where the fenced code ends that a row opens, and whether it surely ends
+        there: after its closing row, or before a row that it may not hold.
+
+        Above the first list item, only the marks of its quotes start a row of the
+        code, and a fence closes it after as many blanks as one may open; in a list
+        item, a row starts as wide as the fence does, and the fence that closes it
+        right there."""
+        text, fence = self.text, row["fence"]
+        marked = LIST_MARKS.search(row["marks"])
+        listed = row.start() >= self.blocks.lists or marked is not None
+        prefix = (
+            LIST_MARKS.sub(lambda mark: " " * len(mark[0]), row["marks"])
+            + row["indent"]
+            if listed
+            else row["marks"]
+        )
+        quotes = prefix[: prefix.rfind(">") + 1]
+        position = row_end(text, row.end())
+        while (following := ROW_END.match(text, position)) is not None:
+            start = following.end()
+            position = row_end(text, start)
+            line = text[start:position]
+            if not line.startswith(prefix):
+                if line.rstrip(" \t") == quotes:
+                    continue
+                # A row that starts with less and in no quote ends the quotes and
+                # the list item, unless the fence may be outside a list item that
+                # its blanks seem to put it in.
+                first = line.lstrip(" ")[:1]
+                return start, (not first or first not in ">\t") and (
+                    not listed or marked is not None
+                )
+            rest = line[len(prefix) :]
+            body = rest.lstrip(" \t")
+            closing = body.rstrip(" \t")
+            if len(closing) >= len(fence) and not closing.strip(fence[0]):
+                blanks = rest[: len(rest) - len(body)]
+                if not blanks:
+                    return position, True
+                if listed or "\t" in blanks:
+                    return start, False
+                if blanks_fit(prefix[-1:], blanks):
+                    return position, True
+        return len(text), True
+
+
+def blanks_fit(mark: str, blanks: str) -> bool:
+    """Whether the blanks after a mark, or at the start of a row, leave what follows
+    them outside indented code, and a list mark its blank."""
+    if not mark:
+        return len(blanks) <= 3
+    if mark == ">":
+        return len(blanks) <= 4
+    return 1 <= len(blanks) <= 4
+
+
 def long_tags(
     text: str, rows: HtmlRows | None = None
 ) -> tuple[list[tuple[int, int]], int]:
@@ -446,7 +586,7 @@ def long_tags(
     GitHub's renderer hands a tag on as HTML only where CommonMark reads it as one,
     and otherwise shows it as text, as `<a` above a row that starts a quote. The
     tags that GitHub's filter shows as text, such as `<script`, stay as they are,
-    and so do the tags in a comment, and a tag that ends on its row, which HTML
+    and so do the tags in fenced code and in a comment, and a tag that ends on its row, which HTML
     takes out as it always did.
 
     Each step reads on from the end of the last: each tag is read once, up to its
@@ -457,19 +597,21 @@ def long_tags(
     closes = text.rfind(">")
     if closes < 0 and not rows.found():
         return [], len(text)  # No tag of a paragraph ends, and no block holds one.
-    blocks, paragraphs, search = Blocks(text, rows), Paragraphs(text), Searches(text)
+    fences = Fences(text, rows)
+    blocks = Blocks(text, rows, fences)
+    paragraphs, search = Paragraphs(text), Searches(text)
     spans: list[tuple[int, int]] = []
     position = 0
     starts = TAG_START
     while (found := starts.search(text, position)) is not None:
         start, position = found.start(), found.end()
         if found.lastgroup == "comment":
-            closed = search(COMMENT_END, position)
-            if closed is None:
+            closed = search.comment_end(position)
+            if closed < 0:
                 starts = TAG_ONLY  # No `-->` follows: no comment hides a tag.
-            position = closed.end() if closed else position
+            position = max(closed, position)
             continue
-        if FILTERED_TAG.match(text, start):
+        if FILTERED_TAG.match(text, start) or fences.holds(start):
             continue
         held = blocks.holding(start)
         if held:
