@@ -1,0 +1,3 @@
+### Performance
+
+- The assistant reads the HTML of a long issue faster, and never again in a time that grows with the square of its length: a row full of comments and tags, such as `<!-- <a> --><b c='-->'>` repeated up to GitHub's limit of 65,536 characters, took more than a second to read for the AI, and finding the attached files of some texts with instructions or sections of CDATA took up to 18 seconds; both now take a few hundredths of a second. The rows that can't change how a tag over several rows goes on are passed over in one step, so the slowest texts of HTML blocks and tags are read up to three times as fast. What the AI reads and which attachments count stays exactly as before.

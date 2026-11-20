@@ -13,6 +13,7 @@ import dataclasses
 import json
 import re
 import unicodedata
+from unittest import mock
 
 import hypothesis
 import pytest
@@ -20,6 +21,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 import issue_assistant as assistant
+from issue_assistant import markup
 from oracle import PARSER, browser_text, headings, hides_the_rest, problems
 from support import (
     BOT_USER,
@@ -745,6 +747,71 @@ EARLIER_HTML_AND_MARKUP = re.compile(
 @given(HTML_TEXT)
 def test_html_is_removed_as_it_always_was(text):
     assert assistant.strip_html(text) == EARLIER_HTML_AND_MARKUP.sub("", shown(text))
+
+
+# Rows of HTML blocks and of the tags that run over them, at the top of the text, in
+# quotes and in list items, with what starts a value or ends a tag, and with each
+# kind of line break.
+TAG_ROWS = st.tuples(
+    st.lists(
+        st.sampled_from(
+            [
+                "<div",
+                "<DIV a",
+                "</p",
+                "<td\tb",
+                "<pre>",
+                "<a>",
+                "<!--",
+                "-->",
+                "<?",
+                "<!X",
+                "```",
+                "x",
+                "a b",
+                "",
+                " ",
+                "\t",
+                ">",
+                "> ",
+                "> <div",
+                "> x",
+                ">> x",
+                "> > <p",
+                "- <div",
+                "  x",
+                "    <div",
+                "=",
+                "a=",
+                "'",
+                '"',
+                "b c='d'",
+                "x >",
+            ]
+        ),
+        max_size=30,
+    ),
+    st.sampled_from(["\n", "\r\n", "\r"]),
+).map(lambda rows: rows[1].join(rows[0]))
+
+
+@hypothesis.example("<div\nx\n\n<DIV a\n \n\t\n<td\tb\n\n<div\n<a>\n\n</p\nb c='d'")
+@hypothesis.example("<div\r\n\r\n<p\r\nx\r\n\r\n> <div\r\n\r\n<div a=")
+@hypothesis.example("> <div\n> x\n>> x\n> > <p\n\n> <div\n> a b\n> x >\nx")
+@hypothesis.example("> > <p\n> x\n>> a b\n> a=\n> > <p\n>\n> x")
+@hypothesis.example("<div\nx\n\n<div\ny\n\nz")
+@hypothesis.example("> <div\n> a=\n> 'x\n> y\nz")
+@given(TAG_ROWS)
+def test_the_rows_read_in_bulk_read_as_one_at_a_time(text):
+    """The searches that read many rows of a tag at once find what the reading of a
+    row at a time finds, which reads them where the searches match nothing."""
+    bulk = assistant.html_parts(text)
+    nothing = re.compile("")
+    with (
+        mock.patch.object(markup, "TAG_BLOCKS", nothing),
+        mock.patch.object(markup, "inert_rows", lambda shallow, depth: nothing),
+    ):
+        assert assistant.html_parts(text) == bulk
 
 
 # Pieces of a text that would pass for the structure of issue.md: a heading of the
