@@ -273,8 +273,14 @@ class ShownTags:
         ends after it."""
         text, position = self.text, start
         pieces: list[str] = []
+        # The last search, and where it started: its opening is the next one also
+        # from a later position before it, so that the tags over several rows,
+        # which a reading takes one after the other, don't read the rest of the part
+        # again for each of them.
+        found, since = None, stop + 1
         while True:
-            found = openings.search(text, position, stop)
+            if not since <= position <= (stop if found is None else found.start()):
+                found, since = openings.search(text, position, stop), position
             # A tag over several rows that starts before the next opening, or before
             # the end of the part where none follows.
             span = self.next_span(found.start() + 1 if found else stop)

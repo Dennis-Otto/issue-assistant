@@ -11,6 +11,7 @@ of, in time linear in its length.
 
 from __future__ import annotations
 
+import functools
 import re
 from bisect import bisect_right
 from collections.abc import Callable, Iterator
@@ -46,16 +47,34 @@ BLOCK_TAGS = (
     "|o(?:l|ptgroup|ption)|p(?:aram)?|s(?:earch|ection|ource|ummary)"
     "|t(?:able|body|d|foot|h|head|itle|r|rack)|ul"
 )
+# The characters that a letter matches where a pattern ignores case: its capital and
+# its small letter, and for some a letter of another script. HTML_ROW matches them
+# as it did with the flag IGNORECASE, without which a row takes about half the time:
+# no step of a name looks up the case of a character.
+FOLDS = {"i": "\u0130\u0131", "k": "\u212a", "s": "\u017f"}
+LETTER = f"[A-Za-z{''.join(FOLDS.values())}]"
+TAG_NAME_CHARACTER = f"[A-Za-z0-9{''.join(FOLDS.values())}-]"
+
+
+def caseless(letters: str) -> str:
+    """A pattern of small letters, digits and groups, which matches what it matched
+    with the flag IGNORECASE."""
+    return re.sub(
+        "[a-z]",
+        lambda letter: f"[{letter[0].upper()}{letter[0]}{FOLDS.get(letter[0], '')}]",
+        letters,
+    )
+
+
 HTML_ROW = re.compile(
     rf"{ROW_START}(?P<marks>(?:[ \t]*+(?:{CONTAINER_MARK}|{FOOTNOTE_MARK}))*+[ \t]*+)"
-    rf"(?:(?P<raw><(?:pre|script|style|textarea)(?=[\s>]|{ROW_ENDS}))"
-    r"|(?P<comment><!--)|(?P<processing><\?)|(?P<cdata><!\[CDATA\[)"
-    r"|(?P<declaration><![A-Za-z])"
-    rf"|(?P<tag></?(?:{BLOCK_TAGS})(?=[\s>]|/>|{ROW_ENDS})"
-    r"|</?[A-Za-z][A-Za-z0-9-]*+(?=[\t />])"
+    rf"(?:(?P<raw><(?:{caseless('pre|script|style|textarea')})(?=[\s>]|{ROW_ENDS}))"
+    rf"|(?P<comment><!--)|(?P<processing><\?)|(?P<cdata><!\[{caseless('cdata')}\[)"
+    rf"|(?P<declaration><!{LETTER})"
+    rf"|(?P<tag></?(?:{caseless(BLOCK_TAGS)})(?=[\s>]|/>|{ROW_ENDS})"
+    rf"|</?{LETTER}{TAG_NAME_CHARACTER}*+(?=[\t />])"
     r"(?:[^<>\"'\r\n]|\"[^\"\r\n]*+\"|'[^'\r\n]*+')*+>"
-    rf"[ \t]*+{ROW_ENDS}))",
-    re.IGNORECASE,
+    rf"[ \t]*+{ROW_ENDS}))"
 )
 # What ends each kind of block but a tag's, which a blank row ends: a row that holds
 # it. For a declaration, that is a `>` on its first row, after its start, or one
@@ -149,6 +168,34 @@ LEADING_EQUALS = re.compile(r"[\t\f ]*+=")
 INERT = re.compile(r"[^\"'=>]*+")
 ANY_QUOTE_MARK = re.compile(r"[ \t]*+>")
 BLANK_ROWS_AHEAD = re.compile(r"(?:[ \t>]*+(?:\r\n?|\n))*+")
+# Reading in bulk what held_tag_end would read a row at a time, where each row leaves
+# a tag between its attributes as it was: a row without a quote, an `=` or a `>`
+# after the marks of its quotes, of which it has as many as the blocks allow; and at
+# the top of the text, the blocks of block tags that follow each other, each after
+# the blank rows that end the one before, with no quote, `=` or `>` in their rows.
+# Wherever a row holds more, the reading goes on a row at a time.
+LINE_BREAK = r"(?>\r\n|\r|\n)"
+INERT_ROW = r"[^\"'=>\r\n]*+"
+TAG_BLOCKS = re.compile(
+    rf"(?:(?:[ \t>]*+{LINE_BREAK})*+[ \t]*+"
+    rf"(?=</?(?:{caseless(BLOCK_TAGS)})(?=[\s>]|/>|{ROW_ENDS}))"
+    rf"{INERT_ROW}(?:{LINE_BREAK}(?![ \t]*+{ROW_ENDS}){INERT_ROW})*+"
+    rf"(?:{LINE_BREAK}(?=[ \t]*+{ROW_ENDS})|\Z))*+"
+)
+
+
+# The depths come from the text, which an outsider writes: the cache keeps the
+# patterns of the latest pairs, not one for every pair that a text can name.
+@functools.lru_cache(maxsize=64)
+def inert_rows(shallow: int, depth: int) -> re.Pattern[str]:
+    """The later rows of a tag in quotes that leave it between its attributes: each
+    with at least `shallow` and at most `depth` marks of quotes, as quote_marks reads
+    them, and nothing after them that could start a value or end the tag."""
+    return re.compile(
+        rf"(?:{LINE_BREAK}(?:[ \t]*+>){{{shallow},{depth}}}+{INERT_ROW}{ROW_ENDS})*+"
+    )
+
+
 # The marks of list items and footnotes among the marks of a row.
 LIST_MARKS = re.compile(rf"(?:[-+*]|\d{{1,9}}[.)])(?=[ \t]|$)|{FOOTNOTE_MARK}")
 # Marks of list items alone, of the kinds that start a list item also below a
@@ -272,6 +319,12 @@ class Searches:
             self.closing = (position, found)
         return found + 1 if found >= 0 else -1
 
+    def row_end(self, position: int) -> int:
+        """Where the row of a position ends, before its line break: the rows of
+        several tags on one long row are read once, not once for each tag."""
+        found = self(ROW_END, position)
+        return found.start() if found else len(self.text)
+
     def __call__(self, pattern: re.Pattern[str], position: int) -> re.Match[str] | None:
         start, match = self.found.get(pattern, (len(self.text) + 1, None))
         if (
@@ -292,6 +345,7 @@ class HtmlRows:
     def __init__(self, text: str) -> None:
         self.text = text
         self.rows: list[re.Match[str]] | None = None
+        self.starts: list[int] = []
         self.listed: int | None = None
         self.ends: dict[int, int] = {}
         self.fences: bool | None = None
@@ -307,6 +361,7 @@ class HtmlRows:
         """The rows that may start an HTML block."""
         if self.rows is None:
             self.rows = list(HTML_ROW.finditer(self.text))
+            self.starts = [row.start() for row in self.rows]
         return self.rows
 
     def lists(self) -> int:
@@ -322,12 +377,14 @@ class Block:
     latest earlier block of its kind, of which it may be a row if that one hadn't
     ended where it starts."""
 
-    __slots__ = ("earlier", "measures", "row")
+    __slots__ = ("earlier", "end", "measures", "row")
 
     def __init__(self, row: re.Match[str], earlier: Block | None) -> None:
         self.row = row
         self.earlier = earlier
         self.measures: tuple[int, int, str] | None = None
+        # Where it ends, once Blocks.holding has asked.
+        self.end: int | None = None
 
     def chain(self, blocks: Blocks) -> list[Block] | None:
         """It and the earlier blocks that it may be a row of, or None where there are
@@ -379,6 +436,7 @@ class Blocks:
         self.text = text
         self.fences = fences
         self.found, self.lists = rows.found(), rows.lists()
+        self.starts = rows.starts
         self.index = 0
         self.latest: dict[str | int | None, Block] = {}
         self.ends = rows.ends
@@ -388,35 +446,42 @@ class Blocks:
 
     def holding(self, position: int) -> list[Block]:
         """The blocks that may hold a position."""
-        found, index, latest = self.found, self.index, self.latest
-        lists, fences, count = self.lists, self.fences, len(found)
-        if not latest and (index == count or found[index].start() > position):
+        index, latest, starts = self.index, self.latest, self.starts
+        if index < len(starts) and starts[index] <= position:
+            # The rows that start up to the position, found in one search.
+            stop = bisect_right(starts, position, index)
+            found, lists, fences = self.found, self.lists, self.fences
+            for next_row in range(index, stop):
+                row, start = found[next_row], starts[next_row]
+                # A row without marks is never indented code.
+                marks = row["marks"]
+                if (start >= lists or not marks or not code(marks)) and (
+                    fences is None or not fences.holds(start)
+                ):
+                    kind = row.lastgroup
+                    key: str | int | None = (
+                        kind
+                        if kind == "comment" or kind in HTML_ENDS
+                        else min(marks.count(">"), len(BLANK_ROWS) - 1)
+                    )
+                    latest[key] = Block(row, latest.get(key))
+            self.index = stop
+        elif not latest:
             return []  # No block has started since the last one ended.
-        while index < count and (start := (row := found[index]).start()) <= position:
-            # A row without marks is never indented code.
-            marks = row["marks"]
-            if (start >= lists or not marks or not code(marks)) and (
-                fences is None or not fences.holds(start)
-            ):
-                kind = row.lastgroup
-                key: str | int | None = (
-                    kind
-                    if kind == "comment" or kind in HTML_ENDS
-                    else min(marks.count(">"), len(BLANK_ROWS) - 1)
-                )
-                latest[key] = Block(row, latest.get(key))
-            index += 1
-        self.index = index
-        for key in [
-            key for key, block in latest.items() if self.end(block.row) <= position
-        ]:
+        ended = []
+        for key, block in latest.items():
+            if block.end is None:
+                block.end = self.end(block.row)
+            if block.end <= position:
+                ended.append(key)
+        for key in ended:
             del latest[key]
         return list(latest.values())
 
     def following(self) -> int | None:
         """Where the next block may start."""
-        found = self.found
-        return found[self.index].start() if self.index < len(found) else None
+        starts = self.starts
+        return starts[self.index] if self.index < len(starts) else None
 
     def end(self, row: re.Match[str], search: Searches | None = None) -> int:
         """Where the block ends that a row starts: at the start of a blank row, or
@@ -559,7 +624,8 @@ class Fences:
         self.ends: list[int] = []
         self.after = 0
         self.pending: re.Match[str] | None = None
-        self.done = False
+        # Without three backticks or tildes in a row, no row opens fenced code.
+        self.done = not rows.fenced()
 
     def holds(self, position: int) -> bool:
         """Whether fenced code surely holds a position."""
@@ -733,12 +799,12 @@ def long_tags(
         held = blocks.holding(start)
         if held:
             if markup:
-                stop = row_end(text, position)
+                stop = search.row_end(position)
                 after, state = tag_row(text, position, stop, "!")
             else:
                 name = TAG_NAME.match(text, start)
                 assert name is not None  # TAG_START found a tag there.
-                stop = row_end(text, name.end())
+                stop = search.row_end(name.end())
                 after, state = tag_row(text, name.end(), stop, "")
                 if state == ">":
                     # HTML takes the tag out; what it holds, such as a `<!` in a
@@ -761,7 +827,7 @@ def long_tags(
                 continue
             else:
                 end, raw = ends
-        elif start < raw and (tag_end := row_tag_end(text, start)) is not None:
+        elif start < raw and (tag_end := row_tag_end(text, start, search)) is not None:
             # A tag in the rest of the HTML of an instruction, which HTML takes
             # out: what it holds is none of the markup.
             position = tag_end
@@ -835,12 +901,12 @@ def row_markup_end(text: str, start: int, search: Searches) -> tuple[int, int] |
     return end, closer.end()
 
 
-def row_tag_end(text: str, start: int) -> int | None:
+def row_tag_end(text: str, start: int, search: Searches) -> int | None:
     """Where a tag ends that GitHub's HTML parser reads from a position, if it ends
     on its row."""
     name = TAG_NAME.match(text, start)
     assert name is not None  # TAG_START found a tag there.
-    after, state = tag_row(text, name.end(), row_end(text, name.end()), "")
+    after, state = tag_row(text, name.end(), search.row_end(name.end()), "")
     return after if state == ">" else None
 
 
@@ -937,11 +1003,32 @@ def held_tag_end(
                 # blocks: the reading goes on at that row, so that it reads the
                 # rows between once, not once for each of them.
                 stop = row_before(text, stop, names.end())
+        if (
+            state == ""
+            and not rows.top
+            and not rows.indent
+            and rows.starts is not None
+            and stop < rows.region
+        ):
+            # The rows that leave the tag as it was, in one search; a row that ends
+            # the quotes, or that holds more, is read below.
+            inert = inert_rows(rows.shallow, rows.depth).match(text, stop, rows.region)
+            assert inert is not None  # It matches the empty text.
+            stop = inert.end()
         # A row that starts at or after the end of the blocks is none of theirs.
         line = ROW_END.match(text, stop) if stop < rows.region else None
         if line is None or line.end() >= rows.region:
             if state in QUOTES:
                 return None
+            if rows.top and state == "":
+                # The blocks of block tags that follow and leave the tag as it was,
+                # in one search, each as the reading of the next block below would
+                # read it.
+                chained = TAG_BLOCKS.match(text, rows.region)
+                assert chained is not None  # It matches the empty text.
+                if chained.end() > rows.region:
+                    rows.region = stop = chained.end()
+                    continue
             following = next_html(text, rows.region)
             if (
                 following is None

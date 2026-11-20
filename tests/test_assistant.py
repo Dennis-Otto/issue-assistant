@@ -220,6 +220,9 @@ SLOW_TEXTS = {
     "tags in rows of a block": "<div>\n" + "x <span\n" * 8_000,
     "values with the other quote": '<a t="' + "<a t='" * 10_000,
     "blank rows in a tag of HTML blocks": "<?\n<v" + "\n" * 64_000 + "'='",
+    # Each tag of one long row looked for the end of the row again (2026-11-20).
+    "comment ends in values of tags after comments": "<!-- <a> --><b c='-->'>" * 2_800,
+    "sections of CDATA in a row of a block": "<div>\n" + "\t><![CDATA[>    " * 4_000,
 }
 
 
@@ -245,6 +248,18 @@ GROWING = {
     "HTML blocks between blank rows": ("", "<a>\n\n", 13_000, "x <!--"),
     "fenced code of tags": ("", "```\n<div\na\n```\n", 4_000, ""),
     "blank rows in a tag of HTML blocks": ("<?\n<v", "\n", 64_000, "'='"),
+    "comment ends in values of tags after comments": (
+        "",
+        "<!-- <a> --><b c='-->'>",
+        2_800,
+        "",
+    ),
+    "sections of CDATA in a row of a block": (
+        "<div>\n",
+        "\t><![CDATA[>    ",
+        4_000,
+        "",
+    ),
 }
 
 
@@ -368,6 +383,26 @@ def test_each_block_tag_of_commonmark_and_no_other_starts_a_block_without_its_en
             assert row.lastgroup == "tag", tag
     for name in ("a", "span", "pa", "h7", "bases", "colgroups", "tablex", "u", "t"):
         assert assistant.HTML_ROW.match(f"<{name}\nx") is None, name
+
+
+def test_the_names_of_html_rows_match_what_they_matched_ignoring_case():
+    """Each letter of a name matches what it matched with the flag IGNORECASE, among
+    all characters: a name with the long s or the Kelvin sign starts a block, as it
+    did."""
+    characters = "".join(map(chr, [*range(0xD800), *range(0xE000, 0x110000)]))
+    for letter in string.ascii_lowercase:
+        assert re.findall(assistant.caseless(letter), characters) == re.findall(
+            letter, characters, re.IGNORECASE
+        ), letter
+    for ignoring, pattern in (
+        ("[a-z]", assistant.LETTER),
+        ("[a-z0-9-]", assistant.TAG_NAME_CHARACTER),
+    ):
+        assert re.findall(pattern, characters) == re.findall(
+            ignoring, characters, re.IGNORECASE
+        )
+    assert assistant.HTML_ROW.match("<\u017fcript>").lastgroup == "raw"
+    assert assistant.HTML_ROW.match("<\u212abd>").lastgroup == "tag"
 
 
 # Texts of 64 KiB that make the search for definitions read far ahead from many
