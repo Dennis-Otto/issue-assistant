@@ -113,6 +113,11 @@ def test_a_file_of_another_person_or_one_that_github_hides_counts_as_none():
     definition, never reaches the AI unseen by the maintainers."""
     body = f"<!-- {LOG} -->\n\n[hidden]: {JSON}\n\nNothing attached."
     assert found(body, ("someone", f"{FILES}/104/theirs.log")) == []
+    # A comment that never ends hides the rest of the text, also when it starts a
+    # quote or a list item, or stands in a row of HTML.
+    for start in ("> <!--", "- <!--", "<div> <!--"):
+        body = f"Nothing attached.\n\n{start}\n{LOG}\n\n{JSON}"
+        assert found(body) == []
 
 
 def test_an_older_link_counts_only_for_a_file_of_this_repository():

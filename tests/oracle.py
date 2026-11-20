@@ -485,3 +485,23 @@ def resolved(path: str) -> list[str]:
         if index == len(names) - 1:
             segments.append("")
     return segments
+
+
+def hides_the_rest(markdown: str) -> bool:
+    """Whether GitHub shows nothing of the rest of a text from an HTML block on: the
+    block holds a `<!--` that no `-->` follows, and GitHub hands the block on as
+    HTML, in which the comment runs to the end of the text, also past the end of the
+    quote or the list item that holds the block (`gh api markdown -f mode=gfm`,
+    2026-11-20)."""
+    markdown = markdown.replace("\r\n", "\n").replace("\r", "\n")
+    rows = markdown.split("\n")
+    starts = [0]
+    for row in rows:
+        starts.append(starts[-1] + len(row) + 1)
+    for token in PARSER.parse(markdown):
+        if token.type == "html_block" and token.map:
+            first, last = token.map
+            comment = markdown.rfind("<!--", starts[first], starts[last])
+            if comment >= 0 and "-->" not in markdown[comment:]:
+                return True
+    return False

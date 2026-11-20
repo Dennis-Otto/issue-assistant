@@ -8,7 +8,7 @@ what it would where the user, the team or the commit exists.
 
 import pytest
 
-from oracle import PARSER, headings, problems
+from oracle import PARSER, headings, hides_the_rest, problems
 from support import CONFIG
 
 
@@ -280,3 +280,24 @@ def test_the_oracle_reads_a_text_without_a_final_line_feed(markdown, found):
     """markdown-it-py 4.3.0 raises an IndexError for these texts as they are."""
     assert headings(markdown) == []
     assert problems(markdown, set(), CONFIG) == found
+
+
+@pytest.mark.parametrize(
+    ("markdown", "hidden"),
+    [
+        ("x\n\n> <!--\n> a\n\nhidden words", True),
+        ("> - <!--\nhidden", True),
+        ("- a\n  - b\n    <!--\n\nhidden", True),
+        ("<div><!--\n\nhidden", True),
+        ("<!-- a --> <!--\n\nhidden", True),
+        ("x\r\n> <!--\r\n\r\nhidden", True),
+        ("x <!--\n\nshown words", False),
+        ("x\n\n> text <!--\n\nshown words", False),
+        ("> <!-- a -->\n\nshown", False),
+        ("    <!--\n\nshown", False),
+    ],
+)
+def test_the_oracle_finds_the_comments_that_hide_the_rest(markdown, hidden):
+    """GitHub's renderer (`gh api markdown -f mode=gfm`, 2026-11-20) showed nothing
+    after the HTML block of these texts, or the rest of the others."""
+    assert hides_the_rest(markdown) is hidden

@@ -186,6 +186,24 @@ SLOW_TEXTS = {
     "comments that end at the very end": "<!--" * 16_383 + "-->",
     "a comment line after unclosed comments": "x<!--" * 13_000 + "\n<!--",
     "a tag on every line": "</a\n" * 16_384,
+    "unclosed comments in deep quotes": "> " * 32_000 + "x <!--",
+    "unclosed comments after list marks": "- " * 32_000 + "x <!--",
+    "blanks before an unclosed comment": " " * 65_000 + "x <!--",
+    "HTML blocks that never end": "<?\n" * 16_000 + "<!--",
+    "HTML blocks on every row": "<div>\n" * 10_000 + "x <!--",
+    "blank quotes after HTML": "> <div>\n" + ">\n" * 32_000 + "x <!--",
+    "HTML blocks between blank rows": "<a>\n\n" * 13_000 + "x <!--",
+    "comments after HTML blocks that end": "<a>\n\nx <!--\n\n" * 5_400,
+    "blocks that end on their rows": "<?a?>\n<!X>\n" * 5_400 + "<!--",
+    "values that end after HTML blocks": '<a>\n\n<a b="c"\n\n' * 4_000 + '<a b="',
+    "tags in a row": "<a>" * 21_000 + "\n<!--",
+    "comments in a row after HTML": "<a>\n\n" + "x<!--" * 13_000 + "\n<b>",
+    "attributes on one row": '<a b="c" ' * 7_000 + "<!--",
+    "values that never end": '<a b="' * 10_000,
+    "names before a value that never ends": "<a b " * 13_000 + '="',
+    "quoted values with a > in tags": '<a b=">' * 9_000 + "\n<!--",
+    "footnote marks in a row": "[^a]: " * 10_000 + "<div> <!--",
+    "footnote labels that never end": "[^a" * 21_000 + "\n<!--",
 }
 
 
@@ -242,6 +260,161 @@ def test_html_is_removed_as_github_hides_it():
     # comment after them still goes.
     assert assistant.strip_html("<a <b\n<i>x</i> 1 < 2") == "<a <b\nx 1 < 2"
     assert assistant.strip_html("<a <!-- x\n--> y") == "<a  y"
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        # At the start of a quote or a list item, of any mark and nesting, also
+        # after a tab and below a paragraph, the comment takes the marks of its row.
+        ("x\n\n> <!--\n> a\n\nhidden words", "x\n\n"),
+        ("> <!--\nhidden words", ""),
+        ("> x\n> <!--\n> a\n\nhidden words", "> x\n"),
+        ("- <!--\nhidden", ""),
+        ("* <!--\n\nhidden words", ""),
+        ("> - <!--\nhidden", ""),
+        ("+ <!--\n\nhidden", ""),
+        ("1. <!--\n\nhidden", ""),
+        ("2) <!--\n\nhidden", ""),
+        ("- > - 1. <!--\n\nhidden", ""),
+        ("   > <!--\n\nhidden", ""),
+        ("-\t<!--\n\nhidden", ""),
+        (">\t<!--\n\nhidden", ""),
+        (">>  <!--\n\nhidden", ""),
+        ("x\n- <!--\n\nhidden", "x\n"),
+        ("x\n> <!--\n\nhidden", "x\n"),
+        # Indented as far as the text of a list item, which makes it no code.
+        ("10. item\n\n    <!--\n\nhidden", "10. item\n\n"),
+        ("- a\n  - b\n    <!--\n\nhidden", "- a\n  - b\n"),
+        ("- a\n\n\t<!--\n\nhidden", "- a\n\n"),
+        ("> - a\n>\n>     <!--\n\nhidden", "> - a\n>\n"),
+        # In the row that starts an HTML block, or in a later row of the block.
+        ("<div><!--\n\nhidden", ""),
+        ("<DIV> x <!--\n\nhidden", " x "),
+        ("<p>x <!--\n\nhidden", "x "),
+        ("</div> <!--\n\nhidden", " "),
+        ("<details><summary>s <!--\n\nhidden", "s "),
+        ("x\n<div> <!--\n\nhidden", "x\n "),
+        ("- <div><!--\n\nhidden", "- "),
+        ("<div>\nx <!--\n\nhidden", "\nx "),
+        ("<div>\n> x <!--\n\nhidden", "\n> x "),
+        ("<div>\n>\n x <!--\n\nhidden", "\n>\n x "),
+        ("> <div>\n>>\n> x <!--\n\nhidden", "> \n>>\n> x "),
+        ("- <div>\n  x <!--\n\nhidden", "- \n  x "),
+        ("<x-y>\nx <!--\n\nhidden", "\nx "),
+        ("<!---->x <!--\n\nhidden", "x "),
+        ("<!-- a --> <!--\n\nhidden", " "),
+        ("> <!-- a --> <!--\n\nhidden", ">  "),
+        # A block that only its end ends, also over blank rows, or blocks within
+        # blocks, where the outer one ended with its quote.
+        ("<?php <!--\n\nhidden", "<?php "),
+        ("<pre>\n\nx <!--\n\nhidden", "\n\nx "),
+        ("<script>\n\nx <!--\n\nhidden", "\n\nx "),
+        ("<!X\n\nx <!--\n\nhidden", "<!X\n\nx "),
+        ("<![CDATA[\n\nx <!--\n\nhidden", "<![CDATA[\n\nx "),
+        ("> <pre>\n>\n> x <!--\n\nhidden", "> \n>\n> x "),
+        ("> <div>\n<pre>\n\nx <!--\n\nhidden", "> \n\n\nx "),
+        ("> <pre>\n<?\n</pre>\nx <!--\n\nhidden", "> \n<?\n\nx "),
+        ("<div>\n<pre></pre>\nx <!--\n\nhidden", "\n\nx "),
+        ("<div>\n> <div>\n>\nx <!--\n\nhidden", "\n> \n>\nx "),
+        # A quoted value of a tag that doesn't end hides the rest the same way.
+        ('<div title="\n\nhidden words', ""),
+        ("<div title='\n\nhidden", ""),
+        ('<div title="a" class="b\n\nhidden', ""),
+        ('> <div title="\n\nhidden', ""),
+        ('- <div title="x\n\nhidden', ""),
+        ("<pre title='x\n\nhidden", ""),
+        ('<p>x <a title="\n\nhidden', "x "),
+        ('<div><a title="\n\nhidden', ""),
+        ('<div title="x -->\n\nhidden', ""),
+        # A tag alone on its row whose quoted value holds a `<` or a `>`.
+        ('<a title=">">\nx <!--\n\nhidden', '">\nx '),
+        ('<a title="<">\nx <!--\n\nhidden', "\nx "),
+        # GitHub's HTML parser ends a comment at `--!>`, but the block runs on to the
+        # row of its `-->`, where a `<!--` still hides the rest.
+        ("<!-- a --!>\nx -->b <!--\n\nhidden", "b "),
+        ('<!-- a --!>\n<a title="\n\nhidden -->', ""),
+        # A footnote holds blocks as a list item does.
+        ("x[^1]\n\n[^1]: <div> <!--\n    hidden words\n\nhidden", "x[^1]\n\n[^1]:  "),
+        ("x[^1]\n\n[^1]: a\n\n    <div> <!--\n    hidden", "x[^1]\n\n[^1]: a\n\n     "),
+        ("> x[^1]\n>\n> [^1]: <div> <!--\n>     hidden", "> x[^1]\n>\n> [^1]:  "),
+    ],
+)
+def test_a_comment_that_an_html_block_holds_hides_the_rest(text, shown):
+    """GitHub's renderer (`gh api markdown -f mode=gfm`, 2026-11-20) shows nothing
+    after a `<!--` that no `-->` follows wherever an HTML block holds it, also after
+    the end of the quote or the list item around the block, nor after a quoted value
+    of a tag that doesn't end."""
+    assert assistant.shown_text(text) == (shown, 0)
+
+
+def test_html_that_may_hide_the_rest_takes_it_out():
+    """Where it is hard to tell, the cleaning takes out what GitHub shows: a value
+    over several rows, a block of a quote or a list item after the end of both, and
+    fenced code, in which no HTML starts a block."""
+    for text in (
+        '<div title="a\nb">\n\nshown',
+        "> <div>\nx <!--\n\nshown",
+        "-     <!--\n\nshown",
+        "```\n<div> <!--\n```\n\nshown",
+    ):
+        assert "shown" not in assistant.shown_text(text)[0]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # In a paragraph, also of a quote, a list item or a task, GitHub shows the
+        # `<!--` as text, and what follows it.
+        "x <!--\n\nshown words",
+        "x\n\n> text <!--\n\nshown words",
+        "- [ ] <!--\n\nshown",
+        "- [x] <!--\n\nshown",
+        "<span><!--\n\nshown",
+        '<a href="y">x</a> <!--\n\nshown',
+        "<br> <!--\n\nshown",
+        # A tag alone on its row starts no block below a paragraph.
+        "x\n<x-y> <!--\n\nshown",
+        # An autolink alone on its row is no tag and starts no block.
+        "<https://example.com>\nsee `<!--` here\n\nshown",
+        "<user@example.com>\nsee `<!--` here\n\nshown",
+        # A blank row, also in a quote, ends a block that starts with a tag, and a
+        # block of its own kind ends where its end stands.
+        "<div>\n\nx <!--\n\nshown",
+        "<div>\n<p>\n\nx <!--\n\nshown",
+        "> <div>\n>\n> x <!--\n\nshown",
+        "<pre></pre>\nx <!--\n\nshown",
+        "<!DOCTYPE html>\nx <!--\n\nshown",
+        "x <!--\n\n<div>\n\nshown",
+        # A value that doesn't end outside an HTML block, which GitHub shows as text.
+        'x <div title="\n\nshown',
+        # Indented code, where no list item could hold it.
+        ">     <!--\n\nshown",
+        "    <!--\n\nshown",
+        "\t<!--\n\nshown",
+        "    > <!--\n\nshown",
+        # What GitHub shows after other HTML at the start of a list item.
+        "- <?php\n\nshown",
+        "- <![CDATA[\n\nshown",
+        "- <!X\n\nshown",
+        "- <script>\n\nshown",
+        "- <style>\n\nshown",
+        "- <textarea>\n\nshown",
+        "- <title>\n\nshown",
+        "- <pre>\n\nshown",
+    ],
+)
+def test_a_comment_that_github_shows_as_text_keeps_what_follows(text):
+    assert "shown" in assistant.shown_text(text)[0]
+
+
+def test_the_cleaning_reads_unclosed_comments_as_before_where_it_was_right():
+    assert assistant.shown_text("x\n\n<!--\na\n\nhidden words") == ("x\n\n", 0)
+    assert assistant.shown_text("- item\n  <!--\n\nhidden words") == ("- item\n", 0)
+    for text in ("x <!--\n\nhidden words", "x\n\n> text <!--\n\nhidden words"):
+        assert assistant.shown_text(text) == (text, 0)
+    # A comment that ends goes, and what follows it stays.
+    assert assistant.shown_text("> <!-- a -->\n\nshown") == ("> \n\nshown", 0)
 
 
 def test_the_area_of_the_form_becomes_a_label(config):
