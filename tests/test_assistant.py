@@ -236,6 +236,124 @@ def test_no_text_makes_reading_an_issue_slow(text):
         assert fast(0.5, function, *args), function.__name__
 
 
+# The slowest texts of SLOW_TEXTS as a piece, how often it comes and the end after
+# them: each is read in time linear in its length.
+GROWING = {
+    "blocks after tags without their end": ("<div\nx\n\n", 7_000, ""),
+    "values that end after HTML blocks": ('<a>\n\n<a b="c"\n\n', 4_000, '<a b="'),
+    "HTML blocks between blank rows": ("<a>\n\n", 13_000, "x <!--"),
+    "fenced code of tags": ("```\n<div\na\n```\n", 4_000, ""),
+}
+
+
+def processor_time(calls, function, *args):
+    """The processor time of a number of calls, in the best of three tries: a busy
+    machine can slow down one try, but not all three."""
+    times = []
+    for _ in range(3):
+        start = time.process_time()
+        for _ in range(calls):
+            function(*args)
+        times.append(time.process_time() - start)
+    return min(times)
+
+
+@pytest.mark.parametrize(("piece", "count", "end"), GROWING.values(), ids=GROWING)
+def test_twice_the_text_takes_about_twice_the_time(piece, count, end):
+    """Twice the text takes less than three times the processor time. Each try
+    reads the half four times and the whole twice, so that both sides take about
+    as long, many times what the clock of a processor tells apart (1/64 second on
+    Windows)."""
+    assert piece * count + end in SLOW_TEXTS.values()
+
+    def reading(calls, text):
+        issue = make_issue(body=text)
+        comments = [make_comment(number, "reporter", text, 0) for number in (1, 2, 3)]
+        return processor_time(calls, assistant.render_issue, issue, comments)
+
+    halves = reading(4, piece * (count // 2) + end)
+    wholes = reading(2, piece * count + end)
+    assert wholes < 3 / 2 * halves
+
+
+# The names of the tags that start an HTML block of CommonMark's sixth kind.
+COMMONMARK_BLOCK_TAGS = [
+    "address",
+    "article",
+    "aside",
+    "base",
+    "basefont",
+    "blockquote",
+    "body",
+    "caption",
+    "center",
+    "col",
+    "colgroup",
+    "dd",
+    "details",
+    "dialog",
+    "dir",
+    "div",
+    "dl",
+    "dt",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "frame",
+    "frameset",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "head",
+    "header",
+    "hr",
+    "html",
+    "iframe",
+    "legend",
+    "li",
+    "link",
+    "main",
+    "menu",
+    "menuitem",
+    "nav",
+    "noframes",
+    "ol",
+    "optgroup",
+    "option",
+    "p",
+    "param",
+    "search",
+    "section",
+    "source",
+    "summary",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "title",
+    "tr",
+    "track",
+    "ul",
+]
+
+
+def test_each_block_tag_of_commonmark_and_no_other_starts_a_block_without_its_end():
+    for name in COMMONMARK_BLOCK_TAGS:
+        for tag in (f"<{name}", f"</{name.upper()}", f"<{name}/>"):
+            row = assistant.HTML_ROW.match(f"{tag}\nx")
+            assert row is not None, tag
+            assert row.lastgroup == "tag", tag
+    for name in ("a", "span", "pa", "h7", "bases", "colgroups", "tablex", "u", "t"):
+        assert assistant.HTML_ROW.match(f"<{name}\nx") is None, name
+
+
 # Texts of 64 KiB that make the search for definitions read far ahead from many
 # rows, if it read rows again: titles and labels that never end, in many rows that
 # can start one, also after HTML, where every row can; footnotes with indented
@@ -529,7 +647,9 @@ def test_a_tag_that_github_shows_as_text_keeps_its_rows(text):
         ("> ```\n> <div\n>\n> zqa\n> ```\n\nzqd", "", ""),
         ("- a\n\n  ```\n  <div\n  zqa\n  ```\n\nzqd", "", ""),
         ("~~~\n<div\nzqa", "", ""),
+        ("> ```\n> <div\n> zqa", "", ""),
         # It closes after as many blanks as open a fence, with a fence as long.
+        ("> ```\n> <div\n> zqa\n>      ```\n> <p\n> zqb\n> >zqd", "", ""),
         ("> ```\n> <div\n> zqa\n>    ```\n\nzqd", "", ""),
         ("  ```\n<div\nzqa\n   ```\n\nzqd", "", ""),
         ("```\n<div\nzqa\n    ```\n```\n\nzqd", "", ""),
