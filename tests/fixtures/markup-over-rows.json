@@ -1,0 +1,2387 @@
+{
+ "about": "Texts with an instruction, a declaration, a section of CDATA, `</` without a name or a comment over several rows, in a paragraph, a quote, a list item or an HTML block, made of pieces, and the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, 2026-11-20). Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed.",
+ "texts": [
+  {
+   "text": "x\n> <!x zqa>\n> zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <? zqa\n\nzqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <!x zqa\n  zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- y </  zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<!-- zqa-->\nzqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n<!-- zqa\n\nzqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <!-- zqa\n> > zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n1. <?php zqa?>\n   zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <!x zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> <![CDATA[ zqa > zqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> - <?php zqa\n>   \n>   zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <!x zqa\n\n>   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y <!x zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- <!X zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y </  zqa\n  zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\n<?php zqa > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\ny <!X zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y <? zqa\n\n  zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y </  zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > y <!x zqa\n> > \n> > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y <?php zqa\n>   > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > y <!DOCTYPE zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\ny <!DOCTYPE zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <!x zqa\n\n  zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - y <!-- zqa\n>   zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <!-- zqa\nzqb--> zqc\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\ny <!-- zqa--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. <?php zqa\n\nzqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <!x zqa\n  \n  zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <![CDATA[ zqa\nzqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y </  zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<!-- zqa\nzqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- </  zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > <!X zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <!-- zqa\n  zqb\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\n1. <!DOCTYPE zqa\n   \n   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- </  zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y </  zqa\n> zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y </  zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <!DOCTYPE zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> <![CDATA[ zqa\n> \n> zqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <!-- zqa\n> > > zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> <!DOCTYPE zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> - </  zqa\n>   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <!X zqa > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <? zqa?>\nzqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <!DOCTYPE zqa>\n  zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y <? zqa\n  \n  zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> - <!X zqa\n>   zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. <!-- zqa\n   zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <!X zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <![CDATA[ zqa]]>\n  zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <!x zqa\n   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<!-- zqa\n\nzqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <!X zqa > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <!DOCTYPE zqa\n\n> > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <!X zqa\n  \n  zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n1. <!x zqa > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <!x zqa>\n   zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> <?php zqa\n> > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> y <!X zqa\n> zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n<!-- zqa\nzqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- </  zqa > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> - <!DOCTYPE zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <!DOCTYPE zqa\n   zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <?php zqa > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <![CDATA[ zqa]]> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. y </  zqa\n   > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. <!DOCTYPE zqa\n   zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <!x zqa>\nzqb > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y <? zqa\n> zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<?php zqa\nzqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <!DOCTYPE zqa>\n> > zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <!X zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y <? zqa > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <? zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> y <!-- zqa\n\n> zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- <!x zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <![CDATA[ zqa\n> zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <![CDATA[ zqa\n> > zqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <?php zqa\n  > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <!-- zqa > zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <!X zqa>\nzqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <?php zqa > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. <!DOCTYPE zqa\n   \n   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n1. <?php zqa\n   zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > <![CDATA[ zqa\n> > \n> > zqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <![CDATA[ zqa\n\nzqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> <!X zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. </  zqa\n\n   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <!X zqa>\n  zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> y <?php zqa?> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. <? zqa\n\n   zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <!x zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <!-- zqa\n  > zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> </  zqa\n> zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y </  zqa\n>   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n1. <!X zqa\n   \n   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <? zqa > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <!-- zqa > zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - <![CDATA[ zqa\n>   \n>   zqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n1. <!DOCTYPE zqa\n   > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\ny <?php zqa > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> - </  zqa>\n>   zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - <!x zqa\n>   zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. </  zqa\n   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <?php zqa?>\n> zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <!x zqa\n> > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <!x zqa > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\ny <!X zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <!-- zqa\n  zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<!-- zqa\nzqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> <? zqa?>\n> zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. <? zqa?>\n   zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y </  zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> > </  zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> </  zqa>\n> zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <!DOCTYPE zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <!x zqa\n  \n  zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n<!DOCTYPE zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y <?php zqa\n> zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - <? zqa\n>   zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <?php zqa?> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. <!-- zqa\n   zqb\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\n> > y </  zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > y </  zqa\n\n> > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- <!-- zqa\n\n  zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- <!DOCTYPE zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <!DOCTYPE zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> y <!DOCTYPE zqa\n\n> zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. </  zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <!x zqa > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n</  zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n- y <!X zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- <!x zqa>\nzqb > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> - y <![CDATA[ zqa]]>\n>   zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y <?php zqa\n  zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> - y <!X zqa\n\n>   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n1. <? zqa\nzqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n</  zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\ny <!DOCTYPE zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <? zqa\n\n  zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - <!X zqa\n>   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n<![CDATA[ zqa > zqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\ny <!-- zqa\n\nzqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- y </  zqa\n  \n  zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\n<!X zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- <? zqa\n  > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <!DOCTYPE zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- <!x zqa\n> zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <?php zqa > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. </  zqa>\n   zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > <!-- zqa\n\n> > zqb--> zqc\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\n1. <!-- zqa\nzqb--> zqc\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <!x zqa\n> > > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. <!X zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\ny <!-- zqa > zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<? zqa > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> - <!X zqa > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <!X zqa\n  \n  zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- y <!-- zqa\n  zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\ny <!X zqa\n> zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <? zqa?> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> - <!DOCTYPE zqa\n>   > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <!x zqa\n> \n> zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <?php zqa\nzqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<? zqa\nzqb\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\n1. <!x zqa\n   > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\ny <!-- zqa\nzqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - y <!DOCTYPE zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > y <!-- zqa\nzqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n- <!X zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> <? zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- y <!DOCTYPE zqa\n> zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n> <!DOCTYPE zqa>\nzqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <![CDATA[ zqa > zqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> - <!-- zqa\n>   \n>   zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- </  zqa\n  zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n1. <!DOCTYPE zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <?php zqa?>\nzqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> - <!X zqa>\n>   zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> y </  zqa\n> zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> <![CDATA[ zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> <![CDATA[ zqa\n> > zqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n1. <!X zqa\n   > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n- <!-- zqa\nzqb--> zqc\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n\n> <!x zqa > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\ny </  zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> y <!-- zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > y <!DOCTYPE zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - <!-- zqa\n>   > zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n1. </  zqa\n   \n   zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > <![CDATA[ zqa\n> > zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n> - <![CDATA[ zqa\n>   zqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - <!-- zqa-->\n>   zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <![CDATA[ zqa]]>\n> > zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> > <?php zqa\nzqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\ny <!x zqa>\nzqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<div>\n<!x zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqd"
+   ]
+  },
+  {
+   "text": "x\n- <!DOCTYPE zqa\n  > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <? zqa\nzqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <? zqa\nzqb\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n- <!-- zqa\n  \n  zqb--> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n1. y <!X zqa\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> > y </  zqa\n> > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n- <!x zqa\n  zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n> - y </  zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n> > <!DOCTYPE zqa\n> > zqb\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n- y <![CDATA[ zqa]]>\n  zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > <? zqa > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> - y <? zqa > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> - <? zqa?> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n</  zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n<div>\n<!DOCTYPE zqa > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> - <?php zqa\n>   > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > y </  zqa>\n> > zqb > zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n1. <![CDATA[ zqa\n\nzqb]]> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> - <!x zqa\n>   > zqb> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n> > y <!X zqa> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n> > <?php zqa\n\n> > zqb?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  }
+ ]
+}

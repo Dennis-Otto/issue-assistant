@@ -351,9 +351,13 @@ COMMONMARK_BLOCK_TAGS = [
 @pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
 def test_a_tag_over_blank_rows_of_a_block_ends_after_its_value(newline):
     # GitHub shows only "x" (checked with `gh api markdown`): the tag over the blank
-    # rows ends at its `>`, with every line break between.
+    # rows ends at its `>`, with every line break between, and so does the `<?`
+    # before it, which GitHub's HTML parser reads as a comment up to that `>`.
     text = newline.join(["<?", "<v", "", "b='c'>", "x"])
-    assert assistant.strip_html(text) == newline.join(["<?", "", "x"])
+    assert assistant.strip_html(text) == newline.join(["", "x"])
+    # The same in a block of `<pre>`, which only `</pre>` ends.
+    text = newline.join(["<pre>", "<v", "", "b='c'>", "x"])
+    assert assistant.strip_html(text) == newline.join(["", "", "x"])
 
 
 def test_each_block_tag_of_commonmark_and_no_other_starts_a_block_without_its_end():
@@ -452,14 +456,14 @@ def test_html_is_removed_as_github_hides_it():
         ("> <!-- a --> <!--\n\nhidden", ">  "),
         # A block that only its end ends, also over blank rows, or blocks within
         # blocks, where the outer one ended with its quote.
-        ("<?php <!--\n\nhidden", "<?php "),
+        ("<?php\n\nx ?> y <!--\n\nhidden", " y "),
         ("<pre>\n\nx <!--\n\nhidden", "\n\nx "),
         ("<script>\n\nx <!--\n\nhidden", "\n\nx "),
-        ("<!X\n\nx <!--\n\nhidden", "<!X\n\nx "),
-        ("<![CDATA[\n\nx <!--\n\nhidden", "<![CDATA[\n\nx "),
+        ("<!X\n\nx > y <!--\n\nhidden", " y "),
+        ("<![CDATA[\n\nx ]]> y <!--\n\nhidden", " y "),
         ("> <pre>\n>\n> x <!--\n\nhidden", "> \n>\n> x "),
         ("> <div>\n<pre>\n\nx <!--\n\nhidden", "> \n\n\nx "),
-        ("> <pre>\n<?\n</pre>\nx <!--\n\nhidden", "> \n<?\n\nx "),
+        ("> <pre>\n<?\n</pre>\nx <!--\n\nhidden", "> \n\nx "),
         ("<div>\n<pre></pre>\nx <!--\n\nhidden", "\n\nx "),
         ("<div>\n> <div>\n>\nx <!--\n\nhidden", "\n> \n>\nx "),
         # A quoted value of a tag that doesn't end hides the rest the same way.
@@ -732,13 +736,135 @@ def test_tags_that_may_hide_more_take_out_more():
         assert "shown" not in assistant.shown_text(text)[0]
 
 
+def markers(text):
+    """The marker words of a text: zqa, zqb and so on."""
+    return sorted(set(re.findall(r"zq[a-z]", text)))
+
+
+# Texts with an instruction, a declaration, a section of CDATA, `</` without a name or
+# a comment, and the marker words of each that GitHub's renderer shows (`gh api -X
+# POST markdown` with mode gfm, 2026-11-20); it hides the others.
+MARKUP_SHOWN = [
+    # In a paragraph, as CommonMark reads them up to their end, and GitHub's HTML
+    # parser up to their first `>`.
+    ("x <?php zqa ?> y\n\nzqd", ["zqd"]),
+    ("x <? zqa > zqb ?> zqc\n\nzqd", ["zqb", "zqc", "zqd"]),
+    ("x <![CDATA[ zqa > zqb ]]> zqc", ["zqb", "zqc"]),
+    ("> x <? zqa\n> zqb ?> zqc\n\nzqd", ["zqc", "zqd"]),
+    ("> x <!X zqa\n> zqb> zqc\n\nzqd", ["zqc", "zqd"]),
+    # What follows the first `>` of an instruction up to its end is HTML as well.
+    ("x <? zqa > </ zqb> ?> zqc\n\nzqd", ["zqc", "zqd"]),
+    ("x <? zqa > <![CDATA[zqb ?> zqc\n\nzqd", ["zqc", "zqd"]),
+    ("x <? zqa > <b zqb</ c> ?> zqd", ["zqd"]),
+    # As a block, which only its end ends, also below a paragraph.
+    ("x\n\n<?php zqa ?>\n\nzqd", ["zqd"]),
+    ("x\n\n<![CDATA[ zqa ]]>\n\nzqd", ["zqd"]),
+    ("x\n\n<![CDATA[ zqa > zqb ]]>\n\nzqd", ["zqb", "zqd"]),
+    ("<!X zqa\nzqb> zqc\n\nzqd", ["zqc", "zqd"]),
+    ("x\n\n<!X zqa\n\nzqd", []),
+    ("x\n<!X zqa\n\nzqd", []),
+    ("x\n<? zqa\n\nzqd", []),
+    # In a quote or a list item, whose end ends the block.
+    ("> <? zqa\n> zqb\n\nzqd", ["zqd"]),
+    ("> <? zqa\nzqb\n\nzqd", ["zqb", "zqd"]),
+    ("> <? zqa\n> zqb > zqc\n\nzqd", ["zqc", "zqd"]),
+    ("- <!X zqa\n  zqb\n\nzqd", ["zqd"]),
+    # In a row of an HTML block, also `</` without a name and `<!` but for a
+    # comment, up to the first `>`, or up to the end of the block, and on into the
+    # next block.
+    ("<div>\nx <? zqa > zqb\n\nzqd", ["zqb", "zqd"]),
+    ("<div>\nx <![CDATA[ zqa\n\nzqd", ["zqd"]),
+    ("<div>\nx <!X zqa\n\nzqd", ["zqd"]),
+    ("<div>\nx </ zqa> zqb\n\nzqd", ["zqb", "zqd"]),
+    ("<div>\n<!- zqa> zqb\n\nzqd", ["zqb", "zqd"]),
+    ("<div>\nx <? zqa\n\n<script zqb>\n\nzqd", ["zqd"]),
+    # A comment of a block ends only at a `-->` that the block holds.
+    ("1. <!--<b>\n-->\n\nzqd", []),
+    ("> <!-- zqa\nzqb -->\n\nzqd", []),
+    ("- <!-- zqa\nzqb -->\n\nzqd", []),
+    ("x\n\n<div>\n<!-- zqa\n\nzqb--> zqc\n\nzqd", []),
+    ("- <!-- zqa\n  zqb -->\n\nzqd", ["zqd"]),
+    ("- <!-- zqa\n\n  zqb -->\n\nzqd", ["zqd"]),
+    ("> <!-- zqa\n> zqb -->\n\nzqd", ["zqd"]),
+    # What GitHub shows as text: `</` without a name, `<` and `!` without a letter,
+    # and markup in a paragraph whose end doesn't follow in it, or in fenced code.
+    ("x </ zqa> y\n\nzqd", ["zqa", "zqd"]),
+    ("x <!X zqa\n\nzqd", ["zqa", "zqd"]),
+    ("x <!-x zqa> zqb", ["zqa", "zqb"]),
+    ("x <? zqa\n\nzqb ?> zqc", ["zqa", "zqb", "zqc"]),
+    ("x <? zqa > zqb\n\nzqd", ["zqa", "zqb", "zqd"]),
+    ("x <? zqa > zqb\n\nzqc ?> zqd", ["zqa", "zqb", "zqc", "zqd"]),
+    ("```\n<?php zqa ?>\n```\nzqd", ["zqa", "zqd"]),
+    ("> ```\n> <!X zqa\n> ```\n\nzqd", ["zqa", "zqd"]),
+]
+
+
+@pytest.mark.parametrize(("text", "shown"), MARKUP_SHOWN)
+def test_the_engine_reads_of_markup_what_github_shows(text, shown):
+    read = assistant.shown_text(text)[0]
+    assert [marker for marker in markers(text) if marker in read] == shown
+
+
+@pytest.mark.parametrize(
+    ("text", "shown", "cut"),
+    [
+        # GitHub's renderer reads a declaration only with a capital letter, as
+        # CommonMark did before its version 0.30, which reads any letter.
+        ("x <!x zqa> zqb\n\nzqd", ["zqa", "zqb", "zqd"], ["zqa"]),
+        ("x\n\n<!x zqa\n\nzqd", ["zqa", "zqd"], ["zqa", "zqd"]),
+        # Code of a row and indented code, which the cleaning doesn't follow.
+        ("x `<? zqa ?>` y", ["zqa"], ["zqa"]),
+        ("x\n\n    <?php zqa ?>\n\nzqd", ["zqa", "zqd"], ["zqa"]),
+        # A comment that its block doesn't end hides the rest of the text, also
+        # past a later `-->` that GitHub reads as its end.
+        ("- <!-- zqa\n-->\n\nzqb\n\n<!-- -->\n\nzqd", ["zqd"], ["zqd"]),
+        # Markup in a block of a quote that may run on past the quote, where a row
+        # may start a block of its own that hides the rest.
+        ("<!X zqa\n\n> <div><![CDATA[\nzqb\n<!DOCTYPE zqc\n\nzqd", ["zqb"], ["zqb"]),
+    ],
+)
+def test_markup_that_may_hide_more_takes_out_more(text, shown, cut):
+    """Where it is hard to tell, the cleaning takes out what GitHub shows."""
+    read = assistant.shown_text(text)[0]
+    assert [marker for marker in shown if marker not in read] == cut
+    assert [marker for marker in markers(text) if marker in read] == [
+        marker for marker in shown if marker not in cut
+    ]
+
+
+def test_markup_of_a_row_goes_without_fenced_code_as_with_it():
+    """Without fenced code, a pattern takes out the markup that ends on its row; with
+    it, the reading of the tags, which leaves the fenced code as it is."""
+    for text in ("x <?a?> y <!X b> z <![CDATA[c]]>", "<?a?>\n<!X>\n<![CDATA[c]]>"):
+        fenced = f"{text}\n\n```\n<?a?>\n```"
+        assert assistant.strip_html(fenced) == (
+            assistant.strip_html(text) + "\n\n```\n<?a?>\n```"
+        )
+
+
+def test_markup_reads_each_part_of_a_text_once():
+    """A paragraph of many instructions or declarations without their end, and a
+    row of many that end, read in time linear in the text."""
+    for text in ("x <!X" * 13_000 + "\n\n>", "<?" * 30_000, "<?a?>" * 13_000):
+        assert fast(0.5, assistant.shown_text, text)
+
+
 SEARCH = json.loads(
     (Path(__file__).with_name("fixtures") / "tags-over-rows.json").read_text("utf-8")
+)
+MARKUP_SEARCH = json.loads(
+    (Path(__file__).with_name("fixtures") / "markup-over-rows.json").read_text("utf-8")
 )
 
 
 @pytest.mark.parametrize(
-    "case", SEARCH["texts"], ids=[str(index) for index in range(len(SEARCH["texts"]))]
+    "case",
+    SEARCH["texts"] + MARKUP_SEARCH["texts"],
+    ids=[
+        f"{name}-{index}"
+        for name, search in (("tags", SEARCH), ("markup", MARKUP_SEARCH))
+        for index in range(len(search["texts"]))
+    ],
 )
 def test_the_engine_reads_of_each_searched_tag_what_github_shows(case):
     """The texts of a search with GitHub's renderer: what it hides, the engine
@@ -3945,8 +4071,8 @@ HIDDEN_DEFINITIONS = [
     ('>     >0\n> [x]: /u "Xyzzy"', f">     >0\n> {LINK}"),
     ('    x\n[x]: /u "Xyzzy"', f"    x\n{LINK}"),
     # An HTML block in a quote or a list item takes no lazy row.
-    ('><!A\n[x]: /u "Xyzzy"\n\n[x]', f"><!A\n{LINK}\n\n[x]"),
-    ('- > <!A\n[x]: /u "Xyzzy"', f"- > <!A\n{LINK}"),
+    ('><!A\n[x]: /u "Xyzzy"\n\n[x]', f">\n{LINK}\n\n[x]"),
+    ('- > <!A\n[x]: /u "Xyzzy"', f"- > \n{LINK}"),
     ('- <div>\n[x]: /u "Xyzzy"', f"- \n{LINK}"),
     # Below a complete definition, a line of `=` is a paragraph.
     ("[x]: /Xyzzy\n===", f"{LINK}\n==="),
@@ -3958,7 +4084,7 @@ HIDDEN_DEFINITIONS = [
     ("[^n]: Xyzzy\n>~~~[^n]", f"{FOOTNOTE}\n>~~~[^n]"),
     ("[^n]: Xyzzy-->0\n```\n[^n]", f"{FOOTNOTE}\n```\n[^n]"),
     ("<div>\n[^n]\n\n[^n]: Xyzzy", f"\n[^n]\n\n{FOOTNOTE}"),
-    ("><!A[^n]\n[^n]: Xyzzy", f"><!A[^n]\n{FOOTNOTE}"),
+    ("><!A[^n]\n[^n]: Xyzzy", f">\n{FOOTNOTE}"),
     # A line under a heading that is lazy in a list item above goes on with it.
     ('- a\n\n  [x]:\n=\n"Xyzzy"', f"- a\n\n  {LINK}"),
 ]
@@ -4733,8 +4859,9 @@ def test_code_stays_as_it_is(config):
         # A removal can join the rest into a mention, which the next round finds;
         # an underscore can end an emphasis right before an @.
         ("<b>@</b>user and _x_@y", "`@user` and _x_`@y`"),
-        # Entities, and HTML that a removal leaves behind, become plain text.
-        ("&#64;user <<b>!A> <!X", "&amp;`#64`;user &lt;!A> &lt;!X"),
+        # Entities, and HTML that a removal leaves behind, become plain text, but
+        # for a declaration that the removal of a tag makes, which GitHub hides.
+        ("&#64;user <<b>!A> <!X", "&amp;`#64`;user  &lt;!X"),
         # Glued mentions and references, and references to pull requests with GH-.
         ("@a@b 0/0#0A/0#0 GH-5", "`@a` `@b` `0/0#0` `A/0#0` `GH-5`"),
         # An address glued to other text becomes code: GitHub leaves www. after

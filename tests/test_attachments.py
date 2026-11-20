@@ -256,6 +256,30 @@ def test_a_tag_that_github_shows_as_text_shows_its_address():
         assert found(body) == SHOWN_LOG, body
 
 
+def test_an_instruction_or_a_declaration_hides_what_it_holds():
+    """GitHub hides an instruction, a declaration and a section of CDATA with what
+    they hold, on their row and over the rows of a block, but shows them in fenced
+    code; a link after them still counts."""
+    hidden = (
+        f"x <? {LOG} ?> c",
+        f"x <? a > b ?> c <!DOCTYPE {LOG}>",
+        f"<![CDATA[ {LOG} ]]>",
+        f"```\ncode\n```\n\n<!DOCTYPE html {LOG}>",
+        f"<div>\n<?php a\n{LOG}\n\nzqd",
+        f"<div>\n<!X\n{LOG}\n>\n</div>",
+    )
+    for body in hidden:
+        assert found(body) == [], body
+    shown = (
+        f"x <? a > b ?> c [log]({LOG})",
+        f"```\ncode\n```\n\n<!DOCTYPE html> [log]({LOG})",
+        f"<div>\n<?php a ?>\n\nzqd [log]({LOG})",
+        f"```\n<? {LOG} ?>\n```",
+    )
+    for body in shown:
+        assert found(body) == SHOWN_LOG, body
+
+
 def test_where_it_is_hard_to_tell_an_address_counts_as_none():
     """GitHub shows these as text, but the reading takes them for tags: a tag in
     a code span, and one at the start of a row whose block it can't rule out."""

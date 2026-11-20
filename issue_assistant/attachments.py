@@ -32,6 +32,7 @@ from .issues import Visible, text_of
 from .markup import (
     FILTERED_TAG,
     INLINE_TAG,
+    ROW_MARKUP,
     TAG_NAME,
     Blocks,
     Fences,
@@ -99,9 +100,10 @@ LINK_END = r"\s()<>\[\]\"'`"
 # no image for them, or one only for some readers, as a `source` of a `picture`
 # for those of a colour scheme. GitHub reads an `image` as an `img`.
 SHOWN = {"a": "href", "img": "src", "image": "src"}
-# Where the reading of the tags stops: at a comment, where the comments can end, and
-# at the start of a tag.
-TAG_OPENING = re.compile(r"</?[A-Za-z]")
+# Where the reading of the tags stops: at a comment, where the comments can end, at
+# an instruction, a declaration or a section of CDATA that ends on its row, which
+# GitHub hides with what it holds, and at the start of a tag.
+TAG_OPENING = re.compile(rf"(?P<markup>{ROW_MARKUP})|</?[A-Za-z]")
 COMMENT_OR_TAG = re.compile(rf"<!--|{TAG_OPENING.pattern}")
 # A tag that ends on its row, as the HTML parser reads it: its name, then its
 # attributes, each a name, perhaps with an `=` and a value, quoted or not, up to its
@@ -286,6 +288,8 @@ class ShownTags:
             if found[0] == "<!--":
                 closed = text.find("-->", found.end(), stop)
                 position = stop if closed < 0 else closed + len("-->")
+            elif found["markup"] is not None and not self.fences.holds(opening):
+                position = found.end()
             elif self.as_text(opening):
                 pieces.append("<")
                 position = opening + 1
@@ -329,12 +333,12 @@ class ShownTags:
         """What GitHub shows of the tag from `start` to `end` as a link or an image:
         the value of the first attribute of its name that SHOWN names for the tag,
         once its entities are read, when it is an address without spaces and
-        invisible characters; or nothing."""
+        invisible characters; or nothing. An instruction, a declaration or a section
+        of CDATA, which html_parts reads over several rows too, shows nothing."""
         tag = self.text[start:end]
         name = TAG_NAME.match(tag)
-        assert name is not None  # Every tag starts with its name.
-        wanted = SHOWN.get(name[0][1:].lower())
-        if wanted is None:
+        wanted = None if name is None else SHOWN.get(name[0][1:].lower())
+        if name is None or wanted is None:
             return ""
         for attribute in ATTRIBUTE.finditer(tag, name.end()):
             if attribute["name"].lower() == wanted:
