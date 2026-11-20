@@ -1,0 +1,3 @@
+### Bug fixes
+
+- The AI no longer reads an instruction, a declaration or a section of CDATA that GitHub shows nothing of, such as `<?php … ?>`, `<!DOCTYPE …>` or `<![CDATA[ … ]]>`: GitHub hides each up to its first `>`, in a paragraph where its end follows, and in an HTML block or as a block of its own, where one without its end hides the rows of the block, also in a quote or a list item. What follows its first `>` still reaches the AI, as GitHub shows it, and so does such markup in fenced code. A comment that starts in a quote, a list item or an HTML block now ends only at a `-->` that GitHub reads as its end: a `-->` below the end of the quote, the list item or the block is text for GitHub, so the comment hides the rest of the text for the AI as well.

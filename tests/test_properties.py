@@ -731,9 +731,20 @@ def shown(text):
     return assistant.without(text, spans, 0, end)
 
 
+# The earlier pattern, and an instruction, a declaration or a section of CDATA that
+# ends on its row at its first `>`, which the earlier pattern left as text, and
+# which GitHub hides wherever it stands outside code.
+EARLIER_HTML_AND_MARKUP = re.compile(
+    rf"{EARLIER_HTML.pattern}|<(?:\?[^<>\r\n]*\?|![A-Za-z][^<>\r\n]*"
+    r"|!\[CDATA\[[^<>\r\n]*\]\])>",
+    re.DOTALL,
+)
+
+
+@hypothesis.example("<!a>")
 @given(HTML_TEXT)
 def test_html_is_removed_as_it_always_was(text):
-    assert assistant.strip_html(text) == EARLIER_HTML.sub("", shown(text))
+    assert assistant.strip_html(text) == EARLIER_HTML_AND_MARKUP.sub("", shown(text))
 
 
 # Pieces of a text that would pass for the structure of issue.md: a heading of the
@@ -998,18 +1009,19 @@ HTML_BLOCKS = st.lists(
 def test_the_engine_reads_nothing_that_an_html_block_hides(text):
     """Nothing after an HTML block that holds a `<!--` that no `-->` follows reaches
     the engine, wherever a CommonMark parser finds the block: GitHub shows none of
-    it. Nor does a word of a tag that runs over several rows, as a browser reads the
-    HTML of a CommonMark parser, in a text without comments and declarations, which
-    tests of their own judge, and outside code, whose language a browser doesn't
-    show. And without a `<!--`, a quote or a tag over rows, which alone can hide it,
-    nothing ends the text early."""
+    it. Nor does a word of a tag that runs over several rows, or of an instruction,
+    a declaration or a section of CDATA, as a browser reads the HTML of a CommonMark
+    parser, in a text without comments, which tests of their own judge, and outside
+    code, whose language a browser doesn't show. And without a `<!--`, a quote, a
+    tag or such markup over rows, which alone can hide it, nothing ends the text
+    early."""
     text += "\n\nXyzzy"
     shown = assistant.shown_text(text)[0]
     seen = browser_text(text)
     # A `<!--` in a tag is part of the tag: GitHub showed `zqd` after `<div><div<!--`
     # and a blank row (`gh api markdown -f mode=gfm`, 2026-11-20).
     assert not hides_the_rest(text) or "Xyzzy" not in shown or "Xyzzy" in seen
-    if not any(mark in text for mark in ("<!", "<?", "-->", "`")):
+    if not any(mark in text for mark in ("<!--", "-->", "`")):
         assert shown.count("Plugh") <= seen.count("Plugh")
         assert "Xyzzy" in seen or "Xyzzy" not in shown
     assert (
