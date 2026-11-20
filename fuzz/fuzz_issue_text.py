@@ -61,6 +61,10 @@ def test_one_input(data: bytes) -> None:
         ("excerpt", lambda: assistant.excerpt(text, assistant.MAX_TEXT // 4)),
         ("render_issue", lambda: assistant.render_issue(issue, comments)),
         ("issue_language", lambda: assistant.issue_language(issue, comments)),
+        (
+            "attachments_of",
+            lambda: assistant.attachments_of(issue, comments, "owner/repository"),
+        ),
     ):
         started = time.process_time()
         read()

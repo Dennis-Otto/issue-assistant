@@ -120,6 +120,151 @@ def test_a_file_of_another_person_or_one_that_github_hides_counts_as_none():
         assert found(body) == []
 
 
+# What GitHub's renderer makes of each body below (`gh api -X POST markdown` with
+# the mode gfm) was asked of it: an address counts where the page shows a link or
+# an image for it, or the address itself as text, and nowhere else.
+SHOWN_LOG = [(LOG, 0, "text", "home-assistant.log")]
+# The attributes that GitHub's sanitizer keeps with an address, or drops, of which
+# the page shows no link and no image: `title` shows only while the pointer rests on
+# the tag, `srcset` of a `source` only to readers of one colour scheme or size, and
+# `src` of a `video` a player.
+UNSHOWN = (
+    "title",
+    "alt",
+    "name",
+    "cite",
+    "longdesc",
+    "summary",
+    "label",
+    "value",
+    "abbr",
+    "usemap",
+    "action",
+    "itemtype",
+    "data-canonical-src",
+    "data-x",
+    "foo",
+    "srcset",
+    "poster",
+)
+# Where a tag stands: in a paragraph, an HTML block, a quote and a list item.
+PLACES = ("Here {}", "<div>\n{}\n</div>", "> {}", "- {}")
+
+
+def test_an_address_counts_only_where_github_shows_a_link_or_an_image():
+    """GitHub drops the attribute of the first two, and shows only `x`."""
+    log = f"{FILES}/123/log.txt"
+    assert found(f'<span data-x="{log}">x</span>') == []
+    assert found(f'<span foo="{log}">x</span>') == []
+    assert found(f"See [log.txt]({log})") == [(log, 0, "text", "log.txt")]
+    assert found(f"<!-- {log} -->x") == []
+
+
+@pytest.mark.parametrize("place", PLACES)
+def test_only_the_href_of_a_link_and_the_src_of_an_image_show_an_address(place):
+    tags = ("a", "img", "span", "div", "blockquote", "q", "details", "picture")
+    for tag in (*tags, "source", "video", "td", "my-element"):
+        for attribute in (*UNSHOWN, "href", "src"):
+            body = place.format(f'<{tag} {attribute}="{LOG}">x</{tag}>')
+            shows = (tag, attribute) in {("a", "href"), ("img", "src")}
+            assert found(body) == (SHOWN_LOG if shows else []), body
+    for tag in (f"<A HREF={LOG}>x</A>", f"<IMAGE src='{LOG}'>", f"<Img Src={LOG}>"):
+        assert found(place.format(tag)) == SHOWN_LOG, tag
+
+
+def test_a_tag_counts_as_the_html_parser_of_github_reads_it():
+    """A `>` in a quoted value ends no tag, the first of two attributes of a name
+    counts, an entity counts as its character, and a tag runs over its rows; a
+    value with a space around it, or an invisible character, is no link."""
+    shown = (
+        f'<img alt=">" src="{LOG}">',
+        f'<img src="{LOG}" title="x>y">',
+        f"<img src='{LOG}'>",
+        f'<a href="{FILES}/101/home-assistant&#46;log">x</a>',
+        f'<img\nsrc="{LOG}">',
+        f'<div>\n<img\nsrc="{LOG}">\n</div>',
+        f'> <img\n> src="{LOG}">',
+        f'- <img\n  src="{LOG}">',
+        f'<a\nhref="{LOG}"\ntitle="x">log</a>',
+        f'<details><summary><a href="{LOG}">log</a></summary>y</details>',
+        f'<picture><source srcset="{IMAGE}"><img src="{LOG}"></picture>',
+        f'<div>\n<a href="{LOG}">log</a>\n</div>',
+    )
+    for body in shown:
+        assert found(body) == SHOWN_LOG, body
+    hidden = (
+        f'<span title=">" data-x="{LOG}">x</span>',
+        f'<a href="https://example.com/" href="{LOG}">x</a>',
+        f'<img src="" src="{LOG}">',
+        f'<a href=" {LOG} ">x</a>',
+        f'<img src="{FILES}/101/home-\u200bassistant.log">',
+        f'<span\ndata-x="{LOG}">x</span>',
+        f'<div>\n<span\ndata-x="{LOG}">x</span>\n</div>',
+        f'<div data-x="{LOG}"x>y</div>',
+        f'<div title="{LOG}',
+        f'<div title="\n\n[log]({LOG})',
+        f'<div>\n<span data-x="{LOG}\n\nmore">x</span>',
+        f'<p title="{LOG}\n\nx">y</p>',
+        f'<span title="<!--" data-x="{LOG}">x -->',
+        f"<div>\n<{LOG}>\n</div>",
+    )
+    for body in hidden:
+        assert found(body) == [], body
+
+
+@pytest.mark.parametrize("place", PLACES)
+@pytest.mark.parametrize("before", ("", "<!-- a --> "))
+def test_a_comment_end_in_a_quoted_value_ends_no_tag(place, before):
+    """The last `-->` of a text, in a value, ends no comment: the rest of the tag
+    stays a tag, whose other attributes show nothing."""
+    hidden = (
+        f'<span title="-->" data-x="{LOG}">x</span>',
+        f'<span title="--> {LOG}">x</span>',
+        f'<img alt="-->" title="{LOG}" src="x.png">',
+    )
+    for tag in hidden:
+        body = before + place.format(tag)
+        assert found(body) == [], body
+    shown = (
+        f'<img title="-->" src="{LOG}">',
+        f'<span title="-->">x</span> [log]({LOG})',
+    )
+    for tag in shown:
+        body = before + place.format(tag)
+        assert found(body) == SHOWN_LOG, body
+
+
+def test_a_tag_that_github_shows_as_text_shows_its_address():
+    """In fenced code, behind GitHub's filter of tags, and in a paragraph where it
+    is no tag by the rules of CommonMark, as an autolink."""
+    for body in (
+        f"<{LOG}>",
+        f"Here <{LOG}>",
+        f"> <{LOG}>",
+        f"- <{LOG}>",
+        f"<script>{LOG}</script>",
+        f'<textarea title="{LOG}">x</textarea>',
+        f'```\n<span data-x="{LOG}">\n```',
+        f'<span data-x="{LOG}"x>y</span>',
+        f'<span data-x="{LOG}"',
+        f'Here <a href="{LOG}" title="x"x>y</a>',
+        f'Here <img src="{LOG}" <b>',
+        f'Here <span\n\ndata-x="{LOG}">x',
+        f"<div>\n{LOG}\n</div>",
+        f"<!--> {LOG}",
+    ):
+        assert found(body) == SHOWN_LOG, body
+
+
+def test_where_it_is_hard_to_tell_an_address_counts_as_none():
+    """GitHub shows these as text, but the reading takes them for tags: a tag in
+    a code span, and one at the start of a row whose block it can't rule out."""
+    assert found(f'`<span data-x="{LOG}">`') == []
+    assert found(f'<img s\u200brc="{LOG}">') == []
+    # A link after them still counts.
+    assert found(f'`<span data-x="{JSON}">` and [log]({LOG})') == SHOWN_LOG
+
+
 def test_an_older_link_counts_only_for_a_file_of_this_repository():
     mine = f"https://github.com/{REPOSITORY.upper()}/files/7/old.yaml"
     theirs = "https://github.com/other/project/files/8/other.yaml"

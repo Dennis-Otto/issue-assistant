@@ -73,7 +73,7 @@ ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)", re.IGNORECASE)
 # number of times, so that no text, however crafted, makes them slow. The tests and
 # fuzz/fuzz_issue_text.py time them on texts that took earlier patterns hours.
 #
-# An HTML comment. comment_parts splits a text where its last `-->` ends, so that
+# An HTML comment. html_parts finds where the last `-->` of a text ends, so that
 # this pattern only reads the part in which a `-->` follows every `<!--`.
 HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 
