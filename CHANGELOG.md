@@ -4,6 +4,20 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.15.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.0...v1.15.1) (2026-11-20)
+
+
+### Bug fixes
+
+* **context:** read a tag that runs over several rows as GitHub does ([#481](https://github.com/Dennis-Otto/issue-assistant/issues/481)) ([37109a4](https://github.com/Dennis-Otto/issue-assistant/commit/37109a4f94ef12e818b59fd58ba6d74074d5253a))
+* **context:** read link definitions and footnotes in a few more corners as GitHub does ([#478](https://github.com/Dennis-Otto/issue-assistant/issues/478)) ([dfc0f7d](https://github.com/Dennis-Otto/issue-assistant/commit/dfc0f7dc894c7afe09ec3cdedf4c288dd64bcb37))
+* **context:** read what follows a comment that never ends in a quote, a list item or HTML as GitHub does ([#480](https://github.com/Dennis-Otto/issue-assistant/issues/480)) ([43c4cd3](https://github.com/Dennis-Otto/issue-assistant/commit/43c4cd356282c93b24cc150e5e2dbd078654ae49))
+
+
+### Performance
+
+* **context:** read the HTML of a text with fewer steps ([#484](https://github.com/Dennis-Otto/issue-assistant/issues/484)) ([681d6fc](https://github.com/Dennis-Otto/issue-assistant/commit/681d6fc93c9124e9677957883690a45a876fe3b5))
+
 ## [1.15.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.14.0...v1.15.0) (2026-11-19)
 
 ### Features
