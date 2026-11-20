@@ -846,6 +846,30 @@ DEFINITIONS = st.lists(
 @hypothesis.example(" ```\n```\n[x]: # (hidden)")
 @hypothesis.example('[x]: #\n"hidden\n2. hidden"')
 @hypothesis.example('x\n\n[a]: <> "[^x]"\n\n[^x]: hidden')
+# What the long search found (2026-11-20): what GitHub shows as a heading or as
+# text, where markdown-it reads a definition; texts on which markdown-it-py 4.3.0
+# raises an IndexError; definitions over a lazy line, after indented code and
+# after HTML in a quote, which GitHub hides; footnotes whose only reference stands
+# in code or HTML that the cleaning can't follow, which GitHub hides; and one with
+# a reference that markdown-it leaves as text.
+@hypothesis.example("[^0]:0\n>~~~[^0]")
+@hypothesis.example("[^0]:0\n<A>~~~[^0]")
+@hypothesis.example("[^0]:-->0\n```\n[^0]")
+@hypothesis.example("><!A[^0]\n[^0]:0")
+@hypothesis.example("[^0]:0\n\n[^0][0]")
+@hypothesis.example("[0]:\n=")
+@hypothesis.example('[x]:\n=\n"hidden"')
+@hypothesis.example("[0]:\n--")
+@hypothesis.example('[0]: /u "a\n=\nb"')
+@hypothesis.example("[a\nb]:\n=")
+@hypothesis.example("[0]:\\\t0")
+@hypothesis.example(">- <!A\n>")
+@hypothesis.example("> - <!--\n>")
+@hypothesis.example('> [0]:\n=\n"hidden"')
+@hypothesis.example('> [0]:\n--\n"hidden"')
+@hypothesis.example('- [0]:\n=\n"hidden"')
+@hypothesis.example('    >0\n[0]: /u "hidden words"\n\n[0]')
+@hypothesis.example('><!A\n[0]: /u "hidden words"\n\n[0]')
 @given(st.one_of(st.text(), STRUCTURE, DEFINITIONS))
 def test_a_commonmark_parser_finds_no_definition_in_what_the_engine_reads(text):
     """What is left of a text after the definitions went holds none, as a CommonMark
@@ -867,11 +891,20 @@ def test_a_commonmark_parser_finds_no_definition_in_what_the_engine_reads(text):
     assert subsequence(shown, assistant.strip_html(text))
 
 
+FOOTNOTE_IN_TEXT = re.compile(r"\[\^[^\]\s]+\]")
+
+
 def references(tokens):
-    """The text of each link and image, as the parser writes the label of one."""
+    """The text of each link and image, as the parser writes the label of one, and
+    each footnote reference that it leaves as text: GitHub shows `[^1][x]` as a
+    reference to the footnote when nothing defines `x`. An escape is a token of its
+    own, so a bracket in a text token is none."""
     for token in tokens:
         text = None
         for child in token.children or ():
+            if child.type == "text" and text is None:
+                for match in FOOTNOTE_IN_TEXT.finditer(child.content):
+                    yield match[0][1:-1].upper()
             if child.type == "link_open":
                 text = ""
             elif child.type == "link_close":

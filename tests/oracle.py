@@ -23,6 +23,9 @@ examples:
   path. A backslash or a backtick in a link is a problem in itself.
 - **Mentions and references:** `@name`, `@org/team`, `#1`, `GH-1`, `owner/repo#1`,
   and commits of other repositories or forks, `owner/repo@sha` and `user@sha`.
+- **Link reference definitions,** where markdown-it reads more of them than
+  CommonMark (2026-11-20): none runs over the line under a heading, and in a
+  destination, a backslash before a space, a tab or a line feed escapes nothing.
 
 Where GitHub's rules depend on what exists, or on details that a cleaning should not
 rely on, the oracle errs on the safe side: it counts a mention or a reference after
@@ -38,10 +41,13 @@ import unicodedata
 from collections import Counter
 from collections.abc import Collection, Iterable, Iterator
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import unquote
 
-from markdown_it import MarkdownIt
+import markdown_it.helpers
+from markdown_it import MarkdownIt, rules_block
+from markdown_it.rules_block import StateBlock
 from markdown_it.token import Token
 
 from issue_assistant import Config
@@ -50,7 +56,24 @@ from issue_assistant import Config
 class Parser(MarkdownIt):
     """CommonMark that keeps what was written: the destination of each link as
     GitHub passes it on, with its escapes and entities read but nothing encoded,
-    and the escapes and entities of the text as tokens of their own."""
+    and the escapes and entities of the text as tokens of their own. Where
+    markdown-it reads a link reference definition that GitHub shows as text, it
+    reads it as GitHub does."""
+
+    def __init__(self, config: str) -> None:
+        super().__init__(config)
+        # Its own helpers, so that the module of markdown-it stays as it is for
+        # every other parser.
+        self.helpers = SimpleNamespace(
+            **{**vars(markdown_it.helpers), "parseLinkDestination": destination}
+        )
+        self.block.ruler.at("reference", reference)
+
+    def parse(self, src: str, env: Any = None) -> list[Token]:
+        # markdown-it-py 4.3.0 raises an IndexError in StateBlock.getLines for a
+        # text such as `>- <!A\n>` that ends without a line feed. A final line feed
+        # changes nothing in CommonMark.
+        return super().parse(src if src.endswith("\n") else src + "\n", env)
 
     def normalizeLink(self, url: str) -> str:
         # markdown-it would percent-encode a backslash, which a browser reads as a
@@ -61,6 +84,50 @@ class Parser(MarkdownIt):
         # A link that markdown-it refuses, such as javascript:, is still a link
         # that a comment shouldn't hold.
         return True
+
+
+# A backslash that escapes nothing in a destination, since a space ends it.
+LITERAL_BACKSLASH = re.compile(r"\\[ \t\n]")
+
+
+def destination(string: str, pos: int, maximum: int) -> Any:
+    """The destination of a link that starts at `pos`, as markdown-it reads it, but
+    with a backslash before a space, a tab or a line feed as a backslash, not as an
+    escape: only punctuation can be escaped, and a destination without `<>` ends at
+    a space or a control character. GitHub shows `[0]:\\<tab>0` and
+    `[a](\\<tab>0)` as text, and markdown-it would read the tab as escaped."""
+    if not string.startswith("<", pos):
+        literal = LITERAL_BACKSLASH.search(string, pos, maximum)
+        if literal:
+            maximum = literal.start() + 1
+    return markdown_it.helpers.parseLinkDestination(string, pos, maximum)
+
+
+# A row of `=` or `-` that may underline a setext heading.
+SETEXT_UNDERLINE = re.compile(r"(?:=+|-+)[ \t]*")
+
+
+def reference(state: StateBlock, start: int, end: int, silent: bool) -> bool:
+    """markdown-it's rule for a link reference definition, which reads it only up to
+    the first blank row or row that underlines a setext heading. markdown-it reads
+    a destination or a title over such a row, but in CommonMark the row first ends
+    the paragraph and makes a heading of it, so GitHub shows `[0]:\\n=` and
+    `[0]: /u "a\\n=\\nb"` as headings. A lazy row, without the marks of its quote or
+    less indented than its list item, underlines nothing, and GitHub reads on over
+    it, as markdown-it does."""
+    last = start + 1
+    while last < end and not state.isEmpty(last):
+        indent = state.sCount[last] - state.blkIndent
+        row = state.src[state.bMarks[last] + state.tShift[last] : state.eMarks[last]]
+        if 0 <= indent < 4 and SETEXT_UNDERLINE.fullmatch(row):
+            break
+        last += 1
+    limit = state.lineMax
+    state.lineMax = min(limit, last)
+    try:
+        return rules_block.reference(state, start, min(end, last), silent)
+    finally:
+        state.lineMax = limit
 
 
 PARSER = Parser("commonmark").disable("text_join")

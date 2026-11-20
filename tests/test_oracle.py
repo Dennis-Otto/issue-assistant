@@ -8,7 +8,7 @@ what it would where the user, the team or the commit exists.
 
 import pytest
 
-from oracle import headings, problems
+from oracle import PARSER, headings, problems
 from support import CONFIG
 
 
@@ -214,7 +214,69 @@ def test_the_oracle_finds_what_the_cleaning_once_let_through(output):
         # A line of hyphens below a blank line is a rule, an escaped one text, and
         # four spaces make code.
         ("A\n\n---\n\nB\n\\===\n\n    # C\n\n\\# D", []),
+        # What starts like a link reference definition, above a line under a
+        # heading (2026-11-20).
+        ("[0]:\n=\n\n[a\nb]:\n=\n\n[0]:\n--", ["[0]:", "[a\nb]:", "[0]:"]),
+        ('[0]: /u "a\n=\nb"', ['[0]: /u "a']),
     ],
 )
 def test_the_oracle_finds_every_heading(markdown, found):
     assert headings(markdown) == found
+
+
+@pytest.mark.parametrize(
+    ("markdown", "labels"),
+    [
+        # A line under a heading ends the paragraph before a definition can read
+        # it as its destination or its title; GitHub shows a heading.
+        ("[0]:\n=", []),
+        ('[x]:\n=\n"t"', []),
+        ("[0]:\n--", []),
+        ('[0]: /u "a\n=\nb"', []),
+        ("[a\nb]:\n=", []),
+        ("> [0]:\n> =\n> t", []),
+        ("- [0]:\n  =\n  t", []),
+        # A lone hyphen starts a list item where it doesn't underline.
+        ('> [0]:\n-\n"t"', []),
+        # A line of `=` below a definition is a paragraph of its own.
+        ("[x]: /url\n===", ["X"]),
+        # A lazy line underlines nothing: without the mark of its quote, or less
+        # indented than its list item. GitHub reads on over it.
+        ('> [0]:\n=\n"t"', ["0"]),
+        ('> [0]:\n--\n"t"', ["0"]),
+        ('>> [0]:\n> =\n"t"', ["0"]),
+        ('- [0]:\n=\n"t"', ["0"]),
+        ("- [0]:\n--", ["0"]),
+        ('- a\n\n  [0]:\n=\n"t"', ["0"]),
+        ('> [0]: /u\n"t\n=\nx"', ["0"]),
+        # A backslash before a space, a tab or a line feed escapes nothing, and the
+        # destination ends after it.
+        ("[0]:\\\t0", []),
+        ("[0]: a\\\nb", ["0"]),
+        # An escaped backslash before a space stays one.
+        ("[0]: a\\\\ b", []),
+        ("[0]: a\\\\", ["0"]),
+    ],
+)
+def test_the_oracle_reads_definitions_as_github_does(markdown, labels):
+    """GitHub's renderer (`gh api markdown -f mode=gfm`, 2026-11-20) showed these
+    texts with a definition, or with what starts like one as text."""
+    environment: dict[str, dict[str, object]] = {}
+    PARSER.parse(markdown, environment)
+    assert list(environment.get("references", {})) == labels
+
+
+def test_a_backslash_before_a_tab_makes_no_link():
+    """GitHub shows `[a](\\<tab>0)` as text: the tab ends the destination."""
+    assert PARSER.parseInline("[a](\\\t0)")[0].children[0].type == "text"
+    assert problems("[a](\\\t0)", set(), CONFIG) == []
+
+
+@pytest.mark.parametrize(
+    ("markdown", "found"),
+    [(">- <!A\n>", ["HTML '<!A'"]), ("> - <!--\n>", ["HTML '<!--'"])],
+)
+def test_the_oracle_reads_a_text_without_a_final_line_feed(markdown, found):
+    """markdown-it-py 4.3.0 raises an IndexError for these texts as they are."""
+    assert headings(markdown) == []
+    assert problems(markdown, set(), CONFIG) == found
