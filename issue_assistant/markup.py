@@ -19,8 +19,11 @@ from .patterns import HTML_COMMENT
 # The mark of a quote or of a list item: a `>` needs no space after it, a list mark
 # does.
 CONTAINER_MARK = r"(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$))"
-# The start of a row, after a line break as GitHub reads one, and its end.
-ROW_START = r"(?:\A|(?<=\n)|(?<=\r)(?!\n))"
+# The start of a row, after a line break as GitHub reads one, and its end. The
+# start is where no character but a line break precedes, other than between the
+# `\r` and the `\n` of one: a single test that fails at once in the middle of a
+# row, where a search spends most of its time.
+ROW_START = r"(?<![^\r\n])(?!(?<=\r)\n)"
 ROW_ENDS = r"(?=[\r\n]|\Z)"
 # A row whose text starts an HTML block of CommonMark, after the marks of its quotes
 # and list items: GitHub hands each row of such a block on as HTML, so that a `<!--`
@@ -30,12 +33,17 @@ ROW_ENDS = r"(?=[\r\n]|\Z)"
 # `<` or a `>`, not an autolink such as <https://example.com>. A footnote holds
 # blocks as a list item does.
 FOOTNOTE_MARK = r"\[\^[^\]\r\n]++\]:"
+# The names of CommonMark's block tags, by their first letter, so that a row tries
+# only those of its letter: one alternative for each name takes most of the time of
+# a text of many rows of tags. The `>`, `/>` or blank that follows a name in
+# HTML_ROW lets no name end within a longer one, so their order counts for nothing.
 BLOCK_TAGS = (
-    "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup"
-    "|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame"
-    "|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem"
-    "|nav|noframes|ol|optgroup|option|p|param|search|section|source|summary|table"
-    "|tbody|td|tfoot|th|thead|title|tr|track|ul"
+    "a(?:ddress|rticle|side)|b(?:ase|asefont|lockquote|ody)"
+    "|c(?:aption|enter|ol|olgroup)|d(?:d|etails|ialog|ir|iv|l|t)"
+    "|f(?:ieldset|igcaption|igure|ooter|orm|rame|rameset)|h(?:[1-6]|ead|eader|r|tml)"
+    "|iframe|l(?:egend|i|ink)|m(?:ain|enu|enuitem)|n(?:av|oframes)"
+    "|o(?:l|ptgroup|ption)|p(?:aram)?|s(?:earch|ection|ource|ummary)"
+    "|t(?:able|body|d|foot|h|head|itle|r|rack)|ul"
 )
 HTML_ROW = re.compile(
     rf"{ROW_START}(?P<marks>(?:[ \t]*+(?:{CONTAINER_MARK}|{FOOTNOTE_MARK}))*+[ \t]*+)"
@@ -240,12 +248,14 @@ class Searches:
 
 class HtmlRows:
     """The rows of a text that may start an HTML block, and where the first list
-    item starts, each found once and only when asked for."""
+    item starts, each found once and only when asked for; and where each block
+    ends, which every reading of the blocks of the text shares."""
 
     def __init__(self, text: str) -> None:
         self.text = text
         self.rows: list[re.Match[str]] | None = None
         self.listed: int | None = None
+        self.ends: dict[int, int] = {}
 
     def found(self) -> list[re.Match[str]]:
         """The rows that may start an HTML block."""
@@ -325,7 +335,7 @@ class Blocks:
         self.found, self.lists = rows.found(), rows.lists()
         self.index = 0
         self.latest: dict[str | int | None, Block] = {}
-        self.ends: dict[int, int] = {}
+        self.ends = rows.ends
         # The searches for the ends of earlier blocks, which read back, keep apart
         # from those that read on.
         self.search, self.back = Searches(text), Searches(text)
@@ -333,14 +343,21 @@ class Blocks:
     def holding(self, position: int) -> list[Block]:
         """The blocks that may hold a position."""
         found, index, latest = self.found, self.index, self.latest
-        while index < len(found) and found[index].start() <= position:
-            row = found[index]
-            if (row.start() >= self.lists or not code(row["marks"])) and (
-                self.fences is None or not self.fences.holds(row.start())
+        lists, fences, count = self.lists, self.fences, len(found)
+        if not latest and (index == count or found[index].start() > position):
+            return []  # No block has started since the last one ended.
+        while index < count and (start := (row := found[index]).start()) <= position:
+            # A row without marks is never indented code.
+            marks = row["marks"]
+            if (start >= lists or not marks or not code(marks)) and (
+                fences is None or not fences.holds(start)
             ):
                 kind = row.lastgroup
-                depth = min(row["marks"].count(">"), len(BLANK_ROWS) - 1)
-                key = kind if kind == "comment" or kind in HTML_ENDS else depth
+                key: str | int | None = (
+                    kind
+                    if kind == "comment" or kind in HTML_ENDS
+                    else min(marks.count(">"), len(BLANK_ROWS) - 1)
+                )
                 latest[key] = Block(row, latest.get(key))
             index += 1
         self.index = index
@@ -357,7 +374,7 @@ class Blocks:
 
     def end(self, row: re.Match[str], search: Searches | None = None) -> int:
         """Where the block ends that a row starts: at the start of a blank row, or
-        at the end of the row of its end."""
+        at the end of the row of its end; found once for the text."""
         end = self.ends.get(row.start())
         if end is None:
             end = block_end(self.text, row, search or self.search)
@@ -406,15 +423,16 @@ MARK_CHARACTERS = frozenset(" \t>-+*.)0123456789")
 def block_end(text: str, row: re.Match[str], search: Searches) -> int:
     """Where the HTML block ends that a row starts: at the start of a blank row, or
     at the end of the row of its end."""
-    end = row_end(text, row.end())
     if row.lastgroup == "comment":
         closed = search.comment_end(row.end("marks"))
         return row_end(text, closed) if closed >= 0 else len(text)
     ending = HTML_ENDS.get(row.lastgroup or "")
     if ending is None:
+        # No row starts before the end of the row, so the search starts at once.
         depth = min(row["marks"].count(">"), len(BLANK_ROWS) - 1)
-        found = search(BLANK_ROWS[depth], end)
+        found = search(BLANK_ROWS[depth], row.end())
         return found.start() if found else len(text)
+    end = row_end(text, row.end())
     if row.lastgroup == "declaration":
         if text.find(">", row.end(), end) >= 0:
             return end
@@ -428,6 +446,16 @@ def row_end(text: str, position: int) -> int:
     """Where the row of a position ends, before its line break."""
     found = ROW_END.search(text, position)
     return found.start() if found else len(text)
+
+
+def row_before(text: str, start: int, position: int) -> int:
+    """Where the last row ends, before its line break, that ends between `start`, the
+    end of a row, and a position on a later row or the same; `start` where none
+    does."""
+    found = max(text.rfind("\n", start, position), text.rfind("\r", start, position))
+    if found > start and text.startswith("\r\n", found - 1):
+        return found - 1
+    return max(found, start)
 
 
 def code(marks: str) -> bool:
@@ -453,6 +481,14 @@ FENCE_ROW = re.compile(
 )
 # The marks of a row, each with the blanks before it.
 SPACED_MARK = re.compile(r"( *+)(>|[-+*]|\d{1,9}[.)])")
+# A row of nothing but a fence of backticks or tildes and blanks: the only rows
+# that can end fenced code whose rows need no marks and no indentation.
+CLOSING_ROWS = {
+    character: re.compile(
+        rf"{ROW_START}(?P<blanks>[ \t]*+)(?P<fence>{character}{{3,}}+)[ \t]*+{ROW_ENDS}"
+    )
+    for character in ("`", "~")
+}
 
 
 class Fences:
@@ -531,8 +567,10 @@ class Fences:
             if listed
             else row["marks"]
         )
-        quotes = prefix[: prefix.rfind(">") + 1]
         position = row_end(text, row.end())
+        if not prefix:
+            return closing_row(text, position, fence, listed)
+        quotes = prefix[: prefix.rfind(">") + 1]
         while (following := ROW_END.match(text, position)) is not None:
             start = following.end()
             position = row_end(text, start)
@@ -559,6 +597,26 @@ class Fences:
                 if blanks_fit(prefix[-1:], blanks):
                     return position, True
         return len(text), True
+
+
+def closing_row(text: str, position: int, fence: str, listed: bool) -> tuple[int, bool]:
+    """What Fences.closed finds for fenced code whose rows start with nothing, from
+    the end of the row of its fence on: every row starts as one of the code, so
+    only a row of a fence may end it, which one search finds instead of a reading of
+    each row."""
+    rows = CLOSING_ROWS[fence[0]]
+    while (found := rows.search(text, position)) is not None:
+        position = found.end()
+        if len(found["fence"]) < len(fence):
+            continue
+        blanks = found["blanks"]
+        if not blanks:
+            return position, True
+        if listed or "\t" in blanks:
+            return found.start(), False
+        if blanks_fit("", blanks):
+            return position, True
+    return len(text), True
 
 
 def blanks_fit(mark: str, blanks: str) -> bool:
@@ -664,7 +722,9 @@ def held_tag_end(
     position, stop, state = first
     rows = Rows(text, held, blocks)
     while True:
-        if rows.top and state == "":
+        # At or after the end of the blocks, nothing is left to read: the reading
+        # of the next block below has looked there, or a line break stands there.
+        if rows.top and state == "" and stop < rows.region:
             # Rows without a quote or an `=` hold only names, up to a `>`.
             names = INERT.match(text, stop, rows.region)
             assert names is not None  # It matches the empty text.
@@ -672,7 +732,15 @@ def held_tag_end(
                 return names.end() + 1
             if names.end() == rows.region:
                 stop = rows.region
-        line = ROW_END.match(text, stop)
+            else:
+                # Each row before the one of the quote or the `=` holds only
+                # names and leaves the tag as it was, and at the top of the text,
+                # where no list item needs an indentation, no row is outside the
+                # blocks: the reading goes on at that row, so that it reads the
+                # rows between once, not once for each of them.
+                stop = row_before(text, stop, names.end())
+        # A row that starts at or after the end of the blocks is none of theirs.
+        line = ROW_END.match(text, stop) if stop < rows.region else None
         if line is None or line.end() >= rows.region:
             if state in QUOTES:
                 return None
@@ -746,8 +814,9 @@ class Rows:
         if not self.depth and not self.indent:
             return row, False
         position, marks = quote_marks(self.text, row, self.depth)
-        return position, marks < self.shallow or outdented(
-            self.text, position, self.indent
+        # No row is indented by fewer columns than none.
+        return position, marks < self.shallow or (
+            self.indent > 0 and outdented(self.text, position, self.indent)
         )
 
 

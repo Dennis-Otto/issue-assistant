@@ -219,6 +219,7 @@ SLOW_TEXTS = {
     "fences that open no code": "``` a`\n<div\n" * 5_000,
     "tags in rows of a block": "<div>\n" + "x <span\n" * 8_000,
     "values with the other quote": '<a t="' + "<a t='" * 10_000,
+    "blank rows in a tag of HTML blocks": "<?\n<v" + "\n" * 64_000 + "'='",
 }
 
 
@@ -234,6 +235,135 @@ def test_no_text_makes_reading_an_issue_slow(text):
         (assistant.issue_language, issue, comments),
     ):
         assert fast(0.5, function, *args), function.__name__
+
+
+# The slowest texts of SLOW_TEXTS as the start, a piece, how often it comes and the
+# end after them: each is read in time linear in its length.
+GROWING = {
+    "blocks after tags without their end": ("", "<div\nx\n\n", 7_000, ""),
+    "values that end after HTML blocks": ("", '<a>\n\n<a b="c"\n\n', 4_000, '<a b="'),
+    "HTML blocks between blank rows": ("", "<a>\n\n", 13_000, "x <!--"),
+    "fenced code of tags": ("", "```\n<div\na\n```\n", 4_000, ""),
+    "blank rows in a tag of HTML blocks": ("<?\n<v", "\n", 64_000, "'='"),
+}
+
+
+def processor_time(calls, function, *args):
+    """The processor time of a number of calls, in the best of three tries: a busy
+    machine can slow down one try, but not all three."""
+    times = []
+    for _ in range(3):
+        start = time.process_time()
+        for _ in range(calls):
+            function(*args)
+        times.append(time.process_time() - start)
+    return min(times)
+
+
+@pytest.mark.parametrize(
+    ("start", "piece", "count", "end"), GROWING.values(), ids=GROWING
+)
+def test_twice_the_text_takes_about_twice_the_time(start, piece, count, end):
+    """Twice the text takes less than three times the processor time. Each try
+    reads the half four times and the whole twice, so that both sides take about
+    as long, many times what the clock of a processor tells apart (1/64 second on
+    Windows)."""
+    assert start + piece * count + end in SLOW_TEXTS.values()
+
+    def reading(calls, text):
+        issue = make_issue(body=text)
+        comments = [make_comment(number, "reporter", text, 0) for number in (1, 2, 3)]
+        return processor_time(calls, assistant.render_issue, issue, comments)
+
+    halves = reading(4, start + piece * (count // 2) + end)
+    wholes = reading(2, start + piece * count + end)
+    assert wholes < 3 / 2 * halves
+
+
+# The names of the tags that start an HTML block of CommonMark's sixth kind.
+COMMONMARK_BLOCK_TAGS = [
+    "address",
+    "article",
+    "aside",
+    "base",
+    "basefont",
+    "blockquote",
+    "body",
+    "caption",
+    "center",
+    "col",
+    "colgroup",
+    "dd",
+    "details",
+    "dialog",
+    "dir",
+    "div",
+    "dl",
+    "dt",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "frame",
+    "frameset",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "head",
+    "header",
+    "hr",
+    "html",
+    "iframe",
+    "legend",
+    "li",
+    "link",
+    "main",
+    "menu",
+    "menuitem",
+    "nav",
+    "noframes",
+    "ol",
+    "optgroup",
+    "option",
+    "p",
+    "param",
+    "search",
+    "section",
+    "source",
+    "summary",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "title",
+    "tr",
+    "track",
+    "ul",
+]
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
+def test_a_tag_over_blank_rows_of_a_block_ends_after_its_value(newline):
+    # GitHub shows only "x" (checked with `gh api markdown`): the tag over the blank
+    # rows ends at its `>`, with every line break between.
+    text = newline.join(["<?", "<v", "", "b='c'>", "x"])
+    assert assistant.strip_html(text) == newline.join(["<?", "", "x"])
+
+
+def test_each_block_tag_of_commonmark_and_no_other_starts_a_block_without_its_end():
+    for name in COMMONMARK_BLOCK_TAGS:
+        for tag in (f"<{name}", f"</{name.upper()}", f"<{name}/>"):
+            row = assistant.HTML_ROW.match(f"{tag}\nx")
+            assert row is not None, tag
+            assert row.lastgroup == "tag", tag
+    for name in ("a", "span", "pa", "h7", "bases", "colgroups", "tablex", "u", "t"):
+        assert assistant.HTML_ROW.match(f"<{name}\nx") is None, name
 
 
 # Texts of 64 KiB that make the search for definitions read far ahead from many
@@ -529,7 +659,9 @@ def test_a_tag_that_github_shows_as_text_keeps_its_rows(text):
         ("> ```\n> <div\n>\n> zqa\n> ```\n\nzqd", "", ""),
         ("- a\n\n  ```\n  <div\n  zqa\n  ```\n\nzqd", "", ""),
         ("~~~\n<div\nzqa", "", ""),
+        ("> ```\n> <div\n> zqa", "", ""),
         # It closes after as many blanks as open a fence, with a fence as long.
+        ("> ```\n> <div\n> zqa\n>      ```\n> <p\n> zqb\n> >zqd", "", ""),
         ("> ```\n> <div\n> zqa\n>    ```\n\nzqd", "", ""),
         ("  ```\n<div\nzqa\n   ```\n\nzqd", "", ""),
         ("```\n<div\nzqa\n    ```\n```\n\nzqd", "", ""),
