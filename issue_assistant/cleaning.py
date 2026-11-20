@@ -400,6 +400,11 @@ ROW_END = re.compile(r"(\r\n|\r|\n)")
 # The marks of the quotes and list items that hold a row, before its text.
 CONTAINER = re.compile(r"(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)))*[ \t]*")
 LIST_MARK = re.compile(r"(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)")
+# A row that may open a fence, after the marks of quotes and list items and at any
+# indentation.
+FENCE_ROW = re.compile(
+    r"(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)))*+[ \t]*+(?:`{3,}(?!.*`)|~{3})"
+)
 QUOTE_MARK = re.compile(r" {0,3}>[ \t]?")
 # A row after which the next one starts a block of its own, where a definition can
 # begin: a heading, a fence, a rule or the line under a heading. More rows count
@@ -407,11 +412,18 @@ QUOTE_MARK = re.compile(r" {0,3}>[ \t]?")
 BOUNDARY = re.compile(r"#{1,6}(?:[ \t]|$)|`{3}|~{3}|([-*_=])(?:[ \t]*\1)*[ \t]*$")
 # A row that ends the paragraph of a definition, so that its label or its title
 # can't go on into it: a blank row, and the blocks that can interrupt a paragraph.
+# A lone `-` ends it in any place: below the paragraph it makes a heading, and
+# where the row is lazy or less indented than a list item, it starts a list item.
 # Fewer rows count than in CommonMark, which only removes more.
 STOP = re.compile(
     r"[ \t]*$| {0,3}(?:>|#{1,6}(?:[ \t]|$)|`{3,}[^`]*$|~{3}"
-    r"|([-*_])(?:[ \t]*\1){2,}[ \t]*$|(?:=+|-+)[ \t]*$|(?:[-+*]|0*1[.)])[ \t]+\S)"
+    r"|([-*_])(?:[ \t]*\1){2,}[ \t]*$|-[ \t]*$|(?:[-+*]|0*1[.)])[ \t]+\S)"
 )
+# The line under a heading, which ends the paragraph only where it can underline
+# it: in every quote of the paragraph, and in its list items, indented as far as
+# the first row of the definition. A lazy row, which goes on in a quote or a list
+# item without its marks or its indentation, makes no heading, and GitHub reads on.
+UNDERLINE = re.compile(r"( {0,3})(?:=+|-+)[ \t]*$")
 INDENTED = re.compile(r" {0,3}\t| {4}")
 # The pieces of a definition within a row, each up to the character that ends it.
 # A backslash takes the character after it, if there is one, in two ways that the
@@ -438,9 +450,15 @@ CANDIDATE = re.compile(
     re.MULTILINE,
 )
 # HTML after which other rows start a block than strip_html leaves to see: a row
-# that starts an HTML block, in which a fence is no fence, and text after the end
-# of a comment, whose row ends the block that the comment started.
-HTML_BLOCK = re.compile(r"^[ \t]*<(?!!--)[A-Za-z/?!]|-->[ \t]*\S", re.MULTILINE)
+# that starts an HTML block, in which a fence is no fence, also in a quote or a list
+# item, which then takes no lazy row, and text after the end of a comment, whose row
+# ends the block that the comment started. strip_html takes out a comment that
+# starts a row outside them, or the rest of the text with it.
+HTML_BLOCK = re.compile(
+    rf"^(?:[ \t]*{CONTAINER_MARK})++[ \t]*+<[A-Za-z/?!]"
+    r"|^[ \t]*<(?!!--)[A-Za-z/?!]|-->[ \t]*\S",
+    re.MULTILINE,
+)
 
 
 def shown_text(text: str) -> tuple[str, int]:
@@ -478,12 +496,29 @@ def strip_definitions(text: str, anywhere: bool = False) -> tuple[str, int]:
         return text, 0
     parts = ROW_END.split(text)
     rows, ends = parts[::2], [*parts[1::2], ""]
-    code = [False] * len(rows) if anywhere else fenced(rows)
+    fence = fenced(rows)
+    code = [False] * len(rows) if anywhere else fence
     # A reference counts only where GitHub surely shows it: not in code, in an
     # indented row, which may be code, in a definition or a footnote, after a
     # backslash or in the target of a link. A footnote without one goes: the safe
     # side. Taking a footnote out can let a definition after it start a block, so
-    # the references are counted again until the rows found stay the same.
+    # the references are counted again until the rows found stay the same. Where
+    # the HTML could have started a block, it can hold any row after it, so none
+    # counts. A fence that `fenced` doesn't follow, in a quote, in a list item or
+    # indented further, may make code of every row after it, so no reference counts
+    # from there on.
+    unsure = (
+        0
+        if anywhere
+        else next(
+            (
+                index
+                for index, row in enumerate(rows)
+                if not fence[index] and FENCE_ROW.match(row)
+            ),
+            len(rows),
+        )
+    )
     masked = LINK_TARGET.sub(blank, flat)
     shown = [
         (index, match[1].casefold())
@@ -492,7 +527,8 @@ def strip_definitions(text: str, anywhere: bool = False) -> tuple[str, int]:
             FOOTNOTE_REFERENCE.finditer(masked),
             strict=True,
         )
-        if not code[index]
+        if not fence[index]
+        and index < unsure
         and "`" not in rows[index]
         and not INDENTED.match(rows[index])
     ]
@@ -564,15 +600,18 @@ def rows_of(pattern: re.Pattern[str], text: str) -> Iterator[int]:
 def opens(row: str, code: bool, depth: int) -> bool:
     """Whether the row before one `depth` quotes deep lets that one start a block:
     code, a blank row, an indented one, which may be code, one in BOUNDARY, or one
-    in fewer quotes, after which a quote starts."""
+    in fewer quotes, after which a quote starts.
+
+    A row is indented when 4 columns of spaces stand before its text or before any
+    of its marks: `    >` at the start of a row is code, not a quote.
+    """
     prefix = run(CONTAINER, row, 0)
     marks = row[:prefix]
-    indent = marks[len(marks.rstrip(" \t")) :].expandtabs(4)
     return (
         code
         or depth > marks.count(">")
         or not row[prefix:].strip(" \t")
-        or len(indent) >= 4
+        or bool(INDENTED.search(marks))
         or bool(BOUNDARY.match(row, prefix))
     )
 
@@ -594,18 +633,24 @@ def definition(
     can also interrupt a paragraph. The rows after the first are read without the
     marks of the `depth` quotes around it.
     """
+    # How far the `[` stands in from the quotes, with the marks of the list items
+    # and a tab as wide as it can be: as far as the text of a list item that holds
+    # it, or a little further. A line under a heading indented less may be lazy.
+    inside = quoted(rows[start], depth)
+    indent = len(rows[start][inside[0] : column].replace("\t", " " * 4))
 
     def follow(index: int) -> str | None:
         """Row `index` without its quote marks, if the paragraph goes on into it."""
         if index >= len(rows) or code[index]:
             return None
-        row, position = rows[index], 0
-        for _ in range(depth):
-            mark = QUOTE_MARK.match(row, position)
-            if not mark:
-                break
-            position = mark.end()
-        return None if STOP.match(row, position) else row[position:]
+        row = rows[index]
+        position, marks = quoted(row, depth)
+        if STOP.match(row, position):
+            return None
+        line = UNDERLINE.match(row, position)
+        if line and marks == depth and len(line[1]) >= indent:
+            return None
+        return row[position:]
 
     if not starts and not rows[start].startswith("[^", column):
         return None
@@ -643,6 +688,18 @@ def definition(
         return None
     last = title(follow, index, row, position)
     return None if last is None else (last, DEFINITION_NOTE, "")
+
+
+def quoted(row: str, depth: int) -> tuple[int, int]:
+    """Where the marks of up to `depth` quotes at the start of a row end, and how
+    many there are."""
+    position = 0
+    for marks in range(depth):
+        mark = QUOTE_MARK.match(row, position)
+        if not mark:
+            return position, marks
+        position = mark.end()
+    return position, depth
 
 
 def spaces(row: str, position: int) -> int:

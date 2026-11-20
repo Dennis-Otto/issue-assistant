@@ -3421,6 +3421,38 @@ HIDDEN_DEFINITIONS = [
     ("Card [a](x[^n])\n\n[^n]: Xyzzy", f"Card [a](x[^n])\n\n{FOOTNOTE}"),
     ('Card [a](x "[^n]")\n\n[^n]: Xyzzy', f'Card [a](x "[^n]")\n\n{FOOTNOTE}'),
     ("Card\n\n[^n]: [^n] Xyzzy", f"Card\n\n{FOOTNOTE}"),
+    # A line of `=` or `-` without the mark of its quote, or less indented than its
+    # list item, is lazy: it underlines no heading and the definition goes on over
+    # it (2026-11-20).
+    ('> [x]:\n=\n"Xyzzy"', f"> {LINK}"),
+    ('> [x]:\n--\n"Xyzzy"', f"> {LINK}"),
+    ('>> [x]:\n> =\n"Xyzzy"', f">> {LINK}"),
+    ('- [x]:\n=\n"Xyzzy"', f"- {LINK}"),
+    ('- [x]:\n--\n"Xyzzy"', f"- {LINK}"),
+    ('- a\n\n  [x]:\n=\n"Xyzzy"', f"- a\n\n  {LINK}"),
+    ('> [x]: /u\n"Xyzzy\n=\nXyzzy"', f"> {LINK}"),
+    ("> [Xyzzy\n=\nXyzzy]: /u", f"> {LINK}"),
+    # Four spaces before a quote or a list mark make code, after which a
+    # definition starts.
+    ('    >0\n[x]: /u "Xyzzy"\n\n[x]', f"    >0\n{LINK}\n\n[x]"),
+    ('    - 0\n[x]: /u "Xyzzy"', f"    - 0\n{LINK}"),
+    ('>     >0\n> [x]: /u "Xyzzy"', f">     >0\n> {LINK}"),
+    ('    x\n[x]: /u "Xyzzy"', f"    x\n{LINK}"),
+    # An HTML block in a quote or a list item takes no lazy row.
+    ('><!A\n[x]: /u "Xyzzy"\n\n[x]', f"><!A\n{LINK}\n\n[x]"),
+    ('- > <!A\n[x]: /u "Xyzzy"', f"- > <!A\n{LINK}"),
+    ('- <div>\n[x]: /u "Xyzzy"', f"- \n{LINK}"),
+    # Below a complete definition, a line of `=` is a paragraph.
+    ("[x]: /Xyzzy\n===", f"{LINK}\n==="),
+    # A reference in a fence that the cleaning doesn't follow, in a quote, a list
+    # item or the info string, in a fence where text after a `-->` lets HTML start
+    # a block, or in HTML, keeps no footnote.
+    ("[^n]: Xyzzy\n\n>~~~\n>[^n]", f"{FOOTNOTE}\n\n>~~~\n>[^n]"),
+    ("[^n]: Xyzzy\n\n- ~~~\n  [^n]", f"{FOOTNOTE}\n\n- ~~~\n  [^n]"),
+    ("[^n]: Xyzzy\n>~~~[^n]", f"{FOOTNOTE}\n>~~~[^n]"),
+    ("[^n]: Xyzzy-->0\n```\n[^n]", f"{FOOTNOTE}\n```\n[^n]"),
+    ("<div>\n[^n]\n\n[^n]: Xyzzy", f"\n[^n]\n\n{FOOTNOTE}"),
+    ("><!A[^n]\n[^n]: Xyzzy", f"><!A[^n]\n{FOOTNOTE}"),
 ]
 
 
@@ -3455,6 +3487,20 @@ SHOWN_DEFINITIONS = [
     "See the log[^1].\n\n[^1]: The log",
     # A reference after an escaped backslash is one.
     "See the log \\\\[^1].\n\n[^1]: The log",
+    # A line of `=` or `-` that can underline a heading ends the paragraph first, in
+    # a quote and in a list item too, and a lone `-` starts a list item where it
+    # can't; GitHub shows a heading or a list (2026-11-20).
+    "[0]:\n=",
+    '[x]:\n=\n"t"',
+    "[0]:\n--",
+    '[0]: /u "a\n=\nb"',
+    "[a\nb]:\n=",
+    '> [x]:\n> =\n> "t"',
+    '- [x]:\n  =\n  "t"',
+    '> [x]:\n-\n"t"',
+    '- [x]:\n-\n"t"',
+    # A backslash before a tab escapes nothing, and text follows the destination.
+    "[0]:\\\t0",
 ]
 
 
