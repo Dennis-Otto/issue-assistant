@@ -301,7 +301,7 @@ LONG_TEXTS = {
 
 
 @pytest.mark.parametrize("text", LONG_TEXTS.values(), ids=LONG_TEXTS)
-def test_the_links_of_a_long_text_are_read_in_time_linear_in_its_length(text):
+def test_the_links_of_a_long_text_are_read_in_time(text):
     issue, comments = issue_with(text)
     times = []
     for _ in range(3):

@@ -11,6 +11,7 @@ of, in time linear in its length.
 
 from __future__ import annotations
 
+import functools
 import re
 from bisect import bisect_right
 from collections.abc import Callable, Iterator
@@ -181,19 +182,18 @@ TAG_BLOCKS = re.compile(
     rf"{INERT_ROW}(?:{LINE_BREAK}(?![ \t]*+{ROW_ENDS}){INERT_ROW})*+"
     rf"(?:{LINE_BREAK}(?=[ \t]*+{ROW_ENDS})|\Z))*+"
 )
-INERT_ROWS: dict[tuple[int, int], re.Pattern[str]] = {}
 
 
+# The depths come from the text, which an outsider writes: the cache keeps the
+# patterns of the latest pairs, not one for every pair that a text can name.
+@functools.lru_cache(maxsize=64)
 def inert_rows(shallow: int, depth: int) -> re.Pattern[str]:
     """The later rows of a tag in quotes that leave it between its attributes: each
     with at least `shallow` and at most `depth` marks of quotes, as quote_marks reads
     them, and nothing after them that could start a value or end the tag."""
-    pattern = INERT_ROWS.get((shallow, depth))
-    if pattern is None:
-        pattern = INERT_ROWS[shallow, depth] = re.compile(
-            rf"(?:{LINE_BREAK}(?:[ \t]*+>){{{shallow},{depth}}}+{INERT_ROW}{ROW_ENDS})*+"
-        )
-    return pattern
+    return re.compile(
+        rf"(?:{LINE_BREAK}(?:[ \t]*+>){{{shallow},{depth}}}+{INERT_ROW}{ROW_ENDS})*+"
+    )
 
 
 # The marks of list items and footnotes among the marks of a row.
