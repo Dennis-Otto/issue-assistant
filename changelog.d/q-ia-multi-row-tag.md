@@ -1,0 +1,3 @@
+### Bug fixes
+
+- The AI no longer reads the rows of an HTML tag that runs over several rows, which GitHub shows nothing of: GitHub reads every row of a block such as `<div` up to the `>` of the tag, or up to the end of the block when no `>` comes, as part of the tag, also in a quote or a list item, and so does a tag of a paragraph that Markdown reads as one over its rows. What follows the tag reaches the AI, also after a quoted value that ends in a later row, which used to end the text for the AI there. A tag that GitHub shows as text, such as `<a` above a row that starts a quote or `<script`, still reaches the AI as text, and so does fenced code, whose rows GitHub shows as they are.

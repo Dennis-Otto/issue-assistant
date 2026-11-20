@@ -24,10 +24,11 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from .answer import looks_secret
-from .cleaning import EMAIL, comment_parts, strip_definitions
+from .cleaning import EMAIL, strip_definitions
 from .errors import AssistantError, GitHubError
 from .github import GitHub
 from .issues import Visible, text_of
+from .markup import comment_parts
 from .paths import CONTEXT
 from .patterns import HTML_COMMENT
 from .values import command, fence, login

@@ -6,9 +6,12 @@ GitHub's renderer (`gh api markdown -f mode=gfm`) rendered each example on
 what it would where the user, the team or the commit exists.
 """
 
+import json
+from pathlib import Path
+
 import pytest
 
-from oracle import PARSER, headings, hides_the_rest, problems
+from oracle import PARSER, browser_text, headings, hides_the_rest, problems
 from support import CONFIG
 
 
@@ -301,3 +304,50 @@ def test_the_oracle_finds_the_comments_that_hide_the_rest(markdown, hidden):
     """GitHub's renderer (`gh api markdown -f mode=gfm`, 2026-11-20) showed nothing
     after the HTML block of these texts, or the rest of the others."""
     assert hides_the_rest(markdown) is hidden
+
+
+SEARCH = json.loads(
+    (Path(__file__).with_name("fixtures") / "tags-over-rows.json").read_text("utf-8")
+)
+
+
+def test_a_browser_reads_the_searched_tags_as_github_showed_them():
+    """The text that browser_text finds of each text of the search shows the marker
+    words that GitHub's renderer showed, and none of those that it hid."""
+    for case in SEARCH["texts"]:
+        seen = browser_text(case["text"])
+        assert [word for word in case["github shows"] if word not in seen] == []
+        assert [word for word in case["github hides"] if word in seen] == []
+
+
+@pytest.mark.parametrize(
+    ("markdown", "shown", "hidden"),
+    [
+        # A `<!--` in the name or the attributes of a tag is part of the tag.
+        ("<div><div<!--\n\nzqd", ["zqd"], []),
+        ("<div>\n<a b <!--\nzqa>\n\nzqd", ["zqd"], ["zqa"]),
+        ("2) <div\n\n<div>\n\nzqd", ["zqd"], []),
+        # An instruction, a declaration and a section of CDATA are comments up to
+        # their first `>` for a browser, and up to the end of the text without one.
+        ("x\n\n<?php\nzqa\n\nzqd", [], ["zqa", "zqd"]),
+        ("x\n\n<!X zqa\n\nzqd", [], ["zqa", "zqd"]),
+        ("x\n\n<![CDATA[ zqa\n\nzqd", [], ["zqa", "zqd"]),
+        ("x <? zqa > zqb ?> zqc\n\nzqd", ["zqb", "zqc", "zqd"], ["zqa"]),
+        ("x <!X zqa\nzqb> zqc\n\nzqd", ["zqc", "zqd"], ["zqa", "zqb"]),
+        ("<div>\nx <? zqa\n\nzqd", ["zqd"], ["zqa"]),
+        ("<div>\nx </ zqa\n\nzqd", ["zqd"], ["zqa"]),
+        ("x\n\n<!DOCTYPE zqa>\nzqb\n\nzqd", ["zqb", "zqd"], ["zqa"]),
+        ("x <![CDATA[ zqa ]]> zqb\n\nzqd", ["zqb", "zqd"], ["zqa"]),
+    ],
+)
+def test_a_browser_reads_markup_as_github_showed_it(markdown, shown, hidden):
+    """GitHub's renderer (`gh api markdown -f mode=gfm`, 2026-11-20) showed the
+    words of `shown` and hid those of `hidden`."""
+    seen = browser_text(markdown)
+    assert [word for word in shown if word not in seen] == []
+    assert [word for word in hidden if word in seen] == []
+
+
+def test_a_browser_shows_a_lone_angle_bracket_as_text():
+    assert browser_text("x < y </") == "x < y </\n"
+    assert browser_text("<div>\nx </> <!-->y<!--->z") == "\nx  yz\n"

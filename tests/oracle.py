@@ -35,6 +35,7 @@ and as it is, since GitHub makes no table of it when the header has other cells 
 the delimiter row or a quote holds that row, and it counts what either finds.
 """
 
+import html
 import re
 import string
 import unicodedata
@@ -505,3 +506,86 @@ def hides_the_rest(markdown: str) -> bool:
             if comment >= 0 and "-->" not in markdown[comment:]:
                 return True
     return False
+
+
+# The tags that GitHub's filter of tags shows as text, wherever they stand.
+FILTERED_TAG = re.compile(
+    r"<(/?(?:iframe|noembed|noframes|plaintext|script|style|textarea|title|xmp)"
+    r"(?=[\t\n\v\f\r >]|/>))",
+    re.IGNORECASE,
+)
+SPACES = "\t\n\f "
+
+
+def browser_text(markdown: str) -> str:
+    """What a browser shows of a text that GitHub rendered: the HTML that a CommonMark
+    parser makes of it, after GitHub's filter of tags, read by the rules of HTML for
+    tags and comments, which show nothing of what they hold (`gh api markdown -f
+    mode=gfm`, 2026-11-20). A tag runs over rows to its `>`, past a `>` in a quoted
+    value, and to the end of the text when none comes."""
+    source = FILTERED_TAG.sub(r"&lt;\1", PARSER.render(markdown))
+    shown, position = [], 0
+    while (start := source.find("<", position)) >= 0:
+        shown.append(source[position:start])
+        position = markup_end(source, start)
+        if position == start:
+            shown.append("<")
+            position += 1
+    shown.append(source[position:])
+    return html.unescape("".join(shown))
+
+
+def markup_end(source: str, start: int) -> int:
+    """Where HTML's tokenizer ends the markup that starts at a `<`, or the `<` itself
+    where it starts none: a comment, a declaration, an instruction, or a tag."""
+    if source.startswith("<!--", start):
+        for empty in ("<!-->", "<!--->"):
+            if source.startswith(empty, start):
+                return start + len(empty)
+        ends = [
+            found + len(end)
+            for end in ("-->", "--!>")
+            if (found := source.find(end, start + 4)) >= 0
+        ]
+        return min(ends, default=len(source))
+    following = source[start + 1 : start + 2]
+    if following == "/":
+        second = source[start + 2 : start + 3]
+        if second.isascii() and second.isalpha():
+            return tag_end(source, start + 2)
+        if not second:
+            return start
+        if second == ">":
+            return start + 3
+    if following in ("!", "?", "/"):
+        closed = source.find(">", start + 2)
+        return closed + 1 if closed >= 0 else len(source)
+    if following.isascii() and following.isalpha():
+        return tag_end(source, start + 1)
+    return start
+
+
+def tag_end(source: str, position: int) -> int:
+    """Where a tag ends whose name starts at a position, by the states of HTML's
+    tokenizer: after its `>`, or at the end of the text, which drops the tag."""
+    state = "name"
+    for index in range(position, len(source)):
+        character = source[index]
+        if state in ('"', "'"):
+            state = "quoted" if character == state else state
+        elif character == ">":
+            return index + 1
+        elif state == "value":
+            if character not in SPACES:
+                state = character if character in "\"'" else "unquoted"
+        elif state == "unquoted":
+            state = "before" if character in SPACES else state
+        elif character in SPACES:
+            state = "after" if state in ("attribute", "after") else "before"
+        elif character == "/":
+            state = "before"
+        elif character == "=" and state in ("attribute", "after"):
+            state = "value"
+        elif state != "name":
+            state = "attribute"
+    return len(source)
