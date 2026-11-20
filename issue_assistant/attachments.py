@@ -230,9 +230,10 @@ def shown_links(text: str) -> str:
     image, and of none other."""
     spans, middle, end = html_parts(text)
     tags = ShownTags(text, spans)
-    shown = tags.part(0, min(middle, end), COMMENT_OR_TAG) + tags.part(
-        middle, end, TAG_OPENING
-    )
+    # A tag of the first part may hold the last `-->` in a quoted value, where it
+    # ends no comment: the second part starts where the reading of that tag ended.
+    first, reached = tags.part(0, min(middle, end), COMMENT_OR_TAG)
+    shown = first + tags.part(max(middle, reached), end, TAG_OPENING)[0]
     return Visible()(strip_definitions(shown)[0])
 
 
@@ -263,9 +264,11 @@ class ShownTags:
         self.rows = rows
         self.blocks: Blocks | None = None
 
-    def part(self, start: int, stop: int, openings: re.Pattern[str]) -> str:
+    def part(self, start: int, stop: int, openings: re.Pattern[str]) -> tuple[str, int]:
         """The part of the text from `start` to `stop`, with each tag read; with
-        COMMENT_OR_TAG, also without the HTML comments, which end in the part."""
+        COMMENT_OR_TAG, also without the HTML comments, which end in the part. And
+        where the reading ended: past `stop` when a tag that starts in the part
+        ends after it."""
         text, position = self.text, start
         pieces: list[str] = []
         while True:
@@ -292,7 +295,7 @@ class ShownTags:
             else:
                 position = row_end(text, opening)
         pieces.append(text[position:stop])
-        return "".join(pieces)
+        return "".join(pieces), max(position, stop)
 
     def next_span(self, before: int) -> tuple[int, int] | None:
         """The next tag over several rows that starts before `before`, or None."""

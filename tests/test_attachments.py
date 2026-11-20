@@ -212,6 +212,28 @@ def test_a_tag_counts_as_the_html_parser_of_github_reads_it():
         assert found(body) == [], body
 
 
+@pytest.mark.parametrize("place", PLACES)
+@pytest.mark.parametrize("before", ("", "<!-- a --> "))
+def test_a_comment_end_in_a_quoted_value_ends_no_tag(place, before):
+    """The last `-->` of a text, in a value, ends no comment: the rest of the tag
+    stays a tag, whose other attributes show nothing."""
+    hidden = (
+        f'<span title="-->" data-x="{LOG}">x</span>',
+        f'<span title="--> {LOG}">x</span>',
+        f'<img alt="-->" title="{LOG}" src="x.png">',
+    )
+    for tag in hidden:
+        body = before + place.format(tag)
+        assert found(body) == [], body
+    shown = (
+        f'<img title="-->" src="{LOG}">',
+        f'<span title="-->">x</span> [log]({LOG})',
+    )
+    for tag in shown:
+        body = before + place.format(tag)
+        assert found(body) == SHOWN_LOG, body
+
+
 def test_a_tag_that_github_shows_as_text_shows_its_address():
     """In fenced code, behind GitHub's filter of tags, and in a paragraph where it
     is no tag by the rules of CommonMark, as an autolink."""
