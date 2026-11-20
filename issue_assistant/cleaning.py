@@ -402,9 +402,7 @@ CONTAINER = re.compile(r"(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)))*[ \t]*
 LIST_MARK = re.compile(r"(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)")
 # A row that may open a fence, after the marks of quotes and list items and at any
 # indentation.
-FENCE_ROW = re.compile(
-    r"(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)))*+[ \t]*+(?:`{3,}(?!.*`)|~{3})"
-)
+FENCE_ROW = re.compile(rf"(?:[ \t]*{CONTAINER_MARK})*+[ \t]*+(?:`{{3,}}(?!.*`)|~{{3}})")
 QUOTE_MARK = re.compile(r" {0,3}>[ \t]?")
 # A row after which the next one starts a block of its own, where a definition can
 # begin: a heading, a fence, a rule or the line under a heading. More rows count
@@ -470,10 +468,22 @@ def shown_text(text: str) -> tuple[str, int]:
     that hides text. Where the HTML could have started a block, every row counts as
     the start of one, and no fence as code.
     """
-    return strip_definitions(strip_html(text), bool(HTML_BLOCK.search(text)))
+    shown = strip_html(text)
+    html = HTML_BLOCK.search(text)
+    return strip_definitions(
+        shown, None if html is None else html_row(text, shown, html)
+    )
 
 
-def strip_definitions(text: str, anywhere: bool = False) -> tuple[str, int]:
+def html_row(text: str, shown: str, html: re.Match[str]) -> int:
+    """The row of what strip_html left of a text, `shown`, from which HTML could
+    have started a block: the row of the match, where strip_html left the rows
+    before it as they were, and otherwise the first."""
+    before = strip_html(text[: html.start()])
+    return len(ROW_END.findall(before)) if shown.startswith(before) else 0
+
+
+def strip_definitions(text: str, html: int | None = None) -> tuple[str, int]:
     """The text without the link reference definitions and the footnotes without a
     reference that GitHub shows as nothing, outside code, with a note in the place
     of each; and their number.
@@ -482,8 +492,9 @@ def strip_definitions(text: str, anywhere: bool = False) -> tuple[str, int]:
     a heading, or with a quote or a list item. It can go on over the rows of its
     paragraph. A footnote can also interrupt a paragraph, and takes the rows of it
     and the indented ones after it. Fenced code outside quotes and list items is
-    code up to its end, or to the end of the text, as GitHub shows it. `anywhere`
-    counts every row as the start of a block and nothing as code. Where CommonMark
+    code up to its end, or to the end of the text, as GitHub shows it. `html` is the
+    row from which HTML could have started a block, or None: with it, every row
+    counts as the start of a block and nothing as code. Where CommonMark
     is hard to follow exactly, such as in an indented row, which may be code or
     belong to a list item, a row counts as one in which a definition can start: the
     safe side. One pattern finds the rows whose label reaches a `]:`, and only those
@@ -497,27 +508,35 @@ def strip_definitions(text: str, anywhere: bool = False) -> tuple[str, int]:
     parts = ROW_END.split(text)
     rows, ends = parts[::2], [*parts[1::2], ""]
     fence = fenced(rows)
+    anywhere = html is not None
     code = [False] * len(rows) if anywhere else fence
     # A reference counts only where GitHub surely shows it: not in code, in an
     # indented row, which may be code, in a definition or a footnote, after a
     # backslash or in the target of a link. A footnote without one goes: the safe
     # side. Taking a footnote out can let a definition after it start a block, so
     # the references are counted again until the rows found stay the same. Where
-    # the HTML could have started a block, it can hold any row after it, so none
-    # counts. A fence that `fenced` doesn't follow, in a quote, in a list item or
-    # indented further, may make code of every row after it, so no reference counts
-    # from there on.
-    unsure = (
-        0
-        if anywhere
-        else next(
-            (
-                index
-                for index, row in enumerate(rows)
-                if not fence[index] and FENCE_ROW.match(row)
-            ),
-            len(rows),
-        )
+    # the HTML could have started a block, it can hold any row from there on, so
+    # none counts there. A fence that `fenced` doesn't follow, in a quote, in a list
+    # item or indented further, may make code of every row after it, so no
+    # reference counts from there on either.
+    unsure = next(
+        (
+            index
+            for index, row in enumerate(rows)
+            if not fence[index] and FENCE_ROW.match(row)
+        ),
+        len(rows),
+    )
+    if html is not None:
+        unsure = min(unsure, html)
+    # The first row in a list item: above it, no list item holds a definition.
+    listed = next(
+        (
+            index
+            for index, row in enumerate(rows)
+            if LIST_MARK.search(row, 0, run(CONTAINER, row, 0))
+        ),
+        len(rows),
     )
     masked = LINK_TARGET.sub(blank, flat)
     shown = [
@@ -535,7 +554,7 @@ def strip_definitions(text: str, anywhere: bool = False) -> tuple[str, int]:
     hidden: set[int] = set()
     while True:
         referenced = {name for index, name in shown if index not in hidden}
-        removals, found = scan(rows, code, candidates, referenced, anywhere)
+        removals, found = scan(rows, code, candidates, referenced, anywhere, listed)
         if found <= hidden:
             break
         hidden |= found
@@ -554,6 +573,7 @@ def scan(
     candidates: list[int],
     referenced: set[str],
     anywhere: bool,
+    listed: int,
 ) -> tuple[list[tuple[int, int, str]], set[int]]:
     """The first row, the last row and the note of each definition, and of each
     footnote whose label isn't `referenced`, that starts on a candidate row; and
@@ -573,7 +593,7 @@ def scan(
             or opens(rows[index - 1], code[index - 1], depth)
             or bool(LIST_MARK.search(row, 0, prefix))
         )
-        hit = definition(rows, code, index, prefix, depth, starts)
+        hit = definition(rows, code, index, prefix, depth, starts, index >= listed)
         if not hit:
             continue
         found.update(range(index, hit[0] + 1))
@@ -624,7 +644,13 @@ def run(pattern: re.Pattern[str], row: str, position: int) -> int:
 
 
 def definition(
-    rows: list[str], code: list[bool], start: int, column: int, depth: int, starts: bool
+    rows: list[str],
+    code: list[bool],
+    start: int,
+    column: int,
+    depth: int,
+    starts: bool,
+    listed: bool,
 ) -> tuple[int, str, str] | None:
     """The last row, the note and, for a footnote, the label of the definition or
     the footnote whose `[` stands at `column` of row `start`, or None.
@@ -636,8 +662,9 @@ def definition(
     # How far the `[` stands in from the quotes, with the marks of the list items
     # and a tab as wide as it can be: as far as the text of a list item that holds
     # it, or a little further. A line under a heading indented less may be lazy.
+    # Where no list item is `listed` yet, none holds it, and no such line is lazy.
     inside = quoted(rows[start], depth)
-    indent = len(rows[start][inside[0] : column].replace("\t", " " * 4))
+    indent = len(rows[start][inside[0] : column].replace("\t", " " * 4)) * listed
 
     def follow(index: int) -> str | None:
         """Row `index` without its quote marks, if the paragraph goes on into it."""

@@ -3453,6 +3453,8 @@ HIDDEN_DEFINITIONS = [
     ("[^n]: Xyzzy-->0\n```\n[^n]", f"{FOOTNOTE}\n```\n[^n]"),
     ("<div>\n[^n]\n\n[^n]: Xyzzy", f"\n[^n]\n\n{FOOTNOTE}"),
     ("><!A[^n]\n[^n]: Xyzzy", f"><!A[^n]\n{FOOTNOTE}"),
+    # A line under a heading that is lazy in a list item above goes on with it.
+    ('- a\n\n  [x]:\n=\n"Xyzzy"', f"- a\n\n  {LINK}"),
 ]
 
 
@@ -3501,12 +3503,28 @@ SHOWN_DEFINITIONS = [
     '- [x]:\n-\n"t"',
     # A backslash before a tab escapes nothing, and text follows the destination.
     "[0]:\\\t0",
+    # Outside a list item, an indented line under a heading isn't lazy.
+    " [x]:\n=",
+    ">  [x]:\n> =",
 ]
 
 
 @pytest.mark.parametrize("text", SHOWN_DEFINITIONS)
 def test_what_github_shows_of_a_definition_stays(text):
     assert assistant.shown_text(text) == (text, 0)
+
+
+def test_a_reference_above_the_first_row_of_html_counts():
+    """GitHub shows the footnote of a reference above a picture (2026-11-20)."""
+    text = "See[^1]\n\n<img src=x>\n\n[^1]: The log"
+    assert assistant.shown_text(text) == ("See[^1]\n\n\n\n[^1]: The log", 0)
+
+
+def test_no_reference_counts_where_a_comment_hides_the_first_row_of_html():
+    """Where strip_html takes rows out above the first row in which HTML could start
+    a block, that row isn't known, and no reference counts: the safe side."""
+    text = "See[^1] <!-- a\n<div>\n-->\n\n[^1]: The log"
+    assert assistant.shown_text(text) == (f"See[^1] \n\n{FOOTNOTE}", 1)
 
 
 def test_a_footnote_that_only_another_footnote_refers_to_goes():
