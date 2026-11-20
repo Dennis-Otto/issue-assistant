@@ -219,6 +219,7 @@ SLOW_TEXTS = {
     "fences that open no code": "``` a`\n<div\n" * 5_000,
     "tags in rows of a block": "<div>\n" + "x <span\n" * 8_000,
     "values with the other quote": '<a t="' + "<a t='" * 10_000,
+    "blank rows in a tag of HTML blocks": "<?\n<v" + "\n" * 64_000 + "'='",
 }
 
 
@@ -236,13 +237,14 @@ def test_no_text_makes_reading_an_issue_slow(text):
         assert fast(0.5, function, *args), function.__name__
 
 
-# The slowest texts of SLOW_TEXTS as a piece, how often it comes and the end after
-# them: each is read in time linear in its length.
+# The slowest texts of SLOW_TEXTS as the start, a piece, how often it comes and the
+# end after them: each is read in time linear in its length.
 GROWING = {
-    "blocks after tags without their end": ("<div\nx\n\n", 7_000, ""),
-    "values that end after HTML blocks": ('<a>\n\n<a b="c"\n\n', 4_000, '<a b="'),
-    "HTML blocks between blank rows": ("<a>\n\n", 13_000, "x <!--"),
-    "fenced code of tags": ("```\n<div\na\n```\n", 4_000, ""),
+    "blocks after tags without their end": ("", "<div\nx\n\n", 7_000, ""),
+    "values that end after HTML blocks": ("", '<a>\n\n<a b="c"\n\n', 4_000, '<a b="'),
+    "HTML blocks between blank rows": ("", "<a>\n\n", 13_000, "x <!--"),
+    "fenced code of tags": ("", "```\n<div\na\n```\n", 4_000, ""),
+    "blank rows in a tag of HTML blocks": ("<?\n<v", "\n", 64_000, "'='"),
 }
 
 
@@ -258,21 +260,23 @@ def processor_time(calls, function, *args):
     return min(times)
 
 
-@pytest.mark.parametrize(("piece", "count", "end"), GROWING.values(), ids=GROWING)
-def test_twice_the_text_takes_about_twice_the_time(piece, count, end):
+@pytest.mark.parametrize(
+    ("start", "piece", "count", "end"), GROWING.values(), ids=GROWING
+)
+def test_twice_the_text_takes_about_twice_the_time(start, piece, count, end):
     """Twice the text takes less than three times the processor time. Each try
     reads the half four times and the whole twice, so that both sides take about
     as long, many times what the clock of a processor tells apart (1/64 second on
     Windows)."""
-    assert piece * count + end in SLOW_TEXTS.values()
+    assert start + piece * count + end in SLOW_TEXTS.values()
 
     def reading(calls, text):
         issue = make_issue(body=text)
         comments = [make_comment(number, "reporter", text, 0) for number in (1, 2, 3)]
         return processor_time(calls, assistant.render_issue, issue, comments)
 
-    halves = reading(4, piece * (count // 2) + end)
-    wholes = reading(2, piece * count + end)
+    halves = reading(4, start + piece * (count // 2) + end)
+    wholes = reading(2, start + piece * count + end)
     assert wholes < 3 / 2 * halves
 
 
@@ -342,6 +346,14 @@ COMMONMARK_BLOCK_TAGS = [
     "track",
     "ul",
 ]
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
+def test_a_tag_over_blank_rows_of_a_block_ends_after_its_value(newline):
+    # GitHub shows only "x" (checked with `gh api markdown`): the tag over the blank
+    # rows ends at its `>`, with every line break between.
+    text = newline.join(["<?", "<v", "", "b='c'>", "x"])
+    assert assistant.strip_html(text) == newline.join(["<?", "", "x"])
 
 
 def test_each_block_tag_of_commonmark_and_no_other_starts_a_block_without_its_end():

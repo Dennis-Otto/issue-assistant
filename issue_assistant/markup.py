@@ -448,6 +448,16 @@ def row_end(text: str, position: int) -> int:
     return found.start() if found else len(text)
 
 
+def row_before(text: str, start: int, position: int) -> int:
+    """Where the last row ends, before its line break, that ends between `start`, the
+    end of a row, and a position on a later row or the same; `start` where none
+    does."""
+    found = max(text.rfind("\n", start, position), text.rfind("\r", start, position))
+    if found > start and text.startswith("\r\n", found - 1):
+        return found - 1
+    return max(found, start)
+
+
 def code(marks: str) -> bool:
     """Whether the text of a row after the marks of its quotes, without a list mark,
     is indented code: by four columns or more before the first `>`, or after the
@@ -722,6 +732,13 @@ def held_tag_end(
                 return names.end() + 1
             if names.end() == rows.region:
                 stop = rows.region
+            else:
+                # Each row before the one of the quote or the `=` holds only
+                # names and leaves the tag as it was, and at the top of the text,
+                # where no list item needs an indentation, no row is outside the
+                # blocks: the reading goes on at that row, so that it reads the
+                # rows between once, not once for each of them.
+                stop = row_before(text, stop, names.end())
         # A row that starts at or after the end of the blocks is none of theirs.
         line = ROW_END.match(text, stop) if stop < rows.region else None
         if line is None or line.end() >= rows.region:
