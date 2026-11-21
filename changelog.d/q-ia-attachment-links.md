@@ -1,3 +1,0 @@
-### Bug fixes
-
-- A file that the reporter attaches reaches the AI only where GitHub shows a link or an image for it: in the text, in a Markdown link or image, in the `href` of an `<a>` and in the `src` of an `<img>`, such as the one that GitHub inserts for an image with a size. An address in any other attribute of a tag, such as `title`, `alt` or `data-…`, which GitHub's page shows no link for, no longer counts as an attachment, and neither does a value with a space around it, an invisible character, or the second of two attributes of a name, which GitHub drops. A tag that GitHub shows as text, such as an autolink `<https://…>` outside an HTML block or a tag in fenced code, still counts with its address.
