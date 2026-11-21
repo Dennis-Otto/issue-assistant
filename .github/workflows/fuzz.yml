@@ -3,17 +3,15 @@ name: Fuzzing
 # Coverage-guided fuzzing with Atheris of every target in fuzz/: a minute each in
 # every pull request that changes the code, the targets or the tools, and every week
 # 25 minutes shared by all targets, so the job ends within its timeout however many
-# targets there are. Not after a merge, which gives main the tree that its pull
-# request fuzzed. A finding fails the run, with the input that caused it in the log.
+# targets there are. Its check reports on every pull request and is required, so a
+# pull request that changes what the targets read merges only once they passed for
+# its last commit; any other one passes in seconds, without fuzzing (1074). A
+# finding fails the run, with the input that caused it in the log.
 # https://github.com/Dennis-Otto/repo-blueprint
 
 on:
+  # Without a path filter: a required check that a filter leaves out never reports.
   pull_request:
-    paths:
-      - "**/*.py"
-      - fuzz/**
-      - "**/requirements*.txt"
-      - .github/workflows/fuzz.yml
   schedule:
     - cron: "39 3 * * 2"
   workflow_dispatch:
@@ -46,7 +44,43 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The merge of a pull request into main, and main as its first parent.
+          fetch-depth: 2
+      # The files that the targets read: the code, the targets, the tools of every
+      # requirements*.txt, whose lock files change the code that runs, and this
+      # workflow. git diff sees every changed file, where the paths of GitHub look at
+      # the first 300 only, and lists the old name of a file that a rename moved.
+      - name: Look for a change that the fuzzing reads
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          shopt -s nullglob
+          targets=(fuzz/fuzz_*.py)
+          reads=(':(glob)**/*.py' ':(glob)fuzz/**' ':(glob)**/requirements*.txt'
+            .github/workflows/fuzz.yml)
+          fuzz=true
+          if [ "${#targets[@]}" -eq 0 ]; then
+            fuzz=false
+            reason="The repository has no target in fuzz/ to fuzz."
+          elif [ "$EVENT" = pull_request ]; then
+            changed=$(git -c core.quotePath=false diff --name-only HEAD^1 HEAD -- "${reads[@]}")
+            if [ -z "$changed" ]; then
+              fuzz=false
+              reason="The pull request changes nothing that the fuzzing reads."
+            else
+              echo "::group::The changed files that the fuzzing reads"
+              echo "$changed"
+              echo "::endgroup::"
+            fi
+          fi
+          if [ "$fuzz" = false ]; then
+            echo "$reason"
+            echo "$reason" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "fuzz=$fuzz" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: steps.changes.outputs.fuzz == 'true'
         timeout-minutes: 5
         with:
           # Atheris supports Python 3.12.
@@ -56,6 +90,7 @@ jobs:
       # key of the lock file: pre-built ones download faster than a cache restores
       # them.
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        if: steps.changes.outputs.fuzz == 'true'
         timeout-minutes: 5
         with:
           # renovate: datasource=pypi depName=uv
@@ -64,9 +99,11 @@ jobs:
           prune-cache: true
           cache-dependency-glob: requirements-fuzz.txt
       - name: Install the hash-pinned Atheris
+        if: steps.changes.outputs.fuzz == 'true'
         timeout-minutes: 5
         run: uv pip install --system --require-hashes -r requirements-fuzz.txt
       - name: Fuzz every target
+        if: steps.changes.outputs.fuzz == 'true'
         env:
           # The weekly budget is shared by every target, a pull request gives each one
           # a minute: the job's timeout of 30 minutes covers the setup as well.

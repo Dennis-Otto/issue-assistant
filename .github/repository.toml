@@ -117,6 +117,9 @@ patterns_allowed = [
 required_checks = [
   "check (github-action)",
   "action",
+  # The fuzzing of every target, which passes in seconds when the pull request
+  # changes nothing that the targets read.
+  "fuzz",
   # Every linter, the workflows, the licenses, the Markdown, the issue assistant
   # and the sign-off of every commit, in one job.
   "lint",
