@@ -814,6 +814,103 @@ def test_the_rows_read_in_bulk_read_as_one_at_a_time(text):
         assert assistant.html_parts(text) == bulk
 
 
+# Rows of HTML blocks, and what passes for one: a footnote may hold a `<` in its label
+# before the tag of its row.
+BLOCK_ROWS = st.one_of(
+    TAG_ROWS,
+    HTML_TEXT,
+    st.lists(
+        st.sampled_from(["[^<a]: <div", "[^a]: ", "- ", "> ", "  ", "\t", "<", "x"]),
+        max_size=12,
+    ).map("".join),
+)
+
+
+@hypothesis.example("[^<a]: <div\n\n> - <p\n<")
+@given(BLOCK_ROWS)
+def test_a_row_without_a_tag_start_starts_no_block_as_before(text):
+    """HTML_ROW passes over a row without a `<` at once; without that look ahead,
+    it finds the same rows, with the same marks and kinds."""
+    pattern = markup.HTML_ROW.pattern
+    assert markup.HOLDS_A_TAG_START in pattern
+    earlier = re.compile(pattern.replace(markup.HOLDS_A_TAG_START, "", 1))
+
+    def rows(found):
+        return [(row.span(), row.span("marks"), row.lastgroup) for row in found]
+
+    assert rows(markup.HTML_ROW.finditer(text)) == rows(earlier.finditer(text))
+
+
+class EarlierBlocks:
+    """Blocks.holding as it read up to 2026-11-21: a block made for each row that may
+    start one, of which the latest of each kind is kept until it ends."""
+
+    def __init__(self, text, fenced):
+        rows = markup.HtmlRows(text)
+        self.found, self.lists = rows.found(), rows.lists()
+        self.blocks = markup.Blocks(text, rows)
+        self.fences = markup.Fences(text, rows) if fenced else None
+        self.index, self.latest = 0, {}
+
+    def holding(self, position):
+        while (
+            self.index < len(self.found) and self.found[self.index].start() <= position
+        ):
+            row = self.found[self.index]
+            self.index += 1
+            marks = row["marks"]
+            if (row.start() >= self.lists or not marks or not markup.code(marks)) and (
+                self.fences is None or not self.fences.holds(row.start())
+            ):
+                kind = row.lastgroup
+                key = (
+                    kind
+                    if kind == "comment" or kind in markup.HTML_ENDS
+                    else min(marks.count(">"), len(markup.BLANK_ROWS) - 1)
+                )
+                self.latest[key] = markup.Block(row, self.latest.get(key))
+        for key, block in list(self.latest.items()):
+            if self.blocks.end(block.row) <= position:
+                del self.latest[key]
+        return list(self.latest.values())
+
+
+def chains(blocks):
+    """Each block as the start of its row and of the rows of the blocks before it."""
+    found = []
+    for block in blocks:
+        starts = []
+        while block is not None:
+            starts.append(block.row.start())
+            block = block.earlier
+        found.append(starts)
+    return found
+
+
+@hypothesis.example(
+    ("<div\n<div\n\n<a>\n> <p\n\n<!--\n<p\n\n<?", [0, 0, 5, 30, 31]), False
+)
+@hypothesis.example(("```\n<div\n```\n<div\n<p\n\n<a>", [4, 13, 18, 25]), True)
+@given(
+    BLOCK_ROWS.flatmap(
+        lambda text: st.tuples(
+            st.just(text), st.lists(st.integers(0, len(text)), max_size=8).map(sorted)
+        )
+    ),
+    st.booleans(),
+)
+def test_the_blocks_that_hold_a_position_are_as_before(case, fenced):
+    """Blocks.holding, which makes no block of a kind whose last block has ended,
+    finds the same blocks, each within the same blocks before it, in the same order,
+    as when it made a block for each row."""
+    text, positions = case
+    rows = markup.HtmlRows(text)
+    blocks = markup.Blocks(text, rows, markup.Fences(text, rows) if fenced else None)
+    earlier = EarlierBlocks(text, fenced)
+    for position in positions:
+        assert chains(blocks.holding(position)) == chains(earlier.holding(position))
+
+
 # Pieces of a text that would pass for the structure of issue.md: a heading of the
 # script, a fence, and what could hide or split one.
 STRUCTURE = st.lists(

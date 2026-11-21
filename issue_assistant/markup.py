@@ -66,8 +66,12 @@ def caseless(letters: str) -> str:
     )
 
 
+# Every kind starts with a `<`, after marks without a line break: a row without one,
+# such as a blank row, fails at once, before its marks are read.
+HOLDS_A_TAG_START = r"(?=[^\r\n<]*+<)"
 HTML_ROW = re.compile(
-    rf"{ROW_START}(?P<marks>(?:[ \t]*+(?:{CONTAINER_MARK}|{FOOTNOTE_MARK}))*+[ \t]*+)"
+    rf"{ROW_START}{HOLDS_A_TAG_START}"
+    rf"(?P<marks>(?:[ \t]*+(?:{CONTAINER_MARK}|{FOOTNOTE_MARK}))*+[ \t]*+)"
     rf"(?:(?P<raw><(?:{caseless('pre|script|style|textarea')})(?=[\s>]|{ROW_ENDS}))"
     rf"|(?P<comment><!--)|(?P<processing><\?)|(?P<cdata><!\[{caseless('cdata')}\[)"
     rf"|(?P<declaration><!{LETTER})"
@@ -326,14 +330,17 @@ class Searches:
         return found.start() if found else len(self.text)
 
     def __call__(self, pattern: re.Pattern[str], position: int) -> re.Match[str] | None:
-        start, match = self.found.get(pattern, (len(self.text) + 1, None))
-        if (
-            not start
-            <= position
-            <= (len(self.text) if match is None else match.start())
-        ):
-            match = pattern.search(self.text, position)
-            self.found[pattern] = (position, match)
+        found = self.found.get(pattern)
+        if found is not None:
+            start, match = found
+            if (
+                start
+                <= position
+                <= (len(self.text) if match is None else match.start())
+            ):
+                return match
+        match = pattern.search(self.text, position)
+        self.found[pattern] = (position, match)
         return match
 
 
@@ -349,6 +356,7 @@ class HtmlRows:
         self.listed: int | None = None
         self.ends: dict[int, int] = {}
         self.fences: bool | None = None
+        self.judged: list[str | int | None] = []
 
     def fenced(self) -> bool:
         """Whether a row may open fenced code: only where three backticks or three
@@ -371,20 +379,43 @@ class HtmlRows:
             self.listed = listed.start() if listed else len(self.text)
         return self.listed
 
+    def judge(self, stop: int) -> None:
+        """Reads the kind of the block that each row up to the index `stop` starts, by
+        which a later block of its kind may be a row of it: a comment's or that of a
+        kind with an end of its own, or for a tag the depth of its quotes, of which
+        the cleaning tells as many apart as BLANK_ROWS; None for a row indented as
+        code, where no list item could hold it, which starts none. Each row is read
+        once for the text, not once for each reading of its blocks, and at least
+        twice as many as the last time: the readings ask for a few rows at a time.
+        The kinds are in `judged`."""
+        kinds, found, starts = self.judged, self.found(), self.starts
+        for index in range(len(kinds), min(len(found), max(stop, 2 * len(kinds)))):
+            row = found[index]
+            # A row without marks is never indented code, and only for one that is,
+            # the start of the first list item is looked for.
+            marks = row["marks"]
+            if marks and code(marks) and starts[index] < self.lists():
+                kinds.append(None)
+                continue
+            kind = row.lastgroup
+            kinds.append(
+                kind
+                if kind == "comment" or kind in HTML_ENDS
+                else min(marks.count(">"), len(BLANK_ROWS) - 1)
+            )
+
 
 class Block:
     """An HTML block that may hold a position: the row that starts it, and the
     latest earlier block of its kind, of which it may be a row if that one hadn't
     ended where it starts."""
 
-    __slots__ = ("earlier", "end", "measures", "row")
+    __slots__ = ("earlier", "measures", "row")
 
     def __init__(self, row: re.Match[str], earlier: Block | None) -> None:
         self.row = row
         self.earlier = earlier
         self.measures: tuple[int, int, str] | None = None
-        # Where it ends, once Blocks.holding has asked.
-        self.end: int | None = None
 
     def chain(self, blocks: Blocks) -> list[Block] | None:
         """It and the earlier blocks that it may be a row of, or None where there are
@@ -434,11 +465,12 @@ class Blocks:
 
     def __init__(self, text: str, rows: HtmlRows, fences: Fences | None = None) -> None:
         self.text = text
-        self.fences = fences
-        self.found, self.lists = rows.found(), rows.lists()
+        self.rows, self.fences = rows, fences
+        self.found = rows.found()
         self.starts = rows.starts
         self.index = 0
-        self.latest: dict[str | int | None, Block] = {}
+        # The last block of each kind that may hold a later position, and its end.
+        self.latest: dict[str | int | None, tuple[Block, int]] = {}
         self.ends = rows.ends
         # The searches for the ends of earlier blocks, which read back, keep apart
         # from those that read on.
@@ -450,33 +482,48 @@ class Blocks:
         if index < len(starts) and starts[index] <= position:
             # The rows that start up to the position, found in one search.
             stop = bisect_right(starts, position, index)
-            found, lists, fences = self.found, self.lists, self.fences
-            for next_row in range(index, stop):
-                row, start = found[next_row], starts[next_row]
-                # A row without marks is never indented code.
-                marks = row["marks"]
-                if (start >= lists or not marks or not code(marks)) and (
-                    fences is None or not fences.holds(start)
-                ):
-                    kind = row.lastgroup
-                    key: str | int | None = (
-                        kind
-                        if kind == "comment" or kind in HTML_ENDS
-                        else min(marks.count(">"), len(BLANK_ROWS) - 1)
-                    )
-                    latest[key] = Block(row, latest.get(key))
             self.index = stop
-        elif not latest:
-            return []  # No block has started since the last one ended.
-        ended = []
-        for key, block in latest.items():
-            if block.end is None:
-                block.end = self.end(block.row)
-            if block.end <= position:
-                ended.append(key)
-        for key in ended:
+            found, fences, kinds = self.found, self.fences, self.rows.judged
+            if len(kinds) < stop:
+                self.rows.judge(stop)
+            started = [
+                next_row
+                for next_row in range(index, stop)
+                if kinds[next_row] is not None
+                and (fences is None or not fences.holds(starts[next_row]))
+            ]
+            # Of the blocks of a kind that start before the position, the last ends
+            # last: where it ends before the position, so do the others, and the
+            # latest of the kind goes, without a block made for any of them. Each
+            # block of a kind that goes on is made, within the one before it, and
+            # the last stays the latest, with its end.
+            ends = self.ends
+            for key, last in {kinds[row]: row for row in started}.items():
+                end = ends.get(starts[last])
+                if end is None and isinstance(key, int):
+                    # The block of a tag, which a blank row of its depth ends, as
+                    # block_end finds it, without reading the row again.
+                    blank = self.search(BLANK_ROWS[key], found[last].end())
+                    end = ends[starts[last]] = (
+                        blank.start() if blank else len(self.text)
+                    )
+                elif end is None:
+                    end = self.end(found[last])
+                if end <= position:
+                    latest.pop(key, None)
+                    continue
+                earlier = latest[key][0] if key in latest else None
+                for next_row in started:
+                    if kinds[next_row] == key:
+                        earlier = Block(found[next_row], earlier)
+                assert earlier is not None  # The last of the kind is among them.
+                latest[key] = (earlier, end)
+        if not latest:
+            return []  # No block holds the position, nor has since the last ended.
+        # Each block of `latest` is the last of its kind, whose end is known.
+        for key in [key for key, (_, end) in latest.items() if end <= position]:
             del latest[key]
-        return list(latest.values())
+        return [block for block, _ in latest.values()]
 
     def following(self) -> int | None:
         """Where the next block may start."""
@@ -672,7 +719,7 @@ class Fences:
         right there."""
         text, fence = self.text, row["fence"]
         marked = LIST_MARKS.search(row["marks"])
-        listed = row.start() >= self.blocks.lists or marked is not None
+        listed = marked is not None or row.start() >= self.blocks.rows.lists()
         prefix = (
             LIST_MARKS.sub(lambda mark: " " * len(mark[0]), row["marks"])
             + row["indent"]
@@ -768,15 +815,16 @@ def long_tags(
     if closes < 0 and not rows.found():
         return [], len(text)  # No tag of a paragraph ends, and no block holds one.
     fences = Fences(text, rows)
-    blocks = Blocks(text, rows, fences)
+    # Without fenced code, no row is one of code, and the markup of a row goes by a
+    # pattern, everywhere.
+    fenced = rows.fenced()
+    blocks = Blocks(text, rows, fences if fenced else None)
     paragraphs, search = Paragraphs(text), Searches(text)
     spans: list[tuple[int, int]] = []
     position = 0
     # Where the HTML ends that CommonMark hands on from a paragraph for the last
     # instruction or section of CDATA, whose rest GitHub's HTML parser reads.
     raw = -1
-    # Without fenced code, the markup of a row goes by a pattern, everywhere.
-    fenced = rows.fenced()
     starts = TAG_START if fenced else TAG_START_PAST_MARKUP
     while (found := starts.search(text, position)) is not None:
         start, position = found.start(), found.end()
@@ -789,7 +837,7 @@ def long_tags(
                 return spans, row_or_position(text, start)
             position = max(closed, position)
             continue
-        if FILTERED_TAG.match(text, start) or fences.holds(start):
+        if FILTERED_TAG.match(text, start) or (fenced and fences.holds(start)):
             continue
         markup = found.lastgroup == "markup"
         if markup and (ends := row_markup_end(text, start, search)) is not None:
