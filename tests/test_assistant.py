@@ -287,17 +287,25 @@ def processor_time(calls, function, *args):
 def test_twice_the_text_takes_about_twice_the_time(start, piece, count, end):
     """Twice the text takes less than three times the processor time. Each try
     reads the half four times and the whole twice, so that both sides take about
-    as long, many times what the clock of a processor tells apart (1/64 second on
-    Windows)."""
+    as long, and a text that is read fast that many times more, so that each side
+    takes at least a quarter of a second: many times what the clock of a processor
+    tells apart (1/64 second on Windows)."""
     assert start + piece * count + end in SLOW_TEXTS.values()
 
-    def reading(calls, text):
+    def read(text):
         issue = make_issue(body=text)
         comments = [make_comment(number, "reporter", text, 0) for number in (1, 2, 3)]
-        return processor_time(calls, assistant.render_issue, issue, comments)
+        return lambda: assistant.render_issue(issue, comments)
 
-    halves = reading(4, start + piece * (count // 2) + end)
-    wholes = reading(2, start + piece * count + end)
+    half, whole = (
+        read(start + piece * (count // 2) + end),
+        read(start + piece * count + end),
+    )
+    began = time.perf_counter()
+    half()
+    rounds = max(1, round(0.25 / 4 / (time.perf_counter() - began)))
+    halves = processor_time(4 * rounds, half)
+    wholes = processor_time(2 * rounds, whole)
     assert wholes < 3 / 2 * halves
 
 
