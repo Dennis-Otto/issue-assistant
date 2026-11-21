@@ -159,6 +159,13 @@ def test_an_address_counts_only_where_github_shows_a_link_or_an_image():
     assert found(f'<span foo="{log}">x</span>') == []
     assert found(f"See [log.txt]({log})") == [(log, 0, "text", "log.txt")]
     assert found(f"<!-- {log} -->x") == []
+    # The title of a link or an image shows only on hover, with no link to it.
+    hover = f"{FILES}/123/hover.txt"
+    assert found(f'Crash [log](https://example.com/a "{hover}")') == []
+    assert found(f'Crash ![x](https://example.com/p.png "{hover}")') == []
+    assert found(f"[log.txt]({log} '{hover}')") == [(log, 0, "text", "log.txt")]
+    # An address in the description of an image still counts, as before.
+    assert [item[0] for item in found(f"![{log}](https://example.com/p.png)")] == [log]
 
 
 # Where GitHub shows no link of an address (`gh api -X POST markdown` with the mode

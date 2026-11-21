@@ -269,6 +269,24 @@ SLOW_TEXTS = {
     # Read twice, as written and as its HTML leaves it, in 36 KiB: the processor
     # time of 64 KiB under the measure of the coverage came near the limit.
     "math over comments": "$x <!--\n-->\\y$ " * 2_400,
+    # The titles of links and images, which the page shows only on hover, are read
+    # once (2026-11-21). Those that are each a link, in 32 KiB: as for the math over
+    # comments, 64 KiB under the measure of the coverage came near the limit.
+    "titles of links": '[a](b "c") ' * 3_000,
+    "titles that never end": '[a](b "' * 9_300,
+    "titles over rows": '[a](b "c\n' * 7_200,
+    "titles of images": '![a](b "c") ' * 2_700,
+    "brackets before a title": "[" * 32_000 + '](b "c")',
+    "link targets that never close": "](b " * 16_000,
+    "titles in quotes": '> [a](b "\n' * 6_500,
+    "titles in descriptions of images": '![a [b](c "d")](e "f")' * 1_500,
+    "titles in parentheses that never end": "[a](b (" * 9_000,
+    "titles over the rows of list items": '- [a](b "\nc\n' * 5_000,
+    "backslashes in titles": '[a](b "' + "\\" * 60_000 + '")',
+    "titles over two rows": '[a](b\n"c")\n' * 2_700,
+    "backticks around titles": '`[a](b "c")` ' * 2_500,
+    "brackets that close before titles": '[a] [b](c "d") ' * 2_000,
+    "titles in indented code": '    [a](b "c")\n' * 2_000,
 }
 
 
@@ -320,6 +338,10 @@ GROWING = {
     "math over comments": ("", "$x <!--\n-->\\y$ ", 2_400, ""),
     "delimiter rows": ("", "|-|\n", 16_000, ""),
     "drawn fences in quotes": ("", "> ```mermaid\n> %% x\n", 3_000, ""),
+    "titles of links": ("", '[a](b "c") ', 3_000, ""),
+    "titles over two rows": ("", '[a](b\n"c")\n', 2_700, ""),
+    "brackets that close before titles": ("", '[a] [b](c "d") ', 2_000, ""),
+    "backticks around titles": ("", '`[a](b "c")` ', 2_500, ""),
 }
 
 
@@ -3802,6 +3824,9 @@ def test_the_search_for_older_issues_takes_the_telling_words(title, body, terms)
 # GitHub shows it: the search for older issues, the language, the area and the
 # denial of a fix. Each case is a text, what GitHub shows of it (`gh api markdown`
 # with mode gfm, 2026-11-21), and what the assistant decides from both.
+LOGGED = "Crash [log](https://example.com/a)"
+
+
 @pytest.mark.parametrize(
     ("title", "body", "github_shows", "terms"),
     [
@@ -3859,6 +3884,24 @@ def test_the_search_for_older_issues_takes_the_telling_words(title, body, terms)
             "It fails with ZebraError.",
             ["zebraerror", "crash"],
         ),
+        # The title of a link or an image shows only on hover; the description of
+        # an image stays.
+        *(
+            ("Crash", f"Crash [log](https://example.com/a{title}", LOGGED, ["crash"])
+            for title in (' "ZebraError")', " 'ZebraError')", " (ZebraError))")
+        ),
+        (
+            "Crash",
+            'Crash [log](https://example.com/a\n"ZebraError")',
+            LOGGED,
+            ["crash"],
+        ),
+        (
+            "Crash",
+            'Crash ![QuokkaError](https://example.com/p.png "ZebraError")',
+            "Crash ![QuokkaError](https://example.com/p.png)",
+            ["quokkaerror", "crash"],
+        ),
     ],
 )
 def test_the_search_takes_the_names_of_errors_that_github_shows(
@@ -3904,6 +3947,13 @@ ENGLISH_INSTRUCTION = (
             None,
             f"### What happened?\n\n{GERMAN_REPORT}\n",
             "de",
+        ),
+        # The title of a link shows only on hover.
+        (
+            f'It crashes on start. [log](https://example.com/a "{GERMAN_REPORT}")',
+            None,
+            "It crashes on start. [log](https://example.com/a)",
+            "en",
         ),
     ],
 )
@@ -4067,6 +4117,9 @@ def test_the_area_is_the_one_that_github_shows(config):
     ]
     unanswered = f"### Area\n\n_No response_\n{HIDDEN_AREA}"
     assert assistant.form_labels(make_issue(body=unanswered), config) == []
+    # GitHub shows the area `Live card, x`: the title of the link only on hover.
+    titled = '### Area\n\nLive card, [x](https://example.com/a "a, X01 game, b")\n'
+    assert assistant.form_labels(make_issue(body=titled), config) == ["area: cards"]
 
 
 def test_a_new_issue_gets_the_labels_and_owners_of_the_area_that_github_shows(config):
@@ -4521,6 +4574,78 @@ def test_the_engine_reads_no_text_that_github_hides(config, root, text):
         assert "Xyzzy" not in path.read_text("utf-8")
 
 
+# A text with the titles of a link, of an image and of a link in the description of
+# an image, which GitHub shows only on hover (`gh api markdown`, 2026-11-21), and
+# what the engine reads of it: the links without their titles, and the description
+# of the image, which the page shows where the picture fails.
+TITLED = (
+    'Card is empty. [log](https://x.example/a "Xyzzy one")\n'
+    "![Quokka](https://x.example/p.png 'Xyzzy two') and "
+    "![a [b](https://x.example/b (Xyzzy three))](https://x.example/q.png)"
+)
+TITLED_SHOWN = (
+    "Card is empty. [log](https://x.example/a)\n"
+    "![Quokka](https://x.example/p.png) and "
+    "![a [b](https://x.example/b)](https://x.example/q.png)"
+)
+
+
+def test_the_engine_reads_no_title_of_a_link(config, root, capsys):
+    """issue.md, discussion.md, the texts of other issues and the excerpts hold no
+    title of a link or an image, and the log counts the titles that went."""
+    issue = make_issue(body=TITLED)
+    github = FakeGitHub(config, issue, make_issue(7, body=TITLED))
+    github.comment_store[12] = [make_comment(2, "reporter", TITLED, 0.5)]
+    github.discussion_store = [
+        {
+            "number": 104,
+            "title": "Help wanted",
+            "category": {"name": "Q&A"},
+            "isAnswered": True,
+            "closed": False,
+            "body": TITLED,
+            "answer": {"body": TITLED},
+        }
+    ]
+    assistant.write_context(github, 12, "triage", config)
+    folder = root / ".issue-assistant"
+    assert (folder / "issue.md").read_text("utf-8").count(TITLED_SHOWN) == 2
+    assert TITLED_SHOWN in (folder / "issues" / "7.md").read_text("utf-8")
+    other_issue = json.loads((folder / "issues.jsonl").read_text("utf-8"))
+    assert other_issue["excerpt"] == TITLED_SHOWN
+    discussion = json.loads((folder / "discussions.jsonl").read_text("utf-8"))
+    assert (discussion["excerpt"], discussion["answer"]) == (TITLED_SHOWN,) * 2
+    for path in folder.rglob("*.*"):
+        assert "Xyzzy" not in path.read_text("utf-8")
+    assert capsys.readouterr().out == (
+        "::notice::Removed 15 titles of links and images, which GitHub shows only on "
+        "hover, from the texts for the engine: 6 from issue #12, 9 from other "
+        "issues and discussions.\n"
+    )
+    discussion = {
+        "number": 104,
+        "title": "Help wanted",
+        "user": {"login": "reporter"},
+        "category": {"name": "Q&A"},
+        "state": "open",
+        "answered": False,
+        "created_at": "2026-11-21T00:00:00Z",
+        "body": TITLED,
+        "comments": [
+            {
+                "user": {"login": "reporter"},
+                "created_at": "2026-11-21T00:00:00Z",
+                "body": TITLED,
+                "replies": [],
+            }
+        ],
+        "comment_count": 1,
+    }
+    rendered = assistant.render_discussion(discussion)
+    assert rendered.count(TITLED_SHOWN) == 2
+    assert "Xyzzy" not in rendered
+
+
 # Texts with HTML that GitHub shows as nothing, and the excerpt of each: a comment
 # that no `-->` ends hides the rest of the text below the heading of a form as well,
 # and the attributes of a tag are never text.
@@ -4626,7 +4751,8 @@ HIDDEN_DEFINITIONS = [
     ("Card \\[^n]\n\n[^n]: Xyzzy", f"Card \\[^n]\n\n{FOOTNOTE}"),
     ("Card\n\n    code [^n]\n\n[^n]: Xyzzy", f"Card\n\n    code [^n]\n\n{FOOTNOTE}"),
     ("Card [a](x[^n])\n\n[^n]: Xyzzy", f"Card [a](x[^n])\n\n{FOOTNOTE}"),
-    ('Card [a](x "[^n]")\n\n[^n]: Xyzzy', f'Card [a](x "[^n]")\n\n{FOOTNOTE}'),
+    # The title of a link goes, and its reference with it.
+    ('Card [a](x "[^n]")\n\n[^n]: Xyzzy', f"Card [a](x)\n\n{FOOTNOTE}"),
     ("Card\n\n[^n]: [^n] Xyzzy", f"Card\n\n{FOOTNOTE}"),
     # A line of `=` or `-` without the mark of its quote, or less indented than its
     # list item, is lazy: it underlines no heading and the definition goes on over
@@ -4663,6 +4789,120 @@ HIDDEN_DEFINITIONS = [
     # A line under a heading that is lazy in a list item above goes on with it.
     ('- a\n\n  [x]:\n=\n"Xyzzy"', f"- a\n\n  {LINK}"),
 ]
+
+
+# Titles of links and images, which GitHub shows only on hover, and what the engine
+# reads of each text: the title goes with the blanks before it, and the rest stays
+# (`gh api markdown` with mode gfm, 2026-11-21). An angle destination and an
+# autolink go with the HTML, as before.
+URL = "https://example.com/a"
+HIDDEN_TITLES = [
+    # Blanks and one line break before the `)`, also in a quote.
+    *((f'[a]({URL} "Xyzzy"{blank})', f"[a]({URL}{blank})") for blank in "\t\f\v\n"),
+    (f'> [a]({URL} "Xyzzy"\n> )', f"> [a]({URL}\n> )"),
+    # One line break before the title, as CR, LF or CRLF, and after `<>` a form
+    # feed.
+    *((f'[a]({URL}{end}"Xyzzy")', f"[a]({URL})") for end in ("\n", "\r", "\r\n")),
+    (f'[a](<{URL}>\f"Xyzzy")', "[a]()"),
+    # A code span or a tag that starts inside the title changes nothing.
+    (f'[a]({URL} "Xyzzy `y") z` w', f"[a]({URL}) z` w"),
+    (f'[a]({URL} "Xyzzy <span> y") z', f"[a]({URL}) z"),
+    # Escapes in a title, in each of its kinds.
+    (f"[a]({URL} 'Xyzzy \\' y')", f"[a]({URL})"),
+    (f"[a]({URL} (Xyzzy \\) y))", f"[a]({URL})"),
+    # Rows that don't end the title: lazy rows of a quote and a list item, an
+    # indented row, `2. y`, `#y`, `+y`, `<span>` and the rows of its quote.
+    (f'> [a]({URL} "Xyzzy\ny")', f"> [a]({URL})"),
+    (f'- [a]({URL} "Xyzzy\ny")', f"- [a]({URL})"),
+    (f'> [a]({URL} "Xyzzy\n> y")', f"> [a]({URL})"),
+    *(
+        (f'[a]({URL} "Xyzzy\n{row}")', f"[a]({URL})")
+        for row in ("    y", "2. y", "#y", "+y", "<span>y")
+    ),
+    # The text of a link around an autolink, and of one in the description of an
+    # image, whose description stays.
+    (f'[<https://example.com/x>]({URL} "Xyzzy")', f"[]({URL})"),
+    (
+        f'![a [b]({URL} "Xyzzy")](https://example.com/p.png)',
+        f"![a [b]({URL})](https://example.com/p.png)",
+    ),
+    (f'![Quokka]({URL} "Xyzzy")', f"![Quokka]({URL})"),
+    # The text of a link may hold a `]` in code, in a tag, after a backslash, and
+    # brackets in pairs.
+    (f'[a `]` b]({URL} "Xyzzy")', f"[a `]` b]({URL})"),
+    (f'[a <span title="]">b</span> c]({URL} "Xyzzy")', f"[a b c]({URL})"),
+    (f'[a \\] b]({URL} "Xyzzy")', f"[a \\] b]({URL})"),
+    (f'[a [b] c]({URL} "Xyzzy")', f"[a [b] c]({URL})"),
+    # A `]` after an escaped backslash, after links without a title, and after a
+    # `]` that closes nothing.
+    (f'[a\\\\]({URL} "Xyzzy")', f"[a\\\\]({URL})"),
+    (f'[a](u) [b](v) [c]({URL} "Xyzzy")', f"[a](u) [b](v) [c]({URL})"),
+    (f'a] [b]({URL} "Xyzzy")', f"a] [b]({URL})"),
+    # A `[` in a title opens no link: GitHub shows the rest as text.
+    (f'[a]({URL} "[Xyzzy") b](v "x")', f'[a]({URL}) b](v "x")'),
+    # In a cell of a table, a heading and a footnote.
+    (f'| a |\n|---|\n| [b]({URL} "Xyzzy") |', f"| a |\n|---|\n| [b]({URL}) |"),
+    (f'# [a]({URL} "Xyzzy")', f"# [a]({URL})"),
+    (f'a[^1]\n\n[^1]: [b]({URL} "Xyzzy")', f"a[^1]\n\n[^1]: [b]({URL})"),
+    # Code spans: one over rows, one on each of two rows, and one in the
+    # destination of the link, which its first `](` holds.
+    (f'`a\nb `c [d]({URL} "Xyzzy")', f"`a\nb `c [d]({URL})"),
+    (
+        f'`x` [a]({URL} "Xyzzy")\n\n`y` [b]({URL} "Xyzzy")',
+        f"`x` [a]({URL})\n\n`y` [b]({URL})",
+    ),
+    (f'[a](x`]({URL}` "Xyzzy") `b`', f"[a](x`]({URL}`) `b`"),
+    # A link around a link is text on GitHub, and its title goes as well: the
+    # price of the safe side.
+    (f'[x [b]({URL} "Xyzzy") y]({URL} "Xyzzy")', f"[x [b]({URL}) y]({URL})"),
+]
+# Texts that GitHub shows as they are written, with the title as text: in code, in
+# a code span that starts before the `](`, after an escaped bracket, after a
+# destination with a space or with text before the `)`, over a blank row or a row
+# that ends the paragraph, in an HTML block, in a heading over rows, in indented
+# code, and without a `[` that the `]` closes. A quote right after the destination,
+# or a form feed, a vertical tab or a no-break space before it, is part of the
+# destination, which the engine reads as before.
+SHOWN_TITLES = [
+    f'`[a]({URL} "Xyzzy")`',
+    f'[a `b]({URL} "Xyzzy` y")',
+    f'\\[a]({URL} "Xyzzy")',
+    f'[a]({URL} b "Xyzzy")',
+    f'[a]({URL} "Xyzzy" y)',
+    *(
+        f'[a]({URL} "Xyzzy\n{row}y")'
+        for row in ("\n", "> ", "- ", "1. ", "# ", "***\n", "===\n", "---\n", "```\n")
+    ),
+    f'> [a]({URL} "Xyzzy\n>\n> y")',
+    f'# [a]({URL} "Xyzzy\ny")',
+    f'    [a]({URL} "Xyzzy")',
+    f'[a] b]({URL} "Xyzzy")',
+    f'[a]b]({URL} "Xyzzy")',
+    f'[a\\]({URL} "Xyzzy")',
+    f'[a\n\nb]({URL} "Xyzzy")',
+    f'[a `b]({URL} "Xyzzy") c]({URL} "Xyzzy")`',
+    *(f'[a]({URL}{before}"Xyzzy")' for before in ("", "\f", "\v", " ")),
+]
+
+
+@pytest.mark.parametrize(("text", "shown"), HIDDEN_TITLES)
+def test_the_engine_reads_no_title_that_github_shows_only_on_hover(text, shown):
+    """The title of an inline link or image goes with the blanks before it, and no
+    note takes its place: the link stays a link with its text and destination."""
+    assert assistant.shown_text(text) == (shown, 0)
+    assert assistant.as_shown(text) == shown
+    visible = assistant.Visible()
+    assert "Xyzzy" not in assistant.rendered_text(text, visible)
+    assert (visible.titles, visible.structures) == (text.count("Xyzzy"), 0)
+
+
+@pytest.mark.parametrize("text", SHOWN_TITLES)
+def test_a_title_that_github_shows_as_text_stays(text):
+    assert assistant.shown_text(text) == (text, 0)
+    assert assistant.structures_of(text).titles == []
+    # In an HTML block, the HTML goes, and the text in it stays.
+    for block in (f"<div>{text}</div>", f"{text}\n<div>\ny"):
+        assert "Xyzzy" in assistant.shown_text(block)[0]
 
 
 @pytest.mark.parametrize(("text", "shown"), HIDDEN_DEFINITIONS)
@@ -10655,6 +10895,12 @@ def test_words_against_a_closing_keyword_deny_the_fix(text, denies):
     [
         ("Fixes #12\n\n<!-- This does not close #12 -->", "Fixes #12", False),
         ("Fixes #12 <span title='not fixes #12'>x</span>", "Fixes #12 x", False),
+        # The title of a link shows only on hover.
+        (
+            'Fixes #12 and [notes](https://example.com/a "This does not fix #12")',
+            "Fixes #12 and [notes](https://example.com/a)",
+            False,
+        ),
         # Words against the fix that GitHub shows still deny it.
         (
             "This does not close #12 <!-- or does it -->",
