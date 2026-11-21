@@ -4,6 +4,23 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.15.2](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.1...v1.15.2) (2026-11-21)
+
+
+### Bug fixes
+
+* **attachments:** count an address only where GitHub shows a link or an image ([#489](https://github.com/Dennis-Otto/issue-assistant/issues/489)) ([af6214d](https://github.com/Dennis-Otto/issue-assistant/commit/af6214d116888e215165ee952d6ec0cc9ef017a0))
+* **context:** read instructions, declarations and CDATA as GitHub does ([#490](https://github.com/Dennis-Otto/issue-assistant/issues/490)) ([006ea2f](https://github.com/Dennis-Otto/issue-assistant/commit/006ea2f981070ca52d6ae2cee992cbba16edbaf9))
+* **context:** read tables, drawings and math as GitHub shows them ([#499](https://github.com/Dennis-Otto/issue-assistant/issues/499)) ([76fb48e](https://github.com/Dennis-Otto/issue-assistant/commit/76fb48e6451b8d23e907c21fa3319d06aee89215))
+* **context:** read videos, ruby brackets and quoted values with a &gt; as GitHub does ([#497](https://github.com/Dennis-Otto/issue-assistant/issues/497)) ([441e786](https://github.com/Dennis-Otto/issue-assistant/commit/441e786e28fbe05f73bea971b232b100a758c64b))
+* decide the search, the language and the area from what GitHub shows ([#496](https://github.com/Dennis-Otto/issue-assistant/issues/496)) ([855dc83](https://github.com/Dennis-Otto/issue-assistant/commit/855dc83a297d4ff0b0ef3745ef8e32ed5af9434b))
+
+
+### Performance
+
+* **context:** judge each row of an HTML block once, and make no block of a kind that has ended ([#495](https://github.com/Dennis-Otto/issue-assistant/issues/495)) ([1fa190c](https://github.com/Dennis-Otto/issue-assistant/commit/1fa190cdfb91a52314af826d2150dbd8e349064f))
+* **context:** read in bulk what a row can't change, and each long row once ([#493](https://github.com/Dennis-Otto/issue-assistant/issues/493)) ([2ce7adc](https://github.com/Dennis-Otto/issue-assistant/commit/2ce7adcdb5269ba45497cf56d55dedf0022960ac))
+
 ## [1.15.1](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.0...v1.15.1) (2026-11-20)
 
 ### Bug fixes
