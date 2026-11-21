@@ -55,14 +55,18 @@ jobs:
   # The engine's action runs for a schedule or a run by hand, not for a push. So a
   # push starts the canary as a run by hand, which the job's token may start, and
   # waits for its result. GitHub mails a failed run to the person who started it:
-  # a run that the job's token started has none, but the push run fails with it,
-  # and its mail reaches the person who merged.
+  # a run that the job's token started has none, but the push run fails with a
+  # canary that failed, and its mail reaches the person who merged. When GitHub
+  # doesn't show the run or its result in time, the push run ends with a warning
+  # instead, and the release gate and the daily look of Bot health still see it.
   start:
     name: Start the canary for the new main and wait for its result
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
-    # Long enough for a canary that waits for an earlier one, then its own jobs.
-    timeout-minutes: 70
+    # Above all that runs in it: the 5 minutes of the steps before, the minute of the
+    # lookup, the 70 minutes of the wait with its reads, and the 2 minutes of the
+    # last step. So the wait ends on its own, and the timeout never ends it.
+    timeout-minutes: 85
     permissions:
       actions: write
     steps:
@@ -165,7 +169,7 @@ jobs:
           url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run"
           echo "The canary runs at $url"
           # GitHub may answer 404 for the run that it just named in the first moments
-          # after the dispatch, and gh run watch fails on that: ask for about a minute.
+          # after the dispatch: ask for about a minute.
           lookups=12
           until gh api --header "$API_VERSION_HEADER" "repos/$GH_REPO/actions/runs/$run" --silent; do
             if ((--lookups == 0)); then
@@ -174,8 +178,33 @@ jobs:
             fi
             sleep 5
           done
-          gh run watch "$run" --interval 60 > /dev/null
-          conclusion=$(gh run view "$run" --json conclusion --jq .conclusion)
+          # GitHub may still answer 404 for the run a second after it showed it, as on
+          # 21 November 2026, when gh run watch gave up on its first error. So every
+          # read that fails is tried again, like a run that isn't completed, and every
+          # pause counts against one budget: twice the jobs of the canary, for one that
+          # waits for an earlier canary and then runs its own. A dispatch is never sent
+          # again, since every canary calls the AI engine.
+          waited=0
+          budget=$((70 * 60))
+          while true; do
+            if answer=$(gh api --header "$API_VERSION_HEADER" "repos/$GH_REPO/actions/runs/$run" \
+              --jq '.status + " " + (.conclusion // "")'); then
+              if [[ "$answer" == "completed "* ]]; then
+                break
+              fi
+              last="the canary's run was still not completed"
+            else
+              last="the last read of the canary's run failed"
+            fi
+            if ((waited >= budget)); then
+              # The release gate and the daily look of Bot health see the run itself.
+              echo "::warning::After $((budget / 60)) minutes, $last; its result is at $url"
+              exit 0
+            fi
+            sleep 60
+            waited=$((waited + 60))
+          done
+          conclusion="${answer#completed }"
           case "$conclusion" in
             success) echo "The canary passed." ;;
             # A later push's canary took the place of this waiting one.
