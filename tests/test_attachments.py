@@ -294,12 +294,17 @@ def test_a_file_that_a_video_or_the_brackets_of_ruby_hold_counts_as_none():
         f"<ruby>x<rp>{LOG}</rp><rt>y</rt></ruby>",
         f"a <RP>[log]({LOG})</RP>",
         f"x\n\n<video>\n\n[log]({LOG})",
+        # An indented end tag in a list item ends nothing, and the footnotes go
+        # with the rest of the text.
+        f"<video>\n\nx\n- item\n\n  </video>\n\n[log]({LOG})",
+        f"See [^1].\n\n[^1]: [log]({LOG})\n\n<video>\n\nx",
     )
     for body in hidden:
         assert found(body) == [], body
     shown = (
         f"<video>x</video> [log]({LOG})",
         f"<video>\n\nx\n\n</video>\n\n[log]({LOG})",
+        f"<video>\n\nx\n\n- item\n\n</video>\n\n[log]({LOG})",
         f"`<video>` [log]({LOG})",
         f"Logs:\n\n[home-assistant.log]({LOG})",
     )

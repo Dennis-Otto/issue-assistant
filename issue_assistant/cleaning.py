@@ -513,10 +513,17 @@ def strip_definitions(
         if found <= hidden:
             break
         hidden |= found
-    # The last row with text, from which on GitHub hides the rest where `cut` says so.
-    last = next(
-        (index for index in reversed(range(len(rows))) if rows[index].strip()), 0
-    )
+    # The row on which GitHub hides the rest where `cut` says so: the last one. Where
+    # the rest starts at the beginning of that row, no definition or footnote holds
+    # it, even right after one; where it starts after blanks, the row may go on an
+    # indented footnote, and the last row with text counts.
+    last = len(rows) - 1
+    if rows[last] and not rows[last].strip():
+        last = next(
+            (index for index in reversed(range(last)) if rows[index].strip()), 0
+        )
+    elif not rows[last]:
+        last = -1
     if cut and last not in found:
         # GitHub hides the rest of the text from a position outside every
         # definition and footnote on, and with it the footnotes, which it shows

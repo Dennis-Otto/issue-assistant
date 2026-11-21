@@ -23,6 +23,7 @@ from .markup import (
     HTML_TAG,
     HTML_TAG_AND_MARKUP,
     INLINE_TAG,
+    LIST_ROW,
     MARKUP_REST,
     ROW_MARKUP_REST,
     TAG_NAME,
@@ -431,6 +432,7 @@ class Hidden:
         element.limit = limit
         if rows is not None and rows.top:
             element.top, element.fence = True, self.content(FENCE_RUN, opened)
+            element.listed = self.content(LIST_ROW, opened)
         if name == "rp" and self.in_ruby(start):
             element.ruby, element.following = True, text.find("<", opened)
         return element
@@ -574,7 +576,9 @@ class Element:
     REST in a list item, or None in an HTML block. Its end tags count only before
     `limit`, the end of its row, its block at the top of the text, its paragraph or
     its heading, or a backtick before them; after it, at the top of the text, only
-    one alone on a row, before `fence`. `ruby` says whether a `ruby` holds it, and
+    one alone on a row, before `fence`, and not indented after `listed`, the first
+    row of a list item in its content, which may hold it: GitHub's HTML parser
+    ignores it in a list item. `ruby` says whether a `ruby` holds it, and
     `following` where the first `<` of its content stands."""
 
     __slots__ = (
@@ -583,6 +587,7 @@ class Element:
         "fence",
         "following",
         "limit",
+        "listed",
         "name",
         "opened",
         "ruby",
@@ -598,6 +603,7 @@ class Element:
         self.container = container
         self.depth, self.limit, self.top = 1, opened, False
         self.fence: re.Match[str] | None = None
+        self.listed: re.Match[str] | None = None
         self.ruby, self.following = False, -1
 
     def meets(self, found: re.Match[str]) -> int | None:
@@ -633,6 +639,11 @@ class Element:
                 not self.top
                 or name != self.name
                 or (self.fence is not None and self.fence.start() < at)
+                or (
+                    self.listed is not None
+                    and self.listed.start() < at
+                    and text[at - 1] not in "\r\n"
+                )
                 or not own_row(text, at, close.end())
             )
         ):

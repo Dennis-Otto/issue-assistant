@@ -2113,6 +2113,75 @@
     "zqz"
    ],
    "github hides": []
+  },
+  {
+   "text": "<video>\n\nzqa\n- zqb\n\n  </video>\n\nzqc",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<video>\n\nzqa\n\n1. zqb\n\n   </video>\n\nzqc",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<video>\n\nzqa\n\n- zqb\n\n</video>\n\nzqc",
+   "github shows": [
+    "zqc"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "See [^1].\n\n[^1]: zqa\n\n<video>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "See [^1].\n\n[^1]: zqa\n\n<div>\n<!--\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "1. <video>zqa\n2. zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "- zqc\n\n  <video>zqa\n\n- zqb",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
   }
  ]
 }

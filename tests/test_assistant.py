@@ -916,6 +916,10 @@ def test_what_github_shows_of_a_tag_stays(text, shown):
         # An end tag alone on its row after a blank row, of any line break.
         ("<video>\r\n\r\nhidden\r\n\r\n</video>\r\n\r\nshown", "\r\n\r\nshown"),
         ("<video>\n\nhidden\n  \n</video>\n\nshown", "\n\nshown"),
+        # After a list item, only an end tag that no list item holds ends it.
+        ("<video>\n\nhidden\n- item\n\n  </video>\n\nafter", ""),
+        ("<video>\n\nhidden\n\n1. item\n\n   </video>\n\nafter", ""),
+        ("<video>\n\nhidden\n\n- item\n\n</video>\n\nafter", "\n\nafter"),
         # A start tag whose quoted value never ends hides the rest of the text.
         ('<div>\n<video title="\n\nhidden', "\n"),
     ],
@@ -933,6 +937,9 @@ def test_where_github_hides_the_rest_it_hides_the_footnotes():
     2026-11-21)."""
     for start in ("<video>", "<div>\n<!--"):
         text = f"[^1]: hidden\n\nSee [^1].\n\n{start}\n\nhidden"
+        assert "hidden" not in assistant.shown_text(text)[0]
+        # Also where the footnote is the last block before the rest.
+        text = f"See [^1].\n\n[^1]: hidden\n\n{start}\n\nhidden"
         assert "hidden" not in assistant.shown_text(text)[0]
     # A comment in a footnote hides only what follows it.
     text = "x[^1]\n\n[^1]: a\n\n    <div> <!--\n    hidden"
