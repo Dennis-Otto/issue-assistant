@@ -28,9 +28,9 @@ The code is the package `issue_assistant/`, of the standard library alone ([deci
 | `issue_assistant/fixture.py` | An issue or a discussion from a file, for the canary, the Workflow test and for trying a prompt |
 | `issue_assistant/rest_shapes.py` | GraphQL's answers in the form of the REST API: issues, authors, comments and discussions |
 | `issue_assistant/github.py` | The class `GitHub`: every request, through `gh` |
-| `issue_assistant/issues.py` | Who wrote an issue or a comment, the marks of the assistant, the issue forms and the commands in a comment |
 | `issue_assistant/markup.py` | The HTML of an issue as GitHub reads it: `strip_html`, the blocks and paragraphs that hold a tag, a comment, an instruction, a declaration or a section of CDATA, and how far each reaches |
 | `issue_assistant/cleaning.py` | The cleaning of what the engine wrote: `sanitize`, `plain` and the links to files |
+| `issue_assistant/issues.py` | Who wrote an issue or a comment, the marks of the assistant, the issue forms and the commands in a comment |
 | `issue_assistant/answer.py` | The schema of the answer, `validate` and `parse_answer` |
 | `issue_assistant/comments.py` | The `render_*` functions of the comments, in the language of the reporter |
 | `issue_assistant/applying.py` | `apply_answer`: the labels, the comment, the owners and the first answer to a discussion |

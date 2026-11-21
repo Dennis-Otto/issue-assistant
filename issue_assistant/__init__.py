@@ -30,9 +30,9 @@ from .settings import *
 from .fixture import *
 from .rest_shapes import *
 from .github import *
-from .issues import *
 from .markup import *
 from .cleaning import *
+from .issues import *
 from .answer import *
 from .comments import *
 from .applying import *

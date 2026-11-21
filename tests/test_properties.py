@@ -714,6 +714,87 @@ def test_no_text_before_a_ticked_box_hides_it(body):
     assert assistant.box_ticked(body + BOX.format("X"), CONFIG)
 
 
+# Texts of what the assistant decides from: names of errors, words of a language,
+# answers of the area and of the box, closing keywords with words against them, and
+# the HTML, the link reference definitions and the code that GitHub hides or shows.
+DECIDED = st.lists(
+    st.sampled_from(
+        [
+            "It fails with ImportError.",
+            "Die Karte bleibt leer, und ich weiß nicht, warum das so ist.",
+            "Fixes #12",
+            "This does not close #12",
+            "### Area\n\n",
+            "Live card",
+            "X01 game, Other",
+            "_No response_",
+            "### Automated analysis\n\n",
+            "- [X] Keep the AI out.",
+            "- [ ] Keep the AI out.",
+            "<!--",
+            "-->",
+            "<!-- ZebraError -->",
+            "<?x QuokkaError ?>",
+            '<span data-x="YakError">',
+            "</span>",
+            "[a]: https://example.com/GnuError",
+            "<details>",
+            "</details>",
+            "```",
+            "`TypeError`",
+            "> ",
+            "- ",
+            "\n",
+            "\n\n",
+            " ",
+        ]
+    ),
+    max_size=30,
+).map("".join)
+AREAS = dataclasses.replace(
+    CONFIG,
+    labels=(
+        assistant.Label("area: cards", "c5def5", "Cards", "area", ("Live card",)),
+        assistant.Label("area: games", "c5def5", "Games", "area", ("X01 game",)),
+    ),
+)
+
+
+def decisions(body):
+    """What the assistant decides from a text of the reporter, as the body of an
+    issue and as a comment of its reporter."""
+    issue = make_issue(body=body)
+    return (
+        assistant.search_terms(issue),
+        assistant.issue_language(issue, [make_comment(1, "reporter", body, 0)]),
+        assistant.form_labels(issue, AREAS),
+        assistant.denies_closing(body, REPOSITORY, 12),
+    )
+
+
+@hypothesis.example("Fixes #12\n\n<!-- This does not close #12 -->")
+@hypothesis.example("### Area\n\nLive card\n<!--\n### Area\n\nX01 game\n\n### x\n-->")
+@given(DECIDED)
+def test_what_the_assistant_decides_it_decides_from_what_github_shows(body):
+    """The search, the language, the area and the denial of a fix are the same for
+    a text and for the text that GitHub shows of it; the box of the opt-out is
+    ticked whenever it is ticked in either of them.
+
+    Only where GitHub shows that text as it is: what is left of a text can read as
+    other Markdown, as a `<!--` that a tag before it kept inside a paragraph, which
+    starts a block on a row of its own."""
+    shown = assistant.as_shown(body)
+    hypothesis.assume(assistant.as_shown(shown) == shown)
+    assert decisions(body) == decisions(shown)
+    ticked = [
+        assistant.TICKED_BOX.search(answer) is not None
+        for label, answer in assistant.form_parts(body)[1]
+        if label == CONFIG.opt_out_field
+    ]
+    if any(ticked) or assistant.box_ticked(shown, CONFIG):
+        assert assistant.box_ticked(body, CONFIG)
+
+
 HTML_TEXT = st.lists(
     st.sampled_from(
         ["<", ">", "/", "!", "-", "a", "B", " ", "\n", "<!--", "-->", "<b>", "</i>"]
