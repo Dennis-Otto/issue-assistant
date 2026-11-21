@@ -94,3 +94,18 @@
 "Owner/Server#0"
 "owner/server_#"
 "owner/app_#"
+
+# Math, and the fenced code that GitHub draws or reads as math.
+"$"
+"$$"
+"\\$"
+"&#36;"
+"&dollar;"
+"$`"
+"`$"
+"```math"
+"~~~math"
+"```mermaid"
+"~~~geojson"
+"&#109;ermaid"
+"%%"

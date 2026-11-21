@@ -12,7 +12,7 @@ from typing import Any
 
 from .answer import schema_json
 from .attachments import keep_shown, render_attachments
-from .cleaning import one_line, shown_text
+from .cleaning import one_line, shown_counts
 from .constants import BOT, DISCUSSION_MODES, MAX_TEXT, MODES
 from .engines import ENGINES, IN_PROMPT, STRICT, Engine, engine_named
 from .errors import AssistantError, GitHubError
@@ -91,8 +91,9 @@ def shown(text: str, visible: Visible) -> str:
     the comment and show the text after it to the engine. The definitions go before
     the invisible characters, which can keep a row from being one on GitHub.
     """
-    text, definitions = shown_text(text)
+    text, definitions, structures = shown_counts(text)
     visible.definitions += definitions
+    visible.structures += structures
     return visible(text)
 
 
@@ -477,23 +478,7 @@ def write_context(
                 )
                 write_siblings(github, folder, issue, config, elsewhere)
     subject = "discussion" if mode in DISCUSSION_MODES else "issue"
-    if own.definitions or elsewhere.definitions:
-        command(
-            "notice",
-            f"Removed {own.definitions + elsewhere.definitions} link reference "
-            "definitions and footnotes without a reference, which GitHub shows as "
-            f"nothing, from the texts for the engine: {own.definitions} from "
-            f"{subject} #{number}, {elsewhere.definitions} from other issues and "
-            "discussions.",
-        )
-    if own.removed or elsewhere.removed:
-        command(
-            "notice",
-            f"Removed {own.removed + elsewhere.removed} invisible characters, such "
-            "as zero-width spaces and Unicode tags, from the texts for the engine: "
-            f"{own.removed} from {subject} #{number}, {elsewhere.removed} from other "
-            "issues and discussions.",
-        )
+    notice_removed(own, elsewhere, f"{subject} #{number}")
     values = {
         "repository": config.repository,
         "issue": str(number),
@@ -540,6 +525,38 @@ def write_context(
         "schema": schema,
         "engine-args": engine_arguments(engine, rules),
     }
+
+
+# What each notice of notice_removed counts, after how many and before where.
+REMOVED = (
+    (
+        "definitions",
+        "link reference definitions and footnotes without a reference, which "
+        "GitHub shows as nothing,",
+    ),
+    (
+        "structures",
+        "parts that GitHub doesn't show as they are written, cells beyond the "
+        "header of a table, the source of a drawing and math,",
+    ),
+    (
+        "removed",
+        "invisible characters, such as zero-width spaces and Unicode tags,",
+    ),
+)
+
+
+def notice_removed(own: Visible, elsewhere: Visible, where: str) -> None:
+    """A notice in the log of each kind of text that went from the texts for the
+    engine: from the issue or discussion `where`, and from the others."""
+    for name, what in REMOVED:
+        mine, others = getattr(own, name), getattr(elsewhere, name)
+        if mine or others:
+            command(
+                "notice",
+                f"Removed {mine + others} {what} from the texts for the engine: "
+                f"{mine} from {where}, {others} from other issues and discussions.",
+            )
 
 
 def toml_string(text: str) -> str:

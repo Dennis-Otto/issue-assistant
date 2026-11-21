@@ -1,12 +1,12 @@
 flowchart TB
   accTitle: How the apply job cleans a text of the AI
-  accDescr: The job removes control characters and trims the text, then splits it into code and the text around the code. Code stays as it is. In the text, the removals repeat until nothing changes; then the rewrites, which remove nothing, turn what GitHub would link elsewhere into code and keep allowed links and checked issue numbers. Last, characters that could start code, a link, an image or a fence are escaped, and the parts go into the comment in a way that keeps code in code.
+  accDescr: The job removes control characters and trims the text, then splits it into code and the text around the code. Code stays as it is, but fenced code that GitHub would draw as a diagram, a map or a 3D model, or read as math, becomes code of the language text. In the text, the removals repeat until nothing changes; then the rewrites, which remove nothing, turn what GitHub would link elsewhere into code and keep allowed links and checked issue numbers. Last, characters that could start code, a link, an image or a fence are escaped, each dollar sign that could start or end math becomes code, and the parts go into the comment in a way that keeps code in code.
   answer(["a text of the<br>AI's answer"]) --> normal["control characters removed,<br>spaces trimmed"]
   normal --> split{"code? a fence at the<br>start of a line,<br>or a span"}
-  split -- "yes" --> code["stays as it is"]
+  split -- "yes" --> code["`stays as it is; a fence<br>of **mermaid** or **math**<br>becomes one of text`"]
   split -- "no" --> removals["`**removals**, until nothing<br>changes: HTML, images,<br>headings, foreign links`"]
   removals --> rewrites["`**rewrites**, which remove<br>nothing: mentions, e-mail,<br>commits and references<br>elsewhere become code`"]
-  rewrites --> escapes["`**escapes** of what could<br>start code, a link,<br>an image or a fence`"]
+  rewrites --> escapes["`**escapes** of what could<br>start code, a link,<br>an image or a fence;<br>dollar signs of math<br>in code`"]
   code --> comment["`**the comment**: list<br>items indented as a<br>whole, reasons on one line`"]
   escapes --> comment
   comment --> github[("GitHub")]

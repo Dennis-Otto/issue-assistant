@@ -88,3 +88,14 @@
 "\xe2\x80\x8b"
 "\x1d"
 "\x0d"
+
+# Math, and the fenced code that GitHub draws or reads as math.
+"$"
+"$$"
+"\\$"
+"&#36;"
+"```math"
+"~~~math"
+"```mermaid"
+"&#109;ermaid"
+"%%"

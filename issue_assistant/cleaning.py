@@ -24,7 +24,15 @@ from .patterns import (
     fenced,
 )
 from .settings import Config
-from .tags import shown_html, strip_html
+from .structures import (
+    DRAWN,
+    apart,
+    info_word,
+    math_between,
+    math_signs,
+    structures_of,
+)
+from .tags import shown_html, shown_spans, strip_html
 
 # Control characters other than tab and line break, which no comment needs: Python
 # takes some of them for spaces, which Markdown doesn't, so they could make the two
@@ -69,9 +77,11 @@ EMAIL = re.compile(
 COMMIT_REFERENCE = re.compile(
     r"(?<![\w.-])(?:[\w.-]+/)?[\w.-]+@[0-9a-f]{7}\w*", re.IGNORECASE
 )
-# Three tildes or more at the start of a line, which would start or end a fenced
-# block: text can't escape them with a backtick, as it does with the other fence.
-TILDE_FENCE = re.compile(r"^([ \t]*)(?=~~~)", re.MULTILINE)
+# Three tildes or more at the start of a line, also after the marks of quotes and
+# list items, which would start or end a fenced block: text can't escape them with
+# a backtick, as it does with the other fence, and GitHub would draw such a block of
+# the language `mermaid` or read one of `math` as math.
+TILDE_FENCE = re.compile(rf"^({CONTAINER.pattern})(?=~~~)", re.MULTILINE)
 # A hyphen next to a pipe or a colon, perhaps with spaces between. Each line of
 # hyphens with a pipe or a colon has one, such as `--|--` or `:-:`, the delimiter row
 # below the header of a table, and GitHub splits every row of a table at each pipe,
@@ -294,6 +304,12 @@ def clean_prose(
     if lines:
         text = TABLE_HYPHEN.sub(lambda m: f"{m[1] or ''}\\-", text)
         text = SETEXT_LINE.sub(lambda m: m[1] + underline(m.string, m.start()), text)
+    # No math: GitHub reads the escaped backslashes before it looks for math, and a
+    # dollar sign in a code span is none.
+    text = "".join(
+        keep("`$`") if index % 2 else piece
+        for index, piece in enumerate(math_signs(text, before, after))
+    )
     pieces = re.split(r"\0(\d+)\0", text)
     return joined(
         kept[int(piece)] if index % 2 else piece for index, piece in enumerate(pieces)
@@ -413,19 +429,91 @@ HTML_BLOCK = re.compile(
 
 
 def shown_text(text: str) -> tuple[str, int]:
-    """The text as GitHub shows it, without HTML, link reference definitions and
-    footnotes that nothing refers to, each of those with a note in its place; and
-    the number of definitions and footnotes that went.
+    """The text as GitHub shows it, as shown_counts reads it, and the number of
+    definitions and footnotes that went."""
+    shown, definitions, _ = shown_counts(text)
+    return shown, definitions
 
-    The definitions go after the HTML, so that taking one out can't end a comment
-    that hides text. Where the HTML could have started a block, every row counts as
-    the start of one, and no fence as code.
+
+def shown_counts(text: str) -> tuple[str, int, int]:
+    """The text as GitHub shows it, without HTML, link reference definitions and
+    footnotes that nothing refers to, and without the structures whose text GitHub
+    doesn't show as it is written: the cells of a table beyond its header, the
+    source of a drawing and math that can hide text. A note takes the place of each
+    but the HTML. Also the number of definitions and footnotes that went, and that
+    of the structures.
+
+    The HTML and the structures are both read from the text as it was written, and
+    what either takes out goes: taking out the cells first could take a `<!--` that
+    hides the rest out with them, and taking out the HTML first the pipe by which
+    GitHub drops a cell. The definitions go after both, so that taking one out
+    can't end a comment that hides text. Where the HTML could have started a block,
+    every row counts as the start of one, and no fence as code. Math is read in what
+    the HTML leaves as well, since a comment over rows can join two rows of it.
     """
-    shown, cut = shown_html(text)
+    found = structures_of(text)
+    hidden, joins = found.hidden(), found.dollars and "<" in text
+    if hidden or joins:
+        spans, cut = shown_spans(text)
+        hidden = apart(hidden + math_between(text, spans)) if joins else hidden
+        shown, count = cut_out(text, spans, hidden)
+    else:
+        (shown, cut), count = shown_html(text), 0
     html = HTML_BLOCK.search(text)
-    return strip_definitions(
+    shown, definitions = strip_definitions(
         shown, None if html is None else html_row(text, shown, html), cut
     )
+    return shown, definitions, count
+
+
+def cut_out(
+    text: str, spans: list[tuple[int, int]], hidden: list[tuple[int, int, str]]
+) -> tuple[str, int]:
+    """The spans of a text without the hidden ones, each with its note in its place
+    where it holds a part of the spans; and the number of those notes. Both lists
+    are in order and apart."""
+    pieces: list[str] = []
+    if len(spans) == 1:
+        # The whole text, or the part before the end that GitHub shows: each hidden
+        # span within it goes, in one pass.
+        first, last = spans[0]
+        position = first
+        inside = [
+            (max(start, first), min(end, last), note)
+            for start, end, note in hidden
+            if end > first and start < last
+        ]
+        for start, end, note in inside:
+            pieces += [text[position:start], note]
+            position = end
+        pieces.append(text[position:last])
+        return "".join(pieces), len(inside)
+    index = count = position = 0
+
+    def take(stop: int) -> bool:
+        """Adds the parts of the spans from `position` to `stop`; whether any."""
+        nonlocal index
+        took = False
+        while index < len(spans) and spans[index][0] < stop:
+            first, last = spans[index]
+            if min(last, stop) > max(first, position):
+                pieces.append(text[max(first, position) : min(last, stop)])
+                took = True
+            if last > stop:
+                break
+            index += 1
+        return took
+
+    for start, end, note in hidden:
+        take(start)
+        position, before = start, len(pieces)
+        if take(end):
+            del pieces[before:]
+            pieces.append(note)
+            count += 1
+        position = end
+    take(len(text))
+    return "".join(pieces), count
 
 
 def html_row(text: str, shown: str, html: re.Match[str]) -> int:
@@ -768,9 +856,11 @@ def joined(pieces: Iterable[str]) -> str:
 
 
 def sanitize(text: str, config: Config, numbers: Iterable[Checked] = ()) -> str:
-    """The engine's text without mentions, images, HTML, headings and foreign links.
+    """The engine's text without mentions, images, HTML, headings, foreign links and
+    math.
 
-    Code stays as it is; issue numbers, and references to issues of related
+    Code stays as it is, but for fenced code that GitHub would draw or read as math,
+    which shows as code of the language `text`; issue numbers, and references to issues of related
     repositories, stay links only when they were checked.
     """
     checked = set(numbers)
@@ -793,12 +883,26 @@ def sanitize(text: str, config: Config, numbers: Iterable[Checked] = ()) -> str:
 
     parts, last = [], 0
     for match in CODE.finditer(text):
-        parts += [prose(last, match.start()), match[0]]
+        parts += [prose(last, match.start()), plain_code(match)]
         last = match.end()
     parts.append(prose(last, len(text)))
     # Only the spaces and line breaks that the cleaning left at the ends, which
     # Markdown reads as such, too.
     return joined(parts).strip(" \t\n")
+
+
+def plain_code(code: re.Match[str]) -> str:
+    """Code of CODE as GitHub shows it: fenced code that it would draw, or whose
+    content it would read as math, with `text` as its language, so that each of its
+    rows, of which a drawing or math may show nothing, shows as it is."""
+    if code["fence"] is None:
+        return code[0]
+    start = code.end("fence")
+    end = code.string.index("\n", start)
+    word = info_word(code.string[start:end])
+    if word not in DRAWN and not word.startswith("math"):
+        return code[0]
+    return code[0][: start - code.start()] + "text" + code[0][end - code.start() :]
 
 
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")

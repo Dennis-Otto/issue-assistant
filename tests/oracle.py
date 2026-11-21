@@ -189,7 +189,59 @@ def problems(
         )
     if "\0" in markdown or "\r" in markdown:
         found.append("a NUL or carriage return")
+    return found + drawn_or_math(markdown)
+
+
+# The languages of fenced code that GitHub draws as a diagram, a map or a 3D model;
+# fenced code whose language starts with `math` is math (`gh api markdown` with a
+# repository as context, 2026-11-21).
+DRAWN = ("mermaid", "geojson", "topojson", "stl")
+
+
+def drawn_or_math(markdown: str) -> list[str]:
+    """The fenced code that GitHub would draw or read as math, and each pair of
+    dollar signs on a line of shown text that GitHub might read as math: one before
+    no blank, and a later one after no blank. GitHub reads fewer pairs as math; a
+    code span counts as text that is no blank, since `$` and code may form math. An
+    address that GitHub links holds no math."""
+    found = []
+    for token in PARSER.parse(markdown):
+        if token.type == "fence":
+            word = (token.info.split() or [""])[0]
+            if word in DRAWN or word.startswith("math"):
+                found.append(f"fenced code that GitHub draws: {token.info!r}")
+        elif token.type == "inline":
+            shown, index = "".join(math_text(c) for c in token.children or []), 0
+            while index < len(shown):
+                end = autolink(shown, index)
+                if end is None:
+                    index += 1
+                    continue
+                shown = shown[:index] + "u" * (end - index) + shown[end:]
+                index = end
+            for line in shown.split("\n"):
+                opened = False
+                for index, character in enumerate(line):
+                    if character != "$":
+                        continue
+                    if opened and line[index - 1] not in " \t":
+                        found.append(f"math in {line!r}")
+                        break
+                    after = line[index + 1 : index + 2]
+                    opened = opened or after not in ("", " ", "\t")
     return found
+
+
+def math_text(token: Token) -> str:
+    """What a part of a paragraph adds to the text in which GitHub looks for math:
+    the text that it shows, a mark for code, an image or HTML, a line break."""
+    if token.type in {"text", "text_special"}:
+        return token.content
+    if token.type in {"softbreak", "hardbreak"}:
+        return "\n"
+    if token.type in {"code_inline", "image", "html_inline"}:
+        return "c"
+    return ""
 
 
 def headings(markdown: str) -> list[str]:
@@ -522,8 +574,9 @@ def browser_text(markdown: str) -> str:
     parser makes of it, after GitHub's filter of tags, read by the rules of HTML for
     tags and comments, which show nothing of what they hold (`gh api markdown -f
     mode=gfm`, 2026-11-20). A tag runs over rows to its `>`, past a `>` in a quoted
-    value, and to the end of the text when none comes."""
-    source = FILTERED_TAG.sub(r"&lt;\1", PARSER.render(markdown))
+    value, and to the end of the text when none comes. A table shows no cell of a
+    row beyond the cells of its header."""
+    source = FILTERED_TAG.sub(r"&lt;\1", PARSER.render(without_extra_cells(markdown)))
     shown, position = [], 0
     while (start := source.find("<", position)) >= 0:
         shown.append(source[position:start])
@@ -533,6 +586,78 @@ def browser_text(markdown: str) -> str:
             position += 1
     shown.append(source[position:])
     return html.unescape("".join(shown))
+
+
+# The marks of quotes before a line, and what ends a table on GitHub after them: a
+# blank line, a heading, a list item, a quote, a fence, a rule, an HTML block that
+# can interrupt a paragraph and code indented by four spaces (`gh api markdown -f
+# mode=gfm`, 2026-11-21).
+QUOTE_MARKS = re.compile(r"(?:[ \t]*>)*")
+ENDS_TABLE = re.compile(
+    r"[ \t]*$| {0,3}(?:#{1,6}(?:[ \t]|$)|(?:[-+*]|[0-9]+[.)])(?:[ \t]|$)|>|```|~~~"
+    r"|(?:[*_-][ \t]*){3,}$|<(?:!--|\?|!|/?(?:div|p|pre|details|table)\b))"
+    r"|    ",
+    re.IGNORECASE,
+)
+
+
+def without_extra_cells(markdown: str) -> str:
+    """The Markdown without the cells of each row of a table beyond the cells of its
+    header, which GitHub drops: a paragraph whose line has as many cells as the
+    delimiter row below it is a table up to a line that ends it, or one in other
+    quotes. Each line is split at every `|` that comes right after no backslash."""
+    lines = markdown.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    for token in PARSER.parse("\n".join(lines)):
+        if token.type != "paragraph_open" or not token.map:
+            continue
+        first, last = token.map
+        for row in range(first + 1, last):
+            depth, delimiter = quoted(lines[row])
+            if not (
+                DELIMITER_ROW.fullmatch(delimiter)
+                and ("|" in delimiter or ":" in delimiter)
+            ):
+                continue
+            # A delimiter row in fewer quotes than its header goes on the paragraph
+            # of the quote: GitHub makes no table of it.
+            above, header = quoted(lines[row - 1])
+            count = len(pipes(header)) + 1
+            if above != depth or count != len(pipes(delimiter)) + 1:
+                break
+            for body in range(row + 1, last):
+                inner, rest = quoted(lines[body])
+                if inner != depth or ENDS_TABLE.match(rest):
+                    break
+                split = pipes(rest)
+                if len(split) >= count:
+                    cut = len(lines[body]) - len(rest) + split[count - 1]
+                    lines[body] = lines[body][:cut]
+            break
+    return "\n".join(lines)
+
+
+def quoted(line: str) -> tuple[int, str]:
+    """The depth of the quotes of a line, and the rest of it."""
+    marks = QUOTE_MARKS.match(line)
+    assert marks is not None
+    return marks[0].count(">"), line[marks.end() :]
+
+
+def pipes(row: str) -> list[int]:
+    """Where the pipes are that split the cells of a row: each but one right after a
+    backslash, and one at the start or the end."""
+    stripped = row.strip(" \t")
+    offset = len(row) - len(row.lstrip(" \t"))
+    found = [
+        index + offset
+        for index, character in enumerate(stripped)
+        if character == "|" and (index == 0 or stripped[index - 1] != "\\")
+    ]
+    if found and found[0] == offset:
+        found = found[1:]
+    if found and found[-1] == offset + len(stripped) - 1:
+        found = found[:-1]
+    return found
 
 
 def markup_end(source: str, start: int) -> int:

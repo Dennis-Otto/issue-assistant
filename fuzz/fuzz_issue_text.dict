@@ -1,0 +1,40 @@
+# The pieces of Markdown whose reading takes the most steps, for libFuzzer's
+# mutations of the start, the piece and the end of the texts of
+# fuzz/fuzz_issue_text.py; fuzz/seeds.py adds the file to its command line. One
+# "word" per line, with \\, \" and \xNN as escapes.
+
+# HTML, which the cleaning reads with its comments and tags over rows.
+"<!--"
+"-->"
+"<div"
+"<a "
+">"
+"=\""
+"\""
+
+# Quotes, list items and fences, which hold the rows of the other blocks.
+"> "
+"- "
+"1. "
+"```"
+"~~~"
+"\x0a"
+"    "
+"\x09"
+
+# Tables, whose rows are split at their pipes.
+"|"
+"\\|"
+"|---|"
+":-:"
+
+# Drawings and math, whose ends are looked for.
+"```mermaid"
+"<pre lang=mermaid>"
+"</pre>"
+"%%"
+"$"
+"$$"
+"\\$"
+"&#36;"
+"`"

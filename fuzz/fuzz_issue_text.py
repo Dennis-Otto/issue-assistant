@@ -5,7 +5,10 @@ repository. A text that kept one of the patterns busy for minutes would stall ea
 analysis until its job timed out. This fuzzer builds texts of up to GitHub's 65,536
 characters from a fuzzed start, a fuzzed piece repeated many times and a fuzzed
 end, the shape of the texts that make patterns backtrack, and fails when reading
-one of them takes longer than half a second.
+one of them takes longer than half a second. The dictionary
+fuzz/fuzz_issue_text.dict gives it the pieces whose reading takes the most steps,
+such as the pipes of a table, the fences that GitHub draws and the dollar signs of
+math.
 
     pip install --require-hashes -r requirements-fuzz.txt
     python fuzz/fuzz_issue_text.py -max_total_time=60
@@ -19,6 +22,8 @@ import time
 from pathlib import Path
 
 import atheris
+
+from seeds import with_seeds
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -77,8 +82,9 @@ def main() -> None:
     # A pattern that backtracks can take hours on one input, and BUDGET is checked
     # only after a call returns: unless the command line sets another limit,
     # libFuzzer stops an input after five seconds and saves it.
-    timeout = any(arg.startswith("-timeout=") for arg in sys.argv)
-    atheris.Setup(sys.argv if timeout else [*sys.argv, "-timeout=5"], test_one_input)
+    argv = with_seeds(sys.argv, "fuzz_issue_text")
+    timeout = any(arg.startswith("-timeout=") for arg in argv)
+    atheris.Setup(argv if timeout else [*argv, "-timeout=5"], test_one_input)
     atheris.Fuzz()
 
 

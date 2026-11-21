@@ -10,6 +10,7 @@ same way against how it read them before.
 
 import collections
 import dataclasses
+import itertools
 import json
 import re
 import unicodedata
@@ -113,6 +114,18 @@ PIECES = st.sampled_from(
         "|",
         ":",
         "-",
+        # Math and the code that GitHub draws or reads as math.
+        "$",
+        "$$",
+        "\\$",
+        "&#36;",
+        "x$",
+        "$x",
+        "```math\n",
+        "~~~ math\n",
+        "```mermaid\n",
+        "```&#109;ermaid\n",
+        "%% ",
         # Spaces, line breaks and characters that only some parsers take for one.
         "  ",
         "   ",
@@ -1281,6 +1294,115 @@ def test_the_engine_reads_nothing_that_an_html_block_hides(text):
         or assistant.long_tags(text) != ([], len(text))
         or "Xyzzy" in shown
     )
+
+
+# Text made of the pieces of tables: pipes with and without a backslash before
+# them, delimiter rows, quotes and what ends a table.
+TABLES = st.lists(
+    st.sampled_from(
+        [
+            "| a |\n|---|\n",
+            "a | b\n--|--\n",
+            "| a | b |\n|:-|-:|\n",
+            ":-:\n",
+            "> ",
+            "|",
+            "\\|",
+            "\\\\|",
+            " ",
+            "\t",
+            "    ",
+            "\n",
+            "\n\n",
+            "`",
+            "# ",
+            "- ",
+            "2. ",
+            "***\n",
+            "x",
+            "Plugh",
+        ]
+    ),
+    max_size=30,
+).map("".join)
+
+
+@hypothesis.example("| a |\n|---|\n| b | Plugh |")
+@hypothesis.example("> | a |\n> |---|\n> | b | Plugh\n| c | Plugh")
+@hypothesis.example("| a |\n|---|\n|b\\\\|Plugh|Plugh|")
+@given(TABLES)
+def test_the_engine_reads_no_cell_that_github_drops(text):
+    """No word of a cell beyond the cells of a table's header reaches the engine: a
+    browser shows none of it, as the oracle splits the rows. The language of fenced
+    code, which a browser doesn't show, reaches it, so a text with a fence counts
+    as none."""
+    if "```" not in text:
+        shown = assistant.shown_text(text)[0]
+        assert shown.count("Plugh") <= browser_text(text).count("Plugh")
+
+
+# Text made of the pieces of math and of the code that GitHub draws. Without HTML,
+# whose removal can make a row a fence that GitHub shows as text, as after a
+# comment at the start of a row.
+DRAWN = st.lists(
+    st.sampled_from(
+        [
+            "$",
+            "$$",
+            "\\$",
+            "&#36;",
+            "`",
+            "```mermaid\n",
+            "~~~geojson\n",
+            "```math\n",
+            "```\n",
+            "\\color{transparent}",
+            "%",
+            "&#92;",
+            "> ",
+            "- ",
+            "| a |\n|---|\n",
+            "|",
+            " ",
+            "\n",
+            "\n\n",
+            "x",
+            "Plugh",
+        ]
+    ),
+    max_size=30,
+).map("".join)
+
+
+@given(DRAWN)
+def test_no_text_of_math_or_a_drawing_reaches_the_engine_that_could_hide(text):
+    """No word of math with a backslash, a `%` or an `&` in it, nor of the source
+    of a drawing that the engine may not read, reaches it. Where the text holds no
+    fence, whose end a span of math may take out, the text that the engine reads
+    holds no such math either, read anew."""
+    found = assistant.structures_of(text)
+    hidden = [
+        *found.math,
+        *(span for span in found.drawn if span not in found.readable),
+    ]
+    spans = assistant.apart([(start, end, "") for start, end in hidden])
+    inside = sum(text.count("Plugh", start, end) for start, end, _ in spans)
+    shown = assistant.shown_text(text)[0]
+    assert shown.count("Plugh") <= text.count("Plugh") - inside, shown
+    if "```" not in text and "~~~" not in text:
+        assert not assistant.structures_of(shown).math, shown
+
+
+@given(st.one_of(TEXT, TABLES, DRAWN, HTML_BLOCKS))
+def test_the_spans_that_strip_html_keeps_make_its_text(text):
+    """The spans of shown_spans, joined, are the text of shown_html."""
+    spans, cut = assistant.shown_spans(text)
+    assert "".join(text[start:end] for start, end in spans) == assistant.strip_html(
+        text
+    )
+    assert cut == assistant.shown_html(text)[1]
+    assert all(end > start for start, end in spans)
+    assert all(left[1] <= right[0] for left, right in itertools.pairwise(spans))
 
 
 # Forms with HTML: headings, answers, comments and tags with attributes.
