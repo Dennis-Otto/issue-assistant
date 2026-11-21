@@ -281,6 +281,33 @@ def test_an_instruction_or_a_declaration_hides_what_it_holds():
         assert found(body) == SHOWN_LOG, body
 
 
+def test_a_file_that_a_video_or_the_brackets_of_ruby_hold_counts_as_none():
+    """GitHub keeps a `video` and an `rp` with what they hold, but no browser shows
+    it: a link or an image inside counts as none; one after the end of the element,
+    and a file dragged into the issue, still count (`gh api -X POST markdown` with
+    the mode gfm, 2026-11-21)."""
+    hidden = (
+        f"<video>[log]({LOG})</video>",
+        f"<video>\n\n![shot]({IMAGE})\n\n</video>",
+        f'<video><img src="{IMAGE}"></video>',
+        f'<video src="{IMAGE}">x</video>',
+        f"<ruby>x<rp>{LOG}</rp><rt>y</rt></ruby>",
+        f"a <RP>[log]({LOG})</RP>",
+        f"x\n\n<video>\n\n[log]({LOG})",
+    )
+    for body in hidden:
+        assert found(body) == [], body
+    shown = (
+        f"<video>x</video> [log]({LOG})",
+        f"<video>\n\nx\n\n</video>\n\n[log]({LOG})",
+        f"`<video>` [log]({LOG})",
+        f"Logs:\n\n[home-assistant.log]({LOG})",
+    )
+    for body in shown:
+        assert found(body) == SHOWN_LOG, body
+    assert found(f"Crash on start\n\n{IMAGE}") == [(IMAGE, 0, "image", IMAGE[-36:])]
+
+
 def test_where_it_is_hard_to_tell_an_address_counts_as_none():
     """GitHub shows these as text, but the reading takes them for tags: a tag in
     a code span, and one at the start of a row whose block it can't rule out."""

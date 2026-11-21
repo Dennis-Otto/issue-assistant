@@ -14,7 +14,7 @@ from urllib.parse import quote, unquote, urlsplit
 
 from .constants import MAX_NUMBER
 from .languages import say
-from .markup import CONTAINER, CONTAINER_MARK, ROW_END, strip_html
+from .markup import CONTAINER, CONTAINER_MARK, ROW_END
 from .patterns import (
     CODE,
     CROSS_REFERENCE,
@@ -24,6 +24,7 @@ from .patterns import (
     fenced,
 )
 from .settings import Config
+from .tags import shown_html, strip_html
 
 # Control characters other than tab and line break, which no comment needs: Python
 # takes some of them for spaces, which Markdown doesn't, so they could make the two
@@ -420,10 +421,10 @@ def shown_text(text: str) -> tuple[str, int]:
     that hides text. Where the HTML could have started a block, every row counts as
     the start of one, and no fence as code.
     """
-    shown = strip_html(text)
+    shown, cut = shown_html(text)
     html = HTML_BLOCK.search(text)
     return strip_definitions(
-        shown, None if html is None else html_row(text, shown, html)
+        shown, None if html is None else html_row(text, shown, html), cut
     )
 
 
@@ -435,7 +436,9 @@ def html_row(text: str, shown: str, html: re.Match[str]) -> int:
     return len(ROW_END.findall(before)) if shown.startswith(before) else 0
 
 
-def strip_definitions(text: str, html: int | None = None) -> tuple[str, int]:
+def strip_definitions(
+    text: str, html: int | None = None, cut: bool = False
+) -> tuple[str, int]:
     """The text without the link reference definitions and the footnotes without a
     reference that GitHub shows as nothing, outside code, with a note in the place
     of each; and their number.
@@ -510,6 +513,16 @@ def strip_definitions(text: str, html: int | None = None) -> tuple[str, int]:
         if found <= hidden:
             break
         hidden |= found
+    # The last row with text, from which on GitHub hides the rest where `cut` says so.
+    last = next(
+        (index for index in reversed(range(len(rows))) if rows[index].strip()), 0
+    )
+    if cut and last not in found:
+        # GitHub hides the rest of the text from a position outside every
+        # definition and footnote on, and with it the footnotes, which it shows
+        # after the end of the text: each goes. Where the position is in one, as in
+        # a comment that a footnote holds, the footnotes before it may show.
+        removals = scan(rows, code, candidates, set(), anywhere, listed)[0]
     offsets = [0, *accumulate(map(len, parts))]
     pieces, cursor = [], 0
     for first, final, note in removals:
