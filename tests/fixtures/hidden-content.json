@@ -1,0 +1,2187 @@
+{
+ "about": "Texts with an element whose content GitHub keeps and no browser shows, `video` and `rp`, in a paragraph, a heading, a cell of a table, an HTML block, a quote and a list item, closed, open, closed on a row of its own, self-closed and nested; and with a tag whose quoted value holds a `>`, or which GitHub reads over rows past markup, in each place; made of pieces, with the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-21). The content of a <details> counts as shown, as GitHub shows it on a click. Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed.",
+ "texts": [
+  {
+   "text": "<ruby>x<rp>zqa</rp><rt>y</rt></ruby>",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <rp>zqa</rp> b",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>zqa</video>",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "Before <video src=\"https://example.com/a.mp4\" width=\"0\" height=\"0\">zqa</video> After",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "Before\n\n<video>\n\nzqa\n\n</video>\n\nAfter zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "Before\n\n<video>\n\nzqa\n\n# zqb\n\n- zqc",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "Before\n\n<video>\n\nzqa</video>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <video/>zqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <rp/>zqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>\n\nzqa\n\n</video> zqb\n\nzqc",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<video>zqa <video>zqb</video> zqc</video> zqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<video>\n\nzqa\n\n   </video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> <video>\n>\n> zqa\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "- <video>\n\n  zqa\n\n- zqy\n\nzqz",
+   "github shows": [
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqy",
+    "zqz"
+   ]
+  },
+  {
+   "text": "<div>\n<video>\n\nzqa</video>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "<ruby>x<rp>zqa</ruby> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <rp>zqa<rt>zqb</rt> zqc</rp> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<RP>zqa</RP> and <Video>zqb</Video> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x <video title=\"a>b\">zqa</video> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "# a <video>zqa\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "# a <video>zqa</video> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| a | b |\n|---|---|\n| <video>zqa | zqz |\n\nzqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "| a | b |\n|---|---|\n| <video>zqa</video> zqx | zqz |",
+   "github shows": [
+    "zqx",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <video>zqa\nzqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <video>zqa <div>zqz</div> zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz",
+    "zqy"
+   ]
+  },
+  {
+   "text": "a <video>zqa</p> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "- a <video>zqa\n  - zqb\n- zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "- a <video>zqa</video> zqz\n- zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "Use `<video>` zqz and `<rp>` zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```\n<video>\n```\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<details><summary>zqs</summary>zqz</details>",
+   "github shows": [
+    "zqs",
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<ruby>zqa<rt>zqb</rt></ruby> zqz",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<ruby>x<rp>(</rp><rt>zqb</rt><rp>)</rp></ruby> zqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<video>zqa `</video>` zqb</video> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "<div>\n<video>zqa</video> zqz\n</div>",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>\n<!-- zqa -->\n</video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "[^1]: zqa\n\nSee [^1].\n\n<video>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<div data-x=\">zqa\">\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<p data-x='>zqa'></p>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <span foo=\">zqa\">y</span> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> x <span foo=\">zqa\">y</span> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- x <span foo=\">zqa\">y</span> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| a |\n|---|\n| x <span foo=\">zqa\">y</span> zqz |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<details><summary>Logs</summary>\n<span data-x=\">zqa\"></span>\n</details>",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "Crash on start <img src=\"https://example.com/a.png\" alt=\"\" data-x=\">zqa\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- <?php ?><span\n  zqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- <!DOCTYPE html><span\n  zqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> <div>\n<span\nzqa>",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- <div>\n<span\nzqa>",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <?><span\nzqa?> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <?><span data-x=\"?>zqa\"> zqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "-<![CDATA[><!x<><?zqa]]>",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div\n==\"\n\nzqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "s\n<b>\n<!\n<!D\n\nzqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <b title=\">zqa\">y</b> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div data-x=\"zqa\"></div> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<img alt=\"zqa\" src=\"x\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x > y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "a <b zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<a\n> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x <a href=\"https://example.com/?q=>\">zqz</a> zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x <span 1=\">zqz\">y</span> zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x <span data-x=\">zqz\" zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x <span data-x=`>zqz`> zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<script\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```\n<a b=\"\n```\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "x\n\n    <a b=\"x>zqz\">\n\nzqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "<div 1=\">zqa\">\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div\n=\"\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "<!D\n<p><t\n<?\n\nzqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "><p\n- <div\n<?\n\nzqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <![CDATA[><span>zqz]]> zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "a <video>zqa</video> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> a <video>zqa\n> zqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "## a <video>zqa\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| x | y |\n|---|---|\n| a <video>zqa | zqz |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "x\n\n<video>\n\nzqa\n\n</video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<video>\n\nzqa\n\n## zqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<video>\n\nzqa </video>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "> <video>\n>\n> zqa\n> </video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "- <video>\n\n  zqa\n\n  </video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "<video>\nzqa\n</video>\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n<video>\nzqa\n</video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <video>zqa <video>zqb</video> zqc</video> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "x `<video>` zqz `` <video> `` zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "a <rp>zqa</rp> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <rp>zqa\nzqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "> a <rp>zqa\n> zqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "## a <rp>zqa\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| x | y |\n|---|---|\n| a <rp>zqa | zqz |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "x\n\n<rp>\n\nzqa\n\n</rp>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<rp>\n\nzqa\n\n## zqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<rp>\n\nzqa </rp>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "> <rp>\n>\n> zqa\n> </rp>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "- <rp>\n\n  zqa\n\n  </rp>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "<div>\n<rp>zqa</rp> zqz\n</div>",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<rp>\nzqa\n</rp>\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n<rp>\nzqa\n</rp>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <rp>zqa <rp>zqb</rp> zqc</rp> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "x `<rp>` zqz `` <rp> `` zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "a <VIDEO a=\"x>y\">zqa</Video > zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <VIDEO a=\"x>y\">zqa\nzqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "> a <VIDEO a=\"x>y\">zqa\n> zqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "## a <VIDEO a=\"x>y\">zqa\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| x | y |\n|---|---|\n| a <VIDEO a=\"x>y\">zqa | zqz |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "x\n\n<VIDEO a=\"x>y\">\n\nzqa\n\n</Video >\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<VIDEO a=\"x>y\">\n\nzqa\n\n## zqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<VIDEO a=\"x>y\">\n\nzqa </Video >\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "> <VIDEO a=\"x>y\">\n>\n> zqa\n> </Video >\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "- <VIDEO a=\"x>y\">\n\n  zqa\n\n  </Video >\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "<div>\n<VIDEO a=\"x>y\">zqa</Video > zqz\n</div>",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<VIDEO a=\"x>y\">\nzqa\n</Video >\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n<VIDEO a=\"x>y\">\nzqa\n</Video >\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <VIDEO a=\"x>y\">zqa <VIDEO a=\"x>y\">zqb</Video > zqc</Video > zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "x `<VIDEO a=\"x>y\">` zqz `` <VIDEO a=\"x>y\"> `` zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqy"
+   ]
+  },
+  {
+   "text": "a <video/>zqa</video> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <video/>zqa\nzqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "> a <video/>zqa\n> zqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "## a <video/>zqa\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<video/>\n\nzqa\n\n</video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<video/>\n\nzqa\n\n## zqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<video/>\n\nzqa </video>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "> <video/>\n>\n> zqa\n> </video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "- <video/>\n\n  zqa\n\n  </video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "x <video/>zqa <video/>zqb</video> zqc</video> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "x `<video/>` zqz `` <video/> `` zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "a <rp title='>'>zqa</RP> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <rp title='>'>zqa\nzqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "> a <rp title='>'>zqa\n> zqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "## a <rp title='>'>zqa\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<rp title='>'>\n\nzqa\n\n</RP>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<rp title='>'>\n\nzqa\n\n## zqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n<rp title='>'>\n\nzqa </RP>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "> <rp title='>'>\n>\n> zqa\n> </RP>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "- <rp title='>'>\n\n  zqa\n\n  </RP>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "x <rp title='>'>zqa <rp title='>'>zqb</RP> zqc</RP> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "x `<rp title='>'>` zqz `` <rp title='>'> `` zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqy"
+   ]
+  },
+  {
+   "text": "<ruby>x<rp>zqa<rt>zqz</rt></ruby> zqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<ruby>x<rp>zqa<rb>zqz</ruby>",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<ruby>x<rp>zqa<rp>zqb</ruby> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "<ruby>x\n<rp>zqa</ruby> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "<ruby>\n\nx <rp>zqa</ruby> zqz\n\nzqy",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "<ruby>x<rp>zqa<b>zqb</b><rt>zqc</rt></ruby> zqz",
+   "github shows": [
+    "zqc",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqc"
+   ]
+  },
+  {
+   "text": "`<ruby>` <rp>zqa</ruby> zqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "a \\` <rp>zqa</rp> zqz `",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <b title=\"`\">x</b> <rp>zqa</rp> zqz `",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| `x | <rp>zqa</rp> zqz` |\n|---|---|\n| a | b |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <?`?> <rp>zqa</rp> zqz `",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "# a `\nb <rp>zqa</rp> zqz `",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <b title=\"\n`\"> <rp>zqa</rp> zqz `",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <!-- ` --> <rp>zqa</rp> zqz `",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "`x` <rp>zqa</rp> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>\n<img src=\"https://github.com/user-attachments/assets/0f0e1d2c-3b4a-5968-7a8b-9c0d1e2f3a4b\" alt=\"zqa\">\n</video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "[^1]: zqa\n\nSee [^1].\n\n<div>\n<!--",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>\n\n```\n</video>\n```\n\nzqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>\n<p>zqa</p>\n</video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "<video>\n<b>zqa</b>\n</video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>\n<!-- zqa\n</video>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "<video>\n<?zqa </video> ?>\n</video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>\tzqa</video>\tzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <video>zqa</video\n> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <videox>zqz</videox> <rpx>zqy</rpx>",
+   "github shows": [
+    "zqz",
+    "zqy"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "a <vıdeo>zqz</vıdeo>",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<details>\n<summary>s</summary>\n\n<video>zqa</video> zqz\n\n</details>",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: a <video>zqa</video> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <span a=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> x <span a=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "1. x <span a=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| h |\n|---|\n| x <span a=\">zqa\">y zqz |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "### x <span a=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<span a=\">zqa\">\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div>\n<span a=\">zqa\"> zqz\n</div>",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> <div>\n<span a=\">zqa\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: a <span a=\">zqa\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> <div>\n> <span a=\">zqa\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <b c='>zqa'>y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> x <b c='>zqa'>y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "1. x <b c='>zqa'>y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| h |\n|---|\n| x <b c='>zqa'>y zqz |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "### x <b c='>zqa'>y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<b c='>zqa'>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div>\n<b c='>zqa'> zqz\n</div>",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> <div>\n<b c='>zqa'> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: a <b c='>zqa'> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> <div>\n> <b c='>zqa'> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <img src=\"x\" d=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> x <img src=\"x\" d=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "1. x <img src=\"x\" d=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| h |\n|---|\n| x <img src=\"x\" d=\">zqa\">y zqz |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "### x <img src=\"x\" d=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<img src=\"x\" d=\">zqa\">\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div>\n<img src=\"x\" d=\">zqa\"> zqz\n</div>",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> <div>\n<img src=\"x\" d=\">zqa\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: a <img src=\"x\" d=\">zqa\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> <div>\n> <img src=\"x\" d=\">zqa\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <x-y e=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> x <x-y e=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "1. x <x-y e=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| h |\n|---|\n| x <x-y e=\">zqa\">y zqz |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "### x <x-y e=\">zqa\">y zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<x-y e=\">zqa\">\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div>\n<x-y e=\">zqa\"> zqz\n</div>",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> <div>\n<x-y e=\">zqa\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: a <x-y e=\">zqa\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> <div>\n> <x-y e=\">zqa\"> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> - <?php ?><span\n>   zqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- <!DOCTYPE html><span\n\n  zqa",
+   "github shows": [
+    "zqa"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "- <![CDATA[x]]><b\n  zqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- <!-- x --><b\n  zqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> x <?><span\n> zqa?> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- x <?><b c='?>zqa'> zqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x <?><b\n?> zqa> zqz",
+   "github shows": [
+    "zqa",
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "> <div>\nfoo <span\nzqa> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "1. <div>\n<b\nzqa> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div\n = \"\n\nzqa",
+   "github shows": [
+    "zqa"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div a\n=\"\n\nzqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div a=\"x\"\n==\"\n\nzqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "s\n<i>\n<!\n<?\n\nzqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "s\n<div>\n<!\n<!X\n\nzqa",
+   "github shows": [
+    "zqa"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <![CDATA[><b c=\"]]>zqa\"> zqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "<div>\n<video title=\"\n\nzqa",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a `` b ` <rp>zqa</rp> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "`a` <!-- b <rp>zqa</rp> zqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "`a` <!x> <rp>zqa</rp> zqz `",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>\r\n\r\nzqa\r\n\r\n</video>\r\n\r\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>\n\nzqa\n  \n</video>\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>[zqa](https://github.com/user-attachments/files/101/home-assistant.log)</video>",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>\n\n![zqa](https://github.com/user-attachments/assets/0f9a7e1c-1111-2222-3333-444455556666)\n\n</video>",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video><img src=\"https://github.com/user-attachments/assets/0f9a7e1c-1111-2222-3333-444455556666\" alt=\"zqa\"></video>",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <RP>[zqa](https://github.com/user-attachments/files/101/home-assistant.log)</RP>",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x\n\n<video>\n\n[zqa](https://github.com/user-attachments/files/101/home-assistant.log)",
+   "github shows": [],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<video>x</video> [zqz](https://github.com/user-attachments/files/101/home-assistant.log)",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<video>\n\nx\n\n</video>\n\n[zqz](https://github.com/user-attachments/files/101/home-assistant.log)",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "`<video>` [zqz](https://github.com/user-attachments/files/101/home-assistant.log)",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<video>\n\nzqa\n- zqb\n\n  </video>\n\nzqc",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<video>\n\nzqa\n\n1. zqb\n\n   </video>\n\nzqc",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<video>\n\nzqa\n\n- zqb\n\n</video>\n\nzqc",
+   "github shows": [
+    "zqc"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "See [^1].\n\n[^1]: zqa\n\n<video>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "See [^1].\n\n[^1]: zqa\n\n<div>\n<!--\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "1. <video>zqa\n2. zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "- zqc\n\n  <video>zqa\n\n- zqb",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  }
+ ]
+}

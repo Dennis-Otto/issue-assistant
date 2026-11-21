@@ -1233,6 +1233,13 @@ HTML_BLOCKS = st.lists(
             "<pre",
             " t=",
             "=",
+            ' t=">',
+            "'>",
+            "<?>",
+            "<video>",
+            "</video>",
+            "<rp>",
+            "</rp>",
             "Plugh",
         ]
     ),

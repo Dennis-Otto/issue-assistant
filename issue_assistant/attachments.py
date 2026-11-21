@@ -37,11 +37,11 @@ from .markup import (
     Blocks,
     Fences,
     HtmlRows,
-    html_parts,
     row_end,
 )
 from .paths import CONTEXT
 from .patterns import INVISIBLE
+from .tags import html_parts
 from .values import command, fence, login
 
 # Where the job attachments puts the files, and where the job of the AI finds them.
@@ -236,7 +236,7 @@ def shown_links(text: str) -> str:
     # ends no comment: the second part starts where the reading of that tag ended.
     first, reached = tags.part(0, min(middle, end), COMMENT_OR_TAG)
     shown = first + tags.part(max(middle, reached), end, TAG_OPENING)[0]
-    return Visible()(strip_definitions(shown)[0])
+    return Visible()(strip_definitions(shown, None, end < len(text))[0])
 
 
 class ShownTags:

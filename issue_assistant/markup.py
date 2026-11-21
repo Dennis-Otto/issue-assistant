@@ -1,6 +1,6 @@
 """The HTML of an issue as GitHub reads it: the HTML blocks and the paragraphs that
 hold a tag, a comment or markup that GitHub's HTML parser reads as a comment, such
-as an instruction, how far each reaches, and the text without them.
+as an instruction, and how far each reaches; tags.py reads the tags with them.
 
 GitHub's renderer hands the rows of an HTML block on as HTML, and a tag, a comment,
 an instruction, a declaration or a section of CDATA of a paragraph only where
@@ -119,8 +119,6 @@ COMMENT_START = re.compile("<!--")
 # Each pattern reads the character after the `<` once: a `<!--` passes at once.
 MARKUP_REST = r"(?P<markup>\?|!|/(?![A-Za-z>]))"
 TAG_REST = r"/?[A-Za-z][^<>\"'\r\n]*+(?!>)"
-TAG_ONLY = re.compile(rf"<(?!!--)(?:{MARKUP_REST}|{TAG_REST})")
-TAG_START = re.compile(rf"<(?:(?P<comment>!--)|{MARKUP_REST}|{TAG_REST})")
 # An instruction, a declaration or a section of CDATA whose first `>` ends it, on
 # its row and before any `<`: CommonMark hands it on as HTML wherever it stands, in a
 # paragraph as in a block, and GitHub shows nothing of it. Outside fenced code it
@@ -132,12 +130,7 @@ ROW_MARKUP_REST = (
 )
 # A `<!--`, of which a text may hold thousands, fails at once.
 ROW_MARKUP = f"<(?!!-){ROW_MARKUP_REST}"
-TAG_ONLY_PAST_MARKUP = re.compile(
-    rf"<(?!!--)(?:(?!{ROW_MARKUP_REST}){MARKUP_REST}|{TAG_REST})"
-)
-TAG_START_PAST_MARKUP = re.compile(
-    rf"<(?:(?P<comment>!--)|(?!{ROW_MARKUP_REST}){MARKUP_REST}|{TAG_REST})"
-)
+
 # The markup of a paragraph that CommonMark hands on as HTML, where its end follows
 # in the paragraph: an instruction up to `?>`, a section of CDATA up to `]]>`, and a
 # declaration, `<!` and a letter, up to its `>`. GitHub's renderer reads a
@@ -172,6 +165,8 @@ LEADING_EQUALS = re.compile(r"[\t\f ]*+=")
 INERT = re.compile(r"[^\"'=>]*+")
 ANY_QUOTE_MARK = re.compile(r"[ \t]*+>")
 BLANK_ROWS_AHEAD = re.compile(r"(?:[ \t>]*+(?:\r\n?|\n))*+")
+# A row blank but for the marks of its quotes, which ends a paragraph.
+BLANK_ROW = re.compile(rf"{ROW_START}[ \t>]*+{ROW_ENDS}")
 # Reading in bulk what held_tag_end would read a row at a time, where each row leaves
 # a tag between its attributes as it was: a row without a quote, an `=` or a `>`
 # after the marks of its quotes, of which it has as many as the blocks allow; and at
@@ -240,44 +235,6 @@ HTML_TAG_AND_MARKUP = re.compile(f"{ROW_MARKUP}|{HTML_TAG.pattern}")
 ROW_END = re.compile(r"(\r\n|\r|\n)")
 # The marks of the quotes and list items that hold a row, before its text.
 CONTAINER = re.compile(r"(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)))*[ \t]*")
-
-
-def html_parts(
-    text: str, rows: HtmlRows | None = None
-) -> tuple[list[tuple[int, int]], int, int]:
-    """The tags of a text that GitHub reads past their rows, as long_tags finds
-    them; the end of its last `-->`; and where GitHub stops showing it.
-
-    Up to the last `-->`, one follows every `<!--`, so a pattern finds the end of each
-    comment without reading on to the end of the text. After it, no comment can end:
-    a `<!--` in a paragraph stays text, as GitHub shows it, and one in an HTML block
-    hides the rest of the text, as GitHub hides it. Neither counts in a tag, where
-    GitHub reads it as part of the tag, but the tag stays where it is for the blocks:
-    a tag that starts a block, as `<a title=">">` does, keeps the rows below it in
-    the block. Only a `<!--` that starts the text of a later row of a tag counts
-    still: where it is hard to tell whether the tag goes on in that row, the row may
-    start a comment of its own.
-    """
-    rows = rows or HtmlRows(text)
-    spans, end = long_tags(text, rows)
-    starts = [start for start, _ in spans]
-
-    def outside(position: int) -> bool:
-        index = bisect_right(starts, position) - 1
-        return index < 0 or spans[index][1] <= position
-
-    limit = len(text)
-    while (last := text.rfind("-->", 0, limit)) >= 0 and not outside(last):
-        limit = starts[bisect_right(starts, last) - 1] + 2
-    middle = last + 3 if last >= 0 else 0
-    comments = (
-        comment.start()
-        for comment in COMMENT_START.finditer(text, middle)
-        if not spans
-        or outside(comment.start())
-        or row_start(text, comment.start()) is not None
-    )
-    return spans, middle, min(end, hidden_html(text, middle, Following(comments), rows))
 
 
 class Following:
@@ -357,6 +314,10 @@ class HtmlRows:
         self.ends: dict[int, int] = {}
         self.fences: bool | None = None
         self.judged: list[str | int | None] = []
+        # Where the spans that long_tags finds for the content of a hidden element
+        # start, in which no comment counts.
+        self.hidden: set[int] = set()
+        self.own: list[int] | None = None
 
     def fenced(self) -> bool:
         """Whether a row may open fenced code: only where three backticks or three
@@ -371,6 +332,17 @@ class HtmlRows:
             self.rows = list(HTML_ROW.finditer(self.text))
             self.starts = [row.start() for row in self.rows]
         return self.rows
+
+    def owned(self) -> list[int]:
+        """Where the rows start that may start an HTML block of a kind with an end
+        of its own, such as a comment or a declaration."""
+        if self.own is None:
+            self.own = [
+                row.start()
+                for row in self.found()
+                if row.lastgroup not in (None, "tag")
+            ]
+        return self.own
 
     def lists(self) -> int:
         """Where the first row starts that starts a list item, or the end."""
@@ -627,6 +599,7 @@ def code(marks: str) -> bool:
 
 
 QUOTES = frozenset("\"'")
+QUOTE_MARK = re.compile("[\"']")
 GOES_ON = frozenset("\"'\r\n")
 
 
@@ -788,110 +761,6 @@ def blanks_fit(mark: str, blanks: str) -> bool:
     return 1 <= len(blanks) <= 4
 
 
-def long_tags(
-    text: str, rows: HtmlRows | None = None
-) -> tuple[list[tuple[int, int]], int]:
-    """The tags that GitHub reads past the end of their row, or past a `>` in a
-    quoted value, each as the span that it takes of the text; and where GitHub stops
-    showing the text: at its end, or at a tag in an HTML block with a quoted value
-    that the block doesn't end, since GitHub looks for the end of the value in the
-    rest of the text and shows nothing of what it read.
-
-    In a row that an HTML block may hold, GitHub's HTML parser reads a tag up to its
-    `>` over the rows of the block, and up to the end of the block when no `>` comes:
-    the markup that follows the block ends it, and shows nothing. In a paragraph,
-    GitHub's renderer hands a tag on as HTML only where CommonMark reads it as one,
-    and otherwise shows it as text, as `<a` above a row that starts a quote. The
-    tags that GitHub's filter shows as text, such as `<script`, stay as they are,
-    and so do the tags in fenced code and in a comment, and a tag that ends on its row, which HTML
-    takes out as it always did.
-
-    Each step reads on from the end of the last: each tag is read once, up to its
-    end, and the searches for the ends of the blocks and the paragraphs read no part
-    of the text twice.
-    """
-    rows = rows or HtmlRows(text)
-    closes = text.rfind(">")
-    if closes < 0 and not rows.found():
-        return [], len(text)  # No tag of a paragraph ends, and no block holds one.
-    fences = Fences(text, rows)
-    # Without fenced code, no row is one of code, and the markup of a row goes by a
-    # pattern, everywhere.
-    fenced = rows.fenced()
-    blocks = Blocks(text, rows, fences if fenced else None)
-    paragraphs, search = Paragraphs(text), Searches(text)
-    spans: list[tuple[int, int]] = []
-    position = 0
-    # Where the HTML ends that CommonMark hands on from a paragraph for the last
-    # instruction or section of CDATA, whose rest GitHub's HTML parser reads.
-    raw = -1
-    starts = TAG_START if fenced else TAG_START_PAST_MARKUP
-    while (found := starts.search(text, position)) is not None:
-        start, position = found.start(), found.end()
-        if found.lastgroup == "comment":
-            closed = search.comment_end(position)
-            if closed < 0:
-                # No `-->` follows: no comment hides a tag.
-                starts = TAG_ONLY if fenced else TAG_ONLY_PAST_MARKUP
-            elif not comment_closes(text, start, closed, fences, blocks):
-                return spans, row_or_position(text, start)
-            position = max(closed, position)
-            continue
-        if FILTERED_TAG.match(text, start) or (fenced and fences.holds(start)):
-            continue
-        markup = found.lastgroup == "markup"
-        if markup and (ends := row_markup_end(text, start, search)) is not None:
-            position, raw = ends
-            spans.append((start, position))
-            continue
-        held = blocks.holding(start)
-        if held:
-            if markup:
-                stop = search.row_end(position)
-                after, state = tag_row(text, position, stop, "!")
-            else:
-                name = TAG_NAME.match(text, start)
-                assert name is not None  # TAG_START found a tag there.
-                stop = search.row_end(name.end())
-                after, state = tag_row(text, name.end(), stop, "")
-                if state == ">":
-                    # HTML takes the tag out; what it holds, such as a `<!` in a
-                    # quoted value, is none of the markup that GitHub reads.
-                    position = after
-                    continue
-            end = (
-                after
-                if state == ">"
-                else held_tag_end(text, (after, stop, state), held, blocks)
-            )
-            if end is None:
-                return spans, row_or_position(text, start)
-        elif markup:
-            if start < raw:
-                # In the rest of the HTML of an instruction or a section of CDATA:
-                # its end follows, so a `>` does.
-                end = search.close(start)
-            elif (ends := inline_markup_end(text, start, paragraphs, search)) is None:
-                continue
-            else:
-                end, raw = ends
-        elif start < raw and (tag_end := row_tag_end(text, start, search)) is not None:
-            # A tag in the rest of the HTML of an instruction, which HTML takes
-            # out: what it holds is none of the markup.
-            position = tag_end
-            continue
-        elif text[position : position + 1] not in GOES_ON or start > closes:
-            # A tag of a paragraph that meets a `<` or the end of the text before a
-            # quote or a line break ends on its row, or is none, and so does one
-            # that no `>` follows.
-            continue
-        elif (end := inline_end(text, start, paragraphs)) is None:
-            continue
-        spans.append((start, end))
-        position = end
-    return spans, len(text)
-
-
 def comment_closes(
     text: str, start: int, closed: int, fences: Fences, blocks: Blocks
 ) -> bool:
@@ -949,13 +818,41 @@ def row_markup_end(text: str, start: int, search: Searches) -> tuple[int, int] |
     return end, closer.end()
 
 
-def row_tag_end(text: str, start: int, search: Searches) -> int | None:
-    """Where a tag ends that GitHub's HTML parser reads from a position, if it ends
-    on its row."""
+def block_tag_end(
+    text: str, start: int, held: list[Block], blocks: Blocks, search: Searches
+) -> tuple[int | None, bool]:
+    """Where a tag ends that the blocks of `held` may hold, as GitHub's HTML parser
+    reads it, None where it hides the rest of the text; and whether it ends on its
+    row."""
     name = TAG_NAME.match(text, start)
     assert name is not None  # TAG_START found a tag there.
-    after, state = tag_row(text, name.end(), search.row_end(name.end()), "")
-    return after if state == ">" else None
+    stop = search.row_end(name.end())
+    after, state = tag_row(text, name.end(), stop, "")
+    if state == ">":
+        return after, True
+    return held_tag_end(text, (after, stop, state), held, blocks), False
+
+
+def raw_tag_end(text: str, start: int, raw: int, search: Searches) -> int | None:
+    """Where a tag ends that starts in the HTML that CommonMark hands on up to `raw`,
+    as GitHub's HTML parser reads it over the rows of a paragraph, which reach it
+    without the marks of their quotes: after its `>` in that HTML, which ends with a
+    `>`; None where a quoted value goes on past it."""
+    name = TAG_NAME.match(text, start)
+    assert name is not None  # TAG_START found a tag there.
+    position, state = name.end(), ""
+    while True:
+        stop = min(search.row_end(position), raw)
+        position, state = tag_row(text, position, stop, state)
+        if state == ">":
+            return position
+        if stop >= raw:
+            return None
+        line = ROW_END.match(text, stop)
+        assert line is not None  # The row ends before `raw`.
+        marks = PARAGRAPH_ROW.match(text, line.end())
+        assert marks is not None  # It matches the empty text.
+        position = marks.end(1)
 
 
 def inline_markup_end(
@@ -1000,7 +897,11 @@ def first_close(text: str, position: int) -> int:
 
 
 def held_tag_end(
-    text: str, first: tuple[int, int, str], held: list[Block], blocks: Blocks
+    text: str,
+    first: tuple[int, int, str],
+    held: list[Block],
+    blocks: Blocks,
+    rows: Rows | None = None,
 ) -> int | None:
     """Where a tag ends that the blocks of `held` may hold, which its first row
     doesn't end: `first` is where that row ends, and the state in which tag_row left
@@ -1025,14 +926,18 @@ def held_tag_end(
     is in the same one, the cleaning takes out the rest of the text instead.
     """
     position, stop, state = first
-    rows = Rows(text, held, blocks)
+    rows = rows or Rows(text, held, blocks)
     while True:
+        equals = None
         # At or after the end of the blocks, nothing is left to read: the reading
         # of the next block below has looked there, or a line break stands there.
         if rows.top and state == "!" and stop < rows.region:
             # At the top of the text, no mark of a quote ends a row: the first `>`
-            # of the blocks ends the markup.
+            # of the blocks ends the markup, unless a row before it may start a
+            # block of its own, as below a paragraph, which hides more.
             closed = text.find(">", stop, rows.region)
+            if own_end_row(blocks.rows, stop, rows.region if closed < 0 else closed):
+                return None
             if closed >= 0:
                 return closed + 1
             stop = rows.region
@@ -1084,7 +989,19 @@ def held_tag_end(
                 or rows.outside(following.start())[1]
                 or (rows.top and following["marks"].strip(" \t"))
             ):
-                return rows.region
+                # In a list item, the rows that follow the blocks may reach GitHub's
+                # HTML parser without a paragraph around them, which a tight list
+                # leaves out: the tag goes on in them. So it does in a row of the
+                # blocks that may start a block of its own, which may run on.
+                if own_end_row(blocks.rows, first[1], rows.region):
+                    return None
+                if (
+                    rows.top
+                    or not glued(text, rows.region)
+                    or rows.region < blocks.rows.lists()
+                ):
+                    return rows.region
+                return None
             if not rows.top:
                 return None
             # At the top of the text, the next block asks the same of its rows.
@@ -1114,12 +1031,58 @@ def held_tag_end(
             position, outside = rows.outside(position)
             if outside:
                 return None if state in QUOTES else stop
-            if state == "" and (equals := LEADING_EQUALS.match(text, position)):
-                position, state = equals.end(), "="
+            if state == "":
+                equals = LEADING_EQUALS.match(text, position)
         stop = row_end(text, position)
-        position, state = tag_row(text, position, min(stop, rows.region), state)
+        position, state = row_reading(
+            text, position, min(stop, rows.region), state, equals
+        )
         if state == ">":
             return position
+
+
+def glued(text: str, position: int) -> bool:
+    """Whether the row at a position, or the row after it where the position ends a
+    row, holds text: a row with which the paragraph of a list item may go on right
+    after a block, with no blank row between them."""
+    if position and text[position - 1] not in "\r\n":
+        line = ROW_END.match(text, position)
+        if line is None:
+            return False
+        position = line.end()
+    return position < len(text) and not BLANK_ROW.match(text, position)
+
+
+def row_reading(
+    text: str, position: int, stop: int, state: str, equals: re.Match[str] | None
+) -> tuple[int, str]:
+    """How far a later row of a tag takes it from a position, as tag_row reads it.
+    An `=` at the start of the row, `equals`, gives the name above it its value, or,
+    where no name is open, as after a quoted value, starts a name of its own, which
+    takes a value after a second `=`: where a quote follows, the reading that takes
+    the tag further counts."""
+    if equals is None:
+        return tag_row(text, position, stop, state)
+    reading = tag_row(text, equals.end(), stop, "=")
+    if reading[1] not in QUOTES and QUOTE_MARK.search(text, equals.end(), stop):
+        reading = max(reading, tag_row(text, position, stop, ""), key=reach)
+    return reading
+
+
+def reach(reading: tuple[int, str]) -> tuple[bool, bool, int]:
+    """How far a reading of a row by tag_row takes a tag: a quoted value that goes
+    on furthest, then a tag that goes on past the row, then the later end."""
+    position, state = reading
+    return state in QUOTES, state != ">", position
+
+
+def own_end_row(rows: HtmlRows, start: int, stop: int) -> bool:
+    """Whether a row that starts between two positions may start an HTML block of a
+    kind with an end of its own, such as a declaration, which hides more than a tag
+    or markup in the block of a tag around it would."""
+    owned = rows.owned()
+    index = bisect_right(owned, start)
+    return index < len(owned) and owned[index] < stop
 
 
 class Rows:
@@ -1226,10 +1189,14 @@ def next_html(text: str, position: int) -> re.Match[str] | None:
 
 def inline_end(text: str, start: int, paragraphs: Paragraphs) -> int | None:
     """Where a tag ends that a paragraph holds, if GitHub's renderer hands it on as
-    HTML and it runs past its row. The end of the paragraph is looked for only for
-    a tag that is one without it: one that runs past that end is none."""
+    HTML and it runs past its row, or past a `>` in a quoted value. The end of the
+    paragraph is looked for only for a tag that is one without it: one that runs past
+    that end is none."""
     found = INLINE_TAG.match(text, start)
-    if found is None or not ROW_END.search(text, start, found.end()):
+    if found is None or (
+        not ROW_END.search(text, start, found.end())
+        and text.find(">", start, found.end() - 1) < 0
+    ):
         return None
     return found.end() if found.end() <= paragraphs.end(start) else None
 
@@ -1284,29 +1251,3 @@ class Paragraphs:
         assert row is not None  # It matches the empty text.
         following = row.end() if row[3] else len(self.text) + 1
         return not row[2].strip(" \t"), row[1].count(">"), following
-
-
-def strip_html(text: str) -> str:
-    """The text as GitHub shows it, without HTML comments and tags, in time linear
-    in its length: first the tags that run past their rows, with what they hold."""
-    rows = HtmlRows(text)
-    spans, middle, end = html_parts(text, rows)
-    comments = without(text, spans, 0, min(middle, end))
-    rest = without(text, spans, middle, end)
-    html, tags = (
-        (HTML, HTML_TAG) if rows.fenced() else (HTML_AND_MARKUP, HTML_TAG_AND_MARKUP)
-    )
-    # Of each match, a tag start that no `>` closes stays, or nothing: a group that
-    # doesn't match stands for the empty text.
-    return html.sub(r"\g<open>", comments) + tags.sub(r"\g<open>", rest)
-
-
-def without(text: str, spans: list[tuple[int, int]], start: int, stop: int) -> str:
-    """The part of a text from `start` to `stop`, without the spans."""
-    starts = [start, *(end for _, end in spans)]
-    stops = [*(begin for begin, _ in spans), len(text)]
-    return "".join(
-        text[max(begin, start) : min(end, stop)]
-        for begin, end in zip(starts, stops, strict=True)
-        if begin < stop and end > start
-    )

@@ -226,6 +226,27 @@ SLOW_TEXTS = {
     # The search, the language and the area read the text as GitHub shows it
     # (2026-11-21), without its link reference definitions.
     "link definitions in a row": "[a]: https://example.com/b\n" * 2_300,
+    # Each start of a hidden element would read the rest of the text for its end.
+    "hidden elements that never end": "<video>" * 9_000,
+    "hidden elements in a row": "<rp>x</rp>" * 3_000,
+    "hidden elements on rows of their own": "<video>\n\nx\n\n" * 5_000,
+    "end tags of hidden elements alone on rows": "<video>\n\n" + "</rp>\n\n" * 9_000,
+    "brackets of ruby": "<ruby>x<rp>(</rp><rt>y</rt><rp>)</rp></ruby>" * 800,
+    "brackets of ruby that never end": "<ruby>x<rp>(<b>" * 4_000,
+    "hidden elements in code": "`<rp>` " * 3_000,
+    "hidden elements after backticks": "`" * 30_000 + "<rp>x</rp>" * 3_000,
+    "hidden elements after comments": "<!-- ` --> <rp>x</rp>" * 2_000,
+    "hidden elements between tags of rows": "x <rp>" + "<a\nb>" * 4_000,
+    "hidden elements in quotes": "> <video>\n" * 6_000,
+    # Each quoted value with a `>` could read the rest of the text for its quote.
+    "quoted values with a > in paragraphs": 'x <a t=">' * 7_000,
+    "quoted values over rows in paragraphs": 'x <a t="\n' * 7_000,
+    "values with the other quote and a >": "<a t='x\" >" * 6_000,
+    "quoted values with a > in quotes": '> <a t=">\n' * 6_000,
+    "quoted values with a > in list items": '- <a t=">\n' * 6_000,
+    "quoted values with a > in HTML blocks": "<div>\n" + '<a t=">' * 9_000,
+    "tags after instructions that end at once": "x <?><span " * 6_000,
+    "names of an = at the start of rows": '<div\n="\n' * 5_000,
 }
 
 
@@ -266,6 +287,10 @@ GROWING = {
         4_000,
         "",
     ),
+    "hidden elements in a row": ("", "<rp>x</rp>", 3_000, ""),
+    "hidden elements in code": ("", "`<rp>` ", 3_000, ""),
+    "hidden elements between tags of rows": ("x <rp>", "<a\nb>", 4_000, ""),
+    "names of an = at the start of rows": ("", '<div\n="\n', 5_000, ""),
 }
 
 
@@ -526,7 +551,7 @@ def test_html_is_removed_as_github_hides_it():
         ('<div><a title="\n\nhidden', ""),
         ('<div title="x -->\n\nhidden', ""),
         # A tag alone on its row whose quoted value holds a `<` or a `>`.
-        ('<a title=">">\nx <!--\n\nhidden', '">\nx '),
+        ('<a title=">">\nx <!--\n\nhidden', "\nx "),
         ('<a title="<">\nx <!--\n\nhidden', "\nx "),
         # GitHub's HTML parser ends a comment at `--!>`, but the block runs on to the
         # row of its `-->`, where a `<!--` still hides the rest.
@@ -773,8 +798,152 @@ def test_the_cleaning_reads_tags_as_before_where_it_was_right():
     # rows as text, and the cleaning takes out only `</a>`, as before.
     text = "x\n\n<a\nhidden words\n>link</a>\n\nshown"
     assert assistant.shown_text(text) == ("x\n\n<a\nhidden words\n>link\n\nshown", 0)
-    # A tag on one row goes as it always did, also with a `>` in a quoted value.
-    assert assistant.strip_html('<b title="a>b">x</b>') == 'b">x'
+    # A tag on one row goes whole, also past a `>` in a quoted value.
+    assert assistant.strip_html('<b title="a>b">x</b>') == "x"
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        ('x\n\n<div data-x=">hidden words">\n\nshown', "x\n\n\n\nshown"),
+        ("x\n\n<p data-x='>hidden'></p>\n\nshown", "x\n\n\n\nshown"),
+        ('x <span foo=">hidden words">y</span> shown', "x y shown"),
+        ('> x <span foo=">hidden">y</span> shown', "> x y shown"),
+        ('- x <span foo=">hidden">y</span> shown', "- x y shown"),
+        (
+            '| a |\n|---|\n| x <span foo=">hidden">y</span> shown |',
+            "| a |\n|---|\n| x y shown |",
+        ),
+        (
+            '<details><summary>Logs</summary>\n<span data-x=">hidden"></span>\n</details>',
+            "Logs\n\n",
+        ),
+        (
+            'Crash <img src="https://example.com/a.png" alt="" data-x=">hidden"> shown',
+            "Crash  shown",
+        ),
+        # The page shows a title only while the pointer rests on the tag.
+        ('x <b title=">hidden">y</b> shown', "x y shown"),
+        # A tag after markup that ends on its row of a list item goes on in the rows
+        # of the item, which a tight list hands on without a paragraph.
+        ("- <?php ?><span\n  hidden", "- "),
+        ("- <!DOCTYPE html><span\n  hidden", "- "),
+        # A lazy row below an HTML block of a quote or a list item starts a paragraph,
+        # in which CommonMark reads the tag over rows.
+        ("> <div>\n<span\nhidden>", "> \n"),
+        ("- <div>\n<span\nhidden>", "- \n"),
+        # GitHub's HTML parser ends `<?>` at once and reads what follows as HTML.
+        ("x <?><span\nhidden?> shown", "x  shown"),
+        ('x <?><span data-x="?>hidden"> more', "x "),
+        ("-<![CDATA[><!x<><?hidden]]>", "-"),
+        # A name `=`, whose value never ends.
+        ('<div\n=="\n\nhidden', ""),
+        # A declaration that ends no paragraph runs to the end of the text.
+        ("s\n<b>\n<!\n<!D\n\nhidden", "s\n\n"),
+    ],
+)
+def test_a_tag_goes_with_its_quoted_values_where_github_hides_it(text, shown):
+    """GitHub's HTML parser reads a quoted value past a `>`, and shows nothing of a
+    tag (`gh api -X POST markdown` with the mode gfm, as Chrome shows the HTML,
+    2026-11-21): the tag goes whole, on one row and over rows."""
+    assert assistant.shown_text(text) == (shown, 0)
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        ('<div data-x="hidden"></div> shown', " shown"),
+        ("x > y", "x > y"),
+        ("a <b c", "a <b c"),
+        ("<a\n> quote", "<a\n> quote"),
+        ('x <a href="https://example.com/?q=>">words</a> shown', "x words shown"),
+        # CommonMark reads no tag here, and GitHub shows the text as it is: the
+        # cleaning takes out the start of the tag up to the first `>`, as before.
+        ('x <span 1=">words">y</span> shown', 'x words">y shown'),
+        ('x <span data-x=">words" more', 'x words" more'),
+        ("x <span data-x=`>words`> more", "x words`> more"),
+        # GitHub shows these tags as text; the cleaning takes out a tag of one row
+        # in them, as before, and never more than its row.
+        ("<script>x</script> shown", "x shown"),
+        ('```\n<a b="\n```\n\nshown', '```\n<a b="\n```\n\nshown'),
+    ],
+)
+def test_what_github_shows_of_a_tag_stays(text, shown):
+    assert assistant.shown_text(text) == (shown, 0)
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        ("<ruby>x<rp>(</rp><rt>y</rt><rp>)</rp></ruby>", "xy"),
+        ("a <rp>hidden</rp> b", "a  b"),
+        ("<video>hidden</video>", ""),
+        (
+            'Before <video src="https://example.com/a.mp4" width="0" height="0">'
+            "hidden</video> After",
+            "Before  After",
+        ),
+        ("Before\n\n<video>\n\nhidden\n\n</video>\n\nAfter", "Before\n\n\n\nAfter"),
+        ("Before\n\n<video>\n\nhidden\n\n# Heading\n\n- item", "Before\n\n"),
+        # An end tag in a paragraph of its own ends nothing.
+        ("Before\n\n<video>\n\nhidden</video>\n\nmore", "Before\n\n"),
+        ("<video>\n\nhidden\n\n</video> more\n\nmore", ""),
+        ("a <video/>hidden", "a "),
+        ("a <video>b <video>c</video> d</video> e", "a  e"),
+        # An `rp` of a ruby ends at its `</ruby>`, outside a ruby only at `</rp>`.
+        ("<ruby>x<rp>hidden</ruby> shown", "x shown"),
+        ("a <rp>hidden<rt>hidden</rt> hidden</rp> b", "a  b"),
+        ("<RP>hidden</RP> <Video>hidden</Video> shown", "  shown"),
+        ("# a <video>hidden\n\nshown", "# a \n\nshown"),
+        # GitHub shows code as it is, and the content of a <details> on a click.
+        ("Use `<video>` and `<rp>` as code", "Use `` and `` as code"),
+        (
+            "<details><summary>Logs</summary>\n\nshown\n\n</details>",
+            "Logs\n\nshown\n\n",
+        ),
+        ("<ruby>漢<rt>kan</rt></ruby> shown", "漢kan shown"),
+        # A backtick that starts no code, as a run that no run of its length ends,
+        # or HTML before it that CommonMark reads first, leaves the tag one.
+        ("a `` b ` <rp>hidden</rp> shown", "a `` b `  shown"),
+        ("`a` <!-- b <rp>hidden</rp> shown", "`a` <!-- b  shown"),
+        ("`a` <!x> <rp>hidden</rp> shown `", "`a`   shown `"),
+        (
+            "x <!-- y\n\n`a` <!-- b <rp>hidden</rp> shown",
+            "x <!-- y\n\n`a` <!-- b  shown",
+        ),
+        # The end of its paragraph ends an element that no end tag ends.
+        ("a <rp>hidden\n\nshown <div>x</div>", "a \n\nshown x"),
+        # An end tag alone on its row after a blank row, of any line break.
+        ("<video>\r\n\r\nhidden\r\n\r\n</video>\r\n\r\nshown", "\r\n\r\nshown"),
+        ("<video>\n\nhidden\n  \n</video>\n\nshown", "\n\nshown"),
+        # After a list item, only an end tag that no list item holds ends it.
+        ("<video>\n\nhidden\n- item\n\n  </video>\n\nafter", ""),
+        ("<video>\n\nhidden\n\n1. item\n\n   </video>\n\nafter", ""),
+        ("<video>\n\nhidden\n\n- item\n\n</video>\n\nafter", "\n\nafter"),
+        # A start tag whose quoted value never ends hides the rest of the text.
+        ('<div>\n<video title="\n\nhidden', "\n"),
+    ],
+)
+def test_the_content_of_a_video_or_of_the_brackets_of_ruby_is_hidden(text, shown):
+    """GitHub keeps a `video` and an `rp` with what they hold, and no browser shows
+    it (`gh api -X POST markdown` with the mode gfm, as Chrome shows the HTML,
+    2026-11-21): it goes up to where GitHub's HTML parser ends the element."""
+    assert assistant.shown_text(text) == (shown, 0)
+
+
+def test_where_github_hides_the_rest_it_hides_the_footnotes():
+    """GitHub shows the footnotes after the end of the text, inside an element or a
+    comment that runs on to that end (`gh api -X POST markdown` with the mode gfm,
+    2026-11-21)."""
+    for start in ("<video>", "<div>\n<!--"):
+        text = f"[^1]: hidden\n\nSee [^1].\n\n{start}\n\nhidden"
+        assert "hidden" not in assistant.shown_text(text)[0]
+        # Also where the footnote is the last block before the rest.
+        text = f"See [^1].\n\n[^1]: hidden\n\n{start}\n\nhidden"
+        assert "hidden" not in assistant.shown_text(text)[0]
+    # A comment in a footnote hides only what follows it.
+    text = "x[^1]\n\n[^1]: a\n\n    <div> <!--\n    hidden"
+    assert assistant.shown_text(text) == ("x[^1]\n\n[^1]: a\n\n     ", 0)
 
 
 def test_tags_that_may_hide_more_take_out_more():
@@ -904,14 +1073,18 @@ SEARCH = json.loads(
 MARKUP_SEARCH = json.loads(
     (Path(__file__).with_name("fixtures") / "markup-over-rows.json").read_text("utf-8")
 )
+HIDDEN_SEARCH = json.loads(
+    (Path(__file__).with_name("fixtures") / "hidden-content.json").read_text("utf-8")
+)
+SEARCHES = (("tags", SEARCH), ("markup", MARKUP_SEARCH), ("hidden", HIDDEN_SEARCH))
 
 
 @pytest.mark.parametrize(
     "case",
-    SEARCH["texts"] + MARKUP_SEARCH["texts"],
+    [case for _, search in SEARCHES for case in search["texts"]],
     ids=[
         f"{name}-{index}"
-        for name, search in (("tags", SEARCH), ("markup", MARKUP_SEARCH))
+        for name, search in SEARCHES
         for index in range(len(search["texts"]))
     ],
 )
