@@ -132,6 +132,21 @@ def reference(state: StateBlock, start: int, end: int, silent: bool) -> bool:
 
 
 PARSER = Parser("commonmark").disable("text_join")
+
+
+def described(
+    self: Any, tokens: list[Token], index: int, options: Any, env: Any
+) -> str:
+    """A Markdown image as the text of its description, which the page shows where
+    the picture fails, and the engine reads as shown: `![a [b](u "t")](p.png)` as
+    `a b`. Its title shows only on hover, as that of a link."""
+    text = self.renderInlineAsText(tokens[index].children or [], options, env)
+    return html.escape(text)
+
+
+# The same, with the description of each Markdown image as text.
+DESCRIBING = Parser("commonmark").disable("text_join")
+DESCRIBING.add_render_rule("image", described)
 # One way to read a paragraph: its parts, each read on its own.
 Reading = list[list[Token]]
 
@@ -569,14 +584,18 @@ FILTERED_TAG = re.compile(
 SPACES = "\t\n\f "
 
 
-def browser_text(markdown: str) -> str:
+def browser_text(markdown: str, descriptions: bool = False) -> str:
     """What a browser shows of a text that GitHub rendered: the HTML that a CommonMark
     parser makes of it, after GitHub's filter of tags, read by the rules of HTML for
     tags and comments, which show nothing of what they hold (`gh api markdown -f
     mode=gfm`, 2026-11-20). A tag runs over rows to its `>`, past a `>` in a quoted
     value, and to the end of the text when none comes. A table shows no cell of a
-    row beyond the cells of its header."""
-    source = FILTERED_TAG.sub(r"&lt;\1", PARSER.render(without_extra_cells(markdown)))
+    row beyond the cells of its header. With `descriptions`, the description of a
+    Markdown image counts as shown, as the page shows it where the picture fails;
+    the `alt` of an `<img>` of HTML never does. No title of a link or an image
+    shows: the page shows it only on hover."""
+    parser = DESCRIBING if descriptions else PARSER
+    source = FILTERED_TAG.sub(r"&lt;\1", parser.render(without_extra_cells(markdown)))
     shown, position = [], 0
     while (start := source.find("<", position)) >= 0:
         shown.append(source[position:start])

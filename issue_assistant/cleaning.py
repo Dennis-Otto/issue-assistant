@@ -26,10 +26,14 @@ from .patterns import (
 from .settings import Config
 from .structures import (
     DRAWN,
+    STOP,
+    TITLE_NOTE,
+    UNDERLINE,
     apart,
     info_word,
     math_between,
     math_signs,
+    quoted,
     structures_of,
 )
 from .tags import shown_html, shown_spans, strip_html
@@ -372,25 +376,13 @@ LIST_MARK = re.compile(r"(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)")
 # A row that may open a fence, after the marks of quotes and list items and at any
 # indentation.
 FENCE_ROW = re.compile(rf"(?:[ \t]*{CONTAINER_MARK})*+[ \t]*+(?:`{{3,}}(?!.*`)|~{{3}})")
-QUOTE_MARK = re.compile(r" {0,3}>[ \t]?")
 # A row after which the next one starts a block of its own, where a definition can
 # begin: a heading, a fence, a rule or the line under a heading. More rows count
 # than in CommonMark, which only removes more.
 BOUNDARY = re.compile(r"#{1,6}(?:[ \t]|$)|`{3}|~{3}|([-*_=])(?:[ \t]*\1)*[ \t]*$")
-# A row that ends the paragraph of a definition, so that its label or its title
-# can't go on into it: a blank row, and the blocks that can interrupt a paragraph.
-# A lone `-` ends it in any place: below the paragraph it makes a heading, and
-# where the row is lazy or less indented than a list item, it starts a list item.
-# Fewer rows count than in CommonMark, which only removes more.
-STOP = re.compile(
-    r"[ \t]*$| {0,3}(?:>|#{1,6}(?:[ \t]|$)|`{3,}[^`]*$|~{3}"
-    r"|([-*_])(?:[ \t]*\1){2,}[ \t]*$|-[ \t]*$|(?:[-+*]|0*1[.)])[ \t]+\S)"
-)
-# The line under a heading, which ends the paragraph only where it can underline
-# it: in every quote of the paragraph, and in its list items, indented as far as
-# the first row of the definition. A lazy row, which goes on in a quote or a list
-# item without its marks or its indentation, makes no heading, and GitHub reads on.
-UNDERLINE = re.compile(r"( {0,3})(?:=+|-+)[ \t]*$")
+# The paragraph of a definition ends, so that its label or its title can't go on
+# into it, at a row of STOP and at the line under a heading of UNDERLINE, as the
+# paragraph of a title does (structures.py).
 INDENTED = re.compile(r" {0,3}\t| {4}")
 # The pieces of a definition within a row, each up to the character that ends it.
 # A backslash takes the character after it, if there is one, in two ways that the
@@ -436,12 +428,20 @@ def shown_text(text: str, notes: bool = True) -> tuple[str, int]:
 
 
 def shown_counts(text: str, notes: bool = True) -> tuple[str, int, int]:
+    """The text as shown_parts reads it, the number of definitions and footnotes
+    that went, and that of the structures but the titles."""
+    shown, definitions, structures, _ = shown_parts(text, notes)
+    return shown, definitions, structures
+
+
+def shown_parts(text: str, notes: bool = True) -> tuple[str, int, int, int]:
     """The text as GitHub shows it, without HTML, link reference definitions and
     footnotes that nothing refers to, and without the structures whose text GitHub
     doesn't show as it is written: the cells of a table beyond its header, the
-    source of a drawing and math that can hide text. A note takes the place of each
-    but the HTML, or a space without `notes`. Also the number of definitions and
-    footnotes that went, and that of the structures.
+    source of a drawing, math that can hide text and the title of a link or an
+    image. A note takes the place of each but the HTML and the titles, or a space
+    without `notes`. Also the number of definitions and footnotes that went, that of
+    the other structures and that of the titles.
 
     The space is for what the assistant decides by itself, which must not read the
     words of a note, such as the language: it keeps the words on both sides apart,
@@ -472,13 +472,16 @@ def shown_counts(text: str, notes: bool = True) -> tuple[str, int, int]:
         shown, None if html is None else html_row(text, shown, html), cut
     )
     definitions = len(removals)
+    noted = [index for index in placed if pieces[index] != TITLE_NOTE]
+    titles = len(placed) - len(noted)
     if not notes:
-        # A note of a structure in a definition goes with it: the two overlap.
+        # A note of a structure in a definition goes with it: the two overlap. No
+        # space takes the place of a title, of which no note took it either.
         removals = apart(
             [(start, end, " ") for start, end, _ in removals]
-            + [(start, end, " ") for start, end in places(pieces, placed)]
+            + [(start, end, " ") for start, end in places(pieces, noted)]
         )
-    return splice(shown, removals), definitions, len(placed)
+    return splice(shown, removals), definitions, len(noted), titles
 
 
 def splice(text: str, spans: list[tuple[int, int, str]]) -> str:
@@ -818,18 +821,6 @@ def definition(
         return None
     last = title(follow, index, row, position)
     return None if last is None else (last, DEFINITION_NOTE, "")
-
-
-def quoted(row: str, depth: int) -> tuple[int, int]:
-    """Where the marks of up to `depth` quotes at the start of a row end, and how
-    many there are."""
-    position = 0
-    for marks in range(depth):
-        mark = QUOTE_MARK.match(row, position)
-        if not mark:
-            return position, marks
-        position = mark.end()
-    return position, depth
 
 
 def spaces(row: str, position: int) -> int:

@@ -12,7 +12,7 @@ from typing import Any
 
 from .answer import schema_json
 from .attachments import keep_shown, render_attachments
-from .cleaning import one_line, shown_counts
+from .cleaning import one_line, shown_parts
 from .constants import BOT, DISCUSSION_MODES, MAX_TEXT, MODES
 from .engines import ENGINES, IN_PROMPT, STRICT, Engine, engine_named
 from .errors import AssistantError, GitHubError
@@ -91,9 +91,10 @@ def shown(text: str, visible: Visible) -> str:
     the comment and show the text after it to the engine. The definitions go before
     the invisible characters, which can keep a row from being one on GitHub.
     """
-    text, definitions, structures = shown_counts(text)
+    text, definitions, structures, titles = shown_parts(text)
     visible.definitions += definitions
     visible.structures += structures
+    visible.titles += titles
     return visible(text)
 
 
@@ -538,6 +539,10 @@ REMOVED = (
         "structures",
         "parts that GitHub doesn't show as they are written, cells beyond the "
         "header of a table, the source of a drawing and math,",
+    ),
+    (
+        "titles",
+        "titles of links and images, which GitHub shows only on hover,",
     ),
     (
         "removed",

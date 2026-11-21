@@ -1,7 +1,8 @@
 """The structures of Markdown whose text GitHub doesn't show as it is written: the
 cells of a row of a table beyond the cells of its header, which GitHub drops; the
 source of a diagram, a map or a 3D model, which it draws in place of the source;
-and math, whose TeX it hands to a renderer that can draw some of it as nothing.
+math, whose TeX it hands to a renderer that can draw some of it as nothing; and the
+title of an inline link or image, which the page shows only on hover.
 
 Each is found in the text as it was written, as GitHub's renderer finds it
 (`gh api -X POST markdown` with `mode: gfm` and a repository as `context`,
@@ -16,7 +17,7 @@ from __future__ import annotations
 import functools
 import html
 import re
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 
 from .markup import (
@@ -42,6 +43,9 @@ DRAWING_NOTE = (
 )
 DIAGRAM_NOTE = "(a part of the diagram that GitHub doesn't draw removed)"
 MATH_NOTE = "(math removed)"
+# Nothing takes the place of the title of a link or an image, as of an attribute of
+# a tag: the link stays a link, and its `)` keeps the words on both sides apart.
+TITLE_NOTE = ""
 
 # The languages of code that GitHub draws, by the first word of the info string of
 # a fence or of the `lang` of a `<pre>`, in small letters: `Mermaid` is code.
@@ -123,6 +127,8 @@ class Found:
     diagram: list[Span] = field(default_factory=list)
     math: list[Span] = field(default_factory=list)
     plain: list[Span] = field(default_factory=list)
+    # The title of each inline link and image, with the blanks before it.
+    titles: list[Span] = field(default_factory=list)
     # Whether the text holds a dollar sign, as an entity too, of which math could
     # also form where its HTML leaves the text.
     dollars: bool = False
@@ -138,12 +144,13 @@ class Found:
         ]
         spans += [(start, end, DIAGRAM_NOTE) for start, end in self.diagram]
         spans += [(start, end, MATH_NOTE) for start, end in self.math]
+        spans += [(start, end, TITLE_NOTE) for start, end in self.titles]
         return apart(spans)
 
     def unlinked(self) -> list[tuple[int, int, str]]:
         """The spans in which GitHub shows no link: those that it hides, and all of
         a drawing or of math, whose text is drawn and leads nowhere."""
-        spans = self.cells + self.drawn + self.math + self.plain
+        spans = self.cells + self.drawn + self.math + self.plain + self.titles
         return apart([(start, end, "") for start, end in spans])
 
 
@@ -161,7 +168,8 @@ def apart(spans: list[tuple[int, int, str]]) -> list[tuple[int, int, str]]:
 
 
 def structures_of(text: str) -> Found:
-    """The tables, drawn blocks and math of a text, as GitHub reads them."""
+    """The tables, drawn blocks, math and titles of links of a text, as GitHub reads
+    them."""
     # The searches for a text are fast, a pattern reads every position: a fence or
     # a `<pre>` that GitHub draws, or whose content is math, names its language in
     # letters or entities.
@@ -177,7 +185,9 @@ def structures_of(text: str) -> Found:
         and any(hint.search(text) for hint in TABLE_HINTS)
     )
     dollars = found.dollars
-    if not (fences or tables or pres or dollars):
+    # A title follows the destination of a link, after its `](`.
+    titles = "](" in text and LINK_TITLE.search(text) is not None
+    if not (fences or tables or pres or dollars or titles):
         return found
     reader = Reader(text)
     if fences:
@@ -188,6 +198,8 @@ def structures_of(text: str) -> Found:
         reader.tables(found)
     if dollars:
         reader.math(found)
+    if titles:
+        found.titles = Titles(text, reader).spans()
     return found
 
 
@@ -815,3 +827,376 @@ def math_signs(text: str, before: str = " ", after: str = " ") -> list[str]:
         position = sign + 1
     pieces.append(text[position:])
     return pieces
+
+
+# The blanks that GitHub reads around the destination and the title of a link:
+# spaces, tabs, form feeds, vertical tabs and line breaks, each with the marks of
+# the quotes of its next row. That the rows go on in one paragraph is read after.
+SPACING = r"(?:[ \t\f\v]|(?:\r\n?|\n)[ \t\f\v>]*+)"
+# The title of an inline link or an image, from the `](` that ends its text: the
+# blanks before its destination; the destination, in `<>` or as a run of characters
+# without a space, a tab or a line break, which ends here before the next `](`, so
+# that each run is read once: the first `](` of a run holds the rest of it in its
+# destination, and the last one finds the same title; at least one blank before the
+# title; the title in `"…"`, `'…'` or `(…)`, in which a backslash takes the
+# character after it, if there is one; and the blanks and the `)` after it. A form
+# feed, a vertical tab or a no-break space before the quote is part of a run, as
+# GitHub reads it, and a quote right after it too; after a `>`, a form feed or a
+# vertical tab is a blank. The text of the link is read after.
+LINK_TITLE = re.compile(
+    rf"\]\({SPACING}*+"
+    r"(?:<(?:[^<>\\\r\n]|\\[^\r\n]?+)*+>(?=[ \t\f\v\r\n])"
+    r"|(?:[^ \t\r\n\\\]]|\\[^ \t\r\n]?+|\](?!\())++)"
+    rf"(?P<title>{SPACING}++"
+    r"(?:\"(?:[^\"\\]|\\[\s\S]?+)*+\"|'(?:[^'\\]|\\[\s\S]?+)*+'"
+    r"|\((?:[^()\\]|\\[\s\S]?+)*+\)))"
+    rf"{SPACING}*+\)"
+)
+# A `[` that no backslash escapes, which can open the text of a link or an image,
+# and a `]`, which can close it.
+OPENER = re.compile(r"(?<!\\)(?:\\\\)*+\[")
+CLOSER = re.compile(r"(?<!\\)(?:\\\\)*+\]")
+# What can hold a `]` that closes nothing: a tag, an autolink, a code span, math or
+# the destination of a link.
+UNSURE = re.compile(r"[<`$]|\]\(")
+# A row indented as code, after the blanks before its text; and a heading, after the
+# marks of its quotes and list items and their blanks.
+INDENTED_ROW = re.compile(r" {0,3}\t| {4}")
+HEADING = re.compile(r"#{1,6}(?:[ \t]|$)")
+# A blank row, also one of the marks of quotes alone: it ends a paragraph.
+BLANK_ROW = re.compile(rf"{ROW_START}[ \t>]*+{END}")
+BLANK = re.compile(r"[ \t]")
+# What ends a run of characters that a destination can be.
+RUN_ENDS = " \t\r\n"
+# The marks of a quote, each with its blanks, as a row of a paragraph in it starts.
+QUOTE_MARK = re.compile(r" {0,3}>[ \t]?")
+# A row that ends a paragraph, from its first character after the marks of the
+# quotes that hold it: a blank one, and the blocks that can interrupt a paragraph.
+# A lone `-` ends it in any place: below the paragraph it makes a heading, and where
+# the row is lazy or less indented than a list item, it starts a list item. Fewer
+# rows count than in CommonMark: what such a row would end goes on, which takes out
+# only more.
+STOP = re.compile(
+    r"[ \t]*$| {0,3}(?:>|#{1,6}(?:[ \t]|$)|`{3,}[^`]*$|~{3}"
+    r"|([-*_])(?:[ \t]*\1){2,}[ \t]*$|-[ \t]*$|(?:[-+*]|0*1[.)])[ \t]+\S)"
+)
+# HTML that starts a block of a kind that can interrupt a paragraph, which ends it.
+HTML_INTERRUPT = re.compile(
+    rf" {{0,3}}(?:<(?:{caseless('pre|script|style|textarea')})(?=[\s>]|\Z)"
+    r"|<!--|<\?|<![A-Za-z]|<!\[CDATA\["
+    rf"|</?(?:{caseless(BLOCK_TAGS)})(?=[ \t>]|/>|\Z))"
+)
+# The line under a heading, which ends the paragraph only where it can underline
+# it: in every quote of the paragraph, and in its list items, indented as far as
+# its first row. A lazy row, which goes on in a quote or a list item without its
+# marks or its indentation, makes no heading, and GitHub reads on.
+UNDERLINE = re.compile(r"( {0,3})(?:=+|-+)[ \t]*$")
+# A row that ends a paragraph, or a line that can underline it, with the blanks
+# before it as `underline`: one pattern for the three.
+PARAGRAPH_END = re.compile(
+    rf"(?:{STOP.pattern})|(?:{HTML_INTERRUPT.pattern})"
+    r"|(?P<underline> {0,3})(?:=+|-+)[ \t]*$"
+)
+
+
+def quoted(row: str, depth: int) -> tuple[int, int]:
+    """Where the marks of up to `depth` quotes at the start of a row end, and how
+    many there are."""
+    position = 0
+    for marks in range(depth):
+        mark = QUOTE_MARK.match(row, position)
+        if not mark:
+            return position, marks
+        position = mark.end()
+    return position, depth
+
+
+class Titles:
+    """The titles of the inline links and images of a text, as GitHub reads them:
+    each that follows the destination after the `](` of a link, from its blanks to
+    the end of its quote, of which the page shows nothing but on hover.
+
+    The text of a link reaches back to the last `[` of its paragraph that no
+    backslash escapes and no link took; one that holds a link, which GitHub shows as
+    text, or an autolink also takes it, so that its title goes as well: the safe
+    side. No link starts in fenced code, in an HTML block that surely holds its row,
+    or in a code span that starts before its `](` on its row, read from the left as
+    GitHub reads it, past the titles found before. Where an earlier row of the
+    paragraph holds a backtick, a code span could run over rows, and none counts on
+    the row. A title over rows goes on only in the rows of its paragraph.
+
+    Each part of the text is read a bounded number of times: the destination ends
+    before the next `](`, a title before the next quote of its kind, and the brackets
+    and backticks are found once.
+    """
+
+    def __init__(self, text: str, reader: Reader) -> None:
+        self.text = text
+        self.reader = reader
+        self.code = reader.code()
+        self.held = html_blocks(text, reader)
+        self.held_starts = [start for start, _ in self.held]
+        self.brackets = [opener.end() - 1 for opener in OPENER.finditer(text)]
+        self.ends = [closer.end() - 1 for closer in CLOSER.finditer(text)]
+        self.end = 0
+        self.unsure: list[int] | None = None
+        # The last row read for indented code and for the quotes of its paragraph:
+        # whether it is code, whether it is blank, and the quotes of the rows of its
+        # paragraph up to it.
+        self.coded_row = -1
+        self.code_above, self.blank_above = False, True
+        self.depth_row, self.quotes = -1, 0
+        # For each `[` that a link took or holds, the index of the next one before
+        # it that may still open one; -1 where none can.
+        self.taken: dict[int, int] = {}
+        self.blank_rows: list[int] | None = None
+        self.ticks: list[int] | None = None
+        # The row whose backtick runs are read, the runs, the next of the same
+        # length after each, and the first that may still open a code span.
+        self.row = -1
+        self.runs: list[Span] = []
+        self.closers: list[int | None] = []
+        self.run = 0
+        self.joins: tuple[int, bool] = (-1, False)
+        # Where the last title found ends: nothing before it opens anything; and
+        # where the blanks before the last title that a match found start.
+        self.after = 0
+        self.title = -1
+
+    def spans(self) -> list[Span]:
+        """The span of each title with the blanks before it, in order and apart."""
+        text, found, position = self.text, [], 0
+        while (match := LINK_TITLE.search(text, position)) is not None:
+            start = match.start()
+            self.close(start)
+            self.title = match.start("title")
+            opener = self.opener(start)
+            if opener is None or not self.link(match):
+                position = start + 2
+                continue
+            self.take(opener, start, match.end())
+            found.append(match.span("title"))
+            position = self.after = match.end()
+        return found
+
+    def blanks(self) -> list[int]:
+        """Where each blank row starts, found once."""
+        if self.blank_rows is None:
+            self.blank_rows = [row.start() for row in BLANK_ROW.finditer(self.text)]
+        return self.blank_rows
+
+    def free(self, index: int) -> int:
+        """The index of the last `[` from `index` down that may still open a link,
+        or -1: each step that a taken one leads to is kept, so the next reading
+        skips it at once."""
+        path = []
+        while index >= 0 and index in self.taken:
+            path.append(index)
+            index = self.taken[index]
+        for step in path:
+            self.taken[step] = index
+        return index
+
+    def close(self, stop: int) -> None:
+        """Lets each `]` before `stop` after the last title take the `[` that it
+        closes, as GitHub reads it: the last that may still open a link, where
+        nothing between them can hold the `]`, as UNSURE finds it. Where something
+        can, the `[` stays free, and a title after it goes: the safe side.
+
+        A `](` in the run of characters that ends before the title of the match at
+        `stop` closes the same link: the first of them holds the rest of the run in
+        its destination, as `[a](x`](y` "t")` shows."""
+        text, ends, brackets = self.text, self.ends, self.brackets
+        run = -1
+        while self.end < len(ends) and ends[self.end] < stop:
+            closing = ends[self.end]
+            self.end += 1
+            if closing < self.after:
+                continue
+            if text.startswith("](", closing):
+                if run < 0:
+                    low = max(self.title, 0)
+                    ends_of_runs = (text.rfind(blank, low, stop) for blank in RUN_ENDS)
+                    run = 1 + max(self.title, *ends_of_runs)
+                if closing >= run:
+                    continue
+            index = self.free(bisect_left(brackets, closing) - 1)
+            if index < 0:
+                continue
+            if self.unsure is None:
+                self.unsure = [mark.start() for mark in UNSURE.finditer(self.text)]
+            at = bisect_right(self.unsure, brackets[index])
+            if at == len(self.unsure) or self.unsure[at] >= closing:
+                self.taken[index] = index - 1
+
+    def opener(self, start: int) -> int | None:
+        """The index of the `[` that opens the text of a link whose `](` stands at
+        `start`: the last one before it that may, in its paragraph; or None, also
+        where a backslash escapes the `]`."""
+        text = self.text
+        if text[start - 1 : start] == "\\":
+            escapes = start - 1
+            while escapes and text[escapes - 1] == "\\":
+                escapes -= 1
+            if (start - escapes) % 2:
+                return None
+        index = self.free(bisect_left(self.brackets, start) - 1)
+        if index < 0:
+            return None
+        blanks = self.blanks()
+        at = bisect_right(blanks, self.brackets[index])
+        if at < len(blanks) and blanks[at] < start:
+            # A blank row ends the paragraph of every `[` before it.
+            self.taken[index] = -1
+            return None
+        return index
+
+    def take(self, opener: int, start: int, end: int) -> None:
+        """The `[` that a link took, and those in its destination and its title,
+        from `start` to `end`, can open no other."""
+        self.taken[opener] = opener - 1
+        first = bisect_left(self.brackets, start)
+        last = bisect_left(self.brackets, end) - 1
+        if last >= first:
+            self.taken[last] = opener
+
+    def link(self, match: re.Match[str]) -> bool:
+        """Whether GitHub reads a match of LINK_TITLE as a link: its `](` is in no
+        code and no HTML block, and the rows after its first go on its paragraph."""
+        start, end = match.span()
+        starts = self.reader.starts
+        row = bisect_right(starts, start) - 1
+        at = bisect_right(self.held_starts, start) - 1
+        if (
+            self.code[row]
+            or (at >= 0 and self.held[at][1] > start)
+            or self.indented_code(row)
+        ):
+            return False
+        if self.coded(row, start):
+            return False
+        last = bisect_right(starts, end - 1) - 1
+        return last == row or self.goes_on(row, last)
+
+    def indented_code(self, row: int) -> bool:
+        """Whether a row is surely indented code: outside quotes and list items, it
+        and the rows above it up to a blank one, or to the start of the text, are
+        indented by four columns. The rows are read once, from the top, and none
+        in a text without a tab or four spaces."""
+        text, rows, listed = self.text, self.reader.rows, self.reader.listed
+        if self.coded_row < 0 and "\t" not in text and "    " not in text:
+            self.coded_row = len(rows)
+        while self.coded_row < row:
+            self.coded_row += 1
+            first, last = rows[self.coded_row]
+            above = self.code_above
+            self.code_above = (
+                first < listed
+                and INDENTED_ROW.match(text, first, last) is not None
+                and (above or self.blank_above)
+            )
+            self.blank_above = not text[first:last].strip(" \t")
+        return self.code_above
+
+    def coded(self, row: int, start: int) -> bool:
+        """Whether a code span that starts before `start` on its row holds it: from
+        a run of backticks that no backslash comes before, after the last title, to
+        the next run of the same length on the row."""
+        if row != self.row:
+            self.enter(row)
+        text, runs, closers = self.text, self.runs, self.closers
+        while self.run < len(runs) and runs[self.run][0] < start:
+            first = runs[self.run][0]
+            closer = closers[self.run]
+            if first < self.after or closer is None or text[first - 1 : first] == "\\":
+                self.run += 1
+                continue
+            if runs[closer][0] > start:
+                return not self.joined(row, first)
+            self.run = closer + 1
+        return False
+
+    def enter(self, row: int) -> None:
+        """Reads the backtick runs of a row, unless an earlier row of its paragraph
+        holds a backtick: then a code span could start there, and none counts."""
+        text = self.text
+        first, last = self.reader.rows[row]
+        self.row, self.run = row, 0
+        runs = [ticks.span() for ticks in BACKTICKS.finditer(text, first, last)]
+        if runs:
+            if self.ticks is None:
+                self.ticks = [ticks.start() for ticks in BACKTICKS.finditer(text)]
+            blanks = self.blanks()
+            above = bisect_left(blanks, first) - 1
+            paragraph = blanks[above] if above >= 0 else 0
+            tick = bisect_left(self.ticks, first) - 1
+            if tick >= 0 and self.ticks[tick] >= paragraph:
+                runs = []
+        closers: list[int | None] = [None] * len(runs)
+        later: dict[int, int] = {}
+        for index in reversed(range(len(runs))):
+            length = runs[index][1] - runs[index][0]
+            closers[index] = later.get(length)
+            later[length] = index
+        self.runs, self.closers = runs, closers
+
+    def joined(self, row: int, first: int) -> bool:
+        """Whether a `](` after the last title stands before the backticks at
+        `first` with no blank between: its destination holds them, and the code
+        span starts in a link."""
+        if self.joins[0] != first:
+            text = self.text
+            joint = text.rfind("](", self.reader.rows[row][0], first)
+            self.joins = (
+                first,
+                joint >= self.after and BLANK.search(text, joint, first) is None,
+            )
+        return self.joins[1]
+
+    def goes_on(self, row: int, last: int) -> bool:
+        """Whether the rows after `row` up to `last` go on its paragraph: none is
+        code or ends it, read without the marks of the quotes of the paragraph; a
+        line under a heading ends it in all of them, indented as far as the text of
+        a list item that holds the row."""
+        text, rows = self.text, self.reader.rows
+        depth = self.depth(row)
+        line = text[rows[row][0] : rows[row][1]]
+        container = CONTAINER.match(line)
+        assert container is not None  # It matches the empty text.
+        if HEADING.match(line, container.end()):
+            # A heading is a row of its own.
+            return False
+        indent = 0
+        if rows[row][0] >= self.reader.listed:
+            indent = width(line[quoted(line, depth)[0] : container.end()])
+        for index in range(row + 1, last + 1):
+            line = text[rows[index][0] : rows[index][1]]
+            position, marks = quoted(line, depth)
+            end = PARAGRAPH_END.match(line, position)
+            if self.code[index] or (
+                end is not None
+                and (
+                    end["underline"] is None
+                    or (marks == depth and len(end["underline"]) >= indent)
+                )
+            ):
+                return False
+        return True
+
+    def depth(self, row: int) -> int:
+        """How many quotes hold the paragraph of a row: as many as any row of it up
+        to that one has, from a blank row on. A row with more starts a quote of its
+        own, but one quote too many only goes on the paragraph further. The rows
+        are read once, from the top, and none in a text without a `>`."""
+        text, rows = self.text, self.reader.rows
+        if self.depth_row < 0 and ">" not in text:
+            self.depth_row = len(rows)
+        while self.depth_row < row:
+            self.depth_row += 1
+            first, last = rows[self.depth_row]
+            container = CONTAINER.match(text, first, last)
+            assert container is not None  # It matches the empty text.
+            quotes = text.count(">", first, container.end())
+            blank = not text[first:last].strip(" \t>")
+            self.quotes = 0 if blank else max(self.quotes, quotes)
+        return self.quotes

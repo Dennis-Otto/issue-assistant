@@ -1341,6 +1341,60 @@ def test_the_engine_reads_no_cell_that_github_drops(text):
         assert shown.count("Plugh") <= browser_text(text).count("Plugh")
 
 
+# Text made of the pieces of links and images with titles. `Plugh` never stands in
+# a destination: the engine reads a destination, which the page doesn't show.
+TITLES = st.lists(
+    st.sampled_from(
+        [
+            "[",
+            "]",
+            "](u ",
+            "](",
+            "![",
+            '"',
+            "'",
+            "(",
+            ")",
+            "\\",
+            "`",
+            "- ",
+            "> ",
+            "1. ",
+            "<div>",
+            "\n",
+            "\n\n",
+            "\t",
+            " ",
+            "u",
+            "Plugh",
+        ]
+    ),
+    max_size=30,
+).map("".join)
+
+
+@hypothesis.example('[a](u "Plugh")')
+@hypothesis.example("![Plugh](u 'Plugh')")
+@hypothesis.example('![a [b](u "Plugh")](p)')
+@hypothesis.example('> a\n[b](u "Plugh\n> c")')
+@hypothesis.example('[a](u "`Plugh") `b` [c](u "Plugh")')
+@hypothesis.example('`[a](u "x")` [b](u "Plugh")')
+@given(TITLES)
+def test_the_engine_reads_no_title_of_a_link_or_an_image(text):
+    """No word of the title of a link or an image reaches the engine, which a page
+    shows only on hover, and the description of an image counts as shown. Where
+    `Plugh` follows a `](` without a blank, it may stand in a destination, and
+    where a fence holds it, in the language of the fence: such a text counts as
+    none, as one with a backslash before it, which the oracle reads as a token of
+    its own. Where the oracle, which is not GitHub's parser, reads otherwise than
+    GitHub, the cases recorded from GitHub's renderer in tests/test_assistant.py
+    decide."""
+    if not re.search(r"\]\(\s*\S*Plugh|```|\\Plugh", text):
+        shown = assistant.shown_text(text)[0]
+        seen = browser_text(text, descriptions=True)
+        assert shown.count("Plugh") <= seen.count("Plugh"), (shown, seen)
+
+
 # Text made of the pieces of math and of the code that GitHub draws. Without HTML,
 # whose removal can make a row a fence that GitHub shows as text, as after a
 # comment at the start of a row.

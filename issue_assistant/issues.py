@@ -397,11 +397,13 @@ class Visible:
     them; `definitions` counts the link reference definitions and footnotes that
     GitHub shows as nothing, which the context takes out of the same texts, and
     `structures` the parts of tables, drawings and math that GitHub doesn't show as
-    they are written."""
+    they are written, and `titles` the titles of links and images, which the page
+    shows only on hover."""
 
     removed: int = 0
     definitions: int = 0
     structures: int = 0
+    titles: int = 0
 
     def __call__(self, text: str) -> str:
         text, count = INVISIBLE.subn("", text)
