@@ -31,6 +31,7 @@ from .digests import asked_since, asking, awaits_reopening, closing_day
 from .errors import GitHubError, SweepIncomplete
 from .github import GitHub
 from .issues import (
+    as_shown,
     conversing,
     edited_since,
     exemption,
@@ -227,7 +228,8 @@ def first_release(
 
 
 def denies_closing(text: str, repository: str, number: int) -> bool:
-    """Whether the text says that it doesn't close the issue of the repository.
+    """Whether the text, as GitHub shows it, says that it doesn't close the issue of
+    the repository.
 
     GitHub links a pull request to each issue that a closing keyword of its
     description names, also after words that say the opposite, as in "This doesn't
@@ -236,6 +238,7 @@ def denies_closing(text: str, repository: str, number: int) -> bool:
     issue stays open when a description says both; a link that a maintainer made
     by hand, with no keyword in the text, still counts.
     """
+    text = as_shown(text)
     for match in CLOSING_KEYWORD.finditer(text):
         named = (match[1] or match[2] or repository).lower()
         if named != repository.lower() or int(match[3]) != number:

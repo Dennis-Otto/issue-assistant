@@ -223,6 +223,9 @@ SLOW_TEXTS = {
     # Each tag of one long row looked for the end of the row again (2026-11-20).
     "comment ends in values of tags after comments": "<!-- <a> --><b c='-->'>" * 2_800,
     "sections of CDATA in a row of a block": "<div>\n" + "\t><![CDATA[>    " * 4_000,
+    # The search, the language and the area read the text as GitHub shows it
+    # (2026-11-21), without its link reference definitions.
+    "link definitions in a row": "[a]: https://example.com/b\n" * 2_300,
 }
 
 
@@ -236,6 +239,9 @@ def test_no_text_makes_reading_an_issue_slow(text):
         (assistant.excerpt, text, assistant.MAX_TEXT // 4),
         (assistant.render_issue, issue, comments),
         (assistant.issue_language, issue, comments),
+        (assistant.search_terms, issue),
+        (assistant.form_labels, issue, CONFIG),
+        (assistant.box_ticked, text, CONFIG),
     ):
         assert fast(0.5, function, *args), function.__name__
 
@@ -2626,6 +2632,49 @@ def test_a_click_that_unticks_the_box_answers_no_question(config):
     assert github.labels_of(12) == set(waiting)
 
 
+# A box of the opt-out that GitHub doesn't show, below the one that it shows.
+HIDDEN_BOX = "\n<!--\n### Automated analysis\n\n- [{}] Something else.\n-->\n"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # GitHub shows the box ticked: an unticked one that it hides unticks nothing.
+        BOX_TICKED + HIDDEN_BOX.format(" "),
+        # GitHub shows it unticked, and a ticked one that it hides keeps the AI out
+        # all the same: hidden text can only keep the AI out, never let it in.
+        BOX_UNTICKED + HIDDEN_BOX.format("x"),
+    ],
+)
+def test_a_box_ticked_anywhere_keeps_the_ai_out(body):
+    assert assistant.box_ticked(body, CONFIG)
+    assert assistant.opted_out(
+        {"body": body, "labels": [{"name": assistant.MUTED}]}, CONFIG
+    )
+
+
+def test_a_box_unticked_everywhere_lets_the_ai_in():
+    assert not assistant.box_ticked(BOX_UNTICKED + HIDDEN_BOX.format(" "), CONFIG)
+
+
+def test_a_click_on_the_box_above_a_hidden_one_is_still_a_click(config):
+    waiting = ("bug", "needs-info", "stale")
+    hidden = HIDDEN_BOX.format(" ")
+    github, plan = edited_box(
+        config, BOX_UNTICKED + hidden, BOX_TICKED + hidden, labels=waiting
+    )
+    assert (plan.mode, plan.notes) == ("none", [TICKED_NOTE])
+    assert github.labels_of(12) == {*waiting, "assistant-muted"}
+    github, plan = edited_box(
+        config, BOX_TICKED + hidden, BOX_UNTICKED + hidden, labels=waiting
+    )
+    assert (plan.mode, plan.notes) == (
+        "none",
+        ["Unticking the box alone starts nothing."],
+    )
+    assert github.labels_of(12) == set(waiting)
+
+
 def test_an_answer_saved_with_a_tick_counts_and_starts_no_follow_up(config):
     github = FakeGitHub(
         config, make_issue(labels=("bug", "needs-info"), body=BOX_UNTICKED)
@@ -3545,6 +3594,170 @@ def test_the_discussions_end_at_their_limit(config):
 )
 def test_the_search_for_older_issues_takes_the_telling_words(title, body, terms):
     assert assistant.search_terms(make_issue(title=title, body=body)) == terms
+
+
+# What the assistant decides from a reporter's words, it decides from the text as
+# GitHub shows it: the search for older issues, the language, the area and the
+# denial of a fix. Each case is a text, what GitHub shows of it (`gh api markdown`
+# with mode gfm, 2026-11-21), and what the assistant decides from both.
+@pytest.mark.parametrize(
+    ("title", "body", "github_shows", "terms"),
+    [
+        (
+            "Crash",
+            "It crashes on start.\n\n<!-- ZebraError QuokkaError -->",
+            "It crashes on start.",
+            ["crash"],
+        ),
+        (
+            "Crash",
+            "It crashes on start.\n\n<?x ZebraError ?>",
+            "It crashes on start.",
+            ["crash"],
+        ),
+        (
+            "Crash",
+            'It crashes on start. <span data-x="ZebraError">x</span>',
+            "It crashes on start. x",
+            ["crash"],
+        ),
+        (
+            "Crash",
+            "It crashes on start.\n\n[a]: https://example.com/ZebraError",
+            "It crashes on start.",
+            ["crash"],
+        ),
+        # Names of errors that the page doesn't show take no place of one it shows.
+        (
+            "Fails",
+            "<!-- AaaError BbbError CccError -->\n"
+            "It fails with ImportError when I start it.",
+            "It fails with ImportError when I start it.",
+            ["importerror", "fails"],
+        ),
+        # Visible code, a log in a <details> block and a comment that never ends,
+        # which GitHub shows as text, still name their errors.
+        (
+            "Crash",
+            "It crashes.\n\n<details><summary>Log</summary>\n\n```\nTypeError: x\n```"
+            "\n\n</details>",
+            "It crashes.\n\nLog\n\nTypeError: x",
+            ["typeerror", "crash"],
+        ),
+        (
+            "Crash",
+            "It crashes. <!-- ZebraError is the name",
+            "It crashes. <!-- ZebraError is the name",
+            ["zebraerror", "crash"],
+        ),
+        # A character that GitHub shows as nothing splits no name.
+        (
+            "Crash",
+            "It fails with Zebra\u200bError.",
+            "It fails with ZebraError.",
+            ["zebraerror", "crash"],
+        ),
+    ],
+)
+def test_the_search_takes_the_names_of_errors_that_github_shows(
+    title, body, github_shows, terms
+):
+    assert assistant.search_terms(make_issue(title=title, body=body)) == terms
+    assert assistant.search_terms(make_issue(title=title, body=github_shows)) == terms
+
+
+GERMAN_REPORT = (
+    "Die Karte bleibt nach dem Update leer, und ich weiß nicht, warum das so ist. "
+    "Ich habe es mehrmals versucht und es ist immer wieder passiert."
+)
+# The instruction of a Markdown template of issues, which GitHub doesn't show.
+ENGLISH_INSTRUCTION = (
+    "<!-- Please describe the bug in as much detail as you can. Tell us what you "
+    "expected to happen and what happened instead, and the steps that reproduce it. "
+    "Attach the logs if you have them, and remove any personal data from them before "
+    "you post them here. Thank you for taking the time to fill out this report. -->"
+)
+
+
+@pytest.mark.parametrize(
+    ("body", "comment", "github_shows", "language"),
+    [
+        (
+            f"It crashes on start.\n\n<!-- {GERMAN_REPORT} -->",
+            None,
+            "It crashes on start.",
+            "en",
+        ),
+        (
+            "It crashes on start.",
+            f"Thanks.\n\n<!-- {GERMAN_REPORT} -->",
+            "It crashes on start.",
+            "en",
+        ),
+        # The report below the instruction of a template decides, not the
+        # instruction, which holds more words.
+        (f"{ENGLISH_INSTRUCTION}\n\n{GERMAN_REPORT}", None, GERMAN_REPORT, "de"),
+        (
+            f"### What happened?\n\n{ENGLISH_INSTRUCTION}\n{GERMAN_REPORT}\n",
+            None,
+            f"### What happened?\n\n{GERMAN_REPORT}\n",
+            "de",
+        ),
+    ],
+)
+def test_the_language_is_the_one_of_the_words_that_github_shows(
+    body, comment, github_shows, language
+):
+    comments = [] if comment is None else [make_comment(1, "reporter", comment, 0)]
+    shown = [] if comment is None else [make_comment(1, "reporter", "Thanks.", 0)]
+    assert assistant.issue_language(make_issue(body=body), comments) == language
+    assert assistant.issue_language(make_issue(body=github_shows), shown) == language
+
+
+def test_the_notes_of_the_cleaning_count_for_no_language():
+    """The language reads the text with a note in the place of each definition and
+    footnote that GitHub shows as nothing: no word of a note is a stopword."""
+    notes = assistant.as_shown("[a]: https://example.com\n\n[^n]: x\n")
+    assert assistant.DEFINITION_NOTE in notes and assistant.FOOTNOTE_NOTE in notes
+    words = set(re.findall(r"\w+", notes.lower()))
+    for locale in assistant.languages.LOCALES.values():
+        assert not words & set(locale.stopwords)
+
+
+@pytest.mark.parametrize("code", ["de", "ja", "ru", "zh"])
+def test_a_report_below_the_instruction_of_a_template_keeps_its_language(code):
+    catalog = tomllib.loads((LOCALES / f"{code}.toml").read_text("utf-8"))
+    issue = make_issue(body=f"{ENGLISH_INSTRUCTION}\n\n{catalog['sample']}")
+    assert assistant.issue_language(issue, []) == code
+    # A text with too few words still gets English.
+    assert assistant.issue_language(make_issue(body=ENGLISH_INSTRUCTION), []) == "en"
+
+
+# An answer of the area field that GitHub doesn't show, below the one it shows.
+HIDDEN_AREA = "\n<!--\n### Area\n\nX01 game\n\n### x\n-->\n"
+
+
+def test_the_area_is_the_one_that_github_shows(config):
+    for body in (f"### Area\n\nLive card\n{HIDDEN_AREA}", "### Area\n\nLive card\n"):
+        assert assistant.form_labels(make_issue(body=body), config) == ["area: cards"]
+    # Several options of a dropdown, and no answer, read as before.
+    several = f"### Area\n\nLive card, X01 game\n\n<!-- Other -->\n{HIDDEN_AREA}"
+    assert assistant.form_labels(make_issue(body=several), config) == [
+        "area: cards",
+        "area: games",
+    ]
+    unanswered = f"### Area\n\n_No response_\n{HIDDEN_AREA}"
+    assert assistant.form_labels(make_issue(body=unanswered), config) == []
+
+
+def test_a_new_issue_gets_the_labels_and_owners_of_the_area_that_github_shows(config):
+    config = routed(config, games=("bob",))
+    issue = make_issue(labels=(), body=BUG_BODY + HIDDEN_AREA)
+    github = routed_github(config, issue)
+    assistant.handle_event(github, "issues", event("opened", issue), config)
+    assert "area: games" not in github.labels_of(12)
+    assert "area: cards" in github.labels_of(12)
+    assert github.store[12]["assignees"] == [{"login": "alice"}]
 
 
 # The context is written into config.root, which is then a copy of the sample.
@@ -9724,6 +9937,24 @@ def test_words_against_a_closing_keyword_deny_the_fix(text, denies):
     assert assistant.denies_closing(text, "Owner/Project", 12) is denies
 
 
+@pytest.mark.parametrize(
+    ("text", "github_shows", "denies"),
+    [
+        ("Fixes #12\n\n<!-- This does not close #12 -->", "Fixes #12", False),
+        ("Fixes #12 <span title='not fixes #12'>x</span>", "Fixes #12 x", False),
+        # Words against the fix that GitHub shows still deny it.
+        (
+            "This does not close #12 <!-- or does it -->",
+            "This does not close #12",
+            True,
+        ),
+    ],
+)
+def test_only_words_that_github_shows_deny_the_fix(text, github_shows, denies):
+    for read in (text, github_shows):
+        assert assistant.denies_closing(read, "owner/project", 12) is denies
+
+
 def test_no_description_makes_reading_its_closing_keywords_slow():
     for text in (
         "close #1 " * 7_281,
@@ -9732,6 +9963,7 @@ def test_no_description_makes_reading_its_closing_keywords_slow():
         "fix " + " " * 65_000 + "x",
         "fix https://github.com/" + "a" * 65_000,
         "doesn't " * 8_192,
+        "<!-- doesn't fix #1 -->" * 2_800,
     ):
         assert fast(0.5, assistant.denies_closing, text, "owner/project", 1)
 

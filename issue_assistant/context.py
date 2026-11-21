@@ -19,6 +19,7 @@ from .errors import AssistantError, GitHubError
 from .github import GitHub
 from .issues import (
     Visible,
+    as_shown,
     form_parts,
     is_digest,
     is_maintainer,
@@ -273,7 +274,8 @@ def render_judged(
 
 def search_terms(issue: dict[str, Any]) -> list[str]:
     """The words of the search for older issues like this one: the names of errors in
-    its text, such as TypeError or ECONNREFUSED, then the words of its title.
+    its text as GitHub shows it, such as TypeError or ECONNREFUSED, then the words of
+    its title.
 
     Words alone, in lower case, so that none is a qualifier of the search, such as
     repo:, or one of its operators, such as OR; none longer than SEARCH_WORD, so
@@ -281,7 +283,7 @@ def search_terms(issue: dict[str, Any]) -> list[str]:
     """
     errors = [
         word
-        for word in WORD.findall(text_of(issue))
+        for word in WORD.findall(as_shown(text_of(issue)))
         if word.endswith(("Error", "Exception")) or ERROR_CODE.fullmatch(word)
     ]
     words = list(dict.fromkeys(errors))[:SEARCH_ERRORS] + WORD.findall(issue["title"])

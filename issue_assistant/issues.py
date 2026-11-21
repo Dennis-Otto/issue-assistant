@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from .cleaning import shown_text
 from .constants import BOT, DIGEST, MAX_TEXT, MUTED, PINNED
 from .github import GitHub
 from .languages import ANSWER_LANGUAGES, detect_language
@@ -47,6 +48,14 @@ def is_maintainer(item: dict[str, Any]) -> bool:
 def text_of(item: dict[str, Any]) -> str:
     """The text of an issue or a comment, as much of it as GitHub keeps."""
     return str(item.get("body") or "")[:MAX_TEXT]
+
+
+def as_shown(text: str | None) -> str:
+    """The text as GitHub shows it, cleaned as the AI reads it, with a note in the
+    place of what went: what the assistant decides from a reporter's words, such as
+    the search for older issues, the language or the area, it decides from this, so
+    that nothing that the page hides chooses for it."""
+    return INVISIBLE.sub("", shown_text(text or "")[0])
 
 
 def marker(comment: dict[str, Any]) -> tuple[str, dict[str, str]] | None:
@@ -94,6 +103,18 @@ def form_parts(
     text and starts no field; it still ends the answer before it.
     """
     body = body or ""
+    first, spans = form_spans(body, outside_code)
+    fields = []
+    for label, start, end in spans:
+        value = body[start:end].strip()
+        fields.append((label, "" if value == "_No response_" else value))
+    return body[:first], fields
+
+
+def form_spans(body: str, outside_code: bool) -> tuple[int, list[tuple[str, int, int]]]:
+    """Where the first heading of a form starts in the text, or its end without one;
+    and the label of each field with the start and the end of its answer, as
+    `form_parts` reads them."""
     rows = body.split("\n")
     if outside_code:
         code = fenced([row.removesuffix("\r") for row in rows])
@@ -107,15 +128,14 @@ def form_parts(
             headings.append((start, start + len(row), heading[1].strip()))
         start += len(row) + 1
     if not headings:
-        return body, []
+        return len(body), []
     ends = [heading[0] for heading in headings[1:]] + [len(body)]
-    fields = []
-    for (_, end_of_heading, label), end in zip(headings, ends, strict=True):
-        if end_of_heading == len(body):
-            continue
-        value = body[end_of_heading:end].strip()
-        fields.append((label, "" if value == "_No response_" else value))
-    return body[: headings[0][0]], fields
+    spans = [
+        (label, end_of_heading, end)
+        for (_, end_of_heading, label), end in zip(headings, ends, strict=True)
+        if end_of_heading != len(body)
+    ]
+    return headings[0][0], spans
 
 
 def form_fields(body: str) -> dict[str, str]:
@@ -127,12 +147,12 @@ def form_fields(body: str) -> dict[str, str]:
 
 
 def form_labels(issue: dict[str, Any], config: Config) -> list[str]:
-    """The labels that the answer of the area field chooses.
+    """The labels that the answer of the area field chooses, as GitHub shows it.
 
     GitHub joins the options of a dropdown with `multiple: true` with ", "; an
     option that holds ", " itself stays one answer.
     """
-    area = form_fields(text_of(issue)).get(config.area_field, "")
+    area = form_fields(as_shown(text_of(issue))).get(config.area_field, "")
     options = {option for label in config.labels for option in label.form_options}
     answers = {area} if area in options else set(area.split(", "))
     return [label.name for label in config.labels if answers & set(label.form_options)]
@@ -159,21 +179,33 @@ def first_heading(form: dict[str, Any]) -> str | None:
 
 def box_ticked(body: str | None, config: Config) -> bool:
     """Whether the text of an issue has the box of [forms] opt_out_field ticked, with
-    which its reporter keeps the AI out of it."""
-    answer = form_fields(body or "").get(config.opt_out_field, "")
-    return TICKED_BOX.search(answer) is not None
+    which its reporter keeps the AI out of it.
+
+    The box counts as ticked when an answer of its field is ticked anywhere, in the
+    text as GitHub stores it or as it shows it: a fence that a reporter leaves open
+    can't hide a ticked box, and a box that the page doesn't show can't untick the
+    one it does. So hidden text can only keep the AI out, never let it in.
+    """
+    body = body or ""
+    return any(
+        label == config.opt_out_field and TICKED_BOX.search(answer) is not None
+        for text in (body, as_shown(body))
+        for label, answer in form_parts(text)[1]
+    )
 
 
 def without_box(body: str | None, config: Config) -> str:
-    """The text of an issue without the answer of the box of [forms] opt_out_field, to
-    tell a click on the box from an edit of the text. The answer is cut out at its last
-    place, as a form writes the box last."""
+    """The text of an issue without the answers of the box of [forms]
+    opt_out_field, to tell a click on the box from an edit of the text."""
     body = body or ""
-    answer = form_fields(body).get(config.opt_out_field)
-    if not answer:
-        return body
-    start, _, end = body.rpartition(answer)
-    return start + end
+    spans = [
+        (start, end)
+        for label, start, end in form_spans(body, False)[1]
+        if label == config.opt_out_field
+    ]
+    ends = [0] + [end for _, end in spans]
+    starts = [start for start, _ in spans] + [len(body)]
+    return "".join(body[end:start] for end, start in zip(ends, starts, strict=True))
 
 
 def opted_out(issue: dict[str, Any], config: Config) -> bool:
@@ -185,17 +217,20 @@ def opted_out(issue: dict[str, Any], config: Config) -> bool:
 
 
 def issue_language(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str:
-    """The language of the assistant's last analysis, or the one the reporter writes in."""
+    """The language of the assistant's last analysis, or the one the reporter writes
+    in, as GitHub shows their words."""
     for comment in reversed(comments):
         found = marker(comment)
         if found and found[0] in {"analysis", "follow-up"} and "lang" in found[1]:
             language = found[1]["lang"]
             return language if language in ANSWER_LANGUAGES else "en"
     author = login(issue.get("user"))
-    body = text_of(issue)
+    body = as_shown(text_of(issue))
     answers = " ".join(form_fields(body).values()) or body
     texts = [answers] + [
-        text_of(comment) for comment in comments if login(comment.get("user")) == author
+        as_shown(text_of(comment))
+        for comment in comments
+        if login(comment.get("user")) == author
     ]
     return detect_language(" ".join(texts))
 
