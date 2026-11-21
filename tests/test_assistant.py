@@ -303,6 +303,8 @@ def test_no_text_makes_reading_an_issue_slow(text):
         (assistant.search_terms, issue),
         (assistant.form_labels, issue, CONFIG),
         (assistant.box_ticked, text, CONFIG),
+        (assistant.shown_links, text),
+        (assistant.denies_closing, text, "owner/project", 1),
     ):
         assert fast(0.5, function, *args), function.__name__
 
