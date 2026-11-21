@@ -1405,6 +1405,30 @@ def test_the_spans_that_strip_html_keeps_make_its_text(text):
     assert all(left[1] <= right[0] for left, right in itertools.pairwise(spans))
 
 
+NOTES = (
+    assistant.TABLE_NOTE,
+    assistant.DRAWING_NOTE,
+    assistant.DIAGRAM_NOTE,
+    assistant.MATH_NOTE,
+    assistant.DEFINITION_NOTE,
+    assistant.FOOTNOTE_NOTE,
+)
+
+
+@hypothesis.example("$\\color{red}x$\n[a]: https://example.com\n")
+@hypothesis.example("[a]: x '<pre lang=\"mermaid\">y</pre>'\n\n| a |\n|-|\n| b | c |")
+@given(st.one_of(TEXT, DECIDED, DEFINITIONS, HTML_BLOCKS, TABLES, DRAWN))
+def test_the_decisions_read_a_space_where_the_ai_reads_a_note(text):
+    """What the assistant decides by itself reads the text that the AI reads with a
+    space in the place of each note, and nothing else changed: the same rows, the
+    same definitions found, and the same text where nothing went."""
+    read = assistant.shown_text(text)[0]
+    spaced = assistant.shown_text(text, notes=False)[0]
+    for note in NOTES:
+        read = read.replace(note, " ")
+    assert spaced == read
+
+
 # Forms with HTML: headings, answers, comments and tags with attributes.
 FORM_HTML = st.lists(
     st.sampled_from(

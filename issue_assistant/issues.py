@@ -51,11 +51,14 @@ def text_of(item: dict[str, Any]) -> str:
 
 
 def as_shown(text: str | None) -> str:
-    """The text as GitHub shows it, cleaned as the AI reads it, with a note in the
-    place of what went: what the assistant decides from a reporter's words, such as
-    the search for older issues, the language or the area, it decides from this, so
-    that nothing that the page hides chooses for it."""
-    return INVISIBLE.sub("", shown_text(text or "")[0])
+    """The text as GitHub shows it, cleaned as the AI reads it, with a space in the
+    place of each part that went, where the AI reads a note: what the assistant
+    decides from a reporter's words, such as the search for older issues, the
+    language or the area, it decides from this, so that nothing that the page hides
+    chooses for it, and no word of a note either. The space keeps the words on both
+    sides apart, as the page does: `Value` and `Error` on both sides of a drawing
+    stay two words for the search."""
+    return INVISIBLE.sub("", shown_text(text or "", notes=False)[0])
 
 
 def marker(comment: dict[str, Any]) -> tuple[str, dict[str, str]] | None:

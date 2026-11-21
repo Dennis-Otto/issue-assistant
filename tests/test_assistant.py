@@ -3916,14 +3916,131 @@ def test_the_language_is_the_one_of_the_words_that_github_shows(
     assert assistant.issue_language(make_issue(body=github_shows), shown) == language
 
 
-def test_the_notes_of_the_cleaning_count_for_no_language():
-    """The language reads the text with a note in the place of each definition and
-    footnote that GitHub shows as nothing: no word of a note is a stopword."""
-    notes = assistant.as_shown("[a]: https://example.com\n\n[^n]: x\n")
-    assert assistant.DEFINITION_NOTE in notes and assistant.FOOTNOTE_NOTE in notes
-    words = set(re.findall(r"\w+", notes.lower()))
-    for locale in assistant.languages.LOCALES.values():
-        assert not words & set(locale.stopwords)
+# The six kinds of parts that GitHub doesn't show as they are written, each with
+# its note, as close to the words around them as Markdown lets them stand: a
+# drawing and math within a row, the others on rows of their own.
+REMOVED = {
+    "table": (assistant.TABLE_NOTE, "\n\n| a |\n|---|\n| b | c |\n\n"),
+    "drawing": (assistant.DRAWING_NOTE, '<pre lang="mermaid">x</pre>'),
+    "diagram": (assistant.DIAGRAM_NOTE, "\n\n```mermaid\ngraph TB\n%% x\n```\n\n"),
+    "math": (assistant.MATH_NOTE, " $\\color{red}x$ "),
+    "definition": (assistant.DEFINITION_NOTE, "\n\n[a]: https://example.com\n\n"),
+    "footnote": (assistant.FOOTNOTE_NOTE, "\n\n[^n]: x\n\n"),
+}
+NOTES = [note for note, _ in REMOVED.values()]
+
+
+@pytest.mark.parametrize(("note", "part"), REMOVED.values(), ids=REMOVED)
+def test_the_notes_of_the_cleaning_count_for_no_language(note, part):
+    """The AI reads a note in the place of each part that went, so that it knows
+    that something was there. What the assistant decides by itself reads a space
+    there instead, so that no word of a note counts: the space keeps the words on
+    both sides apart, as the note does, and the rows as they are."""
+    text = f"Value{part}Error"
+    read = assistant.shown_text(text)[0]
+    assert note in read
+    shown = assistant.as_shown(text)
+    assert not [note for note in NOTES if note in shown]
+    assert shown == read.replace(note, " ")
+    words = re.findall(r"\w+", shown)
+    assert (words[0], words[-1]) == ("Value", "Error")
+    assert "ValueError" not in words
+    assert "valueerror" not in assistant.search_terms(make_issue(body=text))
+    assert "valueerror" in assistant.search_terms(make_issue(body="ValueError"))
+
+
+# A German sentence with few stopwords, which the notes of a few parts outnumbered.
+SHORT_GERMAN = "Nach dem Update startet das Spiel nicht mehr."
+
+
+@pytest.mark.parametrize(
+    "removed",
+    [
+        # Rows with a cell too many, and a diagram with comments, made it English.
+        "| a |\n|---|\n" + "| b | c |\n" * 3,
+        "```mermaid\ngraph TB\n" + "%% x\n" * 3 + "```\n",
+        '<pre lang="mermaid">x</pre>\n\n' * 3,
+        "$\\color{red}x$\n",
+        "[a]: https://example.com\n\n[^n]: x\n",
+    ],
+    ids=["table", "diagram", "drawings", "math", "definitions"],
+)
+def test_a_report_keeps_its_language_beside_what_github_doesn_t_show(removed):
+    body = f"{SHORT_GERMAN}\n\n{removed}"
+    assert assistant.issue_language(make_issue(body=body), []) == "de"
+    comments = [make_comment(1, "reporter", body, 0)]
+    assert assistant.issue_language(make_issue(body=SHORT_GERMAN), comments) == "de"
+
+
+@pytest.mark.parametrize(("note", "part"), REMOVED.values(), ids=REMOVED)
+def test_a_box_beside_a_part_that_went_is_read_as_github_shows_it(note, part):
+    """A box above or below a part that went is ticked when it is ticked, and
+    unticked when it isn't: the space in the place of the note ticks nothing."""
+    for tick, ticked in (("X", True), (" ", False)):
+        box = f"- [{tick}] Don't let the AI assistant read this issue.\n"
+        for answer in (f"{part}{box}", f"{box}{part}"):
+            body = f"{BUG_BODY}\n### Automated analysis\n\n{answer}"
+            assert assistant.box_ticked(body, CONFIG) is ticked, answer
+
+
+def test_a_box_after_a_part_that_went_on_its_row_keeps_the_ai_out():
+    """Where a drawing or math stood before the box on its row, the box counts as
+    ticked: so hidden text only keeps the AI out, never lets it in."""
+    for part in ('<pre lang="mermaid">x</pre>', "$\\color{red}x$"):
+        box = f"- {part}[X] Don't let the AI assistant read this issue.\n"
+        body = f"{BUG_BODY}\n### Automated analysis\n\n{box}"
+        assert assistant.box_ticked(body, CONFIG)
+        assert not assistant.box_ticked(body.replace("[X]", "[ ]"), CONFIG)
+
+
+@pytest.mark.parametrize(
+    ("note", "part", "denies"),
+    [
+        (note, part, kind in {"drawing", "math"})
+        for kind, (note, part) in REMOVED.items()
+    ],
+    ids=REMOVED,
+)
+def test_a_part_that_went_ends_no_clause_of_a_denial(note, part, denies):
+    """A drawing or math between a negation and a closing keyword leaves one clause,
+    so the issue stays open. The other parts stand on rows of their own, between
+    which a clause ends, as it does between the words of two rows."""
+    text = f"This doesn't{part}close #12"
+    assert note in assistant.shown_text(text)[0]
+    assert assistant.denies_closing(text, "owner/project", 12) is denies
+    assert not assistant.denies_closing("This doesn't\n\nclose #12", "o/p", 12)
+
+
+@pytest.mark.parametrize(
+    ("note", "part", "labels"),
+    [
+        (note, part, [] if kind in {"table", "diagram"} else ["area: cards"])
+        for kind, (note, part) in REMOVED.items()
+    ],
+    ids=REMOVED,
+)
+def test_the_answer_of_the_area_is_read_without_a_note(config, note, part, labels):
+    """The answer of the area chooses its label beside a part that went, as GitHub
+    shows it. Of a table and a diagram, GitHub shows the rest in the answer."""
+    body = f"### Area\n\nLive card{part}\n"
+    assert note in assistant.shown_text(body)[0]
+    assert assistant.form_labels(make_issue(body=body), config) == labels
+
+
+def test_a_row_that_held_only_a_part_that_went_still_holds_text():
+    """A definition can't interrupt a paragraph, so GitHub shows one below a row of
+    math as text. The definitions are found in the text with the notes, so that the
+    space in the place of the math leaves no blank row after which the definition
+    would go, and with it the words that deny the fix."""
+    rest = '[a]: https://example.com "This doesn\'t close #12"\n'
+    text = f"$\\color{{red}}x$\n{rest}"
+    assert assistant.shown_text(text)[0] == f"{assistant.MATH_NOTE}\n{rest}"
+    assert assistant.as_shown(text) == f" \n{rest}"
+    assert assistant.denies_closing(text, "owner/project", 12)
+    # In a definition, a note of a part goes with the definition.
+    text = "[a]: https://example.com '<pre lang=\"mermaid\">x</pre>'\n\nshown"
+    assert assistant.shown_text(text)[0] == f"{assistant.DEFINITION_NOTE}\n\nshown"
+    assert assistant.as_shown(text) == " \n\nshown"
 
 
 @pytest.mark.parametrize("code", ["de", "ja", "ru", "zh"])
@@ -4983,15 +5100,21 @@ def test_the_parts_that_github_doesn_t_show_as_written_are_counted(
 
 def test_the_spans_of_a_text_without_others_keep_their_order():
     """cut_out keeps the parts of spans outside the hidden ones, and puts a note
-    in place of each hidden one that holds a part of them."""
+    in place of each hidden one that holds a part of them, and says where each note
+    stands."""
     text = "abcdefghij"
+
+    def cut(spans, hidden):
+        pieces, placed = assistant.cut_out(text, spans, hidden)
+        return "".join(pieces), assistant.places(pieces, placed)
+
     hidden = [(1, 3, "N"), (5, 6, "M"), (8, 9, "O")]
-    assert assistant.cut_out(text, [(0, 4), (6, 10)], hidden) == ("aNdghOj", 2)
-    assert assistant.cut_out(text, [(0, 10)], []) == (text, 0)
-    assert assistant.cut_out(text, [(2, 7)], [(0, 3, "N"), (6, 9, "M")]) == ("NdefM", 2)
+    assert cut([(0, 4), (6, 10)], hidden) == ("aNdghOj", [(1, 2), (5, 6)])
+    assert cut([(0, 10)], []) == (text, [])
+    assert cut([(2, 7)], [(0, 3, "NN"), (6, 9, "M")]) == ("NNdefM", [(0, 2), (5, 6)])
     # Hidden spans side by side, of which the second starts at the end of the first.
-    hidden = [(1, 4, "N"), (4, 5, "M")]
-    assert assistant.cut_out(text, [(0, 2), (3, 6)], hidden) == ("aNMf", 2)
+    hidden = [(1, 4, "N"), (4, 5, "MM")]
+    assert cut([(0, 2), (3, 6)], hidden) == ("aNMMf", [(1, 2), (2, 4)])
     # A part that goes over the end of a piece, and spans within each other.
     assert assistant.subtract([(0, 3), (5, 9)], [(2, 4)]) == [(0, 2), (6, 9)]
     assert assistant.between([(1, 3), (2, 3), (4, 6)], 0, 5) == [(0, 1), (3, 4)]
