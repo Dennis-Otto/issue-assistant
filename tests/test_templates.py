@@ -2190,12 +2190,9 @@ def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
     assert start["runs-on"] == RUNNER
     assert start["steps"][0] == JOBS["event"]["steps"][0]
     assert "actions/workflows/canary.yml/dispatches" in start_script()
-    # It waits for the jobs of the canary, which may wait for an earlier canary's;
-    # analyze-in-reserve runs only in place of analyze.
-    waits = 2 * sum(
-        job["timeout-minutes"] for name, job in JOBS.items() if name != RESERVE
-    )
-    assert start["timeout-minutes"] >= waits
+    # Its wait has the budget of the canary, and its job ends after the wait.
+    assert f"budget=$(({canary_budget()} * 60))" in start_script()
+    assert start["timeout-minutes"] >= canary_budget() + CANARY_LOOKUP_MINUTES
     paths = triggers["push"]["paths"]
     for path in (
         "action.yml",
@@ -2211,6 +2208,15 @@ def test_the_canary_runs_every_week_and_after_every_change_of_its_path():
         assert next(ROOT.glob(pattern), None), f"{pattern} matches no file"
 
 
+def canary_budget():
+    """The minutes for which the job start waits for its canary: those of the jobs
+    of a canary that waits for an earlier canary's, then runs its own;
+    analyze-in-reserve runs only in place of analyze."""
+    return 2 * sum(
+        job["timeout-minutes"] for name, job in JOBS.items() if name != RESERVE
+    )
+
+
 def start_step():
     return step_named(
         CANARY["jobs"]["start"], "Start the canary and wait for its result"
@@ -2221,23 +2227,33 @@ def start_script():
     return start_step()["run"]
 
 
-# The GitHub CLI of the job start, as a shell function: it notes its arguments and
-# answers with the run that GitHub started, with 404 to the first MISSING questions
-# for that run, as GitHub does in the first moments after the dispatch, and with
-# that run's conclusion. sleep only notes how long the step would wait.
+# The GitHub CLI of the job start, as a shell function: it notes its arguments,
+# answers the dispatch with the run that GitHub started, and every read of that
+# run with the next line of the file ANSWERS, the last line for every read after
+# it. A line 404 fails the read as gh does, as GitHub may for a moment after the
+# dispatch and at any read later; another one is the run's status and conclusion,
+# which the lookup with --silent doesn't print. gh run watch reads the run too, as
+# the step did before. sleep only notes how long the step would wait.
 FAKE_GH = """
 gh() {
   echo "gh $*" >> "$CALLS"
   case "$*" in
-    *" --method POST "*) [[ -z "$RUN" ]] || echo "$RUN" ;;
-    "api --header "*" repos/$GH_REPO/actions/runs/"*)
-      if ((MISSING > 0)); then
-        MISSING=$((MISSING - 1))
-        echo "failed to get run: HTTP 404: Not Found" >&2
-        return 1
-      fi
+    *" --method POST "*)
+      [[ -z "$RUN" ]] || echo "$RUN"
+      return
       ;;
-    "run view "*) echo "$CONCLUSION" ;;
+    "api --header "*" repos/$GH_REPO/actions/runs/$RUN"*|"run watch $RUN "*) ;;
+    *) return ;;
+  esac
+  mapfile -t answers < "$ANSWERS"
+  ((${#answers[@]} == 1)) || printf '%s\\n' "${answers[@]:1}" > "$ANSWERS"
+  if [[ "${answers[0]}" == 404 ]]; then
+    echo "gh: Not Found (HTTP 404)" >&2
+    return 1
+  fi
+  case "$*" in
+    *" --silent" | "run watch "*) ;;
+    *) echo "${answers[0]}" ;;
   esac
 }
 sleep() {
@@ -2249,44 +2265,118 @@ sleep() {
 # between two questions: about a minute in all.
 CANARY_LOOKUPS = 12
 CANARY_LOOKUP_PAUSE = "sleep 5"
+CANARY_LOOKUP_MINUTES = 1
+# How long the step waits between two reads of the run once GitHub showed it.
+CANARY_POLL_PAUSE = "sleep 60"
+# The step after it waits up to two minutes until Harden-Runner has removed Docker.
+CANARY_LAST_STEP_MINUTES = 2
+CANARY_URL = "https://github.com/octo/assistant/actions/runs/42"
+CANARY_WAITED = f"::warning::After {canary_budget()} minutes, "
+# Enough reads that alternate to outlast the budget of the step.
+CANARY_FLAKY = ["404", "in_progress"] * canary_budget()
+
+
+def canary_reads(answers):
+    """What the step asks gh, after its dispatch, for a run whose reads give the
+    answers: the lookup until GitHub shows the run, then a read every minute until
+    it completed or the budget ran out."""
+    lookup = (
+        f"gh api --header {assistant.API_VERSION_HEADER} "
+        "repos/octo/assistant/actions/runs/42 --silent"
+    )
+    poll = (
+        f"gh api --header {assistant.API_VERSION_HEADER} "
+        "repos/octo/assistant/actions/runs/42 "
+        """--jq .status + " " + (.conclusion // "")"""
+    )
+    answers = iter([*answers, *[answers[-1]] * 2 * (CANARY_LOOKUPS + canary_budget())])
+    calls = [lookup]
+    while next(answers) == "404":
+        if len(calls) == 2 * CANARY_LOOKUPS - 1:
+            return calls
+        calls += [CANARY_LOOKUP_PAUSE, lookup]
+    calls.append(poll)
+    waited = 0
+    while not next(answers).startswith("completed ") and waited < canary_budget():
+        calls += [CANARY_POLL_PAUSE, poll]
+        waited += 1
+    return calls
 
 
 @pytest.mark.parametrize(
-    ("run", "missing", "conclusion", "code", "says"),
+    ("run", "answers", "code", "says"),
     [
-        ("42", 0, "success", 0, "The canary passed."),
+        ("42", ["completed success"], 0, "The canary passed."),
         # A later push's canary took the place of its waiting analysis.
-        ("42", 0, "cancelled", 0, "::notice::The canary was cancelled"),
-        ("42", 0, "failure", 1, "::error::The canary ended as failure: "),
-        ("42", 0, "timed_out", 1, "::error::The canary ended as timed_out: "),
+        ("42", ["completed cancelled"], 0, "::notice::The canary was cancelled"),
+        ("42", ["completed failure"], 1, "::error::The canary ended as failure: "),
+        ("42", ["completed timed_out"], 1, "::error::The canary ended as timed_out: "),
+        (
+            "42",
+            ["in_progress", "completed startup_failure"],
+            1,
+            "::error::The canary ended as startup_failure: ",
+        ),
         # GitHub may not serve the run that it just named for a moment.
-        ("42", 2, "success", 0, "The canary passed."),
-        ("42", CANARY_LOOKUPS - 1, "failure", 1, "::error::The canary ended as "),
+        ("42", ["404", "404", "completed success"], 0, "The canary passed."),
+        (
+            "42",
+            ["404"] * (CANARY_LOOKUPS - 1) + ["completed failure"],
+            1,
+            "::error::The canary ended as failure: ",
+        ),
         # Nor for a minute, and then the run's page has its result.
         (
             "42",
-            CANARY_LOOKUPS,
-            "",
+            ["404"] * CANARY_LOOKUPS,
             0,
             "::warning::GitHub doesn't show the canary's run after a minute; "
-            "its result is at https://github.com/octo/assistant/actions/runs/42",
+            f"its result is at {CANARY_URL}",
         ),
+        # GitHub may answer 404 a second after it showed the run, as on
+        # 21 November 2026, and at any read later.
+        ("42", ["in_progress", "404", "completed success"], 0, "The canary passed."),
+        (
+            "42",
+            ["in_progress", "in_progress", "404", "in_progress", "completed failure"],
+            1,
+            "::error::The canary ended as failure: ",
+        ),
+        # A failed read never ends the wait early, and the budget ends it.
+        (
+            "42",
+            ["in_progress", "404"],
+            0,
+            f"{CANARY_WAITED}the last read of the canary's run failed; "
+            f"its result is at {CANARY_URL}",
+        ),
+        (
+            "42",
+            ["in_progress"],
+            0,
+            f"{CANARY_WAITED}the canary's run was still not completed; "
+            f"its result is at {CANARY_URL}",
+        ),
+        ("42", ["in_progress", *CANARY_FLAKY], 0, CANARY_WAITED),
         # GitHub may start a run without naming it.
-        ("", 0, "", 0, "::warning::GitHub started the canary without naming its run"),
+        ("", ["404"], 0, "::warning::GitHub started the canary without naming its run"),
     ],
 )
 def test_the_push_fails_when_the_canary_that_it_started_fails(
-    tmp_path, run, missing, conclusion, code, says
+    tmp_path, run, answers, code, says
 ):
     """GitHub mails a failed run to the person who started it, and nobody started
     the canary's run after a push but the job's token: the push's own run, which
-    the person who merged started, carries the canary's result."""
+    the person who merged started, carries the canary's result. The step sends one
+    dispatch, since every canary calls the AI engine, and ends on its own."""
     calls = tmp_path / "calls"
+    (tmp_path / "answers").write_text(
+        "\n".join(answers) + "\n", encoding="utf-8", newline="\n"
+    )
     env = {
         "CALLS": str(calls),
         "RUN": run,
-        "MISSING": str(missing),
-        "CONCLUSION": conclusion,
+        "ANSWERS": str(tmp_path / "answers"),
         "GH_REPO": "octo/assistant",
         "GITHUB_REF_NAME": "main",
         "GITHUB_SERVER_URL": "https://github.com",
@@ -2307,27 +2397,28 @@ def test_the_push_fails_when_the_canary_that_it_started_fails(
         "repos/octo/assistant/actions/workflows/canary.yml/dispatches -f ref=main "
         "-F return_run_details=true --jq .workflow_run_id"
     )
-    if run:
-        url = "https://github.com/octo/assistant/actions/runs/42"
-        assert f"The canary runs at {url}" in result.stdout
-        lookup = (
-            f"gh api --header {assistant.API_VERSION_HEADER} "
-            "repos/octo/assistant/actions/runs/42 --silent"
-        )
-        lookups = min(missing + 1, CANARY_LOOKUPS)
-        waited = [lookup, CANARY_LOOKUP_PAUSE] * (lookups - 1) + [lookup]
-        if missing < CANARY_LOOKUPS:
-            assert rest == [
-                *waited,
-                "gh run watch 42 --interval 60",
-                "gh run view 42 --json conclusion --jq .conclusion",
-            ]
-        else:
-            assert rest == waited
-        if code:
-            assert result.stdout.rstrip().endswith(url)
-    else:
+    if not run:
         assert rest == []
+        return
+    assert f"The canary runs at {CANARY_URL}" in result.stdout
+    assert rest == canary_reads(answers)
+    # No read starts the canary again or goes past the API.
+    assert all(call.startswith(("gh api --header ", "sleep ")) for call in rest)
+    pauses = [int(call.removeprefix("sleep ")) for call in rest if "gh " not in call]
+    assert max(pauses, default=0) <= 60
+    if says.startswith(CANARY_WAITED):
+        # The wait ran out only once its pauses after the lookup filled the budget.
+        waited = rest.count(CANARY_POLL_PAUSE) * 60
+        assert waited >= canary_budget() * 60
+        # And the job's timeout still lies beyond all that runs in it.
+        job = CANARY["jobs"]["start"]
+        before = sum(step.get("timeout-minutes", 0) for step in job["steps"])
+        assert (
+            sum(pauses) / 60 + before + CANARY_LAST_STEP_MINUTES
+            < (job["timeout-minutes"])
+        )
+    if code:
+        assert result.stdout.rstrip().endswith(CANARY_URL)
 
 
 def test_the_canary_s_issue_is_one_that_this_repository_could_get():
