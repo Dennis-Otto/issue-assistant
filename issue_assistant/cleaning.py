@@ -428,20 +428,27 @@ HTML_BLOCK = re.compile(
 )
 
 
-def shown_text(text: str) -> tuple[str, int]:
+def shown_text(text: str, notes: bool = True) -> tuple[str, int]:
     """The text as GitHub shows it, as shown_counts reads it, and the number of
     definitions and footnotes that went."""
-    shown, definitions, _ = shown_counts(text)
+    shown, definitions, _ = shown_counts(text, notes)
     return shown, definitions
 
 
-def shown_counts(text: str) -> tuple[str, int, int]:
+def shown_counts(text: str, notes: bool = True) -> tuple[str, int, int]:
     """The text as GitHub shows it, without HTML, link reference definitions and
     footnotes that nothing refers to, and without the structures whose text GitHub
     doesn't show as it is written: the cells of a table beyond its header, the
     source of a drawing and math that can hide text. A note takes the place of each
-    but the HTML. Also the number of definitions and footnotes that went, and that
-    of the structures.
+    but the HTML, or a space without `notes`. Also the number of definitions and
+    footnotes that went, and that of the structures.
+
+    The space is for what the assistant decides by itself, which must not read the
+    words of a note, such as the language: it keeps the words on both sides apart,
+    as the note does, and no note holds a line break, so the rows stay as they are.
+    The definitions are found in the text with the notes of the structures, as the
+    engine reads it, and the spaces go in after them: a row that held nothing but a
+    structure stays a row with text, after which no definition starts.
 
     The HTML and the structures are both read from the text as it was written, and
     what either takes out goes: taking out the cells first could take a `<!--` that
@@ -456,23 +463,50 @@ def shown_counts(text: str) -> tuple[str, int, int]:
     if hidden or joins:
         spans, cut = shown_spans(text)
         hidden = apart(hidden + math_between(text, spans)) if joins else hidden
-        shown, count = cut_out(text, spans, hidden)
+        pieces, placed = cut_out(text, spans, hidden)
+        shown = "".join(pieces)
     else:
-        (shown, cut), count = shown_html(text), 0
+        (shown, cut), pieces, placed = shown_html(text), [], []
     html = HTML_BLOCK.search(text)
-    shown, definitions = strip_definitions(
+    removals = definition_spans(
         shown, None if html is None else html_row(text, shown, html), cut
     )
-    return shown, definitions, count
+    definitions = len(removals)
+    if not notes:
+        # A note of a structure in a definition goes with it: the two overlap.
+        removals = apart(
+            [(start, end, " ") for start, end, _ in removals]
+            + [(start, end, " ") for start, end in places(pieces, placed)]
+        )
+    return splice(shown, removals), definitions, len(placed)
+
+
+def splice(text: str, spans: list[tuple[int, int, str]]) -> str:
+    """The text with each span, in order and apart, replaced by its note."""
+    if not spans:
+        return text
+    pieces, cursor = [], 0
+    for start, end, note in spans:
+        pieces += [text[cursor:start], note]
+        cursor = end
+    pieces.append(text[cursor:])
+    return "".join(pieces)
+
+
+def places(pieces: list[str], indices: list[int]) -> list[tuple[int, int]]:
+    """Where each of the pieces at the indices stands in the pieces joined."""
+    offsets = [0, *accumulate(map(len, pieces))]
+    return [(offsets[index], offsets[index + 1]) for index in indices]
 
 
 def cut_out(
     text: str, spans: list[tuple[int, int]], hidden: list[tuple[int, int, str]]
-) -> tuple[str, int]:
+) -> tuple[list[str], list[int]]:
     """The spans of a text without the hidden ones, each with its note in its place
-    where it holds a part of the spans; and the number of those notes. Both lists
-    are in order and apart."""
+    where it holds a part of the spans, as pieces to join; and the index of each
+    of those notes among them. Both lists are in order and apart."""
     pieces: list[str] = []
+    notes: list[int] = []
     if len(spans) == 1:
         # The whole text, or the part before the end that GitHub shows: each hidden
         # span within it goes, in one pass.
@@ -485,10 +519,11 @@ def cut_out(
         ]
         for start, end, note in inside:
             pieces += [text[position:start], note]
+            notes.append(len(pieces) - 1)
             position = end
         pieces.append(text[position:last])
-        return "".join(pieces), len(inside)
-    index = count = position = 0
+        return pieces, notes
+    index = position = 0
 
     def take(stop: int) -> bool:
         """Adds the parts of the spans from `position` to `stop`; whether any."""
@@ -509,11 +544,11 @@ def cut_out(
         position, before = start, len(pieces)
         if take(end):
             del pieces[before:]
+            notes.append(len(pieces))
             pieces.append(note)
-            count += 1
         position = end
     take(len(text))
-    return "".join(pieces), count
+    return pieces, notes
 
 
 def html_row(text: str, shown: str, html: re.Match[str]) -> int:
@@ -529,7 +564,17 @@ def strip_definitions(
 ) -> tuple[str, int]:
     """The text without the link reference definitions and the footnotes without a
     reference that GitHub shows as nothing, outside code, with a note in the place
-    of each; and their number.
+    of each; and their number. definition_spans finds them."""
+    removals = definition_spans(text, html, cut)
+    return splice(text, removals), len(removals)
+
+
+def definition_spans(
+    text: str, html: int | None = None, cut: bool = False
+) -> list[tuple[int, int, str]]:
+    """The link reference definitions and the footnotes without a reference that
+    GitHub shows as nothing, outside code, each as the span of its rows in the text,
+    without the line break after the last, with its note; in order and apart.
 
     A definition starts a block: at the beginning of the text, after a blank row or
     a heading, or with a quote or a list item. It can go on over the rows of its
@@ -547,9 +592,9 @@ def strip_definitions(
     flat = text.replace("\r\n", "\n").replace("\r", "\n")
     candidates = list(rows_of(CANDIDATE, flat))
     if not candidates:
-        return text, 0
+        return []
     parts = ROW_END.split(text)
-    rows, ends = parts[::2], [*parts[1::2], ""]
+    rows = parts[::2]
     fence = fenced(rows)
     anywhere = html is not None
     code = [False] * len(rows) if anywhere else fence
@@ -619,12 +664,10 @@ def strip_definitions(
         # a comment that a footnote holds, the footnotes before it may show.
         removals = scan(rows, code, candidates, set(), anywhere, listed)[0]
     offsets = [0, *accumulate(map(len, parts))]
-    pieces, cursor = [], 0
-    for first, final, note in removals:
-        pieces += [text[cursor : offsets[2 * first]], note, ends[final]]
-        cursor = offsets[2 * final + 1] + len(ends[final])
-    pieces.append(text[cursor:])
-    return "".join(pieces), len(removals)
+    return [
+        (offsets[2 * first], offsets[2 * final + 1], note)
+        for first, final, note in removals
+    ]
 
 
 def scan(
