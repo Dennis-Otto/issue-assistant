@@ -318,6 +318,8 @@ GROWING = {
     "drawn pre that end": ("", '<pre lang="mermaid">x</pre>', 2_400, ""),
     "rows of double dollars": ("", "$$\nx\n", 13_000, ""),
     "math over comments": ("", "$x <!--\n-->\\y$ ", 2_400, ""),
+    "delimiter rows": ("", "|-|\n", 16_000, ""),
+    "drawn fences in quotes": ("", "> ```mermaid\n> %% x\n", 3_000, ""),
 }
 
 
@@ -4743,6 +4745,9 @@ WHOLE_TABLES = [
     "```\n| a |\n|---|\n| b | shown |\n```",
     "- | a |\n  |---|\n| b | shown |",
     "<div>\n| a |\n|---|\n| b | shown |\n</div>",
+    # A block that only the end of its kind ends, or the end of the text.
+    "<pre>\n| a |\n|---|\n| b | shown |\n</pre>",
+    "<pre>\n| a |\n|---|\n| b | shown |",
     # A delimiter row without a row above, and one within a table of more cells.
     "|---|\n| a | shown |",
     "| a | b |\n|---|---|\n| c |\n|---|\n| d | shown |",

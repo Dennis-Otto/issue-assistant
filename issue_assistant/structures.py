@@ -98,7 +98,6 @@ DISPLAY = re.compile(
 )
 HTML_END = {
     **{kind: HTML_ENDS[kind] for kind in ("raw", "processing", "cdata")},
-    "comment": re.compile("-->"),
     "declaration": re.compile(">"),
 }
 # The first row that starts a list item or a footnote: above it, a row indented by
@@ -509,6 +508,10 @@ def html_blocks(text: str, reader: Reader) -> list[Span]:
         if kind == "tag":
             closing = EMPTY_ROW.search(text, opening.end())
             end = len(text) if closing is None else closing.start()
+        elif kind == "comment":
+            # A comment's end is its first `-->`, found as text, not by a pattern.
+            close = text.find("-->", opening.end())
+            end = len(text) if close < 0 else close + 3
         else:
             closing = HTML_END[kind].search(text, opening.end())
             end = len(text) if closing is None else closing.end()
