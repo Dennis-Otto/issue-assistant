@@ -698,6 +698,66 @@ def shown_html(text: str) -> tuple[str, bool]:
     return shown, end < len(text)
 
 
+def shown_spans(text: str) -> tuple[list[tuple[int, int]], bool]:
+    """The parts of a text that strip_html keeps, as spans of it in their order, so
+    that what another reading of the same text takes out can go as well; and whether
+    GitHub hides the rest of it from a position on, as shown_html says."""
+    rows = HtmlRows(text)
+    spans, middle, end = html_parts(text, rows)
+    html, tags = (
+        (HTML, HTML_TAG) if rows.fenced() else (HTML_AND_MARKUP, HTML_TAG_AND_MARKUP)
+    )
+    kept: list[tuple[int, int]] = []
+    for start, stop, pattern in ((0, min(middle, end), html), (middle, end, tags)):
+        pieces = between(spans, start, stop)
+        joined = "".join(text[first:last] for first, last in pieces)
+        # As in shown_html, a match goes but for a tag start that no `>` closes.
+        removed = [
+            match.span() for match in pattern.finditer(joined) if match["open"] is None
+        ]
+        kept += subtract(pieces, removed)
+    return kept, end < len(text)
+
+
+def between(
+    spans: list[tuple[int, int]], start: int, stop: int
+) -> list[tuple[int, int]]:
+    """The parts of a text from `start` to `stop` outside the spans, which follow
+    each other and don't overlap, that `without` joins."""
+    pieces, position = [], start
+    for begin, end in spans:
+        if begin >= stop:
+            break
+        if end > position:
+            pieces.append((position, max(begin, position)))
+            position = end
+    pieces.append((position, stop))
+    return [(first, last) for first, last in pieces if last > first]
+
+
+def subtract(
+    pieces: list[tuple[int, int]], removed: list[tuple[int, int]]
+) -> list[tuple[int, int]]:
+    """The pieces of a text without what goes of them once they are joined: spans of
+    the joined pieces, in order and apart."""
+    kept: list[tuple[int, int]] = []
+    offset, index = 0, 0
+    for first, last in pieces:
+        position, top = offset, offset + last - first
+        while index < len(removed) and removed[index][0] < top:
+            begin, end = removed[index]
+            if begin > position:
+                kept.append((first + position - offset, first + begin - offset))
+            position = max(position, min(end, top))
+            if end > top:
+                break
+            index += 1
+        if position < top:
+            kept.append((first + position - offset, last))
+        offset = top
+    return kept
+
+
 def without(text: str, spans: list[tuple[int, int]], start: int, stop: int) -> str:
     """The part of a text from `start` to `stop`, without the spans, which follow
     each other and don't overlap."""

@@ -247,6 +247,28 @@ SLOW_TEXTS = {
     "quoted values with a > in HTML blocks": "<div>\n" + '<a t=">' * 9_000,
     "tags after instructions that end at once": "x <?><span " * 6_000,
     "names of an = at the start of rows": '<div\n="\n' * 5_000,
+    # The tables, the drawings and the math of a text are read once (2026-11-21).
+    "rows of a table": "| a |\n|---|\n" + "| b | c |\n" * 6_500,
+    "rows of pipes in quotes": "> | a |\n> |---|\n" + "> |\n" * 16_000,
+    "a row of pipes": "| a |\n|---|\n" + "|" * 64_000,
+    "delimiter rows": "|-|\n" * 16_000,
+    "escaped pipes": "| a |\n|---|\n" + "\\|" * 32_000,
+    "drawn fences that never close": "```mermaid\n" * 5_900,
+    "drawn fences in quotes": "> ```mermaid\n> %% x\n" * 3_000,
+    "comments of a diagram": "```mermaid\n" + "%% x\n" * 13_000 + "```",
+    "drawn pre that never end": '<pre lang="mermaid">' * 3_000,
+    "drawn pre that end": '<pre lang="mermaid">x</pre>' * 2_400,
+    "comments before pre": "<!-- <pre lang=mermaid> -->" * 2_400,
+    "dollars that never close": "$x " * 21_000,
+    "dollars before blanks": "$ " * 32_000,
+    "double dollars": "$$x " * 16_000,
+    "escaped dollars": "\\$x " * 16_000,
+    "dollars before code": "$`x " * 16_000,
+    "rows of double dollars": "$$\nx\n" * 13_000,
+    "dollars as entities": "&#36;x " * 9_000,
+    # Read twice, as written and as its HTML leaves it, in 36 KiB: the processor
+    # time of 64 KiB under the measure of the coverage came near the limit.
+    "math over comments": "$x <!--\n-->\\y$ " * 2_400,
 }
 
 
@@ -291,6 +313,13 @@ GROWING = {
     "hidden elements in code": ("", "`<rp>` ", 3_000, ""),
     "hidden elements between tags of rows": ("x <rp>", "<a\nb>", 4_000, ""),
     "names of an = at the start of rows": ("", '<div\n="\n', 5_000, ""),
+    "rows of pipes in quotes": ("> | a |\n> |---|\n", "> |\n", 16_000, ""),
+    "comments of a diagram": ("```mermaid\n", "%% x\n", 13_000, "```"),
+    "drawn pre that end": ("", '<pre lang="mermaid">x</pre>', 2_400, ""),
+    "rows of double dollars": ("", "$$\nx\n", 13_000, ""),
+    "math over comments": ("", "$x <!--\n-->\\y$ ", 2_400, ""),
+    "delimiter rows": ("", "|-|\n", 16_000, ""),
+    "drawn fences in quotes": ("", "> ```mermaid\n> %% x\n", 3_000, ""),
 }
 
 
@@ -4631,6 +4660,349 @@ def test_no_definition_reaches_the_engine(config, root, capsys):
     )
 
 
+# Tables, drawings and math. What GitHub shows of each text was asked of its
+# renderer (`gh api -X POST markdown` with the mode gfm and a repository as context,
+# 2026-11-21), and what a drawing and math show of it in a browser.
+CELLS = assistant.TABLE_NOTE
+DRAWING = assistant.DRAWING_NOTE
+DIAGRAM = assistant.DIAGRAM_NOTE
+MATH = assistant.MATH_NOTE
+
+# GitHub drops each cell of a row beyond the cells of the table's header.
+DROPPED_CELLS = [
+    ("| a |\n|---|\n| b | Xyzzy |", f"| a |\n|---|\n| b {CELLS}"),
+    (
+        "Steps:\n\n| step | result |\n| --- | --- |\n| 1 | ok | Xyzzy |",
+        f"Steps:\n\n| step | result |\n| --- | --- |\n| 1 | ok {CELLS}",
+    ),
+    ("a | b\n--|--\nc | d | Xyzzy", f"a | b\n--|--\nc | d {CELLS}"),
+    ("> | a |\n> |---|\n> | b | Xyzzy |", f"> | a |\n> |---|\n> | b {CELLS}"),
+    ("- | a |\n  |---|\n  | b | Xyzzy |", f"- | a |\n  |---|\n  | b {CELLS}"),
+    (
+        "x[^1]\n\n[^1]: note\n    | a |\n    |---|\n    | b | Xyzzy |",
+        f"x[^1]\n\n[^1]: note\n    | a |\n    |---|\n    | b {CELLS}",
+    ),
+    (
+        "<details>\n\n| a |\n|---|\n| b | Xyzzy |\n\n</details>",
+        f"\n\n| a |\n|---|\n| b {CELLS}\n\n",
+    ),
+    (
+        "| a |\n|---|\n| b | Xyzzy\n| c | Xyzzy",
+        f"| a |\n|---|\n| b {CELLS}\n| c {CELLS}",
+    ),
+    # Every pipe splits a row before anything else is read of it, also in code and
+    # in the value of a tag.
+    ("| a |\n|---|\n| `b | Xyzzy` |", f"| a |\n|---|\n| `b {CELLS}"),
+    ('| a |\n|---|\n| <span title="x|y">Xyzzy</span> |', f"| a |\n|---|\n| {CELLS}"),
+    ("| a |\n|---|\n| [b|Xyzzy](https://example.com) |", f"| a |\n|---|\n| [b{CELLS}"),
+    # A pipe after two backslashes splits nothing: `Xyzzy\\|Xyzzy` is one cell.
+    ("| a |\n|---|\n|b|Xyzzy\\\\|Xyzzy|", f"| a |\n|---|\n|b{CELLS}"),
+    ("| a |\n|---|\n| b |\tXyzzy |", f"| a |\n|---|\n| b {CELLS}"),
+    # A quote in a list item, a header without pipes and a row of its own.
+    (
+        "1. > | a |\n   > |---|\n   > | b | Xyzzy |",
+        f"1. > | a |\n   > |---|\n   > | b {CELLS}",
+    ),
+    ("abc\n:-:\nd | Xyzzy", f"abc\n:-:\nd {CELLS}"),
+    ("zqx\nzqy | a\n--|--\nb | c | Xyzzy", f"zqx\nzqy | a\n--|--\nb | c {CELLS}"),
+    # After a comment of its own row, and after a table of HTML.
+    ("<!-- x -->\n| a |\n|---|\n| b | Xyzzy |", f"\n| a |\n|---|\n| b {CELLS}"),
+    (
+        "<table><tr><td>x</td></tr></table>\n\n| a |\n|---|\n| b | Xyzzy |",
+        f"x\n\n| a |\n|---|\n| b {CELLS}",
+    ),
+    # A row of a tag alone is a row of the table, and a row up to three blanks in.
+    (
+        "| a |\n|---|\n| b | Xyzzy |\n<span>x</span>\n| c | Xyzzy |",
+        f"| a |\n|---|\n| b {CELLS}\nx\n| c {CELLS}",
+    ),
+    (
+        "| a |\n|---|\n|b|Xyzzy|\n   | c | Xyzzy |",
+        f"| a |\n|---|\n|b{CELLS}\n   | c {CELLS}",
+    ),
+    (
+        "| a |\n|---|\n| b | Xyzzy |\r\n| c | Xyzzy |",
+        f"| a |\n|---|\n| b {CELLS}\r\n| c {CELLS}",
+    ),
+]
+
+
+@pytest.mark.parametrize(("text", "shown"), DROPPED_CELLS)
+def test_the_engine_reads_no_cell_beyond_the_header_of_a_table(text, shown):
+    assert assistant.shown_counts(text) == (shown, 0, shown.count(CELLS))
+
+
+# Texts that GitHub shows whole: no table, or no cell beyond its header; and the
+# rows after a table that end it.
+WHOLE_TABLES = [
+    "| a |\n|---|\n| b \\| shown |",
+    "| a |\n|---|\n| b \\\\| shown |",
+    "| a | b |\n|---|---|\n| c |",
+    "> | a |\n> |---|\n> | b |\n| c | shown |",
+    "| a |\n|-|-|\n| b | shown |",
+    "a | b\n---\nshown",
+    "    | a |\n    |---|\n    | b | shown |",
+    "```\n| a |\n|---|\n| b | shown |\n```",
+    "- | a |\n  |---|\n| b | shown |",
+    "<div>\n| a |\n|---|\n| b | shown |\n</div>",
+    # A block that only the end of its kind ends, or the end of the text.
+    "<pre>\n| a |\n|---|\n| b | shown |\n</pre>",
+    "<pre>\n| a |\n|---|\n| b | shown |",
+    # A delimiter row without a row above, and one within a table of more cells.
+    "|---|\n| a | shown |",
+    "| a | b |\n|---|---|\n| c |\n|---|\n| d | shown |",
+]
+TABLE_ENDS = ["# x | shown", "- x | shown", "2. x | shown", "***", "> x | shown"]
+
+
+def test_a_table_that_github_shows_whole_stays_whole():
+    for text in WHOLE_TABLES:
+        assert assistant.shown_counts(text) == (assistant.strip_html(text), 0, 0)
+    for end in [*TABLE_ENDS, "    | c | shown |", "```\n| c | shown |\n```"]:
+        text = f"| a |\n|---|\n| b | Xyzzy |\n{end}"
+        assert assistant.shown_text(text)[0] == f"| a |\n|---|\n| b {CELLS}\n{end}"
+    text = "| a |\n|---|\n| b | Xyzzy |\n<div>shown</div> | shown"
+    assert assistant.shown_text(text)[0] == f"| a |\n|---|\n| b {CELLS}\nshown | shown"
+    # A tab before the text of a row, read alone, ends a table where it reaches
+    # code and goes on in it otherwise; and HTML in fenced code starts no block.
+    text = (
+        "> | a |\n> |---|\n>\t| b | Xyzzy |\n>\t| c |\n> | d | Xyzzy |\n\t| e | shown |"
+    )
+    assert assistant.shown_text(text)[0] == (
+        f"> | a |\n> |---|\n>\t| b {CELLS}\n>\t| c |\n> | d {CELLS}\n\t| e | shown |"
+    )
+    text = "```\n<div>\n```\n| a |\n|---|\n| b | Xyzzy | Xyzzy |"
+    assert assistant.shown_text(text)[0] == f"```\n\n```\n| a |\n|---|\n| b {CELLS}"
+    # Math in a cell that goes, goes with the cell.
+    text = "| a |\n|---|\n| b | $x % Xyzzy$ |"
+    assert assistant.shown_counts(text) == (f"| a |\n|---|\n| b {CELLS}", 0, 1)
+
+
+def test_the_cells_and_the_html_go_as_either_reads_the_text():
+    """Both are read from the text as it was written, and what either takes out
+    goes: taken out first, a cell could take a `<!--` that hides the rest with it,
+    and the HTML the pipe by which GitHub drops a cell."""
+    text = "<div>\n| a |\n|---|\n| b | <!-- Xyzzy |\nXyzzy\n\nXyzzy"
+    assert assistant.shown_counts(text) == ("\n| a |\n|---|\n| b | ", 0, 0)
+    # GitHub reads the header as two cells, `<!--` and `x`, and drops the third.
+    text = "| <!-- | x |\n|---|---|\n| b | --> shown | Xyzzy |"
+    assert assistant.shown_counts(text) == (f"|  shown {CELLS}", 0, 1)
+    text = "<!--\n| a |\n|---|\n| b | --> shown |\nshown"
+    assert assistant.shown_counts(text) == (" shown |\nshown", 0, 0)
+
+
+# What GitHub draws of a fence or a `<pre>` of the languages mermaid, geojson,
+# topojson and stl, and what the engine reads of each: of a diagram what its
+# drawing shows, without its comments, its title and description for screen
+# readers and its tooltips; of the rest, and of a diagram that something in it
+# could draw otherwise than it reads, a note in place of its source.
+DRAWINGS = [
+    (
+        "```mermaid\ngraph TD\n%% Xyzzy\nA[Start] --> B[End]\n```",
+        f"```mermaid\ngraph TD\n{DIAGRAM}\nA[Start] --> B[End]\n```",
+    ),
+    (
+        "```mermaid\ngraph TD\naccTitle: Xyzzy\naccDescr {\nXyzzy\n}\nclick A Xyzzy\n"
+        "A[shown] --> B %% Xyzzy\n```",
+        f"```mermaid\ngraph TD\n{DIAGRAM}\n{DIAGRAM}\n{DIAGRAM}\nA[shown] --> B {DIAGRAM}"
+        "\n```",
+    ),
+    ("```mermaid\ngraph TD\naccDescr {\nXyzzy", f"```mermaid\ngraph TD\n{DIAGRAM}"),
+    (
+        "```mermaid\ngraph TD\nstyle A color:#fff0\nA[Xyzzy]\n```",
+        f"```mermaid\n{DRAWING}\n```",
+    ),
+    (
+        "```mermaid\n%%{init: {'theme': 'dark'}}%%\ngraph TD\nA[Xyzzy]\n```",
+        f"```mermaid\n{DRAWING}\n```",
+    ),
+    ("```stl\nsolid Xyzzy\nendsolid Xyzzy\n```", f"```stl\n{DRAWING}\n```"),
+    ('```geojson\n{"note": "Xyzzy"}\n```', f"```geojson\n{DRAWING}\n```"),
+    (
+        '```topojson\n{"Xyzzy": 1}\n```\n\nshown',
+        f"```topojson\n{DRAWING}\n```\n\nshown",
+    ),
+    # Any fence, after a blank, with words after the language, written with an
+    # entity, unclosed, and in a quote or a list item.
+    ("~~~~ geojson foo\nXyzzy\n~~~~", f"~~~~ geojson foo\n{DRAWING}\n~~~~"),
+    ("```&#115;tl\nXyzzy\n```", f"```&#115;tl\n{DRAWING}\n```"),
+    ("> ```stl\n> Xyzzy\n\nshown", f"> ```stl\n{DRAWING}\n\nshown"),
+    (
+        '- ```geojson\n  {"Xyzzy": 1}\n  ```\n\nshown',
+        f"- ```geojson\n{DRAWING}\n  ```\n\nshown",
+    ),
+    (
+        '<pre lang="mermaid">graph TD\n%% Xyzzy\nA-->B</pre>\n\nshown',
+        f"{DRAWING}\n\nshown",
+    ),
+    ("<pre lang=mermaid>graph TD\nA[Xyzzy]\n\nXyzzy", DRAWING),
+    ("x <pre lang='geojson'>Xyzzy</pre> shown", f"x {DRAWING} shown"),
+    # Its end as HTML reads it: not in a comment, nor in a quoted value, and the end
+    # of a `<pre>` within it.
+    ('<pre lang="mermaid"><!-- </pre> -->Xyzzy</pre>shown', f"{DRAWING}shown"),
+    (
+        '<pre lang="mermaid"><span title="</pre>">Xyzzy</span></pre>shown',
+        f"{DRAWING}shown",
+    ),
+    ('<pre lang="mermaid"><pre>Xyzzy</pre>Xyzzy</pre>shown', f"{DRAWING}shown"),
+    ('<PRE LANG="&#109;ermaid"\n>Xyzzy', DRAWING),
+    ("<pre lang=stl>Xyzzy<b", DRAWING),
+    ("<pre lang=stl>Xyzzy<!--", DRAWING),
+    ("<pre lang=mermaid>Xyzzy\n<pre lang=mermaid>Xyzzy", DRAWING),
+    ("<pre lang=Mermaid>shown</pre> <pre lang=stl></pre>shown", "shown shown"),
+    # Where it is hard to tell how far the fence reaches, after a tab in a list
+    # item: up to a fence that could close it.
+    ("- ```stl\n\tXyzzy\n  ```\nshown", f"- ```stl\n{DRAWING}\n  ```\nshown"),
+    ("- ```stl\n\tXyzzy\n\nXyzzy", f"- ```stl\n{DRAWING}"),
+    ("- ```stl\n\tXyzzy\n  ~~~\n  ```\nshown", f"- ```stl\n{DRAWING}\n  ```\nshown"),
+    (
+        "x[^1]\n\n[^1]: note\n\n    ```stl\n    Xyzzy\n    ```\nshown",
+        f"x[^1]\n\n[^1]: note\n\n    ```stl\n{DRAWING}\n    ```\nshown",
+    ),
+]
+
+
+@pytest.mark.parametrize(("text", "shown"), DRAWINGS)
+def test_the_engine_reads_of_a_drawing_what_the_page_shows(text, shown):
+    count = shown.count(DRAWING) + shown.count(DIAGRAM)
+    assert assistant.shown_counts(text) == (shown, 0, count)
+
+
+# Code that GitHub shows as it is: of another language, of a capital M, after an
+# invisible character, as a word after a backslash, indented, and a fence of
+# mermaid within longer code.
+SHOWN_CODE = [
+    "```Mermaid\ngraph TD\n%% shown\n```",
+    "```mermaid,foo\n%% shown\n```",
+    "```mer\u200bmaid\n%% shown\n```",
+    "```\\mermaid\n%% shown\n```",
+    "    ```mermaid\n    %% shown\n    ```",
+    "````text\n```mermaid\n%% shown\n```\n````",
+    '<pre lang="Mermaid">shown</pre>',
+    "<details><summary>Log</summary>shown</details>",
+    # A backtick after a fence of backticks makes it none, and a drawn fence that
+    # holds nothing shows nothing to take out.
+    "```mermaid `x`\n%% shown\n```",
+    "```stl\n\n```",
+    "```stl\n```\nshown",
+    "```stl",
+    "> ```mermaid\n> A[shown]\n\nshown",
+    # GitHub shows a fence on the row of the label of a footnote as code.
+    "x[^1]\n\n[^1]: ```mermaid\n    %% shown\n    ```",
+]
+
+
+def test_code_that_github_shows_as_it_is_stays():
+    for text in SHOWN_CODE:
+        assert assistant.shown_counts(text) == (assistant.strip_html(text), 0, 0)
+    # A `<pre>` in fenced code, or in a comment, starts nothing; one that no `>`
+    # ends is no tag.
+    assert assistant.shown_text("```\n<pre lang=mermaid>\n```\nshown")[0] == (
+        "```\n\n```\nshown"
+    )
+    assert assistant.shown_text("<!-- <pre lang=mermaid> -->shown")[0] == "shown"
+    assert assistant.shown_text("<!-- <pre lang=mermaid>")[0] == ""
+    assert assistant.shown_counts('<pre lang="mermaid" x="y"') == ("", 0, 0)
+
+
+# Math whose TeX can draw text as nothing: a colour, a comment, a label, a tag, an
+# entity of a backslash. Only math without a backslash, a `%` and an `&` stays.
+HIDING_MATH = [
+    ("Before $\\color{transparent}\\text{Xyzzy}$ after", f"Before {MATH} after"),
+    ("$\\textcolor{transparent}{\\text{Xyzzy}}$", MATH),
+    ("$x % Xyzzy$", MATH),
+    ("$$\nx % Xyzzy\n$$\n\nshown", f"{MATH}\n\nshown"),
+    ("$50\\% Xyzzy$", MATH),
+    ("$$x\\label{Xyzzy}$$ and $x\\tag{Xyzzy}$", f"{MATH} and {MATH}"),
+    ("$&#92;color{transparent}&#92;text{Xyzzy}$", MATH),
+    ("$\\color{white}\\text{Xyzzy}$", MATH),
+    ("```math\nx % Xyzzy\n```", f"```math\n{MATH}\n```"),
+    ("~~~ math foo\nx % Xyzzy\n~~~", f"~~~ math foo\n{MATH}\n~~~"),
+    # Every form of the dollar signs, and code between them.
+    ("\\$x % Xyzzy\\$ and &#36;y % Xyzzy&#36;", f"{MATH} and {MATH}"),
+    ("&#x24;x % Xyzzy&#x24; &dollar;y % Xyzzy&dollar;", f"{MATH} {MATH}"),
+    (
+        "$`\\color{red}Xyzzy`$ and `$\\color{red}shown$`",
+        f"{MATH} and `$\\color{{red}}shown$`",
+    ),
+    # In list items, quotes, headings and table cells.
+    (
+        "- $x % Xyzzy$\n\n> $y % Xyzzy$\n\n# $z % Xyzzy$",
+        f"- {MATH}\n\n> {MATH}\n\n# {MATH}",
+    ),
+    ("| a |\n|---|\n| $x % Xyzzy$ |", f"| a |\n|---|\n| {MATH} |"),
+    # Math of its own after display math on the row of its end.
+    ("$$\nx\n$$ and $\\color{red}Xyzzy$", f"$$\nx\n$$ and {MATH}"),
+    # A comment over rows joins two rows into math.
+    ("a $x <!--\n-->\\color{transparent}\\text{Xyzzy}$ b", f"a {MATH} b"),
+]
+
+
+@pytest.mark.parametrize(("text", "shown"), HIDING_MATH)
+def test_the_engine_reads_no_math_that_could_hide_text(text, shown):
+    assert assistant.shown_counts(text) == (shown, 0, shown.count(MATH))
+
+
+# What GitHub shows as text, and math that shows all of its source.
+SHOWN_DOLLARS = [
+    "it costs $5 and $6, 20 % off",
+    "$HOME and ${{ x % y }} in `$x % y$`",
+    "$ x % y $ and $x % y $",
+    "a $x % y\nz$ b",
+    "a$x % y$b and $x % y$5",
+    "[$x % y$](https://example.com)",
+    "```Math\nx % y\n```",
+    "$x$ and $$y$$ and $`z`$",
+    "$$\nx % y\n\nz",
+    "a $x\\$ y % z$",
+]
+
+
+def test_dollars_that_github_shows_as_text_stay():
+    for text in SHOWN_DOLLARS[:-1]:
+        assert assistant.shown_counts(text) == (text, 0, 0), text
+    # `$x\$` is math of its own, and the rest of the row text.
+    assert assistant.shown_counts(SHOWN_DOLLARS[-1]) == (SHOWN_DOLLARS[-1], 0, 0)
+
+
+def test_the_parts_that_github_doesn_t_show_as_written_are_counted(
+    config, root, capsys
+):
+    text = "| a |\n|---|\n| b | Xyzzy |\n\n$x % Xyzzy$"
+    github = FakeGitHub(config, make_issue(body=text), make_issue(7, body=text))
+    assistant.write_context(github, 12, "triage", config)
+    for path in (root / ".issue-assistant").rglob("*.*"):
+        assert "Xyzzy" not in path.read_text("utf-8")
+    assert capsys.readouterr().out == (
+        "::notice::Removed 4 parts that GitHub doesn't show as they are written, "
+        "cells beyond the header of a table, the source of a drawing and math, from "
+        "the texts for the engine: 2 from issue #12, 2 from other issues and "
+        "discussions.\n"
+    )
+
+
+def test_the_spans_of_a_text_without_others_keep_their_order():
+    """cut_out keeps the parts of spans outside the hidden ones, and puts a note
+    in place of each hidden one that holds a part of them."""
+    text = "abcdefghij"
+    hidden = [(1, 3, "N"), (5, 6, "M"), (8, 9, "O")]
+    assert assistant.cut_out(text, [(0, 4), (6, 10)], hidden) == ("aNdghOj", 2)
+    assert assistant.cut_out(text, [(0, 10)], []) == (text, 0)
+    assert assistant.cut_out(text, [(2, 7)], [(0, 3, "N"), (6, 9, "M")]) == ("NdefM", 2)
+    # Hidden spans side by side, of which the second starts at the end of the first.
+    hidden = [(1, 4, "N"), (4, 5, "M")]
+    assert assistant.cut_out(text, [(0, 2), (3, 6)], hidden) == ("aNMf", 2)
+    # A part that goes over the end of a piece, and spans within each other.
+    assert assistant.subtract([(0, 3), (5, 9)], [(2, 4)]) == [(0, 2), (6, 9)]
+    assert assistant.between([(1, 3), (2, 3), (4, 6)], 0, 5) == [(0, 1), (3, 4)]
+    # Joined, the pieces are `abc` and `fghi`, of which `b`, `fg` and `i` go.
+    assert assistant.subtract([(0, 3), (5, 9)], [(1, 2), (3, 5), (6, 7)]) == [
+        (0, 1),
+        (2, 3),
+        (7, 8),
+    ]
+
+
 # The engine's answer
 
 
@@ -5000,6 +5372,51 @@ def test_the_answer_loses_its_invisible_characters_before_the_checks(config, cap
 
 
 # Cleaning the engine's text
+
+
+# Fenced code of an answer that GitHub would draw, or read as math, and the plain
+# code that it posts in its place, which GitHub shows row by row as it is.
+DRAWN_ANSWERS = [
+    (
+        "```mermaid\ngraph TD\n%% hidden\nA-->B\n```",
+        "```text\ngraph TD\n%% hidden\nA-->B\n```",
+    ),
+    ("~~~mermaid\n%% hidden\n~~~", "~~~text\n%% hidden\n~~~"),
+    ("````mermaid\n%% hidden\n````", "````text\n%% hidden\n````"),
+    ("```&#109;ermaid\n%% hidden\n```", "```text\n%% hidden\n```"),
+    ("```mer\u200bmaid\n%% hidden\n```", "```text\n%% hidden\n```"),
+    ("``` geojson x\n{}\n```", "```text\n{}\n```"),
+    ("```math\nx % hidden\n```", "```text\nx % hidden\n```"),
+    ("~~~math\nx % hidden\n~~~", "~~~text\nx % hidden\n~~~"),
+    ("```python\nx = 1\n```", "```python\nx = 1\n```"),
+]
+
+
+@pytest.mark.parametrize(("text", "posted"), DRAWN_ANSWERS)
+def test_an_answer_posts_no_code_that_github_draws(config, text, posted):
+    assert assistant.sanitize(text, config) == posted
+
+
+def test_an_answer_forms_no_math(config):
+    """Each dollar sign that could open or close math becomes a code span, which
+    GitHub shows as a dollar sign; a price stays as it is. GitHub showed no math in
+    any of the texts posted (`gh api -X POST markdown`, 2026-11-21)."""
+    for text, posted in (
+        (
+            "Use $\\color{transparent}\\text{x}$ here",
+            "Use `$`\\\\color{transparent}\\\\text{x}`$` here",
+        ),
+        ("$x$ and $$y$$", "`$`x`$` and `$` `$`y`$` `$`"),
+        ("a\n\n$$\nx % y\n$$", "a\n\n`$` `$`\nx % y\n`$` `$`"),
+        ("$`x`$", "`$` `x` `$`"),
+        ("\\$x\\$", "\\\\`$`x\\\\`$`"),
+        ("$5 and 6$", "`$`5 and 6`$`"),
+        ("costs $5 and $6", "costs $5 and $6"),
+        ("$HOME and $PATH", "$HOME and $PATH"),
+        ("$x `y` z$", "`$`x `y` z`$`"),
+        ("- ~~~math\n  x\n  ~~~", "- \\~~~math\n  x\n  \\~~~"),
+    ):
+        assert assistant.sanitize(text, config) == posted, text
 
 
 def test_mentions_images_html_and_headings_are_removed(config):

@@ -32,6 +32,7 @@ from .rest_shapes import *
 from .github import *
 from .markup import *
 from .tags import *
+from .structures import *
 from .cleaning import *
 from .issues import *
 from .answer import *

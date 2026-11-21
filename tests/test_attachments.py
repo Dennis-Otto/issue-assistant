@@ -161,6 +161,42 @@ def test_an_address_counts_only_where_github_shows_a_link_or_an_image():
     assert found(f"<!-- {log} -->x") == []
 
 
+# Where GitHub shows no link of an address (`gh api -X POST markdown` with the mode
+# gfm and a repository as context, 2026-11-21): in a cell beyond the cells of a
+# table's header, which it drops, in the source of a diagram or a map, which it
+# draws in its place, and in math.
+UNLINKED = (
+    "| a |\n|---|\n| b | {} |",
+    "| a |\n|---|\n| b | [log]({}) |",
+    "| a |\n|---|\n| b | ![i]({}) |",
+    "> | a |\n> |---|\n> | b | x | <{}> |",
+    "```mermaid\ngraph TD\n%% {}\nA-->B\n```",
+    '<pre lang="mermaid">graph TD\n%% {}\nA-->B</pre>',
+    '```geojson\n{{"type": "Feature", "properties": {{"note": "{}"}}}}\n```',
+    "$\\text{{{}}}$",
+)
+# The same in a cell that GitHub shows, and in code that it shows as it is.
+LINKED = (
+    "| a | b |\n|---|---|\n| c | {} |",
+    "| a |\n|---|\n| [log]({}) |",
+    "| a |\n|---|\n| b \\| {} |",
+    "```Mermaid\n%% {}\n```",
+    "Costs $5 and {} $6",
+)
+
+
+def test_no_link_shows_in_a_dropped_cell_a_drawing_or_math():
+    """A file or an image there is none that the reporter attached, as no
+    maintainer sees a link to it; one in a cell that GitHub shows still is."""
+    for address in (LOG, IMAGE):
+        for place in UNLINKED:
+            assert found(place.format(address)) == [], place
+    for place in LINKED:
+        assert [item[0] for item in found(place.format(LOG))] == [LOG], place
+    image = found(LINKED[0].format(f"![i]({IMAGE})"))
+    assert [item[0] for item in image] == [IMAGE]
+
+
 @pytest.mark.parametrize("place", PLACES)
 def test_only_the_href_of_a_link_and_the_src_of_an_image_show_an_address(place):
     tags = ("a", "img", "span", "div", "blockquote", "q", "details", "picture")

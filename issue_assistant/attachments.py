@@ -41,6 +41,7 @@ from .markup import (
 )
 from .paths import CONTEXT
 from .patterns import INVISIBLE
+from .structures import structures_of
 from .tags import html_parts
 from .values import command, fence, login
 
@@ -229,7 +230,10 @@ def shown_links(text: str) -> str:
     """The part of a text whose links GitHub shows: without HTML comments and link
     reference definitions, which it hides, and without invisible characters; each
     tag of HTML in place of the addresses that GitHub shows of it, as a link or an
-    image, and of none other."""
+    image, and of none other. The tables, drawings and math go before: no link
+    shows in a cell that GitHub drops, nor in a drawing or math, whose text is drawn
+    and leads nowhere."""
+    text = unlinked(text)
     spans, middle, end = html_parts(text)
     tags = ShownTags(text, spans)
     # A tag of the first part may hold the last `-->` in a quoted value, where it
@@ -237,6 +241,22 @@ def shown_links(text: str) -> str:
     first, reached = tags.part(0, min(middle, end), COMMENT_OR_TAG)
     shown = first + tags.part(max(middle, reached), end, TAG_OPENING)[0]
     return Visible()(strip_definitions(shown, None, end < len(text))[0])
+
+
+# The scheme of an address, which every link to an attachment starts with.
+SCHEME = re.compile(r"(https?):", re.IGNORECASE)
+
+
+def unlinked(text: str) -> str:
+    """The text with each address of the structures in which GitHub shows no link
+    made into none: the colon after its scheme goes, and nothing else changes that
+    could change how its HTML reads."""
+    pieces, position = [], 0
+    for start, end, _ in structures_of(text).unlinked():
+        pieces += [text[position:start], SCHEME.sub(r"_", text[start:end])]
+        position = end
+    pieces.append(text[position:])
+    return "".join(pieces)
 
 
 class ShownTags:

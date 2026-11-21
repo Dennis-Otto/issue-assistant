@@ -642,6 +642,8 @@ class Fences:
         self.blocks = Blocks(text, rows, self)
         self.starts: list[int] = []
         self.ends: list[int] = []
+        # Whether each surely ends where `ends` says, or may go on after it.
+        self.clear: list[bool] = []
         self.after = 0
         self.pending: re.Match[str] | None = None
         # Without three backticks or tildes in a row, no row opens fenced code.
@@ -663,9 +665,18 @@ class Fences:
                 end, clear = self.closed(row)
                 self.starts.append(row.start())
                 self.ends.append(end)
+                self.clear.append(clear)
                 self.after, self.done = end, not clear
         index = bisect_right(self.starts, position) - 1
         return index >= 0 and position < self.ends[index]
+
+    def block(self, position: int) -> tuple[int, int, bool] | None:
+        """Where the fenced code starts and ends that surely holds a position, and
+        whether it surely ends there; None where none surely holds the position."""
+        if not self.holds(position):
+            return None
+        index = bisect_right(self.starts, position) - 1
+        return self.starts[index], self.ends[index], self.clear[index]
 
     def opens(self, row: re.Match[str]) -> bool | None:
         """Whether a row opens fenced code, or None where that is hard to tell. A
