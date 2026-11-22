@@ -1711,3 +1711,60 @@ def test_the_engine_reads_no_text_of_a_discussion_comment_that_github_collapsed(
     for word in words:
         assert word not in rendered
     assert visible.collapsed == len(words)
+
+
+# Pieces that nest, as deep as GitHub's limit and past it: quotes, list items,
+# elements of HTML and their scopes, emphasis, and blanks.
+NESTING = st.lists(
+    st.tuples(
+        st.sampled_from(
+            [
+                ">",
+                "> ",
+                "- ",
+                "1. ",
+                "  ",
+                "<div>",
+                "<span>",
+                "<b>",
+                "<blockquote>",
+                "<ul><li>",
+                "<table><td>",
+                "*",
+                "_",
+                "<div></b>",
+                "<b><div></b>",
+            ]
+        ),
+        st.integers(1, 300),
+        st.sampled_from(["\n", "\n\n", " "]),
+    ),
+    min_size=1,
+    max_size=4,
+)
+
+
+@hypothesis.settings(
+    max_examples=EXAMPLES // 2,
+    suppress_health_check=[hypothesis.HealthCheck.too_slow],
+    deadline=None,
+)
+@hypothesis.example([(">", 255, "\n\n")])
+@hypothesis.example([("  ", 128, "\n"), ("- ", 1, "\n")])
+@hypothesis.example([("<table><td>", 64, " ")])
+@given(NESTING)
+def test_the_cleaning_keeps_nothing_that_github_shows_nothing_of_for_its_depth(parts):
+    """Each part nests a piece, and a marker word follows it: of the words that a
+    browser shows as nothing, for the depth of GitHub's HTML (the oracle), the AI
+    reads none either."""
+    text = (
+        "".join(
+            f"{piece * count}zqm{index}{end}"
+            for index, (piece, count, end) in enumerate(parts)
+        )
+        + "\n\nzqafter\n"
+    )
+    seen = browser_text(text)
+    shown = assistant.shown_text(text)[0]
+    hidden = [word for word in re.findall(r"zqm\d+|zqafter", text) if word not in seen]
+    assert [word for word in hidden if word in shown] == []

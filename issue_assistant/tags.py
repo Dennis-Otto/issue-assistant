@@ -717,27 +717,44 @@ def shown_html(text: str) -> tuple[str, bool]:
     return shown, end < len(text)
 
 
-def shown_spans(text: str) -> tuple[str, list[tuple[int, int]], bool]:
+def shown_spans(
+    text: str, limit: int | None = None
+) -> tuple[str, list[tuple[int, int]], bool]:
     """The parts of a text that strip_html keeps, as spans in their order, so that
     what another reading of the same text takes out can go as well; the text of the
     spans, which is the text with a space in the place of each `relative-time` whose
     content goes, as dated leaves it, and as long as the text; and whether GitHub
-    hides the rest of it from a position on, as shown_html says."""
+    hides the rest of it from a position on, as shown_html says.
+
+    Where another reading takes out all from `limit` on, the spans before it are
+    read as ever, and one span from it to the end of the text stands for the rest:
+    each part of the HTML that starts before it is read to its end."""
     rows = HtmlRows(text)
     spans, middle, end = html_parts(text, rows)
     text, spans = dated(text, spans, rows)
     html, tags = (
         (HTML, HTML_TAG) if rows.fenced() else (HTML_AND_MARKUP, HTML_TAG_AND_MARKUP)
     )
+    limit = len(text) if limit is None else limit
     kept: list[tuple[int, int]] = []
     for start, stop, pattern in ((0, min(middle, end), html), (middle, end, tags)):
+        if start >= limit:
+            break
         pieces = between(spans, start, stop)
         joined = "".join(text[first:last] for first, last in pieces)
+        # Where the limit falls in the joined pieces.
+        before = [(first, min(last, limit)) for first, last in pieces if first < limit]
+        reach = sum(last - first for first, last in before)
         # As in shown_html, a match goes but for a tag start that no `>` closes.
-        removed = [
-            match.span() for match in pattern.finditer(joined) if match["open"] is None
-        ]
-        kept += subtract(pieces, removed)
+        removed = []
+        for match in pattern.finditer(joined):
+            if match.start() >= reach:
+                break
+            if match["open"] is None:
+                removed.append(match.span())
+        kept += subtract(before, removed)
+    if limit < len(text):
+        kept.append((limit, len(text)))
     return text, kept, end < len(text)
 
 
