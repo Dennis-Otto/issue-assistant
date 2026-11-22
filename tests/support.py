@@ -1,5 +1,5 @@
-"""Builders for issues, comments and answers, a fake of the GitHub API, a fake gh
-and the golden files of what the assistant writes.
+"""Builders for issues, comments and answers, a fake of the GitHub API, a fake gh,
+the golden files of what the assistant writes and the timing of a reading.
 
 The fake answers the REST and GraphQL calls of the script, so the real request code
 runs; only `gh` itself is replaced. tests/README.md explains all three.
@@ -7,13 +7,18 @@ runs; only `gh` itself is replaced. tests/README.md explains all three.
 
 import dataclasses
 import difflib
+import functools
+import gc
 import importlib.util
 import json
+import math
 import os
 import re
 import subprocess
 import sys
+import time
 from collections import Counter
+from collections.abc import Callable
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1747,3 +1752,110 @@ def replace_everywhere(monkeypatch: Any, name: str, value: Any) -> None:
     assert modules, f"No module of the package has {name}."
     for module in modules:
         monkeypatch.setattr(module, name, value)
+
+
+# How much longer a reading takes on a longer text
+
+
+def thread_cycles() -> Callable[[], int]:
+    """A clock of the cycles of the processor that the running thread has used, as
+    Windows counts them (QueryThreadCycleTime): in units of its own, but it moves in
+    microseconds, where process_time() moves in steps of 1/64 second."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.GetCurrentThread.restype = wintypes.HANDLE
+    kernel.QueryThreadCycleTime.argtypes = (
+        wintypes.HANDLE,
+        ctypes.POINTER(ctypes.c_ulonglong),
+    )
+    kernel.QueryThreadCycleTime.restype = wintypes.BOOL
+    # A handle that stands for the thread that calls, whichever that is.
+    thread = kernel.GetCurrentThread()
+    cycles = ctypes.c_ulonglong()
+
+    def clock() -> int:
+        if not kernel.QueryThreadCycleTime(thread, ctypes.byref(cycles)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return cycles.value
+
+    return clock
+
+
+# The clock of the processor that the timing reads: its units cancel out in the ratio
+# of the two sides, so it needs no frequency.
+PROCESSOR_CLOCK = thread_cycles() if sys.platform == "win32" else time.process_time_ns
+
+
+@functools.cache
+def clock_step(clock: Callable[[], int]) -> float:
+    """The largest step of a clock in five, in seconds: a clock can count more finely
+    than it moves. On Windows, get_clock_info("process_time") reports 1e-07 seconds,
+    while process_time() moves in steps of 1/64 second."""
+    before = clock()
+    while clock() == before:
+        pass
+    steps = []
+    for _ in range(5):
+        before, began = clock(), time.perf_counter()
+        while clock() == before:
+            pass
+        steps.append(time.perf_counter() - began)
+    return max(steps)
+
+
+@dataclasses.dataclass(frozen=True)
+class Growth:
+    """The processor time of one call on the text with an eighth of its repetitions
+    and on the whole text, in seconds, and how many times as long the whole took."""
+
+    eighth: float
+    whole: float
+    times: float
+
+
+def growth(
+    eighth: Callable[[], object],
+    whole: Callable[[], object],
+    clock: Callable[[], int] = PROCESSOR_CLOCK,
+    shortest: float = 0.02,
+) -> Growth:
+    """How many times as long a call takes on the whole text as on its eighth, in the
+    best of three tries of each, timed in turn: a machine that becomes busy slows
+    both sides, and only a reading that grows faster than its text grows more.
+
+    A try calls its side as often as it takes to last the shortest time, 0.02
+    seconds, or ten times that where the clock moves in steps of more than a
+    millisecond; a call that the first try of a side makes for the first time can't
+    count, as two tries are without it. As in timeit, no collection of garbage runs
+    within a try. The ratio comes from the clock, the seconds from process_time()
+    over all six tries.
+    """
+    if clock_step(clock) > 0.001:
+        shortest *= 10
+    best = [math.inf, math.inf]
+    seconds = ticks = 0.0
+    collecting = gc.isenabled()
+    gc.disable()
+    try:
+        for _ in range(3):
+            for index, side in enumerate((eighth, whole)):
+                calls = 0
+                began, started, counted = (
+                    time.perf_counter(),
+                    time.process_time(),
+                    clock(),
+                )
+                while not calls or time.perf_counter() - began < shortest:
+                    side()
+                    calls += 1
+                spent = clock() - counted
+                seconds += time.process_time() - started
+                ticks += spent
+                best[index] = min(best[index], spent / calls)
+    finally:
+        if collecting:
+            gc.enable()
+    tick = seconds / ticks
+    return Growth(best[0] * tick, best[1] * tick, best[1] / best[0])
