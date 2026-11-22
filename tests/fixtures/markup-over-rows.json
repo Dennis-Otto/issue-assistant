@@ -12,7 +12,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">&lt;!x zqa&gt;<br>\nzqb &gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <? zqa\n\nzqb?> zqc\n\nzqd",
@@ -23,7 +24,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n\n<p dir=\"auto\">zqb?&gt; zqc</p>\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n\n- <!x zqa\n  zqb\n\nzqd",
@@ -36,7 +38,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>&lt;!x zqa<br>\nzqb</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y </  zqa\nzqb> zqc\n\nzqd",
@@ -46,7 +49,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;/  zqa<br>\nzqb&gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<!-- zqa-->\nzqb > zqc\n\nzqd",
@@ -57,7 +61,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n\n<p dir=\"auto\">zqb &gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n<!-- zqa\n\nzqb--> zqc\n\nzqd",
@@ -68,7 +73,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n zqc\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> y <!-- zqa\n> > zqb--> zqc\n\nzqd",
@@ -82,7 +88,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y &lt;!-- zqa</p>\n<blockquote>\n<p dir=\"auto\">zqb--&gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <?php zqa?>\n   zqb > zqc\n\nzqd",
@@ -93,7 +100,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n\nzqb &gt; zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <!x zqa> zqc\n\nzqd",
@@ -105,7 +113,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">&lt;!x zqa&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> <![CDATA[ zqa > zqb]]> zqc\n\nzqd",
@@ -116,7 +125,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n zqb]]&gt; zqc\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - <?php zqa\n>   \n>   zqb?> zqc\n\nzqd",
@@ -127,7 +137,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - <!x zqa\n\n>   zqb> zqc\n\nzqd",
@@ -140,7 +151,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>&lt;!x zqa</li>\n</ul>\n</blockquote>\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y <!x zqa\nzqb> zqc\n\nzqd",
@@ -154,7 +166,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;!x zqa<br>\nzqb&gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <!X zqa\nzqb> zqc\n\nzqd",
@@ -165,7 +178,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\n</li></ul>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y </  zqa\n  zqb> zqc\n\nzqd",
@@ -175,7 +189,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;/  zqa<br>\nzqb&gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<div>\n<?php zqa > zqb?> zqc\n\nzqd",
@@ -186,7 +201,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\n zqb?&gt; zqc\n<p dir=\"auto\">zqd</p></div>"
   },
   {
    "text": "x\n\ny <!X zqa> zqc\n\nzqd",
@@ -196,7 +212,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">y  zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y <? zqa\n\n  zqb?> zqc\n\nzqd",
@@ -206,7 +223,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n<p dir=\"auto\">y &lt;? zqa</p>\n<p dir=\"auto\">zqb?&gt; zqc</p>\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y </  zqa> zqc\n\nzqd",
@@ -215,7 +233,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;/  zqa&gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y <!x zqa\n> > \n> > zqb> zqc\n\nzqd",
@@ -225,7 +244,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y &lt;!x zqa</p>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - y <?php zqa\n>   > zqb?> zqc\n\nzqd",
@@ -235,7 +255,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>y &lt;?php zqa\n<blockquote>\n<p dir=\"auto\">zqb?&gt; zqc</p>\n</blockquote>\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y <!DOCTYPE zqa\n\nzqb> zqc\n\nzqd",
@@ -245,7 +266,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y &lt;!DOCTYPE zqa</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\ny <!DOCTYPE zqa\nzqb\n\nzqd",
@@ -254,7 +276,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">y &lt;!DOCTYPE zqa<br>\nzqb</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <!x zqa\n\n  zqb> zqc\n\nzqd",
@@ -268,7 +291,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n<p dir=\"auto\">&lt;!x zqa</p>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - y <!-- zqa\n>   zqb\n\nzqd",
@@ -277,7 +301,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>y &lt;!-- zqa<br>\nzqb</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> <!-- zqa\nzqb--> zqc\n\nzqd",
@@ -287,7 +312,8 @@
     "zqb",
     "zqc",
     "zqd"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n</blockquote>"
   },
   {
    "text": "x\n\ny <!-- zqa--> zqc\n\nzqd",
@@ -297,7 +323,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">y  zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <?php zqa\n\nzqb?> zqc\n\nzqd",
@@ -308,7 +335,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n\n</li></ol>\n<p dir=\"auto\">zqb?&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!x zqa\n  \n  zqb> zqc\n\nzqd",
@@ -322,7 +350,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n<p dir=\"auto\">&lt;!x zqa</p>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - <![CDATA[ zqa\nzqb]]> zqc\n\nzqd",
@@ -333,7 +362,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n\n</li></ul>\n</blockquote>\n<p dir=\"auto\">zqb]]&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y </  zqa\n\nzqb> zqc\n\nzqd",
@@ -343,7 +373,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;/  zqa</li>\n</ul>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<!-- zqa\nzqb--> zqc\n\nzqd",
@@ -354,7 +385,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n zqc\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- </  zqa\nzqb> zqc\n\nzqd",
@@ -364,7 +396,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>&lt;/  zqa<br>\nzqb&gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > <!X zqa> zqc\n\nzqd",
@@ -374,7 +407,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n zqc\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!-- zqa\n  zqb\n\nzqd",
@@ -383,7 +417,8 @@
     "zqa",
     "zqb",
     "zqd"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n</li></ul>"
   },
   {
    "text": "x\n\n1. <!DOCTYPE zqa\n   \n   zqb> zqc\n\nzqd",
@@ -394,7 +429,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n zqc\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- </  zqa> zqc\n\nzqd",
@@ -403,7 +439,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>&lt;/  zqa&gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> y </  zqa\n> zqb\n\nzqd",
@@ -412,7 +449,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y &lt;/  zqa<br>\nzqb</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - y </  zqa> zqc\n\nzqd",
@@ -421,7 +459,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>y &lt;/  zqa&gt; zqc</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!DOCTYPE zqa\nzqb\n\nzqd",
@@ -431,7 +470,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\n</li></ul>\n<p dir=\"auto\">zqb</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> <![CDATA[ zqa\n> \n> zqb]]> zqc\n\nzqd",
@@ -442,7 +482,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n zqc\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y <!-- zqa\n> > > zqb--> zqc\n\nzqd",
@@ -456,7 +497,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y &lt;!-- zqa</p>\n<blockquote>\n<p dir=\"auto\">zqb--&gt; zqc</p>\n</blockquote>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> <!DOCTYPE zqa\nzqb> zqc\n\nzqd",
@@ -467,7 +509,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n\n> - </  zqa\n>   zqb> zqc\n\nzqd",
@@ -477,7 +520,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>&lt;/  zqa<br>\nzqb&gt; zqc</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y <!X zqa > zqb> zqc\n\nzqd",
@@ -488,7 +532,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y  zqb&gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <? zqa?>\nzqb > zqc\n\nzqd",
@@ -499,7 +544,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\n</li>\n</ul>\n<p dir=\"auto\">zqb &gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <!DOCTYPE zqa>\n  zqb > zqc\n\nzqd",
@@ -510,7 +556,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\nzqb &gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y <? zqa\n  \n  zqb?> zqc\n\nzqd",
@@ -520,7 +567,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n<p dir=\"auto\">y &lt;? zqa</p>\n<p dir=\"auto\">zqb?&gt; zqc</p>\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - <!X zqa\n>   zqb\n\nzqd",
@@ -530,7 +578,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n\n</li></ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. <!-- zqa\n   zqb--> zqc\n\nzqd",
@@ -541,7 +590,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n zqc\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> y <!X zqa> zqc\n\nzqd",
@@ -551,7 +601,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y  zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <![CDATA[ zqa]]>\n  zqb > zqc\n\nzqd",
@@ -562,7 +613,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\nzqb &gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. y <!x zqa\n   zqb> zqc\n\nzqd",
@@ -576,7 +628,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>y &lt;!x zqa<br>\nzqb&gt; zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<!-- zqa\n\nzqb--> zqc\n\nzqd",
@@ -587,7 +640,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n zqc\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. y <!X zqa > zqb> zqc\n\nzqd",
@@ -598,7 +652,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>y  zqb&gt; zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > <!DOCTYPE zqa\n\n> > zqb> zqc\n\nzqd",
@@ -609,7 +664,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n\n</blockquote>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n\n- <!X zqa\n  \n  zqb> zqc\n\nzqd",
@@ -620,7 +676,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <!x zqa > zqb> zqc\n\nzqd",
@@ -633,7 +690,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>&lt;!x zqa &gt; zqb&gt; zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. y <!x zqa>\n   zqb > zqc\n\nzqd",
@@ -646,7 +704,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>y &lt;!x zqa&gt;<br>\nzqb &gt; zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> <?php zqa\n> > zqb?> zqc\n\nzqd",
@@ -657,7 +716,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n zqb?&gt; zqc\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> y <!X zqa\n> zqb\n\nzqd",
@@ -666,7 +726,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y &lt;!X zqa<br>\nzqb</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n<!-- zqa\nzqb--> zqc\n\nzqd",
@@ -677,7 +738,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n zqc\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- </  zqa > zqb> zqc\n\nzqd",
@@ -687,7 +749,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>&lt;/  zqa &gt; zqb&gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - <!DOCTYPE zqa\n\nzqb> zqc\n\nzqd",
@@ -698,7 +761,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n\n</li></ul>\n</blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. y <!DOCTYPE zqa\n   zqb\n\nzqd",
@@ -707,7 +771,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>y &lt;!DOCTYPE zqa<br>\nzqb</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <?php zqa > zqb?> zqc\n\nzqd",
@@ -718,7 +783,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqb?&gt; zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <![CDATA[ zqa]]> zqc\n\nzqd",
@@ -728,7 +794,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. y </  zqa\n   > zqb> zqc\n\nzqd",
@@ -738,7 +805,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>y &lt;/  zqa\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. <!DOCTYPE zqa\n   zqb\n\nzqd",
@@ -748,7 +816,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n\n</li></ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <!x zqa>\nzqb > zqc\n\nzqd",
@@ -761,7 +830,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">&lt;!x zqa&gt;<br>\nzqb &gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y <? zqa\n> zqb?> zqc\n\nzqd",
@@ -771,7 +841,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;? zqa</li>\n</ul>\n<blockquote>\n<p dir=\"auto\">zqb?&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<?php zqa\nzqb?> zqc\n\nzqd",
@@ -782,7 +853,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n zqc\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y <!DOCTYPE zqa>\n> > zqb > zqc\n\nzqd",
@@ -793,7 +865,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y <br>\nzqb &gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > <!X zqa\nzqb> zqc\n\nzqd",
@@ -804,7 +877,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n\n</blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n\n- y <? zqa > zqb?> zqc\n\nzqd",
@@ -815,7 +889,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y  zqb?&gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <? zqa\nzqb\n\nzqd",
@@ -825,7 +900,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\n</li></ul>\n<p dir=\"auto\">zqb</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> y <!-- zqa\n\n> zqb--> zqc\n\nzqd",
@@ -839,7 +915,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y &lt;!-- zqa</p>\n</blockquote>\n<blockquote>\n<p dir=\"auto\">zqb--&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!x zqa\nzqb\n\nzqd",
@@ -851,7 +928,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>&lt;!x zqa<br>\nzqb</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <![CDATA[ zqa\n> zqb\n\nzqd",
@@ -861,7 +939,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n\n> y <![CDATA[ zqa\n> > zqb]]> zqc\n\nzqd",
@@ -871,7 +950,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y &lt;![CDATA[ zqa</p>\n<blockquote>\n<p dir=\"auto\">zqb]]&gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <?php zqa\n  > zqb?> zqc\n\nzqd",
@@ -882,7 +962,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqb?&gt; zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!-- zqa > zqb--> zqc\n\nzqd",
@@ -893,7 +974,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <!X zqa>\nzqb > zqc\n\nzqd",
@@ -904,7 +986,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n\n</blockquote>\n<p dir=\"auto\">zqb &gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <?php zqa > zqb?> zqc\n\nzqd",
@@ -915,7 +998,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqb?&gt; zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <!DOCTYPE zqa\n   \n   zqb> zqc\n\nzqd",
@@ -926,7 +1010,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n zqc\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <?php zqa\n   zqb\n\nzqd",
@@ -936,7 +1021,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n\n</li></ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > <![CDATA[ zqa\n> > \n> > zqb]]> zqc\n\nzqd",
@@ -947,7 +1033,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n zqc\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<div>\ny <![CDATA[ zqa\n\nzqb]]> zqc\n\nzqd",
@@ -958,7 +1045,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\ny zqb]]&gt; zqc<p dir=\"auto\"></p>\n<p dir=\"auto\">zqd</p></div>"
   },
   {
    "text": "x\n\n> <!X zqa\n\nzqb> zqc\n\nzqd",
@@ -969,7 +1057,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n1. </  zqa\n\n   zqb> zqc\n\nzqd",
@@ -979,7 +1068,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n<p dir=\"auto\">&lt;/  zqa</p>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <!X zqa>\n  zqb > zqc\n\nzqd",
@@ -990,7 +1080,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\nzqb &gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> y <?php zqa?> zqc\n\nzqd",
@@ -1000,7 +1091,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y  zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <? zqa\n\n   zqb?> zqc\n\nzqd",
@@ -1011,7 +1103,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n zqc\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - <!x zqa> zqc\n\nzqd",
@@ -1023,7 +1116,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>&lt;!x zqa&gt; zqc</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!-- zqa\n  > zqb--> zqc\n\nzqd",
@@ -1034,7 +1128,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> </  zqa\n> zqb> zqc\n\nzqd",
@@ -1044,7 +1139,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">&lt;/  zqa<br>\nzqb&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - y </  zqa\n>   zqb> zqc\n\nzqd",
@@ -1054,7 +1150,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>y &lt;/  zqa<br>\nzqb&gt; zqc</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <!X zqa\n   \n   zqb> zqc\n\nzqd",
@@ -1065,7 +1162,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n zqc\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <? zqa > zqb?> zqc\n\nzqd",
@@ -1076,7 +1174,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n zqb?&gt; zqc\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <!-- zqa > zqb--> zqc\n\nzqd",
@@ -1087,7 +1186,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n zqc\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - <![CDATA[ zqa\n>   \n>   zqb]]> zqc\n\nzqd",
@@ -1098,7 +1198,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <!DOCTYPE zqa\n   > zqb> zqc\n\nzqd",
@@ -1109,7 +1210,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n zqb&gt; zqc\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\ny <?php zqa > zqb?> zqc\n\nzqd",
@@ -1120,7 +1222,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">y  zqb?&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - </  zqa>\n>   zqb > zqc\n\nzqd",
@@ -1130,7 +1233,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>&lt;/  zqa&gt;<br>\nzqb &gt; zqc</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - <!x zqa\n>   zqb\n\nzqd",
@@ -1143,7 +1247,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>&lt;!x zqa<br>\nzqb</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. </  zqa\n   zqb> zqc\n\nzqd",
@@ -1153,7 +1258,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>&lt;/  zqa<br>\nzqb&gt; zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> <?php zqa?>\n> zqb > zqc\n\nzqd",
@@ -1164,7 +1270,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n\n<p dir=\"auto\">zqb &gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y <!x zqa\n> > zqb> zqc\n\nzqd",
@@ -1178,7 +1285,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y &lt;!x zqa<br>\nzqb&gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - <!x zqa > zqb> zqc\n\nzqd",
@@ -1191,7 +1299,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>&lt;!x zqa &gt; zqb&gt; zqc</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\ny <!X zqa\nzqb\n\nzqd",
@@ -1200,7 +1309,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">y &lt;!X zqa<br>\nzqb</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <!-- zqa\n  zqb--> zqc\n\nzqd",
@@ -1211,7 +1321,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<div>\n<!-- zqa\nzqb--> zqc\n\nzqd",
@@ -1222,7 +1333,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\n zqc\n<p dir=\"auto\">zqd</p></div>"
   },
   {
    "text": "x\n> <? zqa?>\n> zqb > zqc\n\nzqd",
@@ -1233,7 +1345,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n\n<p dir=\"auto\">zqb &gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <? zqa?>\n   zqb > zqc\n\nzqd",
@@ -1244,7 +1357,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n\nzqb &gt; zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y </  zqa\nzqb\n\nzqd",
@@ -1253,7 +1367,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;/  zqa<br>\nzqb</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> > </  zqa> zqc\n\nzqd",
@@ -1262,7 +1377,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">&lt;/  zqa&gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> </  zqa>\n> zqb > zqc\n\nzqd",
@@ -1272,7 +1388,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">&lt;/  zqa&gt;<br>\nzqb &gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <!DOCTYPE zqa> zqc\n\nzqd",
@@ -1282,7 +1399,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n zqc\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <!x zqa\n  \n  zqb> zqc\n\nzqd",
@@ -1296,7 +1414,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n<p dir=\"auto\">&lt;!x zqa</p>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n<!DOCTYPE zqa> zqc\n\nzqd",
@@ -1306,7 +1425,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n zqc\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y <?php zqa\n> zqb?> zqc\n\nzqd",
@@ -1316,7 +1436,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;?php zqa</li>\n</ul>\n<blockquote>\n<p dir=\"auto\">zqb?&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - <? zqa\n>   zqb?> zqc\n\nzqd",
@@ -1327,7 +1448,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y <?php zqa?> zqc\n\nzqd",
@@ -1337,7 +1459,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y  zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. <!-- zqa\n   zqb\n\nzqd",
@@ -1346,7 +1469,8 @@
     "zqa",
     "zqb",
     "zqd"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n</li></ol>"
   },
   {
    "text": "x\n\n> > y </  zqa\n\nzqb> zqc\n\nzqd",
@@ -1356,7 +1480,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y &lt;/  zqa</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y </  zqa\n\n> > zqb> zqc\n\nzqd",
@@ -1366,7 +1491,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y &lt;/  zqa</p>\n</blockquote>\n</blockquote>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <!-- zqa\n\n  zqb--> zqc\n\nzqd",
@@ -1377,7 +1503,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <!DOCTYPE zqa\n\nzqb> zqc\n\nzqd",
@@ -1388,7 +1515,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\n</li></ul>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<div>\ny <!DOCTYPE zqa\nzqb\n\nzqd",
@@ -1398,7 +1526,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\ny zqd<p dir=\"auto\"></p></div>"
   },
   {
    "text": "x\n\n> y <!DOCTYPE zqa\n\n> zqb> zqc\n\nzqd",
@@ -1408,7 +1537,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y &lt;!DOCTYPE zqa</p>\n</blockquote>\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. </  zqa\n\nzqb> zqc\n\nzqd",
@@ -1418,7 +1548,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>&lt;/  zqa</li>\n</ol>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> y <!x zqa > zqb> zqc\n\nzqd",
@@ -1431,7 +1562,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y &lt;!x zqa &gt; zqb&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n</  zqa\nzqb\n\nzqd",
@@ -1440,7 +1572,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">&lt;/  zqa<br>\nzqb</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y <!X zqa\nzqb> zqc\n\nzqd",
@@ -1451,7 +1584,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y  zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!x zqa>\nzqb > zqc\n\nzqd",
@@ -1464,7 +1598,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>&lt;!x zqa&gt;<br>\nzqb &gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - y <![CDATA[ zqa]]>\n>   zqb > zqc\n\nzqd",
@@ -1475,7 +1610,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>y <br>\nzqb &gt; zqc</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y <?php zqa\n  zqb\n\nzqd",
@@ -1484,7 +1620,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;?php zqa<br>\nzqb</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - y <!X zqa\n\n>   zqb> zqc\n\nzqd",
@@ -1494,7 +1631,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>y &lt;!X zqa</li>\n</ul>\n</blockquote>\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <? zqa\nzqb?> zqc\n\nzqd",
@@ -1505,7 +1643,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n\n</li></ol>\n<p dir=\"auto\">zqb?&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n</  zqa> zqc\n\nzqd",
@@ -1514,7 +1653,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x<br>\n&lt;/  zqa&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<div>\ny <!DOCTYPE zqa\n\nzqb> zqc\n\nzqd",
@@ -1525,7 +1665,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\ny zqb&gt; zqc<p dir=\"auto\"></p>\n<p dir=\"auto\">zqd</p></div>"
   },
   {
    "text": "x\n- <? zqa\n\n  zqb?> zqc\n\nzqd",
@@ -1536,7 +1677,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - <!X zqa\n>   zqb> zqc\n\nzqd",
@@ -1547,7 +1689,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n<![CDATA[ zqa > zqb]]> zqc\n\nzqd",
@@ -1558,7 +1701,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n zqb]]&gt; zqc\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\ny <!-- zqa\n\nzqb--> zqc\n\nzqd",
@@ -1572,7 +1716,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">y &lt;!-- zqa</p>\n<p dir=\"auto\">zqb--&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y </  zqa\n  \n  zqb> zqc\n\nzqd",
@@ -1582,7 +1727,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n<p dir=\"auto\">y &lt;/  zqa</p>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<div>\n<!X zqa\n\nzqb> zqc\n\nzqd",
@@ -1596,7 +1742,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\nzqb&gt; zqc<p dir=\"auto\"></p>\n<p dir=\"auto\">zqd</p></div>"
   },
   {
    "text": "x\n\n- <? zqa\n  > zqb?> zqc\n\nzqd",
@@ -1607,7 +1754,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqb?&gt; zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. y <!DOCTYPE zqa\nzqb> zqc\n\nzqd",
@@ -1618,7 +1766,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>y  zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!x zqa\n> zqb> zqc\n\nzqd",
@@ -1631,7 +1780,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>&lt;!x zqa</li>\n</ul>\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. y <?php zqa > zqb?> zqc\n\nzqd",
@@ -1642,7 +1792,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>y  zqb?&gt; zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. </  zqa>\n   zqb > zqc\n\nzqd",
@@ -1652,7 +1803,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>&lt;/  zqa&gt;<br>\nzqb &gt; zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > <!-- zqa\n\n> > zqb--> zqc\n\nzqd",
@@ -1662,7 +1814,8 @@
     "zqb",
     "zqc",
     "zqd"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n</blockquote></blockquote>"
   },
   {
    "text": "x\n\n1. <!-- zqa\nzqb--> zqc\n\nzqd",
@@ -1672,7 +1825,8 @@
     "zqb",
     "zqc",
     "zqd"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n</li></ol>"
   },
   {
    "text": "x\n\n> > y <!x zqa\n> > > zqb> zqc\n\nzqd",
@@ -1682,7 +1836,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y &lt;!x zqa</p>\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. <!X zqa\n\nzqb> zqc\n\nzqd",
@@ -1693,7 +1848,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n\n</li></ol>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\ny <!-- zqa > zqb--> zqc\n\nzqd",
@@ -1704,7 +1860,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">y  zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<? zqa > zqb?> zqc\n\nzqd",
@@ -1715,7 +1872,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n zqb?&gt; zqc\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - <!X zqa > zqb> zqc\n\nzqd",
@@ -1726,7 +1884,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqb&gt; zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!X zqa\n  \n  zqb> zqc\n\nzqd",
@@ -1737,7 +1896,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- y <!-- zqa\n  zqb\n\nzqd",
@@ -1746,7 +1906,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;!-- zqa<br>\nzqb</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<div>\ny <!X zqa\n> zqb> zqc\n\nzqd",
@@ -1757,7 +1918,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\ny  zqb&gt; zqc\n<p dir=\"auto\">zqd</p></div>"
   },
   {
    "text": "x\n\n> > y <? zqa?> zqc\n\nzqd",
@@ -1767,7 +1929,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y  zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - <!DOCTYPE zqa\n>   > zqb> zqc\n\nzqd",
@@ -1778,7 +1941,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqb&gt; zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <!x zqa\n> \n> zqb> zqc\n\nzqd",
@@ -1792,7 +1956,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">&lt;!x zqa</p>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. y <?php zqa\nzqb?> zqc\n\nzqd",
@@ -1803,7 +1968,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>y  zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<? zqa\nzqb\n\nzqd",
@@ -1812,7 +1978,8 @@
     "zqa",
     "zqb",
     "zqd"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n"
   },
   {
    "text": "x\n\n1. <!x zqa\n   > zqb> zqc\n\nzqd",
@@ -1825,7 +1992,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>&lt;!x zqa\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\ny <!-- zqa\nzqb--> zqc\n\nzqd",
@@ -1836,7 +2004,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">y  zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - y <!DOCTYPE zqa\n\nzqb> zqc\n\nzqd",
@@ -1846,7 +2015,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>y &lt;!DOCTYPE zqa</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y <!-- zqa\nzqb--> zqc\n\nzqd",
@@ -1857,7 +2027,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y  zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!X zqa\nzqb> zqc\n\nzqd",
@@ -1868,7 +2039,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\n</li></ul>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <? zqa\nzqb\n\nzqd",
@@ -1878,7 +2050,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n\n<p dir=\"auto\">zqb</p>\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n\n- y <!DOCTYPE zqa\n> zqb> zqc\n\nzqd",
@@ -1888,7 +2061,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y &lt;!DOCTYPE zqa</li>\n</ul>\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> <!DOCTYPE zqa>\nzqb > zqc\n\nzqd",
@@ -1899,7 +2073,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n\n</blockquote>\n<p dir=\"auto\">zqb &gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y <![CDATA[ zqa > zqb]]> zqc\n\nzqd",
@@ -1910,7 +2085,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y  zqb]]&gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - <!-- zqa\n>   \n>   zqb--> zqc\n\nzqd",
@@ -1921,7 +2097,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- </  zqa\n  zqb\n\nzqd",
@@ -1930,7 +2107,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>&lt;/  zqa<br>\nzqb</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. <!DOCTYPE zqa> zqc\n\nzqd",
@@ -1940,7 +2118,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n zqc\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <?php zqa?>\nzqb > zqc\n\nzqd",
@@ -1951,7 +2130,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\n</li>\n</ul>\n<p dir=\"auto\">zqb &gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - <!X zqa>\n>   zqb > zqc\n\nzqd",
@@ -1962,7 +2142,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n\nzqb &gt; zqc</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> y </  zqa\n> zqb> zqc\n\nzqd",
@@ -1972,7 +2153,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y &lt;/  zqa<br>\nzqb&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> <![CDATA[ zqa\nzqb\n\nzqd",
@@ -1982,7 +2164,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n\n<p dir=\"auto\">zqb</p>\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n\n> <![CDATA[ zqa\n> > zqb]]> zqc\n\nzqd",
@@ -1993,7 +2176,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n zqb]]&gt; zqc\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <!X zqa\n   > zqb> zqc\n\nzqd",
@@ -2004,7 +2188,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n zqb&gt; zqc\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n- <!-- zqa\nzqb--> zqc\n\nzqd",
@@ -2014,7 +2199,8 @@
     "zqb",
     "zqc",
     "zqd"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n</li></ul>"
   },
   {
    "text": "x\n\n> <!x zqa > zqb> zqc\n\nzqd",
@@ -2027,7 +2213,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">&lt;!x zqa &gt; zqb&gt; zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\ny </  zqa> zqc\n\nzqd",
@@ -2036,7 +2223,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">y &lt;/  zqa&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> y <!-- zqa\nzqb\n\nzqd",
@@ -2045,7 +2233,8 @@
     "zqb",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<p dir=\"auto\">y &lt;!-- zqa<br>\nzqb</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y <!DOCTYPE zqa\nzqb> zqc\n\nzqd",
@@ -2056,7 +2245,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y  zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - <!-- zqa\n>   > zqb--> zqc\n\nzqd",
@@ -2067,7 +2257,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. </  zqa\n   \n   zqb> zqc\n\nzqd",
@@ -2077,7 +2268,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n<p dir=\"auto\">&lt;/  zqa</p>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > <![CDATA[ zqa\n> > zqb\n\nzqd",
@@ -2087,7 +2279,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n\n</blockquote>\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n> - <![CDATA[ zqa\n>   zqb]]> zqc\n\nzqd",
@@ -2098,7 +2291,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - <!-- zqa-->\n>   zqb > zqc\n\nzqd",
@@ -2109,7 +2303,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n\nzqb &gt; zqc</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > <![CDATA[ zqa]]>\n> > zqb > zqc\n\nzqd",
@@ -2120,7 +2315,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n\n<p dir=\"auto\">zqb &gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> > <?php zqa\nzqb?> zqc\n\nzqd",
@@ -2131,7 +2327,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n\n</blockquote>\n<p dir=\"auto\">zqb?&gt; zqc</p>\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n\n<div>\ny <!x zqa>\nzqb > zqc\n\nzqd",
@@ -2142,7 +2339,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\ny \nzqb &gt; zqc\n<p dir=\"auto\">zqd</p></div>"
   },
   {
    "text": "x\n\n<div>\n<!x zqa\nzqb\n\nzqd",
@@ -2155,7 +2353,8 @@
    ],
    "the cleaning takes out": [
     "zqd"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\nzqd<p dir=\"auto\"></p></div>"
   },
   {
    "text": "x\n- <!DOCTYPE zqa\n  > zqb> zqc\n\nzqd",
@@ -2166,7 +2365,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqb&gt; zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <? zqa\nzqb?> zqc\n\nzqd",
@@ -2177,7 +2377,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\n</li></ul>\n<p dir=\"auto\">zqb?&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <? zqa\nzqb\n\nzqd",
@@ -2187,7 +2388,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n\n</li></ul>\n<p dir=\"auto\">zqb</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!-- zqa\n  \n  zqb--> zqc\n\nzqd",
@@ -2198,7 +2400,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n1. y <!X zqa\nzqb> zqc\n\nzqd",
@@ -2209,7 +2412,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>y  zqc</li>\n</ol>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y </  zqa\n> > zqb> zqc\n\nzqd",
@@ -2219,7 +2423,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y &lt;/  zqa<br>\nzqb&gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n- <!x zqa\n  zqb\n\nzqd",
@@ -2232,7 +2437,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>&lt;!x zqa<br>\nzqb</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - y </  zqa\n\nzqb> zqc\n\nzqd",
@@ -2242,7 +2448,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>y &lt;/  zqa</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > <!DOCTYPE zqa\n> > zqb\n\nzqd",
@@ -2252,7 +2459,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n\n</blockquote>\n<p dir=\"auto\">zqd</p></blockquote>"
   },
   {
    "text": "x\n\n- y <![CDATA[ zqa]]>\n  zqb > zqc\n\nzqd",
@@ -2263,7 +2471,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ul dir=\"auto\">\n<li>y <br>\nzqb &gt; zqc</li>\n</ul>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > <? zqa > zqb?> zqc\n\nzqd",
@@ -2274,7 +2483,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n zqb?&gt; zqc\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> - y <? zqa > zqb?> zqc\n\nzqd",
@@ -2285,7 +2495,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>y  zqb?&gt; zqc</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - <? zqa?> zqc\n\nzqd",
@@ -2295,7 +2506,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n</  zqa> zqc\n\nzqd",
@@ -2304,7 +2516,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\">&lt;/  zqa&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n<div>\n<!DOCTYPE zqa > zqb> zqc\n\nzqd",
@@ -2315,7 +2528,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\n zqb&gt; zqc\n<p dir=\"auto\">zqd</p></div>"
   },
   {
    "text": "x\n\n> - <?php zqa\n>   > zqb?> zqc\n\nzqd",
@@ -2326,7 +2540,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>\n zqb?&gt; zqc\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y </  zqa>\n> > zqb > zqc\n\nzqd",
@@ -2336,7 +2551,8 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y &lt;/  zqa&gt;<br>\nzqb &gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n1. <![CDATA[ zqa\n\nzqb]]> zqc\n\nzqd",
@@ -2347,7 +2563,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<ol dir=\"auto\">\n<li>\n\n</li></ol>\n<p dir=\"auto\">zqb]]&gt; zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> - <!x zqa\n>   > zqb> zqc\n\nzqd",
@@ -2360,7 +2577,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<ul dir=\"auto\">\n<li>&lt;!x zqa\n<blockquote>\n<p dir=\"auto\">zqb&gt; zqc</p>\n</blockquote>\n</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n\n> > y <!X zqa> zqc\n\nzqd",
@@ -2370,7 +2588,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">y  zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "x\n> > <?php zqa\n\n> > zqb?> zqc\n\nzqd",
@@ -2381,7 +2600,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<blockquote>\n<blockquote>\n\n</blockquote>\n<blockquote>\n<blockquote>\n<p dir=\"auto\">zqb?&gt; zqc</p>\n</blockquote>\n</blockquote>\n<p dir=\"auto\">zqd</p></blockquote>"
   }
  ]
 }

@@ -34,6 +34,7 @@ from .markup import *
 from .tags import *
 from .code_languages import *
 from .structures import *
+from .converter import *
 from .cleaning import *
 from .issues import *
 from .answer import *

@@ -9,7 +9,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\">MWa\udb40\udc41MWb</p>"
   },
   {
    "text": "MWa&#xE0041MWb",
@@ -21,7 +22,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\">MWa&amp;#xE0041MWb</p>"
   },
   {
    "text": "MWa&#x0000E0041;MWb",
@@ -33,7 +35,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\">MWa&amp;#x0000E0041;MWb</p>"
   },
   {
    "text": "MWa&shyMWb",
@@ -45,7 +48,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<p dir=\"auto\">MWa&amp;shyMWb</p>"
   },
   {
    "text": "# MWa&#xE0041;MWb",
@@ -55,7 +59,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">MWa\udb40\udc41MWb</h1>"
   },
   {
    "text": "# MWa&#xE0041MWb",
@@ -67,7 +72,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">MWa&amp;#xE0041MWb</h1>"
   },
   {
    "text": "# MWa&#x0000E0041;MWb",
@@ -79,7 +85,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">MWa&amp;#x0000E0041;MWb</h1>"
   },
   {
    "text": "# MWa&shyMWb",
@@ -91,7 +98,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">MWa&amp;shyMWb</h1>"
   },
   {
    "text": "- MWa&#xE0041;MWb",
@@ -101,7 +109,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>MWa\udb40\udc41MWb</li>\n</ul>"
   },
   {
    "text": "- MWa&#xE0041MWb",
@@ -113,7 +122,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>MWa&amp;#xE0041MWb</li>\n</ul>"
   },
   {
    "text": "- MWa&#x0000E0041;MWb",
@@ -125,7 +135,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>MWa&amp;#x0000E0041;MWb</li>\n</ul>"
   },
   {
    "text": "- MWa&shyMWb",
@@ -137,7 +148,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>MWa&amp;shyMWb</li>\n</ul>"
   },
   {
    "text": "> MWa&#xE0041;MWb",
@@ -147,7 +159,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">MWa\udb40\udc41MWb</p>\n</blockquote>"
   },
   {
    "text": "> MWa&#xE0041MWb",
@@ -159,7 +172,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">MWa&amp;#xE0041MWb</p>\n</blockquote>"
   },
   {
    "text": "> MWa&#x0000E0041;MWb",
@@ -171,7 +185,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">MWa&amp;#x0000E0041;MWb</p>\n</blockquote>"
   },
   {
    "text": "> MWa&shyMWb",
@@ -183,7 +198,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">MWa&amp;shyMWb</p>\n</blockquote>"
   },
   {
    "text": "| MWa&#xE0041;MWb |\n|---|",
@@ -193,7 +209,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>MWa\udb40\udc41MWb</th>\n</tr>\n</thead>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| MWa&#xE0041MWb |\n|---|",
@@ -205,7 +222,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>MWa&amp;#xE0041MWb</th>\n</tr>\n</thead>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| MWa&#x0000E0041;MWb |\n|---|",
@@ -217,7 +235,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>MWa&amp;#x0000E0041;MWb</th>\n</tr>\n</thead>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| MWa&shyMWb |\n|---|",
@@ -229,7 +248,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>MWa&amp;shyMWb</th>\n</tr>\n</thead>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "[MWa&#xE0041;MWb](https://example.com)",
@@ -239,7 +259,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\">MWa\udb40\udc41MWb</a></p>"
   },
   {
    "text": "[MWa&#xE0041MWb](https://example.com)",
@@ -251,7 +272,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\">MWa&amp;#xE0041MWb</a></p>"
   },
   {
    "text": "[MWa&#x0000E0041;MWb](https://example.com)",
@@ -263,7 +285,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\">MWa&amp;#x0000E0041;MWb</a></p>"
   },
   {
    "text": "[MWa&shyMWb](https://example.com)",
@@ -275,7 +298,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\">MWa&amp;shyMWb</a></p>"
   },
   {
    "text": "![MWa&#xE0041;MWb](https://example.com/a.png)",
@@ -285,7 +309,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://camo.githubusercontent.com/496722540e8b83601dbd1aaa22b36ef7ffc7502f625468c279ae3f84a4606569/68747470733a2f2f6578616d706c652e636f6d2f612e706e67\"><img src=\"https://camo.githubusercontent.com/496722540e8b83601dbd1aaa22b36ef7ffc7502f625468c279ae3f84a4606569/68747470733a2f2f6578616d706c652e636f6d2f612e706e67\" alt=\"MWa\udb40\udc41MWb\" data-canonical-src=\"https://example.com/a.png\" style=\"max-width: 100%;\"></a></p>"
   },
   {
    "text": "![MWa&#xE0041MWb](https://example.com/a.png)",
@@ -297,7 +322,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://camo.githubusercontent.com/496722540e8b83601dbd1aaa22b36ef7ffc7502f625468c279ae3f84a4606569/68747470733a2f2f6578616d706c652e636f6d2f612e706e67\"><img src=\"https://camo.githubusercontent.com/496722540e8b83601dbd1aaa22b36ef7ffc7502f625468c279ae3f84a4606569/68747470733a2f2f6578616d706c652e636f6d2f612e706e67\" alt=\"MWa&amp;#xE0041MWb\" data-canonical-src=\"https://example.com/a.png\" style=\"max-width: 100%;\"></a></p>"
   },
   {
    "text": "![MWa&#x0000E0041;MWb](https://example.com/a.png)",
@@ -309,7 +335,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://camo.githubusercontent.com/496722540e8b83601dbd1aaa22b36ef7ffc7502f625468c279ae3f84a4606569/68747470733a2f2f6578616d706c652e636f6d2f612e706e67\"><img src=\"https://camo.githubusercontent.com/496722540e8b83601dbd1aaa22b36ef7ffc7502f625468c279ae3f84a4606569/68747470733a2f2f6578616d706c652e636f6d2f612e706e67\" alt=\"MWa&amp;#x0000E0041;MWb\" data-canonical-src=\"https://example.com/a.png\" style=\"max-width: 100%;\"></a></p>"
   },
   {
    "text": "![MWa&shyMWb](https://example.com/a.png)",
@@ -321,7 +348,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://camo.githubusercontent.com/496722540e8b83601dbd1aaa22b36ef7ffc7502f625468c279ae3f84a4606569/68747470733a2f2f6578616d706c652e636f6d2f612e706e67\"><img src=\"https://camo.githubusercontent.com/496722540e8b83601dbd1aaa22b36ef7ffc7502f625468c279ae3f84a4606569/68747470733a2f2f6578616d706c652e636f6d2f612e706e67\" alt=\"MWa&amp;shyMWb\" data-canonical-src=\"https://example.com/a.png\" style=\"max-width: 100%;\"></a></p>"
   },
   {
    "text": "*MWa&#xE0041;MWb*",
@@ -331,7 +359,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><em>MWa\udb40\udc41MWb</em></p>"
   },
   {
    "text": "*MWa&#xE0041MWb*",
@@ -343,7 +372,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><em>MWa&amp;#xE0041MWb</em></p>"
   },
   {
    "text": "*MWa&#x0000E0041;MWb*",
@@ -355,7 +385,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><em>MWa&amp;#x0000E0041;MWb</em></p>"
   },
   {
    "text": "*MWa&shyMWb*",
@@ -367,7 +398,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><em>MWa&amp;shyMWb</em></p>"
   },
   {
    "text": "<b>MWa&#xE0041;MWb</b>",
@@ -377,7 +409,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><b>MWa\udb40\udc41MWb</b></p>"
   },
   {
    "text": "<b>MWa&#xE0041MWb</b>",
@@ -389,7 +422,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><b>MWa&amp;#xE0041MWb</b></p>"
   },
   {
    "text": "<b>MWa&#x0000E0041;MWb</b>",
@@ -401,7 +435,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><b>MWa&amp;#x0000E0041;MWb</b></p>"
   },
   {
    "text": "<b>MWa&shyMWb</b>",
@@ -413,7 +448,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><b>MWa&amp;shyMWb</b></p>"
   },
   {
    "text": "~~MWa&#xE0041;MWb~~",
@@ -423,7 +459,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><del>MWa\udb40\udc41MWb</del></p>"
   },
   {
    "text": "~~MWa&#xE0041MWb~~",
@@ -435,7 +472,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><del>MWa&amp;#xE0041MWb</del></p>"
   },
   {
    "text": "~~MWa&#x0000E0041;MWb~~",
@@ -447,7 +485,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><del>MWa&amp;#x0000E0041;MWb</del></p>"
   },
   {
    "text": "~~MWa&shyMWb~~",
@@ -459,7 +498,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><del>MWa&amp;shyMWb</del></p>"
   },
   {
    "text": "x[^1]\n\n[^1]: MWa&#xE0041;MWb",
@@ -469,7 +509,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<sup><a href=\"#user-content-fn-1-2e96cc6cc92431be8e2c4515f3466354\" id=\"user-content-fnref-1-2e96cc6cc92431be8e2c4515f3466354\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup></p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-2e96cc6cc92431be8e2c4515f3466354\">\n<p dir=\"auto\">MWa\udb40\udc41MWb <a href=\"#user-content-fnref-1-2e96cc6cc92431be8e2c4515f3466354\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "x[^1]\n\n[^1]: MWa&#xE0041MWb",
@@ -481,7 +522,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<sup><a href=\"#user-content-fn-1-059703d341483957c7b787c293961a15\" id=\"user-content-fnref-1-059703d341483957c7b787c293961a15\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup></p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-059703d341483957c7b787c293961a15\">\n<p dir=\"auto\">MWa&amp;#xE0041MWb <a href=\"#user-content-fnref-1-059703d341483957c7b787c293961a15\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "x[^1]\n\n[^1]: MWa&#x0000E0041;MWb",
@@ -493,7 +535,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<sup><a href=\"#user-content-fn-1-e65d99dd9e88be0a90146807438f8df5\" id=\"user-content-fnref-1-e65d99dd9e88be0a90146807438f8df5\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup></p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-e65d99dd9e88be0a90146807438f8df5\">\n<p dir=\"auto\">MWa&amp;#x0000E0041;MWb <a href=\"#user-content-fnref-1-e65d99dd9e88be0a90146807438f8df5\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "x[^1]\n\n[^1]: MWa&shyMWb",
@@ -505,7 +548,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<sup><a href=\"#user-content-fn-1-9e3aa71a94f72faf4c95f6f7b4342479\" id=\"user-content-fnref-1-9e3aa71a94f72faf4c95f6f7b4342479\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup></p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-9e3aa71a94f72faf4c95f6f7b4342479\">\n<p dir=\"auto\">MWa&amp;shyMWb <a href=\"#user-content-fnref-1-9e3aa71a94f72faf4c95f6f7b4342479\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "MWa&#xE0041;MWb\n===",
@@ -515,7 +559,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">MWa\udb40\udc41MWb</h1>"
   },
   {
    "text": "MWa&#xE0041MWb\n===",
@@ -527,7 +572,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">MWa&amp;#xE0041MWb</h1>"
   },
   {
    "text": "MWa&#x0000E0041;MWb\n===",
@@ -539,7 +585,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">MWa&amp;#x0000E0041;MWb</h1>"
   },
   {
    "text": "MWa&shyMWb\n===",
@@ -551,7 +598,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">MWa&amp;shyMWb</h1>"
   },
   {
    "text": "- [ ] MWa&#xE0041;MWb",
@@ -561,7 +609,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<ul class=\"contains-task-list\">\n<li class=\"task-list-item\"><input type=\"checkbox\" id=\"\" disabled=\"\" class=\"task-list-item-checkbox\" aria-label=\"Incomplete task\"> MWa\udb40\udc41MWb</li>\n</ul>"
   },
   {
    "text": "- [ ] MWa&#xE0041MWb",
@@ -573,7 +622,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<ul class=\"contains-task-list\">\n<li class=\"task-list-item\"><input type=\"checkbox\" id=\"\" disabled=\"\" class=\"task-list-item-checkbox\" aria-label=\"Incomplete task\"> MWa&amp;#xE0041MWb</li>\n</ul>"
   },
   {
    "text": "- [ ] MWa&#x0000E0041;MWb",
@@ -585,7 +635,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<ul class=\"contains-task-list\">\n<li class=\"task-list-item\"><input type=\"checkbox\" id=\"\" disabled=\"\" class=\"task-list-item-checkbox\" aria-label=\"Incomplete task\"> MWa&amp;#x0000E0041;MWb</li>\n</ul>"
   },
   {
    "text": "- [ ] MWa&shyMWb",
@@ -597,7 +648,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<ul class=\"contains-task-list\">\n<li class=\"task-list-item\"><input type=\"checkbox\" id=\"\" disabled=\"\" class=\"task-list-item-checkbox\" aria-label=\"Incomplete task\"> MWa&amp;shyMWb</li>\n</ul>"
   },
   {
    "text": "<details><summary>MWa&#xE0041;MWb</summary>x</details>",
@@ -607,7 +659,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<details><summary>MWa\udb40\udc41MWb</summary>x</details>"
   },
   {
    "text": "<details><summary>MWa&#xE0041MWb</summary>x</details>",
@@ -617,7 +670,8 @@
    ],
    "github hides": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<details><summary>MWa\udb40\udc41MWb</summary>x</details>"
   },
   {
    "text": "<details><summary>MWa&#x0000E0041;MWb</summary>x</details>",
@@ -627,7 +681,8 @@
    ],
    "github hides": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<details><summary>MWa\udb40\udc41MWb</summary>x</details>"
   },
   {
    "text": "<details><summary>MWa&shyMWb</summary>x</details>",
@@ -637,7 +692,8 @@
    ],
    "github hides": [
     "&shy"
-   ]
+   ],
+   "html": "<details><summary>MWa\u00adMWb</summary>x</details>"
   },
   {
    "text": "<div>\nMWa&#xE0041;MWb\n</div>",
@@ -647,7 +703,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\nMWa\udb40\udc41MWb\n</div>"
   },
   {
    "text": "<div>\nMWa&#xE0041MWb\n</div>",
@@ -657,7 +714,8 @@
    ],
    "github hides": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\nMWa\udb40\udc41MWb\n</div>"
   },
   {
    "text": "<div>\nMWa&#917569;MWb\n</div>",
@@ -667,7 +725,8 @@
    ],
    "github hides": [
     "&#917569;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\nMWa\udb40\udc41MWb\n</div>"
   },
   {
    "text": "<div>\nMWa&#917569MWb\n</div>",
@@ -677,7 +736,8 @@
    ],
    "github hides": [
     "&#917569"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\nMWa\udb40\udc41MWb\n</div>"
   },
   {
    "text": "<div>\nMWa&#x0000E0041;MWb\n</div>",
@@ -687,7 +747,8 @@
    ],
    "github hides": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\nMWa\udb40\udc41MWb\n</div>"
   },
   {
    "text": "<div>\nMWa&ZeroWidthSpace;MWb\n</div>",
@@ -697,7 +758,8 @@
    ],
    "github hides": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\nMWa\u200bMWb\n</div>"
   },
   {
    "text": "<div>\nMWa&ZeroWidthSpaceMWb\n</div>",
@@ -706,7 +768,8 @@
     "MWb",
     "&ZeroWidthSpace"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<div dir=\"auto\">\nMWa&amp;ZeroWidthSpaceMWb\n</div>"
   },
   {
    "text": "<div>\nMWa&shyMWb\n</div>",
@@ -716,7 +779,8 @@
    ],
    "github hides": [
     "&shy"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\nMWa\u00adMWb\n</div>"
   },
   {
    "text": "<div>\nMWa&zwj;MWb\n</div>",
@@ -726,7 +790,8 @@
    ],
    "github hides": [
     "&zwj;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\nMWa\u200dMWb\n</div>"
   },
   {
    "text": "<div>\nMWa&#x200B;MWb\n</div>",
@@ -736,7 +801,8 @@
    ],
    "github hides": [
     "&#x200B;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\nMWa\u200bMWb\n</div>"
   },
   {
    "text": "<div>\n```\nMWa&#xE0041;MWb\n```\n</div>",
@@ -746,7 +812,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n```\nMWa\udb40\udc41MWb\n```\n</div>"
   },
   {
    "text": "<div>\n```\nMWa&#xE0041MWb\n```\n</div>",
@@ -756,7 +823,8 @@
    ],
    "github hides": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n```\nMWa\udb40\udc41MWb\n```\n</div>"
   },
   {
    "text": "<div>\n```\nMWa&#917569;MWb\n```\n</div>",
@@ -766,7 +834,8 @@
    ],
    "github hides": [
     "&#917569;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n```\nMWa\udb40\udc41MWb\n```\n</div>"
   },
   {
    "text": "<div>\n```\nMWa&#917569MWb\n```\n</div>",
@@ -776,7 +845,8 @@
    ],
    "github hides": [
     "&#917569"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n```\nMWa\udb40\udc41MWb\n```\n</div>"
   },
   {
    "text": "<div>\n```\nMWa&#x0000E0041;MWb\n```\n</div>",
@@ -786,7 +856,8 @@
    ],
    "github hides": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n```\nMWa\udb40\udc41MWb\n```\n</div>"
   },
   {
    "text": "<div>\n```\nMWa&ZeroWidthSpace;MWb\n```\n</div>",
@@ -796,7 +867,8 @@
    ],
    "github hides": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n```\nMWa\u200bMWb\n```\n</div>"
   },
   {
    "text": "<div>\n```\nMWa&ZeroWidthSpaceMWb\n```\n</div>",
@@ -805,7 +877,8 @@
     "MWb",
     "&ZeroWidthSpace"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<div dir=\"auto\">\n```\nMWa&amp;ZeroWidthSpaceMWb\n```\n</div>"
   },
   {
    "text": "<div>\n```\nMWa&shyMWb\n```\n</div>",
@@ -815,7 +888,8 @@
    ],
    "github hides": [
     "&shy"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n```\nMWa\u00adMWb\n```\n</div>"
   },
   {
    "text": "<div>\n```\nMWa&zwj;MWb\n```\n</div>",
@@ -825,7 +899,8 @@
    ],
    "github hides": [
     "&zwj;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n```\nMWa\u200dMWb\n```\n</div>"
   },
   {
    "text": "<div>\n```\nMWa&#x200B;MWb\n```\n</div>",
@@ -835,7 +910,8 @@
    ],
    "github hides": [
     "&#x200B;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n```\nMWa\u200bMWb\n```\n</div>"
   },
   {
    "text": "<div>\n`MWa&#xE0041;MWb`\n</div>",
@@ -845,7 +921,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n`MWa\udb40\udc41MWb`\n</div>"
   },
   {
    "text": "<div>\n`MWa&#xE0041MWb`\n</div>",
@@ -855,7 +932,8 @@
    ],
    "github hides": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n`MWa\udb40\udc41MWb`\n</div>"
   },
   {
    "text": "<div>\n`MWa&#917569;MWb`\n</div>",
@@ -865,7 +943,8 @@
    ],
    "github hides": [
     "&#917569;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n`MWa\udb40\udc41MWb`\n</div>"
   },
   {
    "text": "<div>\n`MWa&#917569MWb`\n</div>",
@@ -875,7 +954,8 @@
    ],
    "github hides": [
     "&#917569"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n`MWa\udb40\udc41MWb`\n</div>"
   },
   {
    "text": "<div>\n`MWa&#x0000E0041;MWb`\n</div>",
@@ -885,7 +965,8 @@
    ],
    "github hides": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n`MWa\udb40\udc41MWb`\n</div>"
   },
   {
    "text": "<div>\n`MWa&ZeroWidthSpace;MWb`\n</div>",
@@ -895,7 +976,8 @@
    ],
    "github hides": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n`MWa\u200bMWb`\n</div>"
   },
   {
    "text": "<div>\n`MWa&ZeroWidthSpaceMWb`\n</div>",
@@ -904,7 +986,8 @@
     "MWb",
     "&ZeroWidthSpace"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<div dir=\"auto\">\n`MWa&amp;ZeroWidthSpaceMWb`\n</div>"
   },
   {
    "text": "<div>\n`MWa&shyMWb`\n</div>",
@@ -914,7 +997,8 @@
    ],
    "github hides": [
     "&shy"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n`MWa\u00adMWb`\n</div>"
   },
   {
    "text": "<div>\n`MWa&zwj;MWb`\n</div>",
@@ -924,7 +1008,8 @@
    ],
    "github hides": [
     "&zwj;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n`MWa\u200dMWb`\n</div>"
   },
   {
    "text": "<div>\n`MWa&#x200B;MWb`\n</div>",
@@ -934,7 +1019,8 @@
    ],
    "github hides": [
     "&#x200B;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n`MWa\u200bMWb`\n</div>"
   },
   {
    "text": "<div>\n\nMWa&#xE0041;MWb\n\n</div>",
@@ -944,7 +1030,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">MWa\udb40\udc41MWb</p>\n</div>"
   },
   {
    "text": "<div>\n\nMWa&#xE0041MWb\n\n</div>",
@@ -956,7 +1043,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">MWa&amp;#xE0041MWb</p>\n</div>"
   },
   {
    "text": "<div>\n\nMWa&#917569;MWb\n\n</div>",
@@ -966,7 +1054,8 @@
    ],
    "github hides": [
     "&#917569;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">MWa\udb40\udc41MWb</p>\n</div>"
   },
   {
    "text": "<div>\n\nMWa&#917569MWb\n\n</div>",
@@ -978,7 +1067,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#917569"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">MWa&amp;#917569MWb</p>\n</div>"
   },
   {
    "text": "<div>\n\nMWa&#x0000E0041;MWb\n\n</div>",
@@ -990,7 +1080,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#x0000E0041;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">MWa&amp;#x0000E0041;MWb</p>\n</div>"
   },
   {
    "text": "<div>\n\nMWa&ZeroWidthSpace;MWb\n\n</div>",
@@ -1000,7 +1091,8 @@
    ],
    "github hides": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">MWa\u200bMWb</p>\n</div>"
   },
   {
    "text": "<div>\n\nMWa&ZeroWidthSpaceMWb\n\n</div>",
@@ -1009,7 +1101,8 @@
     "MWb",
     "&ZeroWidthSpace"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">MWa&amp;ZeroWidthSpaceMWb</p>\n</div>"
   },
   {
    "text": "<div>\n\nMWa&shyMWb\n\n</div>",
@@ -1021,7 +1114,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&shy"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">MWa&amp;shyMWb</p>\n</div>"
   },
   {
    "text": "<div>\n\nMWa&zwj;MWb\n\n</div>",
@@ -1031,7 +1125,8 @@
    ],
    "github hides": [
     "&zwj;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">MWa\u200dMWb</p>\n</div>"
   },
   {
    "text": "<div>\n\nMWa&#x200B;MWb\n\n</div>",
@@ -1041,7 +1136,8 @@
    ],
    "github hides": [
     "&#x200B;"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">MWa\u200bMWb</p>\n</div>"
   },
   {
    "text": "`MWa&#xE0041;MWb`",
@@ -1050,7 +1146,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa&amp;#xE0041;MWb</code></p>"
   },
   {
    "text": "`MWa&#xE0041MWb`",
@@ -1059,7 +1156,8 @@
     "MWb",
     "&#xE0041"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa&amp;#xE0041MWb</code></p>"
   },
   {
    "text": "`MWa&ZeroWidthSpace;MWb`",
@@ -1068,7 +1166,8 @@
     "MWb",
     "&ZeroWidthSpace;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb</code></p>"
   },
   {
    "text": "```\nMWa&#xE0041;MWb\n```",
@@ -1077,7 +1176,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041;MWb\n</code></pre>"
   },
   {
    "text": "```\nMWa&#xE0041MWb\n```",
@@ -1086,7 +1186,8 @@
     "MWb",
     "&#xE0041"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041MWb\n</code></pre>"
   },
   {
    "text": "```\nMWa&ZeroWidthSpace;MWb\n```",
@@ -1095,7 +1196,8 @@
     "MWb",
     "&ZeroWidthSpace;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb\n</code></pre>"
   },
   {
    "text": "```cpp\nauto p = MWa&#xE0041;MWb;\n```",
@@ -1104,7 +1206,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<div class=\"highlight highlight-source-c++\" dir=\"auto\"><pre class=\"notranslate\"><span class=\"pl-k\">auto</span> p = MWa&amp;#xE0041;MWb;</pre></div>"
   },
   {
    "text": "```cpp\nauto p = MWa&#xE0041MWb;\n```",
@@ -1113,7 +1216,8 @@
     "MWb",
     "&#xE0041"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<div class=\"highlight highlight-source-c++\" dir=\"auto\"><pre class=\"notranslate\"><span class=\"pl-k\">auto</span> p = MWa&amp;#xE0041MWb;</pre></div>"
   },
   {
    "text": "```cpp\nauto p = MWa&ZeroWidthSpace;MWb;\n```",
@@ -1122,7 +1226,8 @@
     "MWb",
     "&ZeroWidthSpace;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<div class=\"highlight highlight-source-c++\" dir=\"auto\"><pre class=\"notranslate\"><span class=\"pl-k\">auto</span> p = MWa&amp;ZeroWidthSpace;MWb;</pre></div>"
   },
   {
    "text": "    MWa&#xE0041;MWb",
@@ -1134,7 +1239,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041;MWb\n</code></pre>"
   },
   {
    "text": "    MWa&#xE0041MWb",
@@ -1146,7 +1252,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041MWb\n</code></pre>"
   },
   {
    "text": "    MWa&ZeroWidthSpace;MWb",
@@ -1158,7 +1265,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb\n</code></pre>"
   },
   {
    "text": "MWa\\&#xE0041;MWb",
@@ -1170,7 +1278,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\">MWa&amp;#xE0041;MWb</p>"
   },
   {
    "text": "MWa\\&#xE0041MWb",
@@ -1182,7 +1291,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\">MWa&amp;#xE0041MWb</p>"
   },
   {
    "text": "MWa\\&ZeroWidthSpace;MWb",
@@ -1194,7 +1304,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<p dir=\"auto\">MWa&amp;ZeroWidthSpace;MWb</p>"
   },
   {
    "text": "> ```\n> MWa&#xE0041;MWb\n> ```",
@@ -1206,7 +1317,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<blockquote>\n<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041;MWb\n</code></pre>\n</blockquote>"
   },
   {
    "text": "> ```\n> MWa&#xE0041MWb\n> ```",
@@ -1218,7 +1330,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<blockquote>\n<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041MWb\n</code></pre>\n</blockquote>"
   },
   {
    "text": "> ```\n> MWa&ZeroWidthSpace;MWb\n> ```",
@@ -1230,7 +1343,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<blockquote>\n<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb\n</code></pre>\n</blockquote>"
   },
   {
    "text": "~~~\nMWa&#xE0041;MWb\n~~~",
@@ -1239,7 +1353,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041;MWb\n</code></pre>"
   },
   {
    "text": "~~~\nMWa&#xE0041MWb\n~~~",
@@ -1248,7 +1363,8 @@
     "MWb",
     "&#xE0041"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041MWb\n</code></pre>"
   },
   {
    "text": "~~~\nMWa&ZeroWidthSpace;MWb\n~~~",
@@ -1257,7 +1373,8 @@
     "MWb",
     "&ZeroWidthSpace;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb\n</code></pre>"
   },
   {
    "text": "> `MWa&#xE0041;MWb`",
@@ -1266,7 +1383,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<blockquote>\n<p dir=\"auto\"><code class=\"notranslate\">MWa&amp;#xE0041;MWb</code></p>\n</blockquote>"
   },
   {
    "text": "> `MWa&#xE0041MWb`",
@@ -1275,7 +1393,8 @@
     "MWb",
     "&#xE0041"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<blockquote>\n<p dir=\"auto\"><code class=\"notranslate\">MWa&amp;#xE0041MWb</code></p>\n</blockquote>"
   },
   {
    "text": "> `MWa&ZeroWidthSpace;MWb`",
@@ -1284,7 +1403,8 @@
     "MWb",
     "&ZeroWidthSpace;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<blockquote>\n<p dir=\"auto\"><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb</code></p>\n</blockquote>"
   },
   {
    "text": "- `MWa&#xE0041;MWb`",
@@ -1293,7 +1413,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<ul dir=\"auto\">\n<li><code class=\"notranslate\">MWa&amp;#xE0041;MWb</code></li>\n</ul>"
   },
   {
    "text": "- `MWa&#xE0041MWb`",
@@ -1302,7 +1423,8 @@
     "MWb",
     "&#xE0041"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<ul dir=\"auto\">\n<li><code class=\"notranslate\">MWa&amp;#xE0041MWb</code></li>\n</ul>"
   },
   {
    "text": "- `MWa&ZeroWidthSpace;MWb`",
@@ -1311,7 +1433,8 @@
     "MWb",
     "&ZeroWidthSpace;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<ul dir=\"auto\">\n<li><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb</code></li>\n</ul>"
   },
   {
    "text": "# `MWa&#xE0041;MWb`",
@@ -1320,7 +1443,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<h1 dir=\"auto\"><code class=\"notranslate\">MWa&amp;#xE0041;MWb</code></h1>"
   },
   {
    "text": "# `MWa&#xE0041MWb`",
@@ -1329,7 +1453,8 @@
     "MWb",
     "&#xE0041"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<h1 dir=\"auto\"><code class=\"notranslate\">MWa&amp;#xE0041MWb</code></h1>"
   },
   {
    "text": "# `MWa&ZeroWidthSpace;MWb`",
@@ -1338,7 +1463,8 @@
     "MWb",
     "&ZeroWidthSpace;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<h1 dir=\"auto\"><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb</code></h1>"
   },
   {
    "text": "| `MWa&#xE0041;MWb` |\n|---|",
@@ -1347,7 +1473,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th><code class=\"notranslate\">MWa&amp;#xE0041;MWb</code></th>\n</tr>\n</thead>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| `MWa&#xE0041MWb` |\n|---|",
@@ -1356,7 +1483,8 @@
     "MWb",
     "&#xE0041"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th><code class=\"notranslate\">MWa&amp;#xE0041MWb</code></th>\n</tr>\n</thead>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| `MWa&ZeroWidthSpace;MWb` |\n|---|",
@@ -1365,7 +1493,8 @@
     "MWb",
     "&ZeroWidthSpace;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb</code></th>\n</tr>\n</thead>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "`MWa\n&#xE0041;MWb`",
@@ -1377,7 +1506,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa &amp;#xE0041;MWb</code></p>"
   },
   {
    "text": "`MWa\n&#xE0041MWb`",
@@ -1389,7 +1519,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa &amp;#xE0041MWb</code></p>"
   },
   {
    "text": "`MWa\n&ZeroWidthSpace;MWb`",
@@ -1401,7 +1532,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa &amp;ZeroWidthSpace;MWb</code></p>"
   },
   {
    "text": "``MWa&#xE0041;`MWb``",
@@ -1410,7 +1542,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa&amp;#xE0041;`MWb</code></p>"
   },
   {
    "text": "``MWa&#xE0041`MWb``",
@@ -1419,7 +1552,8 @@
     "MWb",
     "&#xE0041"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa&amp;#xE0041`MWb</code></p>"
   },
   {
    "text": "``MWa&ZeroWidthSpace;`MWb``",
@@ -1428,7 +1562,8 @@
     "MWb",
     "&ZeroWidthSpace;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;`MWb</code></p>"
   },
   {
    "text": "<code>MWa&#xE0041;MWb</code>",
@@ -1438,7 +1573,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa\udb40\udc41MWb</code></p>"
   },
   {
    "text": "<code>MWa&#xE0041MWb</code>",
@@ -1450,7 +1586,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa&amp;#xE0041MWb</code></p>"
   },
   {
    "text": "<code>MWa&ZeroWidthSpace;MWb</code>",
@@ -1460,7 +1597,8 @@
    ],
    "github hides": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">MWa\u200bMWb</code></p>"
   },
   {
    "text": "<pre>\nMWa&#xE0041;MWb\n</pre>",
@@ -1470,7 +1608,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<pre class=\"notranslate\">MWa\udb40\udc41MWb\n</pre>"
   },
   {
    "text": "<pre>\nMWa&#xE0041MWb\n</pre>",
@@ -1480,7 +1619,8 @@
    ],
    "github hides": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<pre class=\"notranslate\">MWa\udb40\udc41MWb\n</pre>"
   },
   {
    "text": "<pre>\nMWa&ZeroWidthSpace;MWb\n</pre>",
@@ -1490,7 +1630,8 @@
    ],
    "github hides": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<pre class=\"notranslate\">MWa\u200bMWb\n</pre>"
   },
   {
    "text": "<details>\n\n```\nMWa&#xE0041;MWb\n```\n\n</details>",
@@ -1502,7 +1643,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<details><summary>Details</summary>\n<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041;MWb\n</code></pre>\n</details>"
   },
   {
    "text": "<details>\n\n```\nMWa&#xE0041MWb\n```\n\n</details>",
@@ -1514,7 +1656,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<details><summary>Details</summary>\n<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041MWb\n</code></pre>\n</details>"
   },
   {
    "text": "<details>\n\n```\nMWa&ZeroWidthSpace;MWb\n```\n\n</details>",
@@ -1526,7 +1669,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<details><summary>Details</summary>\n<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb\n</code></pre>\n</details>"
   },
   {
    "text": "x<br>MWa&#xE0041;MWb",
@@ -1536,7 +1680,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<br>MWa\udb40\udc41MWb</p>"
   },
   {
    "text": "x<br>MWa&#xE0041MWb",
@@ -1548,7 +1693,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<br>MWa&amp;#xE0041MWb</p>"
   },
   {
    "text": "x<br>MWa&ZeroWidthSpace;MWb",
@@ -1558,7 +1704,8 @@
    ],
    "github hides": [
     "&ZeroWidthSpace;"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<br>MWa\u200bMWb</p>"
   },
   {
    "text": "```\r\nMWa&#xE0041;MWb\r\n```",
@@ -1567,7 +1714,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041;MWb\n</code></pre>"
   },
   {
    "text": "```\r\nMWa&#xE0041MWb\r\n```",
@@ -1576,7 +1724,8 @@
     "MWb",
     "&#xE0041"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;#xE0041MWb\n</code></pre>"
   },
   {
    "text": "```\r\nMWa&ZeroWidthSpace;MWb\r\n```",
@@ -1585,7 +1734,8 @@
     "MWb",
     "&ZeroWidthSpace;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">MWa&amp;ZeroWidthSpace;MWb\n</code></pre>"
   },
   {
    "text": "` x\ny `MWa&#xE0041;MWb` z",
@@ -1595,7 +1745,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">x y</code>MWa\udb40\udc41MWb` z</p>"
   },
   {
    "text": "<http://a`b> MWa&#xE0041;MWb `z",
@@ -1605,7 +1756,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"http://a%60b\" rel=\"nofollow\">http://a`b</a> MWa\udb40\udc41MWb `z</p>"
   },
   {
    "text": "  ```\n```\nMWa&#xE0041;MWb\n```",
@@ -1615,7 +1767,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\"></code></pre>\n<p dir=\"auto\">MWa\udb40\udc41MWb</p>\n<pre class=\"notranslate\"><code class=\"notranslate\"></code></pre>"
   },
   {
    "text": "- a\n  ```\nMWa&#xE0041;MWb\n```",
@@ -1625,7 +1778,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>a\n<pre class=\"notranslate\"><code class=\"notranslate\"></code></pre>\n</li>\n</ul>\n<p dir=\"auto\">MWa\udb40\udc41MWb</p>\n<pre class=\"notranslate\"><code class=\"notranslate\"></code></pre>"
   },
   {
    "text": "# `MWa&#xE0041;\n`x`",
@@ -1634,7 +1788,8 @@
    ],
    "github hides": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">`MWa\udb40\udc41</h1>\n<p dir=\"auto\"><code class=\"notranslate\">x</code></p>"
   },
   {
    "text": "\\\\`MWa&#xE0041;MWb`",
@@ -1646,7 +1801,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "&#xE0041;"
-   ]
+   ],
+   "html": "<p dir=\"auto\">\\<code class=\"notranslate\">MWa&amp;#xE0041;MWb</code></p>"
   },
   {
    "text": "`a` `MWa&#xE0041;MWb`",
@@ -1655,7 +1811,8 @@
     "MWb",
     "&#xE0041;"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">a</code> <code class=\"notranslate\">MWa&amp;#xE0041;MWb</code></p>"
   }
  ]
 }

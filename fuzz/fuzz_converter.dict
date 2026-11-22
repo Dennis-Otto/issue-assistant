@@ -1,0 +1,78 @@
+# The pieces of GitHub's HTML whose conversion takes the most steps, for
+# libFuzzer's mutations of the start, the piece and the end of the texts of
+# fuzz/fuzz_converter.py; fuzz/seeds.py adds the file to its command line. One
+# "word" per line, with \\, \" and \xNN as escapes.
+
+# The blocks of the closed list, which nest and take the marks of their rows.
+"<p dir=\"auto\">"
+"</p>"
+"<blockquote>"
+"</blockquote>"
+"<ul>"
+"<ol start=\"3\">"
+"<li>"
+"</li>"
+"<li value=\"7\">"
+"<details open=\"\">"
+"<summary>"
+"<div>"
+"<section>"
+"<h3 dir=\"auto\">"
+"<hr>"
+"<br>"
+
+# Code, which is read at once, and its highlighting.
+"<pre lang=\"python\" class=\"notranslate\">"
+"<code class=\"notranslate\">"
+"</code>"
+"<div class=\"highlight highlight-source-python notranslate position-relative overflow-auto\">"
+"<span class=\"pl-k\">"
+"</span>"
+
+# Tables, whose rows wait for their end, and the spans of their cells.
+"<markdown-accessiblity-table><table role=\"table\">"
+"<thead>"
+"<tbody>"
+"<tr>"
+"<td rowspan=\"9\">"
+"<th colspan=\"9\">"
+"</td>"
+
+# Marks, links, references and pictures, each with a placeholder.
+"<strong>"
+"<em>"
+"<q>"
+"<a href=\"https://example.com/\">"
+"<a class=\"issue-link js-issue-link\" href=\"https://github.com/o/r/issues/1\">#1</a>"
+"<a class=\"user-mention notranslate\" href=\"https://github.com/o\">@o</a>"
+"<img src=\"x\" alt=\"y\" style=\"max-width: 100%;\">"
+"<input type=\"checkbox\" id=\"\" disabled=\"\" class=\"task-list-item-checkbox\" checked=\"\">"
+
+# Footnotes, math and what the page never shows.
+"<sup><a href=\"#user-content-fn-1\" data-footnote-ref=\"\">1</a></sup>"
+"<section data-footnotes=\"\" class=\"footnotes\">"
+"<a href=\"#x\" data-footnote-backref=\"\" class=\"data-footnote-backref\">"
+"<math-renderer class=\"js-inline-math\" style=\"display: inline-block\">"
+"<section class=\"js-render-needs-enrichment\" data-type=\"mermaid\">"
+"<div class=\"markdown-alert markdown-alert-note\">"
+"<relative-time>"
+"<rp>"
+"<video>"
+"<span class=\"sr-only\">"
+
+# Markup that GitHub doesn't write, which fails closed.
+"<!--"
+"-->"
+"<?"
+"<!X"
+"<![CDATA["
+"</"
+"<foo>"
+" t=\""
+"\""
+"&#xE0041;"
+"&amp;"
+"```"
+"|"
+"> "
+"#"

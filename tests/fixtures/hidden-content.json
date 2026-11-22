@@ -6,28 +6,32 @@
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><ruby>x<rp>zqa</rp><rt>y</rt></ruby></p>"
   },
   {
    "text": "a <rp>zqa</rp> b",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <rp>zqa</rp> b</p>"
   },
   {
    "text": "<video>zqa</video>",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"></p>"
   },
   {
    "text": "Before <video src=\"https://example.com/a.mp4\" width=\"0\" height=\"0\">zqa</video> After",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">Before  After</p>"
   },
   {
    "text": "Before\n\n<video>\n\nzqa\n\n</video>\n\nAfter zqz",
@@ -36,7 +40,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">Before</p>\n\n<p dir=\"auto\">After zqz</p>"
   },
   {
    "text": "Before\n\n<video>\n\nzqa\n\n# zqb\n\n- zqc",
@@ -45,7 +50,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">Before</p>\n"
   },
   {
    "text": "Before\n\n<video>\n\nzqa</video>\n\nzqb",
@@ -53,21 +59,24 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">Before</p>\n"
   },
   {
    "text": "a <video/>zqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a </p>"
   },
   {
    "text": "a <rp/>zqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <rp>zqa</rp></p>"
   },
   {
    "text": "<video>\n\nzqa\n\n</video> zqb\n\nzqc",
@@ -76,7 +85,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": ""
   },
   {
    "text": "<video>zqa <video>zqb</video> zqc</video> zqd",
@@ -87,7 +97,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\"> zqd</p>"
   },
   {
    "text": "<video>\n\nzqa\n\n   </video>\n\nzqz",
@@ -96,7 +107,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> <video>\n>\n> zqa\n\nzqz",
@@ -108,7 +120,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<blockquote>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- <video>\n\n  zqa\n\n- zqy\n\nzqz",
@@ -122,7 +135,8 @@
    "the cleaning takes out": [
     "zqy",
     "zqz"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n</li>\n<li>\n<p dir=\"auto\">zqy</p>\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<div>\n<video>\n\nzqa</video>\n\nzqb",
@@ -130,7 +144,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n</div>"
   },
   {
    "text": "<ruby>x<rp>zqa</ruby> zqz",
@@ -139,7 +154,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><ruby>x<rp>zqa</rp></ruby> zqz</p>"
   },
   {
    "text": "a <rp>zqa<rt>zqb</rt> zqc</rp> zqz",
@@ -150,7 +166,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <rp>zqa<rt>zqb</rt> zqc</rp> zqz</p>"
   },
   {
    "text": "<RP>zqa</RP> and <Video>zqb</Video> zqz",
@@ -160,7 +177,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><rp>zqa</rp> and  zqz</p>"
   },
   {
    "text": "x <video title=\"a>b\">zqa</video> zqz",
@@ -169,7 +187,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x  zqz</p>"
   },
   {
    "text": "# a <video>zqa\n\nzqz",
@@ -178,7 +197,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">a </h1>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "# a <video>zqa</video> zqz",
@@ -187,7 +207,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">a  zqz</h1>"
   },
   {
    "text": "| a | b |\n|---|---|\n| <video>zqa | zqz |\n\nzqy",
@@ -200,7 +221,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td></td>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>\n<p dir=\"auto\">zqy</p>"
   },
   {
    "text": "| a | b |\n|---|---|\n| <video>zqa</video> zqx | zqz |",
@@ -210,7 +232,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td> zqx</td>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "a <video>zqa\nzqb\n\nzqz",
@@ -220,7 +243,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a </p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "a <video>zqa <div>zqz</div> zqy",
@@ -234,7 +258,8 @@
    "the cleaning takes out": [
     "zqz",
     "zqy"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a </p><div dir=\"auto\">zqz</div> zqy<p dir=\"auto\"></p>"
   },
   {
    "text": "a <video>zqa</p> zqz",
@@ -246,7 +271,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a </p> zqz<p dir=\"auto\"></p>"
   },
   {
    "text": "- a <video>zqa\n  - zqb\n- zqz",
@@ -259,7 +285,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>a </li>\n<li>zqz</li>\n</ul>"
   },
   {
    "text": "- a <video>zqa</video> zqz\n- zqy",
@@ -269,7 +296,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>a  zqz</li>\n<li>zqy</li>\n</ul>"
   },
   {
    "text": "Use `<video>` zqz and `<rp>` zqy",
@@ -277,14 +305,16 @@
     "zqz",
     "zqy"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">Use <code class=\"notranslate\">&lt;video&gt;</code> zqz and <code class=\"notranslate\">&lt;rp&gt;</code> zqy</p>"
   },
   {
    "text": "```\n<video>\n```\n\nzqz",
    "github shows": [
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">&lt;video&gt;\n</code></pre>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<details><summary>zqs</summary>zqz</details>",
@@ -292,7 +322,8 @@
     "zqs",
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<details><summary>zqs</summary>zqz</details>"
   },
   {
    "text": "<ruby>zqa<rt>zqb</rt></ruby> zqz",
@@ -301,7 +332,8 @@
     "zqb",
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"><ruby>zqa<rt>zqb</rt></ruby> zqz</p>"
   },
   {
    "text": "<ruby>x<rp>(</rp><rt>zqb</rt><rp>)</rp></ruby> zqz",
@@ -309,7 +341,8 @@
     "zqb",
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"><ruby>x<rp>(</rp><rt>zqb</rt><rp>)</rp></ruby> zqz</p>"
   },
   {
    "text": "<video>zqa `</video>` zqb</video> zqz",
@@ -322,7 +355,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<p dir=\"auto\"> zqz</p>"
   },
   {
    "text": "<div>\n<video>zqa</video> zqz\n</div>",
@@ -331,7 +365,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n zqz\n</div>"
   },
   {
    "text": "<video>\n<!-- zqa -->\n</video>\n\nzqz",
@@ -340,7 +375,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "[^1]: zqa\n\nSee [^1].\n\n<video>\n\nzqb",
@@ -348,7 +384,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">See <sup><a href=\"#user-content-fn-1-9b95b7d32277cce67854f453d004cbe3\" id=\"user-content-fnref-1-9b95b7d32277cce67854f453d004cbe3\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup>.</p>\n"
   },
   {
    "text": "x\n\n<div data-x=\">zqa\">\n\nzqz",
@@ -357,7 +394,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\n<p dir=\"auto\">zqz</p></div>"
   },
   {
    "text": "x\n\n<p data-x='>zqa'></p>\n\nzqz",
@@ -366,7 +404,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\"></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <span foo=\">zqa\">y</span> zqz",
@@ -375,7 +414,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x <span>y</span> zqz</p>"
   },
   {
    "text": "> x <span foo=\">zqa\">y</span> zqz",
@@ -384,7 +424,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">x <span>y</span> zqz</p>\n</blockquote>"
   },
   {
    "text": "- x <span foo=\">zqa\">y</span> zqz",
@@ -393,7 +434,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>x <span>y</span> zqz</li>\n</ul>"
   },
   {
    "text": "| a |\n|---|\n| x <span foo=\">zqa\">y</span> zqz |",
@@ -402,14 +444,16 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>x <span>y</span> zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "<details><summary>Logs</summary>\n<span data-x=\">zqa\"></span>\n</details>",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<details><summary>Logs</summary>\n<span></span>\n</details>"
   },
   {
    "text": "Crash on start <img src=\"https://example.com/a.png\" alt=\"\" data-x=\">zqa\"> zqz",
@@ -418,35 +462,40 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">Crash on start <a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://camo.githubusercontent.com/496722540e8b83601dbd1aaa22b36ef7ffc7502f625468c279ae3f84a4606569/68747470733a2f2f6578616d706c652e636f6d2f612e706e67\"><img src=\"https://camo.githubusercontent.com/496722540e8b83601dbd1aaa22b36ef7ffc7502f625468c279ae3f84a4606569/68747470733a2f2f6578616d706c652e636f6d2f612e706e67\" alt=\"\" data-canonical-src=\"https://example.com/a.png\" style=\"max-width: 100%;\"></a> zqz</p>"
   },
   {
    "text": "- <?php ?><span\n  zqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n<span>\n</span></li></ul>"
   },
   {
    "text": "- <!DOCTYPE html><span\n  zqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n<span>\n</span></li></ul>"
   },
   {
    "text": "> <div>\n<span\nzqa>",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n</div></blockquote>\n<p dir=\"auto\"><span></span></p>"
   },
   {
    "text": "- <div>\n<span\nzqa>",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n<div dir=\"auto\">\n</div></li>\n</ul>\n<p dir=\"auto\"><span></span></p>"
   },
   {
    "text": "x <?><span\nzqa?> zqz",
@@ -455,7 +504,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x <span> zqz</span></p>"
   },
   {
    "text": "x <?><span data-x=\"?>zqa\"> zqb",
@@ -463,28 +513,32 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x </p>"
   },
   {
    "text": "-<![CDATA[><!x<><?zqa]]>",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">-</p>"
   },
   {
    "text": "<div\n==\"\n\nzqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": ""
   },
   {
    "text": "s\n<b>\n<!\n<!D\n\nzqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">s<br>\n<b><br>\n&lt;!</b></p><b>\n</b>"
   },
   {
    "text": "x <b title=\">zqa\">y</b> zqz",
@@ -493,7 +547,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x <b title=\"&gt;zqa\">y</b> zqz</p>"
   },
   {
    "text": "<div data-x=\"zqa\"></div> zqz",
@@ -502,7 +557,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\"></div> zqz"
   },
   {
    "text": "<img alt=\"zqa\" src=\"x\"> zqz",
@@ -511,28 +567,35 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img alt=\"zqa\" src=\"x\" style=\"max-width: 100%;\"></a> zqz</p>",
+   "the converter keeps": {
+    "zqa": "the alt of a picture"
+   }
   },
   {
    "text": "x > y zqz",
    "github shows": [
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x &gt; y zqz</p>"
   },
   {
    "text": "a <b zqz",
    "github shows": [
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">a &lt;b zqz</p>"
   },
   {
    "text": "<a\n> zqz",
    "github shows": [
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">&lt;a</p>\n<blockquote>\n<p dir=\"auto\">zqz</p>\n</blockquote>"
   },
   {
    "text": "x <a href=\"https://example.com/?q=>\">zqz</a> zqy",
@@ -540,7 +603,8 @@
     "zqz",
     "zqy"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x <a href=\"https://example.com/?q=&gt;\" rel=\"nofollow\">zqz</a> zqy</p>"
   },
   {
    "text": "x <span 1=\">zqz\">y</span> zqy",
@@ -548,7 +612,8 @@
     "zqz",
     "zqy"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x &lt;span 1=\"&gt;zqz\"&gt;y zqy</p>"
   },
   {
    "text": "x <span data-x=\">zqz\" zqy",
@@ -556,7 +621,8 @@
     "zqz",
     "zqy"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x &lt;span data-x=\"&gt;zqz\" zqy</p>"
   },
   {
    "text": "x <span data-x=`>zqz`> zqy",
@@ -564,21 +630,24 @@
     "zqz",
     "zqy"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x &lt;span data-x=<code class=\"notranslate\">&gt;zqz</code>&gt; zqy</p>"
   },
   {
    "text": "<script\nzqz",
    "github shows": [
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "&lt;script\nzqz"
   },
   {
    "text": "```\n<a b=\"\n```\n\nzqz",
    "github shows": [
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">&lt;a b=\"\n</code></pre>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x\n\n    <a b=\"x>zqz\">\n\nzqy",
@@ -589,7 +658,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<pre class=\"notranslate\"><code class=\"notranslate\">&lt;a b=\"x&gt;zqz\"&gt;\n</code></pre>\n<p dir=\"auto\">zqy</p>"
   },
   {
    "text": "<div 1=\">zqa\">\n\nzqz",
@@ -598,7 +668,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\">zqz</p></div>"
   },
   {
    "text": "<div\n=\"\n\nzqz",
@@ -608,21 +679,24 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<div dir=\"auto\">zqz<p dir=\"auto\"></p></div>"
   },
   {
    "text": "<!D\n<p><t\n<?\n\nzqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": ""
   },
   {
    "text": "><p\n- <div\n<?\n\nzqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">\n</p><ul dir=\"auto\">\n<li>\n<div dir=\"auto\">\n</div></li></ul>\n</blockquote>"
   },
   {
    "text": "x <![CDATA[><span>zqz]]> zqy",
@@ -630,7 +704,8 @@
     "zqz",
     "zqy"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x <span>zqz]]&gt; zqy</span></p>"
   },
   {
    "text": "a <video>zqa</video> zqz",
@@ -639,7 +714,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a  zqz</p>"
   },
   {
    "text": "> a <video>zqa\n> zqb\n\nzqz",
@@ -649,7 +725,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">a </p>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "## a <video>zqa\nzqz",
@@ -658,7 +735,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">a </h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "| x | y |\n|---|---|\n| a <video>zqa | zqz |",
@@ -670,7 +748,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>x</th>\n<th>y</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>a </td>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "x\n\n<video>\n\nzqa\n\n</video>\n\nzqz",
@@ -679,7 +758,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x\n\n<video>\n\nzqa\n\n## zqb",
@@ -687,7 +767,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n"
   },
   {
    "text": "x\n\n<video>\n\nzqa </video>\n\nzqb",
@@ -695,7 +776,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n"
   },
   {
    "text": "> <video>\n>\n> zqa\n> </video>\n\nzqz",
@@ -707,7 +789,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<blockquote>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- <video>\n\n  zqa\n\n  </video>\n\nzqz",
@@ -719,7 +802,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<video>\nzqa\n</video>\nzqz",
@@ -728,7 +812,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "\nzqz"
   },
   {
    "text": "x\n<video>\nzqa\n</video>\n\nzqz",
@@ -737,7 +822,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<br>\n</p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <video>zqa <video>zqb</video> zqc</video> zqz",
@@ -748,7 +834,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x  zqz</p>"
   },
   {
    "text": "x `<video>` zqz `` <video> `` zqy",
@@ -756,7 +843,8 @@
     "zqz",
     "zqy"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x <code class=\"notranslate\">&lt;video&gt;</code> zqz <code class=\"notranslate\">&lt;video&gt;</code> zqy</p>"
   },
   {
    "text": "a <rp>zqa</rp> zqz",
@@ -765,7 +853,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <rp>zqa</rp> zqz</p>"
   },
   {
    "text": "a <rp>zqa\nzqb\n\nzqz",
@@ -775,7 +864,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <rp>zqa<br>\nzqb</rp></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> a <rp>zqa\n> zqb\n\nzqz",
@@ -785,7 +875,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">a <rp>zqa<br>\nzqb</rp></p>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "## a <rp>zqa\nzqz",
@@ -794,7 +885,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">a <rp>zqa</rp></h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "| x | y |\n|---|---|\n| a <rp>zqa | zqz |",
@@ -806,7 +898,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>x</th>\n<th>y</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>a <rp>zqa</rp></td>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "x\n\n<rp>\n\nzqa\n\n</rp>\n\nzqz",
@@ -815,7 +908,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<rp>\n<p dir=\"auto\">zqa</p>\n</rp>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x\n\n<rp>\n\nzqa\n\n## zqb",
@@ -823,7 +917,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<rp>\n<p dir=\"auto\">zqa</p>\n<h2 dir=\"auto\">zqb</h2></rp>"
   },
   {
    "text": "x\n\n<rp>\n\nzqa </rp>\n\nzqb",
@@ -831,7 +926,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<rp>\n<p dir=\"auto\">zqa </p>\n<p dir=\"auto\">zqb</p></rp>"
   },
   {
    "text": "> <rp>\n>\n> zqa\n> </rp>\n\nzqz",
@@ -843,7 +939,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<blockquote>\n<rp>\n<p dir=\"auto\">zqa<br>\n</p>\n</rp></blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- <rp>\n\n  zqa\n\n  </rp>\n\nzqz",
@@ -855,7 +952,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n<rp>\n<p dir=\"auto\">zqa</p>\n</rp>\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<div>\n<rp>zqa</rp> zqz\n</div>",
@@ -864,7 +962,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<rp>zqa</rp> zqz\n</div>"
   },
   {
    "text": "<rp>\nzqa\n</rp>\nzqz",
@@ -873,7 +972,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<rp>\nzqa\n</rp>\nzqz"
   },
   {
    "text": "x\n<rp>\nzqa\n</rp>\n\nzqz",
@@ -882,7 +982,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<br>\n<rp><br>\nzqa<br>\n</rp></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <rp>zqa <rp>zqb</rp> zqc</rp> zqz",
@@ -893,7 +994,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x <rp>zqa <rp>zqb</rp> zqc</rp> zqz</p>"
   },
   {
    "text": "x `<rp>` zqz `` <rp> `` zqy",
@@ -901,7 +1003,8 @@
     "zqz",
     "zqy"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x <code class=\"notranslate\">&lt;rp&gt;</code> zqz <code class=\"notranslate\">&lt;rp&gt;</code> zqy</p>"
   },
   {
    "text": "a <VIDEO a=\"x>y\">zqa</Video > zqz",
@@ -910,7 +1013,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a  zqz</p>"
   },
   {
    "text": "a <VIDEO a=\"x>y\">zqa\nzqb\n\nzqz",
@@ -920,7 +1024,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a </p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> a <VIDEO a=\"x>y\">zqa\n> zqb\n\nzqz",
@@ -930,7 +1035,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">a </p>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "## a <VIDEO a=\"x>y\">zqa\nzqz",
@@ -939,7 +1045,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">a </h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "| x | y |\n|---|---|\n| a <VIDEO a=\"x>y\">zqa | zqz |",
@@ -951,7 +1058,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>x</th>\n<th>y</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>a </td>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "x\n\n<VIDEO a=\"x>y\">\n\nzqa\n\n</Video >\n\nzqz",
@@ -960,7 +1068,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x\n\n<VIDEO a=\"x>y\">\n\nzqa\n\n## zqb",
@@ -968,7 +1077,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n"
   },
   {
    "text": "x\n\n<VIDEO a=\"x>y\">\n\nzqa </Video >\n\nzqb",
@@ -976,7 +1086,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n"
   },
   {
    "text": "> <VIDEO a=\"x>y\">\n>\n> zqa\n> </Video >\n\nzqz",
@@ -988,7 +1099,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<blockquote>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- <VIDEO a=\"x>y\">\n\n  zqa\n\n  </Video >\n\nzqz",
@@ -1000,7 +1112,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<div>\n<VIDEO a=\"x>y\">zqa</Video > zqz\n</div>",
@@ -1009,7 +1122,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n zqz\n</div>"
   },
   {
    "text": "<VIDEO a=\"x>y\">\nzqa\n</Video >\nzqz",
@@ -1018,7 +1132,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "\nzqz"
   },
   {
    "text": "x\n<VIDEO a=\"x>y\">\nzqa\n</Video >\n\nzqz",
@@ -1027,7 +1142,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<br>\n</p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <VIDEO a=\"x>y\">zqa <VIDEO a=\"x>y\">zqb</Video > zqc</Video > zqz",
@@ -1038,7 +1154,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x  zqz</p>"
   },
   {
    "text": "x `<VIDEO a=\"x>y\">` zqz `` <VIDEO a=\"x>y\"> `` zqy",
@@ -1049,7 +1166,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqy"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x <code class=\"notranslate\">&lt;VIDEO a=\"x&gt;y\"&gt;</code> zqz <code class=\"notranslate\">&lt;VIDEO a=\"x&gt;y\"&gt;</code> zqy</p>"
   },
   {
    "text": "a <video/>zqa</video> zqz",
@@ -1058,7 +1176,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a  zqz</p>"
   },
   {
    "text": "a <video/>zqa\nzqb\n\nzqz",
@@ -1068,7 +1187,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a </p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> a <video/>zqa\n> zqb\n\nzqz",
@@ -1078,7 +1198,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">a </p>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "## a <video/>zqa\nzqz",
@@ -1087,7 +1208,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">a </h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x\n\n<video/>\n\nzqa\n\n</video>\n\nzqz",
@@ -1096,7 +1218,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x\n\n<video/>\n\nzqa\n\n## zqb",
@@ -1104,7 +1227,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n"
   },
   {
    "text": "x\n\n<video/>\n\nzqa </video>\n\nzqb",
@@ -1112,7 +1236,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n"
   },
   {
    "text": "> <video/>\n>\n> zqa\n> </video>\n\nzqz",
@@ -1124,7 +1249,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<blockquote>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- <video/>\n\n  zqa\n\n  </video>\n\nzqz",
@@ -1136,7 +1262,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <video/>zqa <video/>zqb</video> zqc</video> zqz",
@@ -1147,7 +1274,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x  zqz</p>"
   },
   {
    "text": "x `<video/>` zqz `` <video/> `` zqy",
@@ -1155,7 +1283,8 @@
     "zqz",
     "zqy"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x <code class=\"notranslate\">&lt;video/&gt;</code> zqz <code class=\"notranslate\">&lt;video/&gt;</code> zqy</p>"
   },
   {
    "text": "a <rp title='>'>zqa</RP> zqz",
@@ -1164,7 +1293,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <rp title=\"&gt;\">zqa</rp> zqz</p>"
   },
   {
    "text": "a <rp title='>'>zqa\nzqb\n\nzqz",
@@ -1174,7 +1304,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <rp title=\"&gt;\">zqa<br>\nzqb</rp></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> a <rp title='>'>zqa\n> zqb\n\nzqz",
@@ -1184,7 +1315,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">a <rp title=\"&gt;\">zqa<br>\nzqb</rp></p>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "## a <rp title='>'>zqa\nzqz",
@@ -1193,7 +1325,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">a <rp title=\"&gt;\">zqa</rp></h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x\n\n<rp title='>'>\n\nzqa\n\n</RP>\n\nzqz",
@@ -1202,7 +1335,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<rp title=\"&gt;\">\n<p dir=\"auto\">zqa</p>\n</rp>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x\n\n<rp title='>'>\n\nzqa\n\n## zqb",
@@ -1210,7 +1344,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<rp title=\"&gt;\">\n<p dir=\"auto\">zqa</p>\n<h2 dir=\"auto\">zqb</h2></rp>"
   },
   {
    "text": "x\n\n<rp title='>'>\n\nzqa </RP>\n\nzqb",
@@ -1218,7 +1353,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<rp title=\"&gt;\">\n<p dir=\"auto\">zqa </p>\n<p dir=\"auto\">zqb</p></rp>"
   },
   {
    "text": "> <rp title='>'>\n>\n> zqa\n> </RP>\n\nzqz",
@@ -1230,7 +1366,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<blockquote>\n<rp title=\"&gt;\">\n<p dir=\"auto\">zqa<br>\n</p>\n</rp></blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- <rp title='>'>\n\n  zqa\n\n  </RP>\n\nzqz",
@@ -1242,7 +1379,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n<rp title=\"&gt;\">\n<p dir=\"auto\">zqa</p>\n</rp>\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <rp title='>'>zqa <rp title='>'>zqb</RP> zqc</RP> zqz",
@@ -1253,7 +1391,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x <rp title=\"&gt;\">zqa <rp title=\"&gt;\">zqb</rp> zqc</rp> zqz</p>"
   },
   {
    "text": "x `<rp title='>'>` zqz `` <rp title='>'> `` zqy",
@@ -1264,7 +1403,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqy"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x <code class=\"notranslate\">&lt;rp title='&gt;'&gt;</code> zqz <code class=\"notranslate\">&lt;rp title='&gt;'&gt;</code> zqy</p>"
   },
   {
    "text": "<ruby>x<rp>zqa<rt>zqz</rt></ruby> zqy",
@@ -1274,7 +1414,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><ruby>x<rp>zqa</rp><rt>zqz</rt></ruby> zqy</p>"
   },
   {
    "text": "<ruby>x<rp>zqa<rb>zqz</ruby>",
@@ -1283,7 +1424,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><ruby>x<rp>zqa</rp>zqz</ruby></p>"
   },
   {
    "text": "<ruby>x<rp>zqa<rp>zqb</ruby> zqz",
@@ -1293,7 +1435,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><ruby>x<rp>zqa</rp><rp>zqb</rp></ruby> zqz</p>"
   },
   {
    "text": "<ruby>x\n<rp>zqa</ruby> zqz",
@@ -1305,7 +1448,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><ruby>x<br>\n<rp>zqa</rp></ruby> zqz</p>"
   },
   {
    "text": "<ruby>\n\nx <rp>zqa</ruby> zqz\n\nzqy",
@@ -1318,7 +1462,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<ruby>\n<p dir=\"auto\">x </p><rp>zqa</rp></ruby> zqz<p dir=\"auto\"></p>\n<p dir=\"auto\">zqy</p>"
   },
   {
    "text": "<ruby>x<rp>zqa<b>zqb</b><rt>zqc</rt></ruby> zqz",
@@ -1332,7 +1477,8 @@
    ],
    "the cleaning takes out": [
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><ruby>x<rp>zqa<b>zqb</b></rp><rt>zqc</rt></ruby> zqz</p>"
   },
   {
    "text": "`<ruby>` <rp>zqa</ruby> zqb",
@@ -1340,7 +1486,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">&lt;ruby&gt;</code> <rp>zqa zqb</rp></p>"
   },
   {
    "text": "a \\` <rp>zqa</rp> zqz `",
@@ -1349,7 +1496,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a ` <rp>zqa</rp> zqz `</p>"
   },
   {
    "text": "a <b title=\"`\">x</b> <rp>zqa</rp> zqz `",
@@ -1358,7 +1506,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <b title=\"`\">x</b> <rp>zqa</rp> zqz `</p>"
   },
   {
    "text": "| `x | <rp>zqa</rp> zqz` |\n|---|---|\n| a | b |",
@@ -1367,7 +1516,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>`x</th>\n<th><rp>zqa</rp> zqz`</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>a</td>\n<td>b</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "a <?`?> <rp>zqa</rp> zqz `",
@@ -1376,7 +1526,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a  <rp>zqa</rp> zqz `</p>"
   },
   {
    "text": "# a `\nb <rp>zqa</rp> zqz `",
@@ -1385,7 +1536,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">a `</h1>\n<p dir=\"auto\">b <rp>zqa</rp> zqz `</p>"
   },
   {
    "text": "a <b title=\"\n`\"> <rp>zqa</rp> zqz `",
@@ -1394,7 +1546,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <b title=\"\n`\"> <rp>zqa</rp> zqz `</b></p>"
   },
   {
    "text": "a <!-- ` --> <rp>zqa</rp> zqz `",
@@ -1403,7 +1556,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a  <rp>zqa</rp> zqz `</p>"
   },
   {
    "text": "`x` <rp>zqa</rp> zqz",
@@ -1412,7 +1566,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">x</code> <rp>zqa</rp> zqz</p>"
   },
   {
    "text": "<video>\n<img src=\"https://github.com/user-attachments/assets/0f0e1d2c-3b4a-5968-7a8b-9c0d1e2f3a4b\" alt=\"zqa\">\n</video>\n\nzqz",
@@ -1421,21 +1576,24 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "[^1]: zqa\n\nSee [^1].\n\n<div>\n<!--",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">See <sup><a href=\"#user-content-fn-1-de45438eaee039ed6556a56358435024\" id=\"user-content-fnref-1-de45438eaee039ed6556a56358435024\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup>.</p>\n<div dir=\"auto\">\n</div>"
   },
   {
    "text": "<video>\n\n```\n</video>\n```\n\nzqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": ""
   },
   {
    "text": "<video>\n<p>zqa</p>\n</video>\n\nzqz",
@@ -1447,7 +1605,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<video>\n<b>zqa</b>\n</video>\n\nzqz",
@@ -1456,7 +1615,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<video>\n<!-- zqa\n</video>\n\nzqb",
@@ -1464,7 +1624,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": ""
   },
   {
    "text": "<video>\n<?zqa </video> ?>\n</video>\n\nzqz",
@@ -1473,7 +1634,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<video>\tzqa</video>\tzqz",
@@ -1482,7 +1644,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">\tzqz</p>"
   },
   {
    "text": "a <video>zqa</video\n> zqz",
@@ -1491,7 +1654,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a </p>\n<blockquote>\n<p dir=\"auto\">zqz</p>\n</blockquote>"
   },
   {
    "text": "a <videox>zqz</videox> <rpx>zqy</rpx>",
@@ -1499,14 +1663,16 @@
     "zqz",
     "zqy"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">a zqz zqy</p>"
   },
   {
    "text": "a <vıdeo>zqz</vıdeo>",
    "github shows": [
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">a &lt;vıdeo&gt;zqz&lt;/vıdeo&gt;</p>"
   },
   {
    "text": "<details>\n<summary>s</summary>\n\n<video>zqa</video> zqz\n\n</details>",
@@ -1515,7 +1681,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<details>\n<summary>s</summary>\n<p dir=\"auto\"> zqz</p>\n</details>"
   },
   {
    "text": "x[^1]\n\n[^1]: a <video>zqa</video> zqz",
@@ -1524,7 +1691,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<sup><a href=\"#user-content-fn-1-47a3b9bbccd03fb98736beac39ff9a54\" id=\"user-content-fnref-1-47a3b9bbccd03fb98736beac39ff9a54\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup></p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-47a3b9bbccd03fb98736beac39ff9a54\">\n<p dir=\"auto\">a <video>zqa</video> zqz <a href=\"#user-content-fnref-1-47a3b9bbccd03fb98736beac39ff9a54\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "x <span a=\">zqa\">y zqz",
@@ -1533,7 +1701,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x <span>y zqz</span></p>"
   },
   {
    "text": "> x <span a=\">zqa\">y zqz",
@@ -1542,7 +1711,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">x <span>y zqz</span></p>\n</blockquote>"
   },
   {
    "text": "1. x <span a=\">zqa\">y zqz",
@@ -1551,7 +1721,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ol dir=\"auto\">\n<li>x <span>y zqz</span></li>\n</ol>"
   },
   {
    "text": "| h |\n|---|\n| x <span a=\">zqa\">y zqz |",
@@ -1560,7 +1731,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>h</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>x <span>y zqz</span></td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "### x <span a=\">zqa\">y zqz",
@@ -1569,7 +1741,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h3 dir=\"auto\">x <span>y zqz</span></h3>"
   },
   {
    "text": "x\n\n<span a=\">zqa\">\n\nzqz",
@@ -1578,7 +1751,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<span>\n<p dir=\"auto\">zqz</p></span>"
   },
   {
    "text": "<div>\n<span a=\">zqa\"> zqz\n</div>",
@@ -1587,7 +1761,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<span> zqz\n</span></div>"
   },
   {
    "text": "> <div>\n<span a=\">zqa\"> zqz",
@@ -1596,7 +1771,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n</div></blockquote>\n<p dir=\"auto\"><span> zqz</span></p>"
   },
   {
    "text": "x[^1]\n\n[^1]: a <span a=\">zqa\"> zqz",
@@ -1605,7 +1781,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<sup><a href=\"#user-content-fn-1-efb0422c5f70877dd1bd64e45631d35f\" id=\"user-content-fnref-1-efb0422c5f70877dd1bd64e45631d35f\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup></p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-efb0422c5f70877dd1bd64e45631d35f\">\n<p dir=\"auto\">a <span> zqz <a href=\"#user-content-fnref-1-efb0422c5f70877dd1bd64e45631d35f\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></span></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "> <div>\n> <span a=\">zqa\"> zqz",
@@ -1614,7 +1791,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n<span> zqz\n</span></div></blockquote>"
   },
   {
    "text": "x <b c='>zqa'>y zqz",
@@ -1623,7 +1801,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x <b>y zqz</b></p>"
   },
   {
    "text": "> x <b c='>zqa'>y zqz",
@@ -1632,7 +1811,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">x <b>y zqz</b></p><b>\n</b></blockquote>"
   },
   {
    "text": "1. x <b c='>zqa'>y zqz",
@@ -1641,7 +1821,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ol dir=\"auto\">\n<li>x <b>y zqz</b></li><b>\n</b></ol>"
   },
   {
    "text": "| h |\n|---|\n| x <b c='>zqa'>y zqz |",
@@ -1650,7 +1831,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>h</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>x <b>y zqz</b></td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "### x <b c='>zqa'>y zqz",
@@ -1659,7 +1841,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h3 dir=\"auto\">x <b>y zqz</b></h3>"
   },
   {
    "text": "x\n\n<b c='>zqa'>\n\nzqz",
@@ -1668,7 +1851,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<b>\n<p dir=\"auto\">zqz</p></b>"
   },
   {
    "text": "<div>\n<b c='>zqa'> zqz\n</div>",
@@ -1677,7 +1861,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<b> zqz\n</b></div>"
   },
   {
    "text": "> <div>\n<b c='>zqa'> zqz",
@@ -1686,7 +1871,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n</div></blockquote>\n<p dir=\"auto\"><b> zqz</b></p>"
   },
   {
    "text": "x[^1]\n\n[^1]: a <b c='>zqa'> zqz",
@@ -1695,7 +1881,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<sup><a href=\"#user-content-fn-1-c03c39490582e7418bf2a3206c4bba0f\" id=\"user-content-fnref-1-c03c39490582e7418bf2a3206c4bba0f\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup></p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-c03c39490582e7418bf2a3206c4bba0f\">\n<p dir=\"auto\">a <b> zqz <a href=\"#user-content-fnref-1-c03c39490582e7418bf2a3206c4bba0f\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></b></p><b>\n</b></li><b>\n</b></ol><b>\n</b></section>"
   },
   {
    "text": "> <div>\n> <b c='>zqa'> zqz",
@@ -1704,7 +1891,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n<b> zqz\n</b></div></blockquote>"
   },
   {
    "text": "x <img src=\"x\" d=\">zqa\">y zqz",
@@ -1713,7 +1901,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" style=\"max-width: 100%;\"></a>y zqz</p>"
   },
   {
    "text": "> x <img src=\"x\" d=\">zqa\">y zqz",
@@ -1722,7 +1911,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">x <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" style=\"max-width: 100%;\"></a>y zqz</p>\n</blockquote>"
   },
   {
    "text": "1. x <img src=\"x\" d=\">zqa\">y zqz",
@@ -1731,7 +1921,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ol dir=\"auto\">\n<li>x <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" style=\"max-width: 100%;\"></a>y zqz</li>\n</ol>"
   },
   {
    "text": "| h |\n|---|\n| x <img src=\"x\" d=\">zqa\">y zqz |",
@@ -1740,7 +1931,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>h</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>x <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" style=\"max-width: 100%;\"></a>y zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "### x <img src=\"x\" d=\">zqa\">y zqz",
@@ -1749,7 +1941,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h3 dir=\"auto\">x <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" style=\"max-width: 100%;\"></a>y zqz</h3>"
   },
   {
    "text": "x\n\n<img src=\"x\" d=\">zqa\">\n\nzqz",
@@ -1758,7 +1951,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n<p dir=\"auto\"><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" style=\"max-width: 100%;\"></a></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<div>\n<img src=\"x\" d=\">zqa\"> zqz\n</div>",
@@ -1767,7 +1961,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" style=\"max-width: 100%;\"></a> zqz\n</div>"
   },
   {
    "text": "> <div>\n<img src=\"x\" d=\">zqa\"> zqz",
@@ -1776,7 +1971,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n</div></blockquote>\n<p dir=\"auto\"><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" style=\"max-width: 100%;\"></a> zqz</p>"
   },
   {
    "text": "x[^1]\n\n[^1]: a <img src=\"x\" d=\">zqa\"> zqz",
@@ -1785,7 +1981,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<sup><a href=\"#user-content-fn-1-316a1e16e338e42e5f2f198b5135f57d\" id=\"user-content-fnref-1-316a1e16e338e42e5f2f198b5135f57d\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup></p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-316a1e16e338e42e5f2f198b5135f57d\">\n<p dir=\"auto\">a <img src=\"x\"> zqz <a href=\"#user-content-fnref-1-316a1e16e338e42e5f2f198b5135f57d\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "> <div>\n> <img src=\"x\" d=\">zqa\"> zqz",
@@ -1794,7 +1991,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n<a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" style=\"max-width: 100%;\"></a> zqz\n</div></blockquote>"
   },
   {
    "text": "x <x-y e=\">zqa\">y zqz",
@@ -1803,7 +2001,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x y zqz</p>"
   },
   {
    "text": "> x <x-y e=\">zqa\">y zqz",
@@ -1812,7 +2011,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">x y zqz</p>\n</blockquote>"
   },
   {
    "text": "1. x <x-y e=\">zqa\">y zqz",
@@ -1821,7 +2021,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ol dir=\"auto\">\n<li>x y zqz</li>\n</ol>"
   },
   {
    "text": "| h |\n|---|\n| x <x-y e=\">zqa\">y zqz |",
@@ -1830,7 +2031,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>h</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>x y zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "### x <x-y e=\">zqa\">y zqz",
@@ -1839,7 +2041,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h3 dir=\"auto\">x y zqz</h3>"
   },
   {
    "text": "x\n\n<x-y e=\">zqa\">\n\nzqz",
@@ -1848,7 +2051,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<div>\n<x-y e=\">zqa\"> zqz\n</div>",
@@ -1857,7 +2061,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n zqz\n</div>"
   },
   {
    "text": "> <div>\n<x-y e=\">zqa\"> zqz",
@@ -1866,7 +2071,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n</div></blockquote>\n<p dir=\"auto\"> zqz</p>"
   },
   {
    "text": "x[^1]\n\n[^1]: a <x-y e=\">zqa\"> zqz",
@@ -1875,7 +2081,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x<sup><a href=\"#user-content-fn-1-56a8442ca537e9f4f92452db36f51fc3\" id=\"user-content-fnref-1-56a8442ca537e9f4f92452db36f51fc3\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup></p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-56a8442ca537e9f4f92452db36f51fc3\">\n<p dir=\"auto\">a  zqz <a href=\"#user-content-fnref-1-56a8442ca537e9f4f92452db36f51fc3\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "> <div>\n> <x-y e=\">zqa\"> zqz",
@@ -1884,35 +2091,40 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n zqz\n</div></blockquote>"
   },
   {
    "text": "> - <?php ?><span\n>   zqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<ul dir=\"auto\">\n<li>\n<span>\n</span></li></ul>\n</blockquote>"
   },
   {
    "text": "- <!DOCTYPE html><span\n\n  zqa",
    "github shows": [
     "zqa"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<ul dir=\"auto\">\n<li>\n<span>zqa<p dir=\"auto\"></p>\n</span></li>\n</ul>"
   },
   {
    "text": "- <![CDATA[x]]><b\n  zqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n<b>\n</b></li></ul>"
   },
   {
    "text": "- <!-- x --><b\n  zqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n<b>\n</b></li></ul>"
   },
   {
    "text": "> x <?><span\n> zqa?> zqz",
@@ -1921,7 +2133,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">x <span> zqz</span></p>\n</blockquote>"
   },
   {
    "text": "- x <?><b c='?>zqa'> zqb",
@@ -1929,7 +2142,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>x <b>\n</b></li></ul>"
   },
   {
    "text": "x <?><b\n?> zqa> zqz",
@@ -1937,7 +2151,8 @@
     "zqa",
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">x <b> zqa&gt; zqz</b></p>"
   },
   {
    "text": "> <div>\nfoo <span\nzqa> zqz",
@@ -1946,7 +2161,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n</div></blockquote>\n<p dir=\"auto\">foo <span> zqz</span></p>"
   },
   {
    "text": "1. <div>\n<b\nzqa> zqz",
@@ -1955,7 +2171,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ol dir=\"auto\">\n<li>\n<div dir=\"auto\">\n</div></li>\n</ol>\n<p dir=\"auto\"><b> zqz</b></p>"
   },
   {
    "text": "<div\n = \"\n\nzqa",
@@ -1965,28 +2182,32 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">zqa<p dir=\"auto\"></p></div>"
   },
   {
    "text": "<div a\n=\"\n\nzqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": ""
   },
   {
    "text": "<div a=\"x\"\n==\"\n\nzqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": ""
   },
   {
    "text": "s\n<i>\n<!\n<?\n\nzqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">s<br>\n<i><br>\n&lt;!</i></p><i>\n</i>"
   },
   {
    "text": "s\n<div>\n<!\n<!X\n\nzqa",
@@ -1996,7 +2217,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">s</p>\n<div dir=\"auto\">\nzqa<p dir=\"auto\"></p></div>"
   },
   {
    "text": "x <![CDATA[><b c=\"]]>zqa\"> zqb",
@@ -2004,14 +2226,16 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x </p>"
   },
   {
    "text": "<div>\n<video title=\"\n\nzqa",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n</div>"
   },
   {
    "text": "a `` b ` <rp>zqa</rp> zqz",
@@ -2020,7 +2244,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a `` b ` <rp>zqa</rp> zqz</p>"
   },
   {
    "text": "`a` <!-- b <rp>zqa</rp> zqz",
@@ -2029,7 +2254,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">a</code> &lt;!-- b <rp>zqa</rp> zqz</p>"
   },
   {
    "text": "`a` <!x> <rp>zqa</rp> zqz `",
@@ -2038,7 +2264,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">a</code> &lt;!x&gt; <rp>zqa</rp> zqz `</p>"
   },
   {
    "text": "<video>\r\n\r\nzqa\r\n\r\n</video>\r\n\r\nzqz",
@@ -2047,7 +2274,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<video>\n\nzqa\n  \n</video>\n\nzqz",
@@ -2056,63 +2284,72 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<video>[zqa](https://github.com/user-attachments/files/101/home-assistant.log)</video>",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"></p>"
   },
   {
    "text": "<video>\n\n![zqa](https://github.com/user-attachments/assets/0f9a7e1c-1111-2222-3333-444455556666)\n\n</video>",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": ""
   },
   {
    "text": "<video><img src=\"https://github.com/user-attachments/assets/0f9a7e1c-1111-2222-3333-444455556666\" alt=\"zqa\"></video>",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"></p>"
   },
   {
    "text": "a <RP>[zqa](https://github.com/user-attachments/files/101/home-assistant.log)</RP>",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <rp><a href=\"https://github.com/user-attachments/files/101/home-assistant.log\">zqa</a></rp></p>"
   },
   {
    "text": "x\n\n<video>\n\n[zqa](https://github.com/user-attachments/files/101/home-assistant.log)",
    "github shows": [],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n"
   },
   {
    "text": "<video>x</video> [zqz](https://github.com/user-attachments/files/101/home-assistant.log)",
    "github shows": [
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"> <a href=\"https://github.com/user-attachments/files/101/home-assistant.log\">zqz</a></p>"
   },
   {
    "text": "<video>\n\nx\n\n</video>\n\n[zqz](https://github.com/user-attachments/files/101/home-assistant.log)",
    "github shows": [
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "\n<p dir=\"auto\"><a href=\"https://github.com/user-attachments/files/101/home-assistant.log\">zqz</a></p>"
   },
   {
    "text": "`<video>` [zqz](https://github.com/user-attachments/files/101/home-assistant.log)",
    "github shows": [
     "zqz"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\"><code class=\"notranslate\">&lt;video&gt;</code> <a href=\"https://github.com/user-attachments/files/101/home-assistant.log\">zqz</a></p>"
   },
   {
    "text": "<video>\n\nzqa\n- zqb\n\n  </video>\n\nzqc",
@@ -2121,7 +2358,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": ""
   },
   {
    "text": "<video>\n\nzqa\n\n1. zqb\n\n   </video>\n\nzqc",
@@ -2130,7 +2368,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": ""
   },
   {
    "text": "<video>\n\nzqa\n\n- zqb\n\n</video>\n\nzqc",
@@ -2140,7 +2379,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "See [^1].\n\n[^1]: zqa\n\n<video>\n\nzqb",
@@ -2148,7 +2388,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">See <sup><a href=\"#user-content-fn-1-0a28ba09b12de06890db90eb0b3c7475\" id=\"user-content-fnref-1-0a28ba09b12de06890db90eb0b3c7475\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup>.</p>\n"
   },
   {
    "text": "See [^1].\n\n[^1]: zqa\n\n<div>\n<!--\n\nzqb",
@@ -2156,7 +2397,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">See <sup><a href=\"#user-content-fn-1-152be717c1ed4eaf86674c5231458442\" id=\"user-content-fnref-1-152be717c1ed4eaf86674c5231458442\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup>.</p>\n<div dir=\"auto\">\n</div>"
   },
   {
    "text": "1. <video>zqa\n2. zqb",
@@ -2168,7 +2410,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<ol dir=\"auto\">\n<li></li>\n<li>zqb</li>\n</ol>"
   },
   {
    "text": "- zqc\n\n  <video>zqa\n\n- zqb",
@@ -2181,7 +2424,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n<p dir=\"auto\">zqc</p>\n<p dir=\"auto\"></p>\n</li>\n<li>\n<p dir=\"auto\">zqb</p>\n</li>\n</ul>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -2190,7 +2434,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n\nzqb",
@@ -2199,7 +2444,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></p>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb\n\nzqc",
@@ -2209,7 +2455,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></p>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</relative-time> zqd",
@@ -2220,7 +2467,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</relative-time> zqd</p>"
   },
   {
    "text": "a <relative-time>zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</relative-time> zqd",
@@ -2235,7 +2483,13 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time>zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</relative-time> zqd</p>",
+   "the converter takes out": {
+    "zqa": "the content of a relative-time, in whose place the page may draw a date",
+    "zqb": "the content of a relative-time, in whose place the page may draw a date",
+    "zqc": "the content of a relative-time, in whose place the page may draw a date"
+   }
   },
   {
    "text": "a <relative-time>zqa</relative-time> zqb",
@@ -2246,7 +2500,11 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time>zqa</relative-time> zqb</p>",
+   "the converter takes out": {
+    "zqa": "the content of a relative-time, in whose place the page may draw a date"
+   }
   },
   {
    "text": "a <relative-time datetime=\"\">zqa</relative-time> zqb",
@@ -2257,7 +2515,11 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"\">zqa</relative-time> zqb</p>",
+   "the converter takes out": {
+    "zqa": "the content of a relative-time, in whose place the page may draw a date"
+   }
   },
   {
    "text": "a <relative-time datetime=\"nonsense\">zqa</relative-time> zqb",
@@ -2268,7 +2530,11 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"nonsense\">zqa</relative-time> zqb</p>",
+   "the converter takes out": {
+    "zqa": "the content of a relative-time, in whose place the page may draw a date"
+   }
   },
   {
    "text": "a <Relative-Time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb",
@@ -2279,7 +2545,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a zqa zqb</p>"
   },
   {
    "text": "a <relative-TIME datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -2290,7 +2557,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a zqa zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</RELATIVE-TIME> zqb",
@@ -2299,7 +2567,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time DATETIME=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -2308,7 +2577,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "# zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb\n\nzqc",
@@ -2318,7 +2588,8 @@
    ],
    "github hides": [
     "zqb"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time></h1>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "# zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc",
@@ -2328,7 +2599,8 @@
    ],
    "github hides": [
     "zqb"
-   ]
+   ],
+   "html": "<h1 dir=\"auto\">zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</h1>"
   },
   {
    "text": "| h |\n|---|\n| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb |\n| zqc |",
@@ -2338,7 +2610,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>h</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</td>\n</tr>\n<tr>\n<td>zqc</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| h |\n|---|\n| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa |\n| zqb |\n\nzqc",
@@ -2351,7 +2624,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>h</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></td>\n</tr>\n<tr>\n<td>zqb</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "- <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n- zqc",
@@ -2361,7 +2635,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</li>\n<li>zqc</li>\n</ul>"
   },
   {
    "text": "- <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n- zqb\n\nzqc",
@@ -2375,7 +2650,8 @@
    "the cleaning takes out": [
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></li>\n<li>zqb</li>\n</ul>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "> <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n>\n> zqc",
@@ -2385,7 +2661,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>\n<p dir=\"auto\">zqc</p>\n</blockquote>"
   },
   {
    "text": "> zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb\n>\n> zqc\n\nzqd",
@@ -2396,7 +2673,8 @@
    ],
    "github hides": [
     "zqb"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time></p>\n<p dir=\"auto\">zqc</p>\n</blockquote>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "<details><summary><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</summary>\n\nzqc <relative-time datetime=\"2020-01-01T00:00:00Z\">zqd</relative-time> zqe\n\n</details>\n\nzqf",
@@ -2409,7 +2687,8 @@
    "github hides": [
     "zqa",
     "zqd"
-   ]
+   ],
+   "html": "<details><summary><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</summary>\n<p dir=\"auto\">zqc <relative-time datetime=\"2020-01-01T00:00:00Z\">zqd</relative-time> zqe</p>\n</details>\n<p dir=\"auto\">zqf</p>"
   },
   {
    "text": "[zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc](https://example.com) zqd",
@@ -2420,7 +2699,8 @@
    ],
    "github hides": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\">zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</a> zqd</p>"
   },
   {
    "text": "zqa\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqb\n\n</relative-time>\n\nzqc",
@@ -2430,7 +2710,8 @@
    ],
    "github hides": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">zqa</p>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqb</p>\n</relative-time>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "zqa\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqb\n\n## zqc",
@@ -2440,7 +2721,8 @@
    "github hides": [
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">zqa</p>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqb</p>\n<h2 dir=\"auto\">zqc</h2></relative-time>"
   },
   {
    "text": "zqa\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time>\n\nzqc",
@@ -2450,7 +2732,8 @@
    ],
    "github hides": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">zqa</p>\n<p dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time></p>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n\nzqb </relative-time> zqc",
@@ -2460,7 +2743,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></p>\n<p dir=\"auto\">zqb  zqc</p>"
   },
   {
    "text": "a `<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time>` zqb",
@@ -2468,7 +2752,8 @@
     "zqa",
     "zqb"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">a <code class=\"notranslate\">&lt;relative-time datetime=\"2020-01-01T00:00:00Z\"&gt;zqa&lt;/relative-time&gt;</code> zqb</p>"
   },
   {
    "text": "```\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time>\n```\nzqb",
@@ -2476,7 +2761,8 @@
     "zqa",
     "zqb"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">&lt;relative-time datetime=\"2020-01-01T00:00:00Z\"&gt;zqa&lt;/relative-time&gt;\n</code></pre>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "a <relative-time\ndatetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -2485,7 +2771,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time\n> zqb\n\nzqc",
@@ -2495,7 +2782,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa&lt;/relative-time</relative-time></p>\n<blockquote>\n<p dir=\"auto\">zqb</p>\n</blockquote>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "a <copilot-directive>zqa</copilot-directive> <tracking-block>zqb</tracking-block> <tracking-block-omnibar>zqc</tracking-block-omnibar> <time-ago>zqd</time-ago>",
@@ -2505,7 +2793,13 @@
     "zqc",
     "zqd"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">a <copilot-directive>zqa</copilot-directive> <tracking-block>zqb</tracking-block> <tracking-block-omnibar>zqc</tracking-block-omnibar> zqd</p>",
+   "the converter takes out": {
+    "zqa": "an element that isn't on the list",
+    "zqb": "an element that isn't on the list",
+    "zqc": "an element that isn't on the list"
+   }
   },
   {
    "text": "<div>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n</div>\n\nzqc",
@@ -2515,7 +2809,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n</div>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "<div>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n</div>\n\nzqb",
@@ -2527,7 +2822,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n</relative-time></div>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "- [x] <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -2536,7 +2832,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul class=\"contains-task-list\">\n<li class=\"task-list-item\"><input type=\"checkbox\" id=\"\" disabled=\"\" class=\"task-list-item-checkbox\" aria-label=\"Completed task\" checked=\"\"> <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</li>\n</ul>"
   },
   {
    "text": "<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -2545,7 +2842,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "<relative-time datetime=\"2020-01-01T00:00:00Z\">\nzqa\n</relative-time>\n\nzqb",
@@ -2554,7 +2852,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<relative-time datetime=\"2020-01-01T00:00:00Z\">\nzqa\n</relative-time>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "1. zqa\n\n   <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb\n\n2. zqc",
@@ -2567,7 +2866,8 @@
    ],
    "the cleaning takes out": [
     "zqc"
-   ]
+   ],
+   "html": "<ol dir=\"auto\">\n<li>\n<p dir=\"auto\">zqa</p>\n<p dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time></p>\n</li>\n<li>\n<p dir=\"auto\">zqc</p>\n</li>\n</ol>"
   },
   {
    "text": "> <relative-time datetime=\"2020-01-01T00:00:00Z\">\n>\n> zqa\n>\n> </relative-time>\n\nzqb",
@@ -2579,7 +2879,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<blockquote>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n</relative-time>\n</blockquote>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\nzqb</relative-time> zqc\n\nzqd",
@@ -2590,7 +2891,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa<br>\nzqb</relative-time> zqc</p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <video>zqb</video> zqc</relative-time> zqd",
@@ -2601,7 +2903,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa  zqc</relative-time> zqd</p>"
   },
   {
    "text": "a <video>zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</video> zqd",
@@ -2612,7 +2915,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a  zqd</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\"><p>zqa</p> zqb</relative-time> zqc",
@@ -2625,7 +2929,8 @@
    "the cleaning takes out": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\"></relative-time></p><p dir=\"auto\">zqa</p> zqb zqc<p dir=\"auto\"></p>"
   },
   {
    "text": "<div>\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n</div>\n\nzqb",
@@ -2637,7 +2942,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n</relative-time></div>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"January 1, 2020\">zqa</relative-time> zqb",
@@ -2646,7 +2952,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"January 1, 2020\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020\">zqa</relative-time> zqb",
@@ -2655,7 +2962,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"some words Jan 1 2020\">zqa</relative-time> zqb",
@@ -2664,7 +2972,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"some words Jan 1 2020\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\" datetime=\"nonsense\">zqa</relative-time> zqb",
@@ -2673,7 +2982,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"nonsense\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -2684,7 +2994,11 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"nonsense\">zqa</relative-time> zqb</p>",
+   "the converter takes out": {
+    "zqa": "the content of a relative-time, in whose place the page may draw a date"
+   }
   },
   {
    "text": "*x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb y*\n\nzqz",
@@ -2694,7 +3008,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><em>x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb y</em></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "*x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb y*\n\nzqz",
@@ -2704,7 +3019,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><em>x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb y</relative-time></em></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "*x <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb y*\n\nzqz",
@@ -2714,7 +3030,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><em>x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb y</relative-time></em></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "*x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb y*\n\nzqz",
@@ -2724,7 +3041,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><em>x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb y</em></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "*x <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb y*\n\nzqz",
@@ -2734,7 +3052,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><em>x <relative-time title=\"&gt;\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb y</em></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "*x <relative-time datetime=2020-01-01>zqa</relative-time> zqb y*\n\nzqz",
@@ -2744,7 +3063,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><em>x <relative-time datetime=\"2020-01-01\">zqa</relative-time> zqb y</em></p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb |\n|---|\n| zqz |",
@@ -2754,7 +3074,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb |\n|---|\n| zqz |",
@@ -2767,7 +3088,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb |\n|---|\n| zqz |",
@@ -2780,7 +3102,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb |\n|---|\n| zqz |",
@@ -2790,7 +3113,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb |\n|---|\n| zqz |",
@@ -2800,7 +3124,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th><relative-time title=\"&gt;\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "| <relative-time datetime=2020-01-01>zqa</relative-time> zqb |\n|---|\n| zqz |",
@@ -2810,7 +3135,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th><relative-time datetime=\"2020-01-01\">zqa</relative-time> zqb</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>zqz</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
   },
   {
    "text": "- x\n  - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n  - zqy\n\nzqz",
@@ -2821,7 +3147,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>x\n<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</li>\n<li>zqy</li>\n</ul>\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- x\n  - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb\n  - zqy\n\nzqz",
@@ -2836,7 +3163,8 @@
    "the cleaning takes out": [
     "zqy",
     "zqz"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>x\n<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></li>\n<li>zqy</li>\n</ul>\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- x\n  - <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb\n  - zqy\n\nzqz",
@@ -2851,7 +3179,8 @@
    "the cleaning takes out": [
     "zqy",
     "zqz"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>x\n<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></li>\n<li>zqy</li>\n</ul>\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- x\n  - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb\n  - zqy\n\nzqz",
@@ -2862,7 +3191,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>x\n<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</li>\n<li>zqy</li>\n</ul>\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- x\n  - <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n  - zqy\n\nzqz",
@@ -2873,7 +3203,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>x\n<ul dir=\"auto\">\n<li><relative-time title=\"&gt;\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</li>\n<li>zqy</li>\n</ul>\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- x\n  - <relative-time datetime=2020-01-01>zqa</relative-time> zqb\n  - zqy\n\nzqz",
@@ -2884,7 +3215,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>x\n<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01\">zqa</relative-time> zqb</li>\n<li>zqy</li>\n</ul>\n</li>\n</ul>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<a href=\"https://example.com\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</a> zqy\n\nzqz",
@@ -2895,7 +3227,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</a> zqy</p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<a href=\"https://example.com\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</a> zqy\n\nzqz",
@@ -2909,7 +3242,8 @@
    ],
    "the cleaning takes out": [
     "zqy"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></a> zqy</p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<a href=\"https://example.com\"><relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb</a> zqy\n\nzqz",
@@ -2923,7 +3257,8 @@
    ],
    "the cleaning takes out": [
     "zqy"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></a> zqy</p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<a href=\"https://example.com\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb</a> zqy\n\nzqz",
@@ -2934,7 +3269,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</a> zqy</p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<a href=\"https://example.com\"><relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</a> zqy\n\nzqz",
@@ -2945,7 +3281,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\"><relative-time title=\"&gt;\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</a> zqy</p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "<a href=\"https://example.com\"><relative-time datetime=2020-01-01>zqa</relative-time> zqb</a> zqy\n\nzqz",
@@ -2956,7 +3293,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><a href=\"https://example.com\" rel=\"nofollow\"><relative-time datetime=\"2020-01-01\">zqa</relative-time> zqb</a> zqy</p>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "See [^1].\n\n[^1]: <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n\nzqz",
@@ -2966,7 +3304,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">See <sup><a href=\"#user-content-fn-1-3e26837a3006522a8adefe4eca7a59d7\" id=\"user-content-fnref-1-3e26837a3006522a8adefe4eca7a59d7\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup>.</p>\n<p dir=\"auto\">zqz</p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-3e26837a3006522a8adefe4eca7a59d7\">\n<p dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb <a href=\"#user-content-fnref-1-3e26837a3006522a8adefe4eca7a59d7\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "See [^1].\n\n[^1]: <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb\n\nzqz",
@@ -2979,7 +3318,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<p dir=\"auto\">See <sup><a href=\"#user-content-fn-1-ef40d0a05fa03b65c705429e28351e61\" id=\"user-content-fnref-1-ef40d0a05fa03b65c705429e28351e61\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup>.</p>\n<p dir=\"auto\">zqz</p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-ef40d0a05fa03b65c705429e28351e61\">\n<p dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb <a href=\"#user-content-fnref-1-ef40d0a05fa03b65c705429e28351e61\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></relative-time></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "See [^1].\n\n[^1]: <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb\n\nzqz",
@@ -2992,7 +3332,8 @@
    ],
    "the cleaning takes out": [
     "zqz"
-   ]
+   ],
+   "html": "<p dir=\"auto\">See <sup><a href=\"#user-content-fn-1-b3b21b193c5d37612fe1ad48285bb43a\" id=\"user-content-fnref-1-b3b21b193c5d37612fe1ad48285bb43a\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup>.</p>\n<p dir=\"auto\">zqz</p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-b3b21b193c5d37612fe1ad48285bb43a\">\n<p dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb <a href=\"#user-content-fnref-1-b3b21b193c5d37612fe1ad48285bb43a\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></relative-time></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "See [^1].\n\n[^1]: <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb\n\nzqz",
@@ -3002,7 +3343,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">See <sup><a href=\"#user-content-fn-1-3e18e325b2d6c79ede7040024bdeab2e\" id=\"user-content-fnref-1-3e18e325b2d6c79ede7040024bdeab2e\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup>.</p>\n<p dir=\"auto\">zqz</p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-3e18e325b2d6c79ede7040024bdeab2e\">\n<p dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb <a href=\"#user-content-fnref-1-3e18e325b2d6c79ede7040024bdeab2e\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "See [^1].\n\n[^1]: <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n\nzqz",
@@ -3012,7 +3354,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">See <sup><a href=\"#user-content-fn-1-6eeebcde76b11dace09b972d6898e216\" id=\"user-content-fnref-1-6eeebcde76b11dace09b972d6898e216\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup>.</p>\n<p dir=\"auto\">zqz</p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-6eeebcde76b11dace09b972d6898e216\">\n<p dir=\"auto\"><relative-time title=\"&gt;\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb <a href=\"#user-content-fnref-1-6eeebcde76b11dace09b972d6898e216\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "See [^1].\n\n[^1]: <relative-time datetime=2020-01-01>zqa</relative-time> zqb\n\nzqz",
@@ -3022,7 +3365,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">See <sup><a href=\"#user-content-fn-1-0b349ad2bdeed424b4798c263b5df163\" id=\"user-content-fnref-1-0b349ad2bdeed424b4798c263b5df163\" data-footnote-ref=\"\" aria-describedby=\"footnote-label\">1</a></sup>.</p>\n<p dir=\"auto\">zqz</p>\n<section data-footnotes=\"\" class=\"footnotes\"><h2 id=\"footnote-label\" class=\"sr-only\" dir=\"auto\">Footnotes</h2>\n<ol dir=\"auto\">\n<li id=\"user-content-fn-1-0b349ad2bdeed424b4798c263b5df163\">\n<p dir=\"auto\"><relative-time datetime=\"2020-01-01\">zqa</relative-time> zqb <a href=\"#user-content-fnref-1-0b349ad2bdeed424b4798c263b5df163\" data-footnote-backref=\"\" aria-label=\"Back to reference 1\" class=\"data-footnote-backref\">↩</a></p>\n</li>\n</ol>\n</section>"
   },
   {
    "text": "x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n---\n\nzqz",
@@ -3032,7 +3376,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb\n---\n\nzqz",
@@ -3042,7 +3387,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb\n---\n\nzqz",
@@ -3052,7 +3398,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb\n---\n\nzqz",
@@ -3062,7 +3409,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n---\n\nzqz",
@@ -3072,7 +3420,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">x <relative-time title=\"&gt;\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "x <relative-time datetime=2020-01-01>zqa</relative-time> zqb\n---\n\nzqz",
@@ -3082,7 +3431,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<h2 dir=\"auto\">x <relative-time datetime=\"2020-01-01\">zqa</relative-time> zqb</h2>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n> - zqy\n\nzqz",
@@ -3093,7 +3443,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</li>\n<li>zqy</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb\n> - zqy\n\nzqz",
@@ -3108,7 +3459,8 @@
    "the cleaning takes out": [
     "zqy",
     "zqz"
-   ]
+   ],
+   "html": "<blockquote>\n<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></li>\n<li>zqy</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> - <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb\n> - zqy\n\nzqz",
@@ -3123,7 +3475,8 @@
    "the cleaning takes out": [
     "zqy",
     "zqz"
-   ]
+   ],
+   "html": "<blockquote>\n<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</relative-time></li>\n<li>zqy</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb\n> - zqy\n\nzqz",
@@ -3134,7 +3487,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</li>\n<li>zqy</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> - <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n> - zqy\n\nzqz",
@@ -3145,7 +3499,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<ul dir=\"auto\">\n<li><relative-time title=\"&gt;\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</li>\n<li>zqy</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "> - <relative-time datetime=2020-01-01>zqa</relative-time> zqb\n> - zqy\n\nzqz",
@@ -3156,7 +3511,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<ul dir=\"auto\">\n<li><relative-time datetime=\"2020-01-01\">zqa</relative-time> zqb</li>\n<li>zqy</li>\n</ul>\n</blockquote>\n<p dir=\"auto\">zqz</p>"
   },
   {
    "text": "- <relative-time datetime=\"2020-01-01T00:00:00Z\">\n\n  zqa\n\n  </relative-time>\n\n  zqb\n\nzqc",
@@ -3170,7 +3526,8 @@
    "the cleaning takes out": [
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n</relative-time>\n<p dir=\"auto\">zqb</p>\n</li>\n</ul>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "<ruby>x<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time><rt>zqb</rt></ruby> zqc",
@@ -3180,7 +3537,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><ruby>x<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time><rt>zqb</rt></ruby> zqc</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa<details><summary>zqb</summary>zqc</details> zqd</relative-time> zqe",
@@ -3197,7 +3555,8 @@
     "zqb",
     "zqc",
     "zqd"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></p><details><summary>zqb</summary>zqc</details> zqd zqe<p dir=\"auto\"></p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <div>zqb</div> zqc</relative-time> zqd",
@@ -3212,7 +3571,8 @@
    "the cleaning takes out": [
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa </relative-time></p><div dir=\"auto\">zqb</div> zqc zqd<p dir=\"auto\"></p>"
   },
   {
    "text": "<div>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <div>zqb</div> zqc</relative-time> zqd\n</div>\n\nzqe",
@@ -3228,7 +3588,8 @@
    "the cleaning takes out": [
     "zqd",
     "zqe"
-   ]
+   ],
+   "html": "<div dir=\"auto\">\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <div dir=\"auto\">zqb</div> zqc</relative-time> zqd\n</div>\n<p dir=\"auto\">zqe</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa `zqb </relative-time>` zqc\n\nzqd",
@@ -3239,7 +3600,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <code class=\"notranslate\">zqb &lt;/relative-time&gt;</code> zqc</relative-time></p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n> zqb </relative-time>\n\nzqc",
@@ -3249,7 +3611,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></p>\n<blockquote>\n<p dir=\"auto\">zqb </p>\n</blockquote>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n# zqb\n\nzqc",
@@ -3262,7 +3625,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></p>\n<h1 dir=\"auto\">zqb</h1>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n- zqb\n\nzqc",
@@ -3275,7 +3639,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></p>\n<ul dir=\"auto\">\n<li>zqb</li>\n</ul>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n```\nzqb\n```\nzqc",
@@ -3289,7 +3654,8 @@
    "the cleaning takes out": [
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></p>\n<pre class=\"notranslate\"><code class=\"notranslate\">zqb\n</code></pre>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n\nzqb",
@@ -3298,7 +3664,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></p>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "    <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -3309,7 +3676,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">&lt;relative-time datetime=\"2020-01-01T00:00:00Z\"&gt;zqa&lt;/relative-time&gt; zqb\n</code></pre>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <!-- zqb --> zqc</relative-time> zqd",
@@ -3320,7 +3688,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa  zqc</relative-time> zqd</p>"
   },
   {
    "text": "<!-- <relative-time datetime=\"2020-01-01T00:00:00Z\"> --> zqa </relative-time> zqb",
@@ -3328,7 +3697,8 @@
     "zqa",
     "zqb"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": " zqa  zqb"
   },
   {
    "text": "a <relative-time lang=\"de\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -3337,7 +3707,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time lang=\"de\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\"\n  title=\"x\">zqa</relative-time> zqb",
@@ -3346,7 +3717,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\" title=\"x\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></relative-time> zqb",
@@ -3355,7 +3727,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</relative-time> zqc",
@@ -3365,7 +3738,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</relative-time> zqc</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc\n\nzqd",
@@ -3376,7 +3750,8 @@
     "zqa",
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</relative-time></p>\n<p dir=\"auto\">zqd</p>"
   },
   {
    "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\nzqa\n\nzqb",
@@ -3384,7 +3759,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a</p>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\nzqa\n<p dir=\"auto\">zqb</p></relative-time>"
   },
   {
    "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n  </relative-time>\n\nzqb",
@@ -3393,7 +3769,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a</p>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n  </relative-time>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n    </relative-time>\n\nzqb",
@@ -3401,7 +3778,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a</p>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n<pre class=\"notranslate\"><code class=\"notranslate\">&lt;/relative-time&gt;\n</code></pre>\n<p dir=\"auto\">zqb</p></relative-time>"
   },
   {
    "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n</RELATIVE-TIME>\n\nzqb",
@@ -3410,7 +3788,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a</p>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n</relative-time>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n```\n</relative-time>\n```\n\n</relative-time>\n\nzqb",
@@ -3422,7 +3801,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a</p>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n<pre class=\"notranslate\"><code class=\"notranslate\">&lt;/relative-time&gt;\n</code></pre>\n</relative-time>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "<details>\n<summary>x</summary>\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n</relative-time>\n\nzqb\n\n</details>\n\nzqc",
@@ -3432,7 +3812,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<details>\n<summary>x</summary>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n</relative-time>\n<p dir=\"auto\">zqb</p>\n</details>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "<table><tr><td><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</td><td>zqb</td></tr></table>\n\nzqc",
@@ -3446,7 +3827,8 @@
    "the cleaning takes out": [
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\"><tbody><tr><td><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></td><td>zqb</td></tr></tbody></table></markdown-accessiblity-table>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "| a | b |\n|---|---|\n| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa | zqb |\n\nzqc",
@@ -3459,7 +3841,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></td>\n<td>zqb</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "> x\n>\n> <relative-time datetime=\"2020-01-01T00:00:00Z\">\n>\n> zqa\n\nzqb",
@@ -3471,7 +3854,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">x</p>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n</relative-time></blockquote>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa<br>zqb</relative-time> zqc",
@@ -3481,7 +3865,8 @@
    "github hides": [
     "zqa",
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa<br>zqb</relative-time> zqc</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa<p>zqb</relative-time> zqc",
@@ -3494,7 +3879,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></p><p dir=\"auto\">zqb zqc</p>"
   },
   {
    "text": "a <relative-time-x>zqa</relative-time-x> <relative-timer>zqb</relative-timer> zqc",
@@ -3503,7 +3889,8 @@
     "zqb",
     "zqc"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">a zqa zqb zqc</p>"
   },
   {
    "text": "a <relative-time/datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -3511,7 +3898,8 @@
     "zqa",
     "zqb"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">a &lt;relative-time/datetime=\"2020-01-01T00:00:00Z\"&gt;zqa zqb</p>"
   },
   {
    "text": "<pre><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</pre>\n\nzqc",
@@ -3521,7 +3909,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<pre class=\"notranslate\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</pre>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "a <sub><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</sub> zqc",
@@ -3531,7 +3920,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <sub><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</sub> zqc</p>"
   },
   {
    "text": "<blockquote>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n</blockquote>\n\nzqc",
@@ -3541,7 +3931,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<blockquote>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n</blockquote>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "<ul><li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</li><li>zqb</li></ul>\n\nzqc",
@@ -3555,7 +3946,8 @@
    "the cleaning takes out": [
     "zqb",
     "zqc"
-   ]
+   ],
+   "html": "<ul dir=\"auto\"><li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></li><li>zqb</li></ul>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "a <span><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</span> zqb</relative-time> zqc",
@@ -3568,7 +3960,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <span><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></span> zqb zqc</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\r\n\r\nzqc",
@@ -3578,7 +3971,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>\n<p dir=\"auto\">zqc</p>"
   },
   {
    "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\r\n\r\nzqb",
@@ -3587,7 +3981,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></p>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "\t<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -3598,7 +3993,8 @@
    "github hides": [],
    "the cleaning takes out": [
     "zqa"
-   ]
+   ],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">&lt;relative-time datetime=\"2020-01-01T00:00:00Z\"&gt;zqa&lt;/relative-time&gt; zqb\n</code></pre>"
   },
   {
    "text": "a &lt;relative-time datetime=\"2020-01-01T00:00:00Z\"&gt;zqa</relative-time> zqb",
@@ -3606,7 +4002,8 @@
     "zqa",
     "zqb"
    ],
-   "github hides": []
+   "github hides": [],
+   "html": "<p dir=\"auto\">a &lt;relative-time datetime=\"2020-01-01T00:00:00Z\"&gt;zqa zqb</p>"
   },
   {
    "text": "a <relative-time\tdatetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -3615,7 +4012,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a <relative-time\r\ndatetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
@@ -3624,7 +4022,8 @@
    ],
    "github hides": [
     "zqa"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</p>"
   },
   {
    "text": "a **b <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa** zqb</relative-time> zqc",
@@ -3637,7 +4036,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a <strong>b <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></strong> zqb zqc</p>"
   },
   {
    "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\n<details>\n\nzqa\n\n</details>\n\n</relative-time>\n\nzqb",
@@ -3649,7 +4049,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">a</p>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n<details><summary>Details</summary>\n<p dir=\"auto\">zqa</p>\n</details>\n</relative-time>\n<p dir=\"auto\">zqb</p>"
   },
   {
    "text": "x\n\n  <relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n</relative-time>\n\nzqb",
@@ -3661,7 +4062,8 @@
    ],
    "the cleaning takes out": [
     "zqb"
-   ]
+   ],
+   "html": "<p dir=\"auto\">x</p>\n  <relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n</relative-time>\n<p dir=\"auto\">zqb</p>"
   }
  ]
 }
