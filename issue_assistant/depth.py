@@ -108,6 +108,13 @@ VOID = frozenset(
     ]
 )
 WEIGHTS = {"td": 3, "th": 3, "tr": 2}
+# For shallow: a start tag of a void element, of a name in ASCII letters of either
+# case, which Depth reads as one of VOID, so that it adds nothing to the depth.
+VOID_TAG = re.compile(
+    "<(?:"
+    + "|".join("".join(f"[{c.upper()}{c}]" for c in name) for name in sorted(VOID))
+    + r")(?=[\t\n\f\r />]|\Z)"
+)
 # The elements that keep the end tag of an element around them from closing it, by
 # the scopes of HTML's parser, so that a quote, a list item or a paragraph that
 # ends in Markdown stays open around them (12 quotes of 20 marks, each with
@@ -635,9 +642,9 @@ def without_code(text: str) -> str | None:
 def counted_shallow(text: str) -> bool:
     """Whether no row of a text can reach DEPTH_LIMIT by its counts: each unit of
     the marks of the longest start of a row counts 4, each mark of emphasis 1, the
-    brackets 3; each start tag as its weight in Depth, but those that an end tag on
-    the row surely closes, and each of SCOPES as much again as all of the
-    Markdown."""
+    brackets 3; each start tag as its weight in Depth, but those of void elements
+    and those that an end tag on the row surely closes, and each of SCOPES as much
+    again as all of the Markdown."""
     markdown = (
         2
         + (5 if "|" in text else 0)
@@ -658,7 +665,11 @@ def counted_shallow(text: str) -> bool:
                 if not closed:
                     break
         weights = (
-            text.count("<") - text.count("</") - text.count("<!") - text.count("<?")
+            text.count("<")
+            - text.count("</")
+            - text.count("<!")
+            - text.count("<?")
+            - len(VOID_TAG.findall(text))
         )
         if weights >= DEPTH_LIMIT - markdown:
             return False

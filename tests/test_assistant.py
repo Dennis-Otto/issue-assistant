@@ -312,6 +312,13 @@ SLOW_TEXTS = {
     "dated elements in a row": [(DATED + "x</relative-time>", 1_000)],
     "dated elements on rows of their own": [(DATED + "\n\nx\n\n", 1_200)],
     "dated elements in quotes": [("> " + DATED + "\n", 1_300)],
+    # The info string of each fence loses what GitHub doesn't show of it, and each
+    # row that loses words asks where it stands (2026-11-22).
+    "info strings of fences": [("```python " + "x " * 30 + "\nprint(1)\n```\n", 780)],
+    "a first word of a fence that never ends": ["```", ("x", 65_000)],
+    "fences with words in a row": [("```a b\n", 9_000)],
+    "fences with words in quotes": [("> ```a b\n", 7_000)],
+    "fences of tildes with backticks": [("~~~a `b`\n", 7_000)],
     # The depth of a text is counted once, and where it may hide the rest on GitHub,
     # the reading stops there (2026-11-22). Deep quotes, list items, marks of
     # emphasis, elements and rows after a deep one.
@@ -329,66 +336,126 @@ SLOW_TEXTS = {
         ("".join(" " * (2 * k) + "- x\n" for k in range(60)), 16)
     ],
     "rows before a deep quote": [("x\n", 32_000), ">" * 256],
-    # Each of the texts above whose depth now reaches the cut early has a twin below
-    # it, with void elements in place of the others or fewer of them, so that the
-    # reading it was made for still runs on the whole text.
-    "unclosed void tags and comments": [("<br <!--\n", 8_192)],
-    "unclosed comments in quotes": [("> " * 60 + "x <!--\n", 500)],
-    "unclosed comments after some list marks": [("- " * 30 + "x <!--\n", 1_000)],
-    "blanks before unclosed comments": [(" " * 100 + "x <!--\n", 600)],
-    "void HTML blocks on every row": [("<hr>\n", 10_000)],
-    "void HTML blocks between blank rows": [("<br>\n\n", 13_000)],
-    "comments after void HTML blocks": [("<br>\n\nx <!--\n\n", 5_400)],
-    "values that end after void HTML blocks": [
-        ('<br>\n\n<br b="c"\n\n', 4_000),
-        '<br b="',
-    ],
-    "void tags in a row": [("<br>", 21_000), "\n<!--"],
-    "attributes of void tags on one row": [('<br b="c" ', 7_000), "<!--"],
-    "values of void tags that never end": [('<br b="', 10_000)],
-    "names of void tags before a value": [("<br b ", 13_000), '="'],
-    "quoted values with a > in void tags": [('<br b=">', 9_000), "\n<!--"],
-    "some footnote marks in a row": [("[^a]: " * 30 + "<hr> <!--\n", 340)],
-    "void tags over rows that never end": [("<img\na b\n", 8_000)],
-    "void tags over rows in a paragraph": [("x <br\nb\n", 9_000)],
-    "values over rows in a void block": [('<hr t="\n', 7_000)],
-    "values over rows of void tags in quotes": [('> <hr t="\n> a\n', 4_000)],
-    "blocks after void tags without their end": [("<hr\nx\n\n", 7_000)],
-    "void tags in a paragraph of quotes": [("> x <br b\n", 7_000)],
-    "void tags in quotes of 100": [(">" * 100 + " <hr\n", 600)],
-    "void tags below quotes": [("> ", 60), "<hr\n", ("x <br\n", 10_000)],
-    "list items of void tags": [("- <hr\n  a\n", 4_000)],
-    "fences in quotes after void tags": [("> <hr\n> ```\n", 5_000)],
-    "fences that open no code after void tags": [("``` a`\n<hr\n", 5_000)],
-    "void tags in rows of a block": ["<div>\n", ("x <br\n", 8_000)],
-    "values of void tags with the other quote": ['<br t="', ("<br t='", 10_000)],
-    "comment ends in values of void tags": [("<!-- <br> --><br c='-->'>", 2_800)],
-    "some hidden elements that never end": [("<video>" + "x" * 600, 100)],
-    "some hidden elements on rows of their own": [("<video>\n\n" + "x\n\n" * 200, 100)],
-    "some brackets of ruby that never end": [("<ruby>x<rp>(<b>" + "x" * 1_700, 38)],
-    "some hidden elements in code": [("`<rp>` " + "x " * 300, 100)],
-    "hidden elements between void tags of rows": ["x <rp>", ("<br\nb>", 4_000)],
-    "some hidden elements in quotes": [("> <video>\n" + "> x\n" * 150, 100)],
-    "quoted values of void tags in paragraphs": [('x <br t=">', 7_000)],
-    "quoted values of void tags over rows": [('x <br t="\n', 7_000)],
-    "values of void tags with the other quote and a >": [("<br t='x\" >", 6_000)],
-    "quoted values of void tags in quotes": [('> <br t=">\n', 6_000)],
-    "quoted values of void tags in list items": [('- <br t=">\n', 6_000)],
-    "quoted values of void tags in HTML blocks": ["<div>\n", ('<br t=">', 9_000)],
-    "void tags after instructions that end at once": [("x <?><br ", 6_000)],
-    "names of an = at the start of rows of void tags": [('<hr\n="\n', 5_000)],
-    "some drawn pre that never end": [('<pre lang="mermaid">' + "x" * 620, 100)],
-    "some comments before pre": [("<!-- <pre lang=mermaid> -->" + "x" * 600, 100)],
-    "some dated elements that never end": [(DATED + "x" * 600, 100)],
-    "some dated elements on rows of their own": [(DATED + "\n\n" + "x\n\n" * 150, 100)],
-    "some dated elements in quotes": [("> " + DATED + "\n" + "> x\n" * 150, 100)],
-    # The info string of each fence loses what GitHub doesn't show of it, and each
-    # row that loses words asks where it stands (2026-11-22).
-    "info strings of fences": [("```python " + "x " * 30 + "\nprint(1)\n```\n", 780)],
-    "a first word of a fence that never ends": ["```", ("x", 65_000)],
-    "fences with words in a row": [("```a b\n", 9_000)],
-    "fences with words in quotes": [("> ```a b\n", 7_000)],
-    "fences of tildes with backticks": [("~~~a `b`\n", 7_000)],
+}
+
+# Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
+# its HTML and of what the page shows of it stops near its start, has a twin of 64
+# KiB at most below the cut: void elements in place of the others, or fewer of
+# them, so that the reading it was made for still runs on the whole text. Its
+# original stays as it is. A text whose cut takes away fewer than ten characters of
+# that reading has none (2026-11-22): its rows and blocks of HTML hide all the rest
+# of it anyway, and their reading runs on the whole text as before. "tags in deep
+# quotes", whose cut takes away 200 characters, has one all the same.
+TWINS = {
+    "unclosed void tags and comments": (
+        "unclosed tags and comments",
+        [("<br <!--\n", 7_281)],
+    ),
+    "unclosed comments in quotes": (
+        "unclosed comments in deep quotes",
+        [("> " * 60 + "x <!--\n", 500)],
+    ),
+    "unclosed comments after some list marks": (
+        "unclosed comments after list marks",
+        [("- " * 30 + "x <!--\n", 978)],
+    ),
+    "blanks before unclosed comments": (
+        "blanks before an unclosed comment",
+        [(" " * 100 + "x <!--\n", 600)],
+    ),
+    "void HTML blocks on every row": (
+        "HTML blocks on every row",
+        [("<hr>\n", 10_000)],
+    ),
+    "void HTML blocks between blank rows": (
+        "HTML blocks between blank rows",
+        [("<br>\n\n", 10_922)],
+    ),
+    "comments after void HTML blocks": (
+        "comments after HTML blocks that end",
+        [("<br>\n\nx <!--\n\n", 4_681)],
+    ),
+    "values that end after void HTML blocks": (
+        "values that end after HTML blocks",
+        [('<br>\n\n<br b="c"\n\n', 3_854), '<br b="'],
+    ),
+    "void tags in a row": ("tags in a row", [("<br>", 16_382), "\n<!--"]),
+    "attributes of void tags on one row": (
+        "attributes on one row",
+        [('<br b="c" ', 6_553), "<!--"],
+    ),
+    "values of void tags that never end": (
+        "values that never end",
+        [('<br b="', 9_362)],
+    ),
+    "names of void tags before a value": (
+        "names before a value that never ends",
+        [("<br b ", 10_922), '="'],
+    ),
+    "some footnote marks in a row": (
+        "footnote marks in a row",
+        [("[^a]: " * 30 + "<hr> <!--\n", 340)],
+    ),
+    "void tags over rows in a paragraph": (
+        "tags over rows in a paragraph",
+        [("x <br\nb\n", 8_192)],
+    ),
+    "void tags in a paragraph of quotes": (
+        "tags in a paragraph of quotes",
+        [("> x <br b\n", 6_553)],
+    ),
+    "void tags in quotes of 100": (
+        "tags in deep quotes",
+        [(">" * 100 + " <hr\n", 600)],
+    ),
+    "void tags below quotes": (
+        "tags below deep quotes",
+        ["> " * 60 + "<hr\n", ("x <br\n", 10_000)],
+    ),
+    "values of void tags with the other quote": (
+        "values with the other quote",
+        ['<br t="', ("<br t='", 9_361)],
+    ),
+    "comment ends in values of void tags": (
+        "comment ends in values of tags after comments",
+        [("<!-- <br> --><br c='-->'>", 2_621)],
+    ),
+    "some hidden elements in code": (
+        "hidden elements in code",
+        [("`<rp>` " + "x " * 300, 100)],
+    ),
+    "quoted values of void tags in paragraphs": (
+        "quoted values with a > in paragraphs",
+        [('x <br t=">', 6_553)],
+    ),
+    "quoted values of void tags over rows": (
+        "quoted values over rows in paragraphs",
+        [('x <br t="\n', 6_553)],
+    ),
+    "values of void tags with the other quote and a >": (
+        "values with the other quote and a >",
+        [("<br t='x\" >", 5_957)],
+    ),
+    "quoted values of void tags in quotes": (
+        "quoted values with a > in quotes",
+        [('> <br t=">\n', 5_957)],
+    ),
+    "quoted values of void tags in list items": (
+        "quoted values with a > in list items",
+        [('- <br t=">\n', 5_957)],
+    ),
+    "void tags after instructions that end at once": (
+        "tags after instructions that end at once",
+        [("x <?><br ", 6_000)],
+    ),
+    "some drawn pre that never end": (
+        "drawn pre that never end",
+        [('<pre lang="mermaid">' + "x" * 620, 100)],
+    ),
+    "some comments before pre": (
+        "comments before pre",
+        [("<!-- <pre lang=mermaid> -->" + "x" * 600, 100)],
+    ),
 }
 
 
@@ -404,8 +471,8 @@ def built(parts, share=1):
 
 def test_each_text_that_times_the_reading_has_an_eighth():
     """Each text of SLOW_TEXTS repeats a piece, and each repeated piece comes at least
-    eight times, so that the eighth of the text has it too."""
-    for name, parts in SLOW_TEXTS.items():
+    eight times, so that the eighth of the text has it too; and so does each twin."""
+    for name, parts in [*SLOW_TEXTS.items(), *TWINS.values()]:
         assert any(not isinstance(part, str) for part in parts), name
         assert all(isinstance(part, str) or part[1] >= 8 for part in parts), name
     assert built(["a", ("bc", 9), "d"], 8) == "abcd"
@@ -463,14 +530,71 @@ GROWTH = 13
 CEILING = 2
 
 
-@pytest.mark.parametrize("name", READINGS)
-@pytest.mark.parametrize("parts", SLOW_TEXTS.values(), ids=SLOW_TEXTS)
-def test_no_text_makes_reading_an_issue_slow(parts, name):
+def holds_its_growth(parts, name):
+    """Whether the reading `name` of the text of `parts` holds GROWTH and CEILING."""
     measured = growth(reading(name, built(parts, 8)), reading(name, built(parts)))
     assert measured.times < GROWTH and measured.whole < CEILING, (
         f"{name}: {measured.eighth:.4f} s on an eighth of the text, "
         f"{measured.whole:.4f} s on the whole, {measured.times:.2f} times as long"
     )
+
+
+@pytest.mark.parametrize("name", READINGS)
+@pytest.mark.parametrize("parts", SLOW_TEXTS.values(), ids=SLOW_TEXTS)
+def test_no_text_makes_reading_an_issue_slow(parts, name):
+    holds_its_growth(parts, name)
+
+
+# The readings that read the HTML of a text for what the page shows of it, which
+# stop at the cut. The others read the form and the links of the text as it is
+# written, the whole of it, whether it reaches the cut or not, so that the original
+# of a twin still times them on all of its text, and its twin adds nothing there.
+SHOWN_READINGS = [
+    name
+    for name in READINGS
+    if name not in ("form_fields", "shown_links", "attachments_of")
+]
+
+
+@pytest.mark.parametrize("name", SHOWN_READINGS)
+@pytest.mark.parametrize("parts", [parts for _, parts in TWINS.values()], ids=TWINS)
+def test_no_twin_makes_reading_an_issue_slow(parts, name):
+    holds_its_growth(parts, name)
+
+
+def test_each_twin_stays_below_the_cut_that_its_text_reaches():
+    assert len({original for original, _ in TWINS.values()}) == len(TWINS)
+    for name, (original, parts) in TWINS.items():
+        assert assistant.deep_spans(built(SLOW_TEXTS[original])), original
+        assert len(built(parts)) <= assistant.MAX_TEXT, name
+        for share in (1, 8):
+            assert not assistant.deep_spans(built(parts, share)), name
+
+
+@pytest.mark.parametrize("name", READINGS)
+def test_only_the_readings_of_what_the_page_shows_stop_at_the_cut(monkeypatch, name):
+    """Each reading of SHOWN_READINGS reads the HTML of a text that reaches the cut
+    up to the cut, and no other reads it at all."""
+    text = "<a>" * 200 + "\n\nwords"
+    reads = []
+
+    def recorded(real):
+        def recording(read, *limit):
+            reads.append((len(read), *limit))
+            return real(read, *limit)
+
+        return recording
+
+    for function in ("shown_spans", "shown_html"):
+        real = getattr(assistant.cleaning, function)
+        monkeypatch.setattr(assistant.cleaning, function, recorded(real))
+    reading(name, text)()
+    whole = [read for read in reads if read[0] == len(text)]
+    if name in SHOWN_READINGS:
+        assert whole
+        assert all(read[1:] == (assistant.deep_spans(text)[0][0],) for read in whole)
+    else:
+        assert not whole
 
 
 def test_a_reading_that_grows_faster_than_its_text_fails_the_timing():
@@ -4591,6 +4715,21 @@ def test_the_quick_count_reads_no_tag_in_fenced_code_that_surely_is_code():
     # A fence of backticks with a backtick after it opens no code.
     assert assistant.without_code("``` a`\n<div>\n```") is None
     assert assistant.deep_spans("``` a`\n" + "<div>\n" * 200)
+
+
+def test_the_quick_count_reads_no_void_element():
+    """A start tag of a void element adds nothing to the depth, so the quick count
+    leaves it out, in either case of its letters; a longer name is another element,
+    which counts."""
+    for tag in ("<br>", "<BR>", "<Hr/>", '<img src="x">', "<wbr\n", "<input\t"):
+        assert assistant.shallow(tag * 200), tag
+        assert assistant.deep_spans(tag * 200) == [], tag
+    for tag in ("<brx>", "<b>", "<br-x>"):
+        assert not assistant.shallow(tag * 200), tag
+        assert assistant.deep_spans(tag * 200), tag
+    # The Kelvin sign that Depth reads as a `k`, where the quick count counts more.
+    assert not assistant.shallow("<linK>" * 200)
+    assert assistant.deep_spans("<linK>" * 200) == []
 
 
 TRACEBACK = '  File "a/__init__.py", line 9, in f(*args, **kwargs)\n' * 60

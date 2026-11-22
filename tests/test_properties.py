@@ -1738,6 +1738,8 @@ NESTING = st.lists(
                 "_",
                 "<div></b>",
                 "<b><div></b>",
+                "<br>",
+                "<div><img src=x>",
             ]
         ),
         st.integers(1, 300),
@@ -1772,3 +1774,6 @@ def test_the_cleaning_keeps_nothing_that_github_shows_nothing_of_for_its_depth(p
     shown = assistant.shown_text(text)[0]
     hidden = [word for word in re.findall(r"zqm\d+|zqafter", text) if word not in seen]
     assert [word for word in hidden if word in shown] == []
+    # The quick count leaves no text out that the count of each row would cut.
+    if assistant.shallow(text):
+        assert assistant.Depth(text).cut() is None
