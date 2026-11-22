@@ -13,6 +13,10 @@ markdown-it-py
 mypy
 pymdown-extensions
 pytest
+# The tests run on every core (pytest-xdist) with their coverage (pytest-cov), which
+# scripts/check.sh does once both are installed.
+pytest-cov
+pytest-xdist
 pyyaml
 ruff
 types-pyyaml
