@@ -1,3 +1,0 @@
-### Bug fixes
-
-- The AI no longer reads what a `<relative-time>` holds. GitHub shows its own dates in this element, and the page draws a date in its place, such as "on Jan 1, 2020", but none of the words, links or images inside it. The issue, its comments and the excerpts of other issues now leave them out, with a space in the place of the element, and so do the search for older issues, the language of the comments, the area, and whether a pull request denies that it fixes an issue; no file linked only inside the element is downloaded as an attachment. On the safe side this holds whatever date the element names, so the AI also misses the words that the page shows of an element whose date the browser can't read.
