@@ -5,6 +5,9 @@
 testpaths = ["tests"]
 pythonpath = [".", "tests"]
 addopts = "--strict-markers"
+# As the CI writes its report of JUnit: the old family keeps the figures that the
+# timing of the readings records for each case, of which the new one warns.
+junit_family = "xunit1"
 markers = [
     # The Mutation workflow runs the tests with -m "not mutation_unsafe" in mutmut's
     # copy, mutants/, which holds every mutant of a function beside it; see

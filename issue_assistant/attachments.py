@@ -254,8 +254,10 @@ def shown_links(text: str) -> list[tuple[str, bool]]:
     # An address of a tag may be written with references.
     if "https://" in text or ("&" in text and "<" in text):
         text, described, loose = Addresses(text, hidden, links).marked()
-    spans, middle, end = html_parts(text)
-    tags = ShownTags(text, spans, links, described, loose)
+    # The rows that may start an HTML block, found once for both readings.
+    rows = HtmlRows(text)
+    spans, middle, end = html_parts(text, rows)
+    tags = ShownTags(text, rows, spans, links, described, loose)
     # A tag of the first part may hold the last `-->` in a quoted value, where it
     # ends no comment: the second part starts where the reading of that tag ended.
     first, reached = tags.part(0, min(middle, end), COMMENT_OR_TAG)
@@ -797,6 +799,7 @@ class ShownTags:
     def __init__(
         self,
         text: str,
+        rows: HtmlRows,
         spans: list[tuple[int, int]],
         links: list[tuple[str, bool]],
         described: list[tuple[int, int]],
@@ -808,7 +811,6 @@ class ShownTags:
         self.described = described
         self.loose = loose
         self.index = 0
-        rows = HtmlRows(text)
         self.fences = Fences(text, rows)
         self.rows = rows
         self.blocks: Blocks | None = None
@@ -878,9 +880,17 @@ class ShownTags:
         text = self.text
         if self.fences.holds(opening) or FILTERED_TAG.match(text, opening):
             return True
+        # A tag that a paragraph reads as a tag is one in an HTML block too, so the
+        # blocks are asked only for the others. Asked less often, they still answer
+        # the same, empty or not: whether a block may hold a position depends only
+        # on the last block of each kind that starts up to it, which the next answer
+        # reads all the same, and one that ends before a position ends before each
+        # later one.
+        if INLINE_TAG.match(text, opening):
+            return False
         if self.blocks is None:
             self.blocks = Blocks(text, self.rows, self.fences)
-        return not self.blocks.holding(opening) and not INLINE_TAG.match(text, opening)
+        return not self.blocks.holding(opening)
 
     def addresses(self, start: int, end: int) -> str:
         """The mark of what GitHub shows of the tag from `start` to `end` as a link

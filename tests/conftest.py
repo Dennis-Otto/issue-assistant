@@ -54,6 +54,67 @@ def pytest_xdist_auto_num_workers() -> int | None:
     return max(1, logical // 2)
 
 
+# The figures that the timing of the readings records for each case, with
+# holds_its_growth of test_assistant.py, as pytest reports them: in the process that
+# runs the case, and with pytest-xdist also in the one that gathers the reports of
+# the others, which alone writes the summary.
+TIMINGS: list[dict[str, str]] = []
+FIGURES = ("reading", "text", "growth", "whole")
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    figures = {key: str(value) for key, value in report.user_properties}
+    if report.when == "call" and all(key in figures for key in FIGURES):
+        TIMINGS.append(figures)
+
+
+def timing_summary(timings: list[dict[str, str]]) -> str:
+    """The summary of the timing for the job: for each reading, the highest growth
+    from an eighth of a text to the whole and the slowest reading of a whole text,
+    each with its text, the reading nearest to the limit of the growth first."""
+    readings: dict[str, tuple[dict[str, str], dict[str, str]]] = {}
+    for case in timings:
+        top, slow = readings.get(case["reading"], (case, case))
+        readings[case["reading"]] = (
+            max(top, case, key=lambda found: float(found["growth"])),
+            max(slow, case, key=lambda found: float(found["whole"])),
+        )
+
+    def cell(text: str) -> str:
+        return text.replace("|", "\\|")
+
+    ordered = sorted(readings.items(), key=lambda item: -float(item[1][0]["growth"]))
+    return "\n".join(
+        [
+            "### The timing of the readings",
+            "",
+            "For each reading of an issue, how many times as long it took at most on a "
+            "whole text as on an eighth of it, and its slowest reading of a whole text, "
+            "in seconds of processor time, as tests/test_assistant.py times them.",
+            "",
+            "| Reading | Highest growth | on the text | Slowest whole | on the text |",
+            "| --- | ---: | --- | ---: | --- |",
+            *(
+                f"| {cell(name)} | {top['growth']} | {cell(top['text'])} "
+                f"| {slow['whole']} | {cell(slow['text'])} |"
+                for name, (top, slow) in ordered
+            ),
+            "",
+        ]
+    )
+
+
+def pytest_sessionfinish(session: pytest.Session) -> None:
+    """Adds the summary of the timing to that of the job on GitHub Actions, when the
+    run timed a reading. The variable is read only at the end, as some tests set one
+    of their own while they run; a process of pytest-xdist that runs the tests for
+    another writes nothing, and nothing goes to the terminal."""
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary and TIMINGS and not hasattr(session.config, "workerinput"):
+        with open(summary, "a", encoding="utf-8") as file:
+            file.write(timing_summary(TIMINGS))
+
+
 def git(root: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
 
