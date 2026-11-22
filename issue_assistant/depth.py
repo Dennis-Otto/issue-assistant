@@ -67,10 +67,21 @@ MARKUP_ENDS = (("<!--", "-->"), ("<![CDATA[", "]]>"), ("<?", "?>"), ("<!", ">"))
 FENCE_OPENING = re.compile(rf"`{{3,}}+(?=[^`\r\n]*+{END})|~{{3,}}+")
 QUOTES_ONLY = re.compile(r"(?:[ ]{0,3}>[ ]?+)*+[ ]{0,3}")
 RAW_BLOCK = re.compile(r"<(?i:pre|script|style|textarea)(?=[\t\n\f\r />]|\Z)")
-# For shallow: a row of a fence at the start of a row, with no marks before it; and
+# For shallow: a row of a fence at the start of a row, with no marks but up to three
+# blanks before it; and
 # a row that may start an HTML block after its marks.
-FENCE_ROW = re.compile(rf"{ROW_START}(?P<run>`{{3,}}+|~{{3,}}+)(?P<info>[^\r\n]*+)")
+FENCE_ROW = re.compile(
+    rf"{ROW_START}[ ]{{0,3}}(?P<run>`{{3,}}+|~{{3,}}+)(?P<info>[^\r\n]*+)"
+)
 HTML_START_ROW = re.compile(rf"{ROW_START}[ \t>*+.)0-9-]*+<")
+# A row of a table: its delimiter row, and a `|` that no `\` escapes, which ends a
+# cell; and a row that may start another block, which ends a table and is no row
+# of a header, as the rows of indented code are none.
+TABLE_DELIMITER = re.compile(
+    r"[ \t]*+\|?+[ \t]*+:?+-++:?+[ \t]*+(?:\|[ \t]*+:?+-++:?+[ \t]*+)*+\|?+[ \t]*+"
+)
+CELL_END = re.compile(r"(?<!\\)(?:\\\\)*+\|")
+TABLE_END = re.compile(r"[#<`~\[]|(?:[*_-][ \t]*+){3,}+$")
 TAG_TAIL = re.compile(r"[^>\"'\r\n]*+")
 TAG_SPACES = "\t\n\f\r "
 # Elements that add nothing to the depth, and those that the HTML parser nests in
@@ -221,6 +232,10 @@ class Depth:
     # The footnotes, and where the last one starts while it goes on.
     footnotes: list[Span] = field(default_factory=list)
     footnote: int = -1
+    # The marks, the start of its text and the end of the last row, and the marks
+    # of the rows of the table that it is in, where each row is a paragraph.
+    previous: tuple[str, int, int] | None = None
+    table: str | None = None
     # The highest count so far.
     deepest: int = 0
 
@@ -277,13 +292,16 @@ class Depth:
         self.goes_on(start, body, end, labels)
         self.containers = own if blank or self.blank else max(own, self.containers)
         self.blank = blank
-        if INLINE_RESET.match(text, start, end):
+        if self.tabled(body, end, marks) or INLINE_RESET.match(text, start, end):
             self.inline = self.brackets = 0
         if closing:
             self.regions(start, body, end, marks)
         base = self.containers + text_depth
-        if self.reaches(base) or self.coded(start, body, end, marks):
-            return self.deepest >= DEPTH_LIMIT
+        if self.reaches(base):
+            return True
+        if self.coded(start, body, end, marks):
+            self.previous = self.table = None
+            return False
         position = body
         while (token := tokens.search(text, position, end)) is not None:
             position = token.end()
@@ -308,16 +326,48 @@ class Depth:
                 return True
         return False
 
+    def tabled(self, body: int, end: int, marks: str) -> bool:
+        """Whether a row is one of a table, from its delimiter row on: GitHub reads
+        each cell by itself, so that no mark of a row goes on in the next. A table
+        goes on over the rows of the same marks up to a blank row or a row that may
+        start another block; it starts at a delimiter row below a row of the same
+        marks and as many cells, which neither starts another block nor may be
+        indented code."""
+        text = self.text
+        previous, self.previous = self.previous, (marks, body, end)
+        if body == end or marks != self.table or TABLE_END.match(text, body, end):
+            self.table = None
+        if self.table is not None or body == end or previous is None:
+            return self.table is not None
+        above, header, header_end = previous
+        if (
+            above == marks
+            and header < header_end
+            and "|" in text[body:end]
+            and TABLE_END.match(text, header, header_end) is None
+            and "\t" not in marks
+            and "    " not in marks[marks.rfind(">") + 1 :]
+            and TABLE_DELIMITER.fullmatch(text, body, end)
+            and cells(text[header:header_end]) == cells(text[body:end])
+        ):
+            self.table = marks
+        return self.table is not None
+
     def coded(self, start: int, body: int, end: int, marks: str) -> bool:
         """Whether a row is one of fenced code that surely holds no tag and no mark:
         below a fence at the start of a row of no marks but quotes, with the same
-        marks, up to its closing fence; where no HTML block may hold the fence, as
+        quotes and any blanks after them, up to its closing fence; where no HTML block may hold the fence, as
         one of `<pre>`, or any row since the last blank one that starts with `<`."""
         text = self.text
         if self.code is not None:
             opened, run = self.code
-            if marks == opened:
-                if CLOSING.fullmatch(text, body, end) and text.startswith(run, body):
+            inside, closes = code_row(marks, opened)
+            if inside:
+                if (
+                    closes
+                    and CLOSING.fullmatch(text, body, end)
+                    and text.startswith(run, body)
+                ):
                     self.code = None
                     self.fence = None
                 return True
@@ -354,7 +404,7 @@ class Depth:
         if self.fence is not None:
             first, opened, run = self.fence
             if (
-                marks == opened
+                code_row(marks, opened)[1]
                 and CLOSING.fullmatch(text, body, end)
                 and (text.startswith(run, body))
             ):
@@ -498,6 +548,28 @@ class Depth:
             self.unsure = row_end(text, start)
         else:
             self.covered = end
+
+
+def cells(row: str) -> int:
+    """How many cells a row of a table holds, and 0 for a row with no `|`."""
+    row = row.strip(" \t")
+    ends = [cell.end() for cell in CELL_END.finditer(row)]
+    if not ends:
+        return 0
+    return len(ends) + 1 - (ends[0] == 1) - (ends[-1] == len(row) and len(row) > 1)
+
+
+def code_row(marks: str, opened: str) -> tuple[bool, bool]:
+    """Whether a row with these marks goes on with fenced code whose fence row had
+    the marks `opened`: with the same containers and nothing but blanks after them,
+    which belong to the code; and whether a fence there may close it, indented by no
+    more than three columns past them and the blank after a `>`. A tab ends the
+    code, where its columns are hard to tell."""
+    containers = opened.rstrip(" ")
+    rest = marks[len(containers) :]
+    if not marks.startswith(containers) or rest.strip(" "):
+        return False, False
+    return True, len(rest) <= 3 + containers.endswith(">")
 
 
 def tag_end(text: str, position: int) -> int | None:
