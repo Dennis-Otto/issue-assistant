@@ -166,15 +166,23 @@ def make_issue(
     }
 
 
-def make_comment(comment_id, author, body, days_ago, association="NONE"):
+def make_comment(
+    comment_id, author, body, days_ago, association="NONE", *, minimized=...
+):
+    """A comment of an issue as the REST API gives it; `minimized` as it sends it for
+    a comment that GitHub shows collapsed, such as {"reason": "spam"} or null, and
+    without it, the comment has no such key, as an older fixture."""
     user = BOT_USER if author == "bot" else {"login": author, "type": "User"}
-    return {
+    comment = {
         "id": comment_id,
         "user": user,
         "body": body,
         "created_at": at(days_ago),
         "author_association": association,
     }
+    if minimized is not ...:
+        comment["minimized"] = minimized
+    return comment
 
 
 def make_comments(count, *, first=1, author="someone", oldest=10.0, newest=0.0):
@@ -258,15 +266,20 @@ def discussion_comment(
     answer=False,
     up=0,
     down=0,
+    minimized=False,
 ):
     """A comment of a discussion as GraphQL gives it, with its replies, which are
-    comments without replies of their own, whether it is the marked answer, and its
-    👍 and 👎 by the names that the documents give them."""
+    comments without replies of their own, whether it is the marked answer, its
+    👍 and 👎 by the names that the documents give them, and whether GitHub shows
+    it collapsed: `minimized` is True for no reason, or the reason as GraphQL spells
+    it, such as SPAM, spam or OFF_TOPIC."""
     return {
         "author": author_node(author),
         "authorAssociation": association,
         "createdAt": at(days_ago),
         "body": body,
+        "isMinimized": bool(minimized),
+        "minimizedReason": minimized if isinstance(minimized, str) else None,
         "isAnswer": answer,
         "up": {"totalCount": up},
         "down": {"totalCount": down},
@@ -274,8 +287,8 @@ def discussion_comment(
     }
 
 
-def discussion_reply(author, body, days_ago=0.0, association="NONE"):
-    reply = discussion_comment(author, body, days_ago, association)
+def discussion_reply(author, body, days_ago=0.0, association="NONE", minimized=False):
+    reply = discussion_comment(author, body, days_ago, association, minimized=minimized)
     del reply["replies"]
     return reply
 

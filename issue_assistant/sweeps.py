@@ -32,6 +32,7 @@ from .errors import GitHubError, SweepIncomplete
 from .github import GitHub
 from .issues import (
     as_shown,
+    collapsed,
     conversing,
     edited_since,
     exemption,
@@ -623,8 +624,8 @@ def questions_address(
     """The address of the comment with the questions that the reporter is to answer.
 
     That is the last comment that asked, of a maintainer or the assistant's analysis
-    or follow-up; empty when that one asked the reporter nothing, or GitHub gave it
-    no address on this issue.
+    or follow-up; empty when that one asked the reporter nothing, GitHub shows it
+    collapsed, or GitHub gave it no address on this issue.
     """
     asked = asking(issue, comments)
     if not asked:
@@ -635,8 +636,10 @@ def questions_address(
         rf"https://github\.com/{re.escape(github.repository)}"
         rf"/issues/{issue['number']}#issuecomment-\d+"
     )
-    if (found and found[1].get("questions") != "1") or not re.fullmatch(
-        expected, address, re.IGNORECASE
+    if (
+        (found and found[1].get("questions") != "1")
+        or collapsed(asked[-1])
+        or not re.fullmatch(expected, address, re.IGNORECASE)
     ):
         return ""
     return address

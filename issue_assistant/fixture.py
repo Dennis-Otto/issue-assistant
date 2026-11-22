@@ -58,7 +58,8 @@ def is_time(value: object) -> bool:
 
 def fixture_problems(item: object, where: str, *, issue: bool) -> list[str]:
     """What keeps an issue or a comment of a fixture from being read as GitHub's:
-    the keys that the assistant reads, in their types."""
+    the keys that the assistant reads, in their types; of a comment also
+    `minimized`, which says whether GitHub shows it collapsed."""
     if not isinstance(item, dict):
         return [f"{where} must be an object"]
     problems = []
@@ -78,6 +79,18 @@ def fixture_problems(item: object, where: str, *, issue: bool) -> list[str]:
         problems.append(f"{where}.user must be an object with a login")
     if not is_time(item.get("created_at")):
         problems.append(f"{where}.created_at must be {MOMENT}")
+    minimized = item.get("minimized")
+    if not issue and not (
+        minimized is None
+        or (
+            isinstance(minimized, dict)
+            and (minimized.get("reason") is None or fits(minimized["reason"], str))
+        )
+    ):
+        problems.append(
+            f"{where}.minimized must be null or an object with a reason, a string "
+            "or null"
+        )
     return problems
 
 
@@ -95,7 +108,8 @@ def number_and_title_problems(item: dict[str, Any], where: str) -> list[str]:
 
 def post_problems(item: object, where: str) -> list[str]:
     """What keeps a discussion, a comment or a reply of a fixture from being read as
-    GitHub's GraphQL API gives it: who wrote it, in which role, when, and its text."""
+    GitHub's GraphQL API gives it: who wrote it, in which role, when, its text and,
+    when the fixture gives them, whether GitHub shows it collapsed and why."""
     if not isinstance(item, dict):
         return [f"{where} must be an object"]
     problems = []
@@ -112,6 +126,11 @@ def post_problems(item: object, where: str) -> list[str]:
         problems.append(f"{where}.body must be a string")
     if not is_time(item.get("createdAt")):
         problems.append(f"{where}.createdAt must be {MOMENT}")
+    if not fits(item.get("isMinimized", False), bool):
+        problems.append(f"{where}.isMinimized must be true or false")
+    reason = item.get("minimizedReason")
+    if reason is not None and not fits(reason, str):
+        problems.append(f"{where}.minimizedReason must be a string or null")
     return problems
 
 

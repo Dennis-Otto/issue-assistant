@@ -97,6 +97,23 @@ def post_as_rest(node: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def comment_as_rest(node: dict[str, Any]) -> dict[str, Any]:
+    """A comment or a reply of a discussion of GraphQL as post_as_rest gives it, and
+    whether GitHub shows it collapsed, as the REST API says it of an issue comment:
+    `minimized` is null or an object with the reason, in lower case and with `-` for
+    `_`, since GraphQL spells the same reason `SPAM` and `spam`, and its enum
+    `OFF_TOPIC`. A discussion itself can't be collapsed."""
+    reason = node.get("minimizedReason")
+    return {
+        **post_as_rest(node),
+        "minimized": (
+            {"reason": reason and reason.lower().replace("_", "-")}
+            if node.get("isMinimized")
+            else None
+        ),
+    }
+
+
 def discussion_as_rest(node: dict[str, Any]) -> dict[str, Any]:
     """A discussion of GitHub.discussion() in the form of the REST API, with its
     comments, each with its replies, and their number."""
@@ -116,9 +133,9 @@ def discussion_as_rest(node: dict[str, Any]) -> dict[str, Any]:
         "comment_count": comments["totalCount"],
         "comments": [
             {
-                **post_as_rest(comment),
+                **comment_as_rest(comment),
                 "replies": [
-                    post_as_rest(reply) for reply in comment["replies"]["nodes"]
+                    comment_as_rest(reply) for reply in comment["replies"]["nodes"]
                 ],
             }
             for comment in comments["nodes"]

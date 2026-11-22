@@ -38,6 +38,7 @@ from .engines import DEFAULT_ENGINE, engine_named
 from .errors import AssistantError, GitHubError
 from .github import GitHub
 from .issues import (
+    collapsed,
     edited_since,
     follow_up_due,
     is_maintainer,
@@ -450,7 +451,9 @@ def earlier_post(
     """The comment of an earlier run of the same event, which a run again repeats.
 
     A follow-up answers the reporter's comment or edit of the text before it; one
-    after it is a new answer.
+    after it is a new answer. A comment of the reporter that GitHub shows collapsed
+    is none, as the AI doesn't read it; the assistant's own comments count also
+    when collapsed.
     """
     if mode == "triage":
         analyses = [comment for comment in comments if kind_of(comment) == "analysis"]
@@ -460,7 +463,7 @@ def earlier_post(
         comment
         for comment in comments
         if kind_of(comment) in {"analysis", "follow-up"}
-        or login(comment.get("user")) == author
+        or (login(comment.get("user")) == author and not collapsed(comment))
     ]
     if (
         conversation

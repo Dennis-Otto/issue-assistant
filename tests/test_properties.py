@@ -1590,3 +1590,115 @@ def test_an_excerpt_reads_nothing_that_issue_md_leaves_out(text):
         char for char in written if not char.isspace() and char not in ":…"
     )
     assert kept <= collections.Counter(inner)
+
+
+# Whether GitHub shows a comment collapsed, as REST and GraphQL send it.
+COLLAPSES = st.sampled_from(
+    [None, {"reason": "spam"}, {"reason": "off-topic"}, {"reason": None}]
+)
+GRAPHQL_COLLAPSES = st.sampled_from([False, True, "SPAM", "spam", "OFF_TOPIC"])
+THREAD = st.lists(
+    st.tuples(
+        st.sampled_from(["reporter", "owner", "stranger", "bot"]),
+        st.one_of(st.text(max_size=60), STRUCTURE),
+        COLLAPSES,
+    ),
+    max_size=8,
+)
+
+
+def secret(index):
+    """A word that only the text of a collapsed comment holds."""
+    return f"Qzx{index}collapsedword"
+
+
+@given(THREAD)
+def test_the_engine_reads_no_text_of_a_comment_that_github_shows_collapsed(thread):
+    comments = [
+        make_comment(
+            index,
+            author,
+            f"{text} {secret(index)}" if minimized is not None else text,
+            1,
+            "OWNER" if author == "owner" else "NONE",
+            minimized=minimized,
+        )
+        for index, (author, text, minimized) in enumerate(thread, start=1)
+    ]
+    issue = make_issue(body="The card stays empty.")
+    visible = assistant.Visible()
+    rendered = assistant.render_issue(issue, comments, visible)
+    hidden = [index for index, (_, _, how) in enumerate(thread, 1) if how is not None]
+    for index in hidden:
+        assert secret(index) not in rendered
+    assert visible.collapsed == len(hidden)
+    # Every comment keeps its heading and so its number on the page.
+    for index in range(1, len(thread) + 1):
+        assert f"\n## Comment {index} by " in rendered
+    # Nor does anything else that the AI reads of them, or decides from them.
+    assert not {
+        item.comment for item in assistant.attachments_of(issue, comments, REPOSITORY)
+    } & set(hidden)
+
+
+@given(
+    st.lists(
+        st.tuples(
+            st.one_of(st.text(max_size=60), STRUCTURE),
+            GRAPHQL_COLLAPSES,
+            st.lists(
+                st.tuples(
+                    st.one_of(st.text(max_size=60), STRUCTURE), GRAPHQL_COLLAPSES
+                ),
+                max_size=3,
+            ),
+        ),
+        max_size=5,
+    )
+)
+def test_the_engine_reads_no_text_of_a_discussion_comment_that_github_collapsed(
+    thread,
+):
+    def node(text, minimized, word, replies=None):
+        return {
+            "author": {"__typename": "User", "login": "someone"},
+            "authorAssociation": "NONE",
+            "createdAt": at(1),
+            "body": f"{text} {word}" if minimized else text,
+            "isMinimized": bool(minimized),
+            "minimizedReason": minimized if isinstance(minimized, str) else None,
+            **({} if replies is None else {"replies": {"nodes": replies}}),
+        }
+
+    words = []
+    comments = []
+    for index, (text, minimized, replies) in enumerate(thread):
+        word = secret(index)
+        words += [word] if minimized else []
+        nodes = []
+        for number, (reply, hides) in enumerate(replies):
+            reply_word = secret(f"{index}r{number}")
+            words += [reply_word] if hides else []
+            nodes.append(node(reply, hides, reply_word))
+        comments.append(node(text, minimized, word, nodes))
+    discussion = {
+        "id": "D_5",
+        "number": 5,
+        "title": "How do I hide the live card?",
+        "body": "The live card shows in every view.",
+        "createdAt": at(2),
+        "closed": False,
+        "locked": False,
+        "isAnswered": False,
+        "authorAssociation": "NONE",
+        "author": {"__typename": "User", "login": "asker"},
+        "category": {"name": "Q&A", "isAnswerable": True},
+        "comments": {"totalCount": len(comments), "nodes": comments},
+    }
+    visible = assistant.Visible()
+    rendered = assistant.render_discussion(
+        assistant.discussion_as_rest(discussion), visible
+    )
+    for word in words:
+        assert word not in rendered
+    assert visible.collapsed == len(words)

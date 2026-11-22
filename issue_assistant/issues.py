@@ -19,6 +19,11 @@ from .values import created, login
 
 MAINTAINERS = {"OWNER", "MEMBER", "COLLABORATOR"}
 
+# The reasons for which GitHub shows a comment collapsed, as the REST API names them.
+COLLAPSE_REASONS = frozenset(
+    {"abuse", "duplicate", "low-quality", "off-topic", "outdated", "resolved", "spam"}
+)
+
 # A command on the first line of a comment: /assistant, its name and what follows,
 # such as /assistant duplicate #12. Maintainers use every command, the reporter
 # those of REPORTER_COMMANDS; from anyone else, the line is an ordinary comment.
@@ -43,6 +48,30 @@ def is_bot(user: dict[str, Any] | None) -> bool:
 
 def is_maintainer(item: dict[str, Any]) -> bool:
     return item.get("author_association") in MAINTAINERS
+
+
+def collapsed(comment: dict[str, Any]) -> bool:
+    """Whether GitHub shows the comment collapsed, as spam or off-topic, with its
+    text only after a click: someone with the right to hide it chose that it doesn't
+    belong to the conversation. The REST API sends `minimized` with every comment,
+    null or an object whose reason may itself be null.
+
+    Only what the AI reads and answers leaves such a comment out. What closes,
+    locks or reopens an issue and what keeps the AI out counts it as before: an
+    organization's moderator may hide comments, but neither close, label nor lock an
+    issue, and hiding a reporter's answer must not close their issue.
+    """
+    return comment.get("minimized") is not None
+
+
+def collapse_reason(comment: dict[str, Any]) -> str:
+    """Why GitHub shows the comment collapsed, as one of COLLAPSE_REASONS, in the
+    words of the REST API; `hidden` for any other reason or none. GraphQL spells the
+    same reason `SPAM`, `spam` or `OFF_TOPIC`, so case and underscores don't count."""
+    minimized = comment.get("minimized")
+    reason = minimized.get("reason") if isinstance(minimized, dict) else None
+    name = str(reason or "").lower().replace("_", "-")
+    return name if name in COLLAPSE_REASONS else "hidden"
 
 
 def text_of(item: dict[str, Any]) -> str:
@@ -226,7 +255,8 @@ def opted_out(issue: dict[str, Any], config: Config) -> bool:
 
 def issue_language(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str:
     """The language of the assistant's last analysis, or the one the reporter writes
-    in, as GitHub shows their words."""
+    in, as GitHub shows their words: a comment of theirs that GitHub shows collapsed
+    chooses nothing. The marker of an analysis counts also when it is collapsed."""
     for comment in reversed(comments):
         found = marker(comment)
         if found and found[0] in {"analysis", "follow-up"} and "lang" in found[1]:
@@ -238,7 +268,7 @@ def issue_language(issue: dict[str, Any], comments: list[dict[str, Any]]) -> str
     texts = [answers] + [
         as_shown(text_of(comment))
         for comment in comments
-        if login(comment.get("user")) == author
+        if login(comment.get("user")) == author and not collapsed(comment)
     ]
     return detect_language(" ".join(texts))
 
@@ -250,7 +280,9 @@ def follow_up_due(
 ) -> dict[str, Any] | None:
     """The assistant's comment with the questions that the reporter answered, when
     the assistant asked them last and may follow up, up to `most` times; None
-    otherwise."""
+    otherwise, also when GitHub shows that comment collapsed: the AI would follow up
+    on questions that it can't read. A maintainer's comment keeps the assistant out
+    also when it is collapsed."""
     asks = [
         (index, comment)
         for index, comment in enumerate(comments)
@@ -260,7 +292,7 @@ def follow_up_due(
         return None
     index, last = asks[-1]
     found = marker(last)
-    if not found or found[1].get("questions") != "1":
+    if not found or found[1].get("questions") != "1" or collapsed(last):
         return None
     if sum(kind_of(comment) == "follow-up" for comment in comments) >= most:
         return None
@@ -402,13 +434,15 @@ class Visible:
     them; `definitions` counts the link reference definitions and footnotes that
     GitHub shows as nothing, which the context takes out of the same texts, and
     `structures` the parts of tables, drawings and math that GitHub doesn't show as
-    they are written, and `titles` the titles of links and images, which the page
-    shows only on hover."""
+    they are written, `titles` the titles of links and images, which the page
+    shows only on hover, and `collapsed` the comments that GitHub shows collapsed,
+    whose texts the AI doesn't read."""
 
     removed: int = 0
     definitions: int = 0
     structures: int = 0
     titles: int = 0
+    collapsed: int = 0
 
     def __call__(self, text: str) -> str:
         text, count = INVISIBLE.subn("", text)
@@ -462,10 +496,14 @@ def judged_comment(
 ) -> dict[str, Any] | None:
     """The comment that a reply task judges: the one whose event started the run,
     not a newer one that came in while the run waited, or, in a run by hand, the
-    newest on which the task may act. None once it is deleted, or without one."""
+    newest on which the task may act. None once it is deleted or GitHub shows it
+    collapsed, whose text the AI doesn't read, or without one."""
     if comment_id is not None:
-        return next((item for item in comments if item.get("id") == comment_id), None)
-    fitting = [item for item in comments if judges(issue, item, mode)]
+        found = next((item for item in comments if item.get("id") == comment_id), None)
+        return None if found is None or collapsed(found) else found
+    fitting = [
+        item for item in comments if judges(issue, item, mode) and not collapsed(item)
+    ]
     return fitting[-1] if fitting else None
 
 

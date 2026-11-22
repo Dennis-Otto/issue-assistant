@@ -149,10 +149,12 @@ DISCUSSION = {
     "answer": {
         "body": "Turn it off in the options of the card.",
         "createdAt": "2026-09-02T12:00:00Z",
+        "isMinimized": False,
     },
 }
 # A discussion with its comments and their replies, as GitHub holds it: a deleted
-# account is no author, and Actor is an interface, whose type GitHub answers.
+# account is no author, Actor is an interface, whose type GitHub answers, and a
+# comment that GitHub shows collapsed has the reason of the enum, with `_`.
 ASKER = {"__typename": "User", "login": "asker"}
 # The assistant's first answer and the asker's reply, as open_questions() gives them.
 FIRST_ANSWER_THREAD = {
@@ -188,6 +190,8 @@ THREAD = {
                 "body": "Me too.",
                 "createdAt": "2026-10-07T11:30:00Z",
                 "authorAssociation": "NONE",
+                "isMinimized": True,
+                "minimizedReason": "OFF_TOPIC",
                 "author": None,
                 "replies": {
                     "nodes": [
@@ -195,6 +199,8 @@ THREAD = {
                             "body": "Turn it off in the options.",
                             "createdAt": "2026-10-07T11:40:00Z",
                             "authorAssociation": "OWNER",
+                            "isMinimized": False,
+                            "minimizedReason": None,
                             "author": {"__typename": "User", "login": "owner"},
                         }
                     ]
@@ -504,12 +510,14 @@ REQUESTS = {
                     "author_association": "NONE",
                     "created_at": "2026-10-07T11:30:00Z",
                     "body": "Me too.",
+                    "minimized": {"reason": "off-topic"},
                     "replies": [
                         {
                             "user": {"login": "owner", "type": "User"},
                             "author_association": "OWNER",
                             "created_at": "2026-10-07T11:40:00Z",
                             "body": "Turn it off in the options.",
+                            "minimized": None,
                         }
                     ],
                 }

@@ -14,6 +14,7 @@ from .github import GitHub
 from .issues import (
     Activity,
     Visible,
+    collapsed,
     command_of,
     form_labels,
     is_bot,
@@ -182,6 +183,9 @@ def objected_duplicate(
     not closed as a duplicate, no longer waits for that, and after the notice a
     maintainer said `/assistant not-duplicate` or removed `possible-duplicate`, or
     someone else objected in a comment, as the quality counts it. None otherwise.
+
+    A comment of someone else that GitHub shows collapsed objects to nothing, as
+    the page doesn't show it; a maintainer's command counts also when collapsed.
     """
     notices = [
         comment
@@ -216,7 +220,7 @@ def objected_duplicate(
         for comment in people
     ):
         return said["duplicate"], "a maintainer"
-    if any(not is_maintainer(comment) for comment in people):
+    if any(not is_maintainer(comment) and not collapsed(comment) for comment in people):
         return said["duplicate"], "someone"
     return None
 

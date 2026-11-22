@@ -647,7 +647,7 @@ class GitHub:
                           nodes {
                             number title closed isAnswered body createdAt
                             category { name }
-                            answer { body createdAt }
+                            answer { body createdAt isMinimized }
                           }
                         }
                       }
@@ -718,10 +718,12 @@ class GitHub:
                         totalCount
                         nodes {
                           body createdAt authorAssociation
+                          isMinimized minimizedReason
                           author { __typename login }
                           replies(first: 20) {
                             nodes {
                               body createdAt authorAssociation
+                              isMinimized minimizedReason
                               author { __typename login }
                             }
                           }
