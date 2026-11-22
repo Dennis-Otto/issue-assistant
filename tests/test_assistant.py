@@ -312,6 +312,13 @@ SLOW_TEXTS = {
     "dated elements in a row": [(DATED + "x</relative-time>", 1_000)],
     "dated elements on rows of their own": [(DATED + "\n\nx\n\n", 1_200)],
     "dated elements in quotes": [("> " + DATED + "\n", 1_300)],
+    # The info string of each fence loses what GitHub doesn't show of it, and each
+    # row that loses words asks where it stands (2026-11-22).
+    "info strings of fences": [("```python " + "x " * 30 + "\nprint(1)\n```\n", 780)],
+    "a first word of a fence that never ends": ["```", ("x", 65_000)],
+    "fences with words in a row": [("```a b\n", 9_000)],
+    "fences with words in quotes": [("> ```a b\n", 7_000)],
+    "fences of tildes with backticks": [("~~~a `b`\n", 7_000)],
 }
 
 
@@ -355,6 +362,9 @@ READINGS = {
     "shown_links": lambda text, issue, comments: assistant.shown_links(text),
     "denies_closing": lambda text, issue, comments: assistant.denies_closing(
         text, "owner/project", 1
+    ),
+    "attachments_of": lambda text, issue, comments: assistant.attachments_of(
+        issue, comments, "owner/project"
     ),
 }
 
@@ -4124,6 +4134,7 @@ def test_the_language_is_the_one_of_the_words_that_github_shows(
 # drawing and math within a row, the others on rows of their own.
 REMOVED = {
     "table": (assistant.TABLE_NOTE, "\n\n| a |\n|---|\n| b | c |\n\n"),
+    "info": (assistant.INFO_NOTE, "\n\n```python x\ny\n```\n\n"),
     "drawing": (assistant.DRAWING_NOTE, '<pre lang="mermaid">x</pre>'),
     "diagram": (assistant.DIAGRAM_NOTE, "\n\n```mermaid\ngraph TB\n%% x\n```\n\n"),
     "math": (assistant.MATH_NOTE, " $\\color{red}x$ "),
@@ -4165,8 +4176,9 @@ SHORT_GERMAN = "Nach dem Update startet das Spiel nicht mehr."
         '<pre lang="mermaid">x</pre>\n\n' * 3,
         "$\\color{red}x$\n",
         "[a]: https://example.com\n\n[^n]: x\n",
+        "```text a b c\nx\n```\n" * 3,
     ],
-    ids=["table", "diagram", "drawings", "math", "definitions"],
+    ids=["table", "diagram", "drawings", "math", "definitions", "fences"],
 )
 def test_a_report_keeps_its_language_beside_what_github_doesn_t_show(removed):
     body = f"{SHORT_GERMAN}\n\n{removed}"
@@ -4217,14 +4229,15 @@ def test_a_part_that_went_ends_no_clause_of_a_denial(note, part, denies):
 @pytest.mark.parametrize(
     ("note", "part", "labels"),
     [
-        (note, part, [] if kind in {"table", "diagram"} else ["area: cards"])
+        (note, part, [] if kind in {"table", "info", "diagram"} else ["area: cards"])
         for kind, (note, part) in REMOVED.items()
     ],
     ids=REMOVED,
 )
 def test_the_answer_of_the_area_is_read_without_a_note(config, note, part, labels):
     """The answer of the area chooses its label beside a part that went, as GitHub
-    shows it. Of a table and a diagram, GitHub shows the rest in the answer."""
+    shows it. Of a table, fenced code and a diagram, GitHub shows the rest in the
+    answer."""
     body = f"### Area\n\nLive card{part}\n"
     assert note in assistant.shown_text(body)[0]
     assert assistant.form_labels(make_issue(body=body), config) == labels
@@ -5243,6 +5256,7 @@ def test_the_excerpts_hold_only_what_github_shows(config, root, text, shown):
 
 LINK = assistant.DEFINITION_NOTE
 FOOTNOTE = assistant.FOOTNOTE_NOTE
+INFO = assistant.INFO_NOTE
 
 # Texts with link reference definitions and footnotes without a reference, which
 # GitHub shows as nothing (`gh api markdown -f mode=gfm`, 2026-11-12), and what the
@@ -5327,7 +5341,7 @@ HIDDEN_DEFINITIONS = [
     # a block, or in HTML, keeps no footnote.
     ("[^n]: Xyzzy\n\n>~~~\n>[^n]", f"{FOOTNOTE}\n\n>~~~\n>[^n]"),
     ("[^n]: Xyzzy\n\n- ~~~\n  [^n]", f"{FOOTNOTE}\n\n- ~~~\n  [^n]"),
-    ("[^n]: Xyzzy\n>~~~[^n]", f"{FOOTNOTE}\n>~~~[^n]"),
+    ("[^n]: Xyzzy\n>~~~[^n]", f"{FOOTNOTE}\n>~~~{INFO}"),
     ("[^n]: Xyzzy-->0\n```\n[^n]", f"{FOOTNOTE}\n```\n[^n]"),
     ("<div>\n[^n]\n\n[^n]: Xyzzy", f"\n[^n]\n\n{FOOTNOTE}"),
     ("><!A[^n]\n[^n]: Xyzzy", f">\n{FOOTNOTE}"),
@@ -5725,9 +5739,11 @@ DRAWINGS = [
         f"```topojson\n{DRAWING}\n```\n\nshown",
     ),
     # Any fence, after a blank, with words after the language, written with an
-    # entity, unclosed, and in a quote or a list item.
-    ("~~~~ geojson foo\nXyzzy\n~~~~", f"~~~~ geojson foo\n{DRAWING}\n~~~~"),
-    ("```&#115;tl\nXyzzy\n```", f"```&#115;tl\n{DRAWING}\n```"),
+    # entity, unclosed, and in a quote or a list item. The words after the language
+    # go as on any fence, and so does a language written with an entity, which is
+    # no plain word (info_cut).
+    ("~~~~ geojson foo\nXyzzy\n~~~~", f"~~~~ geojson{INFO}\n{DRAWING}\n~~~~"),
+    ("```&#115;tl\nXyzzy\n```", f"```{INFO}\n{DRAWING}\n```"),
     ("> ```stl\n> Xyzzy\n\nshown", f"> ```stl\n{DRAWING}\n\nshown"),
     (
         '- ```geojson\n  {"Xyzzy": 1}\n  ```\n\nshown',
@@ -5766,18 +5782,14 @@ DRAWINGS = [
 
 @pytest.mark.parametrize(("text", "shown"), DRAWINGS)
 def test_the_engine_reads_of_a_drawing_what_the_page_shows(text, shown):
-    count = shown.count(DRAWING) + shown.count(DIAGRAM)
+    count = shown.count(DRAWING) + shown.count(DIAGRAM) + shown.count(INFO)
     assert assistant.shown_counts(text) == (shown, 0, count)
 
 
-# Code that GitHub shows as it is: of another language, of a capital M, after an
-# invisible character, as a word after a backslash, indented, and a fence of
-# mermaid within longer code.
+# Code that GitHub shows as it is: of another language, of a capital M, indented,
+# and a fence of mermaid within longer code.
 SHOWN_CODE = [
     "```Mermaid\ngraph TD\n%% shown\n```",
-    "```mermaid,foo\n%% shown\n```",
-    "```mer\u200bmaid\n%% shown\n```",
-    "```\\mermaid\n%% shown\n```",
     "    ```mermaid\n    %% shown\n    ```",
     "````text\n```mermaid\n%% shown\n```\n````",
     '<pre lang="Mermaid">shown</pre>',
@@ -5797,6 +5809,15 @@ SHOWN_CODE = [
 def test_code_that_github_shows_as_it_is_stays():
     for text in SHOWN_CODE:
         assert assistant.shown_counts(text) == (assistant.strip_html(text), 0, 0)
+    # GitHub highlights `mermaid,foo` as code of mermaid and shows no `,foo`; after
+    # an invisible character, or as a word after a backslash, it is no word of
+    # CODE_LANGUAGES, and the info string goes. The code stays.
+    for text, shown in (
+        ("```mermaid,foo\n%% shown\n```", f"```mermaid{INFO}\n%% shown\n```"),
+        ("```mer\u200bmaid\n%% shown\n```", f"```{INFO}\n%% shown\n```"),
+        ("```\\mermaid\n%% shown\n```", f"```{INFO}\n%% shown\n```"),
+    ):
+        assert assistant.shown_counts(text) == (shown, 0, 1)
     # A `<pre>` in fenced code, or in a comment, starts nothing; one that no `>`
     # ends is no tag.
     assert assistant.shown_text("```\n<pre lang=mermaid>\n```\nshown")[0] == (
@@ -5805,6 +5826,119 @@ def test_code_that_github_shows_as_it_is_stays():
     assert assistant.shown_text("<!-- <pre lang=mermaid> -->shown")[0] == "shown"
     assert assistant.shown_text("<!-- <pre lang=mermaid>")[0] == ""
     assert assistant.shown_counts('<pre lang="mermaid" x="y"') == ("", 0, 0)
+
+
+# The info string of fenced code
+
+
+FENCE_SEARCH = json.loads(
+    (Path(__file__).with_name("fixtures") / "fence-info.json").read_text("utf-8")
+)
+
+
+@pytest.mark.parametrize(
+    "case", FENCE_SEARCH["texts"], ids=range(len(FENCE_SEARCH["texts"]))
+)
+def test_the_engine_reads_of_each_searched_fence_what_github_shows(case):
+    """The texts of a search with GitHub's renderer: a word of the info string of a
+    fence that it hides, no reader reads, nor does an address in it show as a link;
+    what it shows, each reads, but for the markers that the cleaning takes out where
+    it is hard to tell, which the file lists."""
+    text, cut = case["text"], case.get("the cleaning takes out", [])
+    for read in (
+        assistant.shown_text(text)[0],
+        assistant.excerpt(text, assistant.MAX_TEXT),
+        assistant.render_issue(make_issue(body=text), []),
+        assistant.as_shown(text),
+    ):
+        assert [marker for marker in case["github hides"] if marker in read] == []
+        assert [marker for marker in case["github shows"] if marker not in read] == cut
+    links = assistant.shown_links(text)
+    linked = [m for m in case["github hides"] if re.search(rf"https?://\S*{m}", links)]
+    assert linked == []
+
+
+# What the engine reads of an info string: a plain word of CODE_LANGUAGES, or the
+# part before its comma, and nothing after it; nothing of another word.
+INFO_CUTS = [
+    ("", ""),
+    ("python", "python"),
+    (" python \t", " python \t"),
+    ("python words after it", "python"),
+    ("python\twords", "python"),
+    ("Python,x", "Python"),
+    ("python, x", "python"),
+    ("python,", "python"),
+    ("c++ x", "c++"),
+    ("math\tx", "math"),
+    ("x", ""),
+    ("x,python", ""),
+    (",python", ""),
+    ("python{x}", ""),
+    ("python:x", ""),
+    ("py&#116;hon", ""),
+    ("python&#32;x", ""),
+    ("python&#44;x", ""),
+    ("\\python", ""),
+    ("python\\ x", ""),
+    ("python\u00a0x", ""),
+    # The Kelvin sign is a `k` in small letters, and no plain word.
+    ("\u212a", ""),
+]
+
+
+@pytest.mark.parametrize(("info", "kept"), INFO_CUTS)
+def test_the_engine_reads_of_an_info_string_a_plain_language_alone(info, kept):
+    assert info[: assistant.info_cut(info)] == kept
+
+
+def test_the_languages_of_fences_are_plain_words():
+    """The words that GitHub draws, math, and the first words of the fences of 3,000
+    texts of issues of the maintainer's repositories are languages, and so are those
+    that GitHub highlights beyond them, such as `dockerfile`, `rust` and
+    `powershell`; each is a word in small letters of ASCII without anything at which
+    info_cut cuts or which GitHub reads as an entity or an escape."""
+    languages = assistant.CODE_LANGUAGES
+    assert {*assistant.DRAWN, "math"} <= languages
+    corpus = "python php text sh yaml toml json js bash console markdown xml ts jsonl"
+    assert {*corpus.split(), "diff", "dockerfile", "rust", "powershell"} <= languages
+    for word in languages:
+        assert word and word.isascii() and word == word.lower(), word
+        assert not set(word) & set(" \t,&\\`~"), word
+    # Sorted and once each, so that a new list of Linguist shows what changed.
+    words = assistant.LINGUIST_WORDS.split()
+    assert words == sorted(set(words))
+    assert {*words, "math"} == languages
+
+
+def test_what_the_assistant_decides_reads_no_word_of_a_fence_that_github_hides(config):
+    """The search, the language, the area and a denial of closing read the info
+    string of a fence as the page shows it: not at all."""
+    fenced = "It crashes.\n\n```python ZqhiddenError ECONNZQ\nprint(1)\n```\n"
+    shown = "It crashes.\n\n```python\nprint(1)\n```\n"
+    terms = assistant.search_terms(make_issue(body=fenced))
+    assert terms == assistant.search_terms(make_issue(body=shown))
+    assert "zqhiddenerror" not in terms
+    german = " ".join([*GERMAN_REPORT.split()] * 3)
+    english = "It crashes on start, and I don't know why."
+    body = f"{english}\n\n```text {german}\nlog\n```\n"
+    assert assistant.issue_language(make_issue(body=body), []) == "en"
+    # The page shows a block of js that holds the rest of the text.
+    area = "### Area\n\n```js, Live card\n\n### Version\n\n1.9.0"
+    assert assistant.form_labels(make_issue(body=area), config) == []
+    denial = "Fixes #12\n\n```sh this does not fix #12\nmake\n```\n"
+    assert not assistant.denies_closing(denial, "owner/project", 12)
+    # A box in an info string ticks nothing, as before.
+    box = "```text - [x] Don't let the AI assistant read this issue.\nx\n```\n"
+    assert not assistant.box_ticked(box, config)
+
+
+def test_a_table_in_fenced_code_stays_after_a_fence_that_is_hard_to_tell():
+    """The fenced code found before the reading of the fences stops holds its rows:
+    GitHub shows the rows of a table in it as they are, also when a fence that an
+    HTML block may hold comes after it (`gh api -X POST markdown`, 2026-11-22)."""
+    text = "```\n| a |\n|---|\n| b | Xyzzy |\n```\n\n<div>\n```mermaid\nx\n```\n"
+    assert assistant.shown_counts(text) == (assistant.strip_html(text), 0, 0)
 
 
 # Math whose TeX can draw text as nothing: a colour, a comment, a label, a tag, an
@@ -5819,7 +5953,7 @@ HIDING_MATH = [
     ("$&#92;color{transparent}&#92;text{Xyzzy}$", MATH),
     ("$\\color{white}\\text{Xyzzy}$", MATH),
     ("```math\nx % Xyzzy\n```", f"```math\n{MATH}\n```"),
-    ("~~~ math foo\nx % Xyzzy\n~~~", f"~~~ math foo\n{MATH}\n~~~"),
+    ("~~~ math foo\nx % Xyzzy\n~~~", f"~~~ math{INFO}\n{MATH}\n~~~"),
     # Every form of the dollar signs, and code between them.
     ("\\$x % Xyzzy\\$ and &#36;y % Xyzzy&#36;", f"{MATH} and {MATH}"),
     ("&#x24;x % Xyzzy&#x24; &dollar;y % Xyzzy&dollar;", f"{MATH} {MATH}"),
@@ -5845,7 +5979,8 @@ HIDING_MATH = [
 
 @pytest.mark.parametrize(("text", "shown"), HIDING_MATH)
 def test_the_engine_reads_no_math_that_could_hide_text(text, shown):
-    assert assistant.shown_counts(text) == (shown, 0, shown.count(MATH))
+    count = shown.count(MATH) + shown.count(INFO)
+    assert assistant.shown_counts(text) == (shown, 0, count)
 
 
 # What GitHub shows as text, and math that shows all of its source.
@@ -5880,8 +6015,9 @@ def test_the_parts_that_github_doesn_t_show_as_written_are_counted(
         assert "Xyzzy" not in path.read_text("utf-8")
     assert capsys.readouterr().out == (
         "::notice::Removed 4 parts that GitHub doesn't show as they are written, "
-        "cells beyond the header of a table, the source of a drawing and math, from "
-        "the texts for the engine: 2 from issue #12, 2 from other issues and "
+        "cells beyond the header of a table, words of the row that opens fenced "
+        "code, the source of a drawing and math, from the texts for the engine: 2 "
+        "from issue #12, 2 from other issues and "
         "discussions.\n"
     )
 
@@ -6294,7 +6430,9 @@ DRAWN_ANSWERS = [
     ),
     ("~~~mermaid\n%% hidden\n~~~", "~~~text\n%% hidden\n~~~"),
     ("````mermaid\n%% hidden\n````", "````text\n%% hidden\n````"),
-    ("```&#109;ermaid\n%% hidden\n```", "```text\n%% hidden\n```"),
+    # A language written with an entity is no plain word: the info string goes,
+    # and GitHub shows the code as it is.
+    ("```&#109;ermaid\n%% hidden\n```", "```\n%% hidden\n```"),
     ("```mer\u200bmaid\n%% hidden\n```", "```text\n%% hidden\n```"),
     ("``` geojson x\n{}\n```", "```text\n{}\n```"),
     ("```math\nx % hidden\n```", "```text\nx % hidden\n```"),
@@ -6305,6 +6443,28 @@ DRAWN_ANSWERS = [
 
 @pytest.mark.parametrize(("text", "posted"), DRAWN_ANSWERS)
 def test_an_answer_posts_no_code_that_github_draws(config, text, posted):
+    assert assistant.sanitize(text, config) == posted
+
+
+# GitHub shows none of the info string of a fence: an answer keeps the language
+# that the engine may read of an issue, which GitHub highlights, and nothing after
+# it. `mermaid` alone would be drawn, as `mermaid,x` is not (`gh api -X POST
+# markdown`, 2026-11-22).
+INFO_ANSWERS = [
+    (
+        "Text\n\n```python hidden words\nprint(1)\n```",
+        "Text\n\n```python\nprint(1)\n```",
+    ),
+    ("```hidden\nprint(1)\n```", "```\nprint(1)\n```"),
+    ("```mermaid,hidden\ngraph TD\n```", "```text\ngraph TD\n```"),
+    ("```rust,hidden fn\nfn main() {}\n```", "```rust\nfn main() {}\n```"),
+    ('~~~python {title="hidden"}\nx\n~~~', "~~~python\nx\n~~~"),
+    ("````Python \nx\n````", "````Python \nx\n````"),
+]
+
+
+@pytest.mark.parametrize(("text", "posted"), INFO_ANSWERS)
+def test_an_answer_posts_no_word_that_github_hides_after_a_fence(config, text, posted):
     assert assistant.sanitize(text, config) == posted
 
 
