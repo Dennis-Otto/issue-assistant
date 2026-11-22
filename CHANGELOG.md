@@ -4,6 +4,17 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.15.3](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.2...v1.15.3) (2026-11-22)
+
+
+### Bug fixes
+
+* **context:** the AI no longer reads a comment that GitHub shows collapsed ([#512](https://github.com/Dennis-Otto/issue-assistant/issues/512)) ([3c96db8](https://github.com/Dennis-Otto/issue-assistant/commit/3c96db898fe9d6b168a2082f475a5c20bde6674c))
+* **context:** the AI no longer reads a reference of a character that GitHub shows as nothing ([#511](https://github.com/Dennis-Otto/issue-assistant/issues/511)) ([da12a60](https://github.com/Dennis-Otto/issue-assistant/commit/da12a60916993b1e695cb03787d4ec6c6ba6038c))
+* **context:** the AI no longer reads the title of a link or an image ([#510](https://github.com/Dennis-Otto/issue-assistant/issues/510)) ([75394fb](https://github.com/Dennis-Otto/issue-assistant/commit/75394fbac943bb07e3d3b38c0f45367e953c0e89))
+* **context:** the AI no longer reads what a relative-time element holds ([#515](https://github.com/Dennis-Otto/issue-assistant/issues/515)) ([278be6b](https://github.com/Dennis-Otto/issue-assistant/commit/278be6b2406079b8a22f1e623f9186df998fe303))
+* **context:** the notes of removed parts no longer choose the language of the comments ([#508](https://github.com/Dennis-Otto/issue-assistant/issues/508)) ([b33d858](https://github.com/Dennis-Otto/issue-assistant/commit/b33d85815f1d075fa626d0daa3ad9ad1e1c1caba))
+
 ## [1.15.2](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.1...v1.15.2) (2026-11-21)
 
 ### Bug fixes
