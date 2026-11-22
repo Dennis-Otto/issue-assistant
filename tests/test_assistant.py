@@ -187,7 +187,10 @@ UPLOADED = (
     "https://github.com/user-attachments/assets/0f9a7e1c-1111-2222-3333-444455556666"
 )
 # Texts of 64 KiB on which the earlier patterns took up to hours: blanks after a
-# heading, comments and tags that never close, and many of them. Each is given as its
+# heading, comments and tags that never close, and many of them. Their timing adds no
+# coverage, since growth() times its tries without the tracer (#532): a new kind of
+# text that alone reaches a line or a branch fails the coverage, not the timing, and
+# brings a test of what the reading returns for it as well. Each is given as its
 # parts, a piece that comes once or a piece and how often it comes, so that the
 # timing can build it with an eighth of its repetitions too.
 SLOW_TEXTS = {
@@ -550,13 +553,20 @@ def reading(name, text):
 # The growth that a reading may have is GROWTH of tests/support.py, which the fuzz
 # target of the converter holds as well.
 
-# The processor time of one reading of a whole text, in seconds. Not the promise of
-# the reading, which is that nothing in it backtracks or grows faster than its text,
-# and which the growth holds on every machine: the slowest texts took up to 0.44
-# seconds under the measure of the coverage on a machine of a maintainer, a busy
-# runner of GitHub one and a half times as long, so a limit of 0.5 seconds measured
-# the runner (#500, #504). The ceiling holds only that no reading becomes many times
-# slower everywhere; how fast it reads has issues of its own (#487, #488, #494).
+# The processor time of one reading of a whole text, in seconds, counted without the
+# tracer of the coverage, as growth() times its tries (#532). Not the promise of the
+# reading, which is that nothing in it backtracks or grows faster than its text, and
+# which the growth holds on every machine. The ceiling holds only that no reading
+# becomes many times slower everywhere; how fast it reads has issues of its own
+# (#487, #488, #494). The slowest whole text took 0.49 seconds and the slowest twin
+# 0.53 (`void tags below quotes`) on a machine of a maintainer, about a quarter of
+# the ceiling, as 0.44 seconds were when a limit of 0.5 seconds measured the runner,
+# on which a busy one took one and a half times as long (#500, #504). Under the
+# tracer they took 1.39 and 1.73 seconds, within a quarter of a second of it. So the
+# ceiling lets a reading of the texts of HTML take about three times as long in real
+# time as under the tracer before it fails, `delimiter rows` about a quarter longer;
+# 1 second would measure the runner again, since the slowest whole reached 0.69
+# seconds without the tracer on a busy machine.
 CEILING = 2
 
 
@@ -729,6 +739,38 @@ def test_a_reading_that_grows_faster_than_its_text_fails_the_timing():
     measured = growth(square(eighth), square(whole))
     assert measured.times > GROWTH
     assert 0 < measured.eighth < measured.whole < CEILING
+
+
+def test_the_tries_of_the_growth_run_without_the_tracer():
+    """No trace function runs within a try, such as the tracer of the coverage, and
+    the one from before is back afterwards, also after a side raised (#532). A trace
+    function of the test's own stands in for the coverage's, which is None from
+    Python 3.14 on, where the coverage measures through sys.monitoring; the
+    coverage's comes back at the end."""
+
+    def tracer(frame, event, arg):
+        return None
+
+    seen = set()
+
+    def side():
+        seen.add(sys.gettrace())
+
+    def failing():
+        raise ValueError
+
+    coverage = sys.gettrace()
+    sys.settrace(tracer)
+    try:
+        growth(side, side)
+        after = sys.gettrace()
+        with pytest.raises(ValueError):
+            growth(side, failing)
+        raised = sys.gettrace()
+    finally:
+        sys.settrace(coverage)
+    assert seen == {None}
+    assert after is tracer and raised is tracer
 
 
 # The names of the tags that start an HTML block of CommonMark's sixth kind.
@@ -4622,6 +4664,20 @@ def test_list_items_deeper_than_the_count_go_with_the_rest():
     shown = assistant.shown_text(text)[0]
     assert shown.endswith(f"- x60\n{DEEP}")
     assert "x61" not in shown
+
+
+def test_more_blocks_of_tags_than_the_cleaning_tells_apart_take_out_the_rest():
+    """A tag that its row of a list item doesn't end goes on in the rows that its
+    HTML block surely holds. The cleaning tells apart MOST_ROWS such blocks, each of
+    which may be a row of the one before, and the next list item ends them. With one
+    more, it can't tell whether the next list item is in the same block and takes
+    out the rest of the text, as much as any of them may hide. Only the timing tests
+    reached this before their tries ran without the tracer of the coverage (#532)."""
+    tags, after = "- <div\n  a\n", "- shown words\n"
+    told = assistant.as_shown(tags * assistant.MOST_ROWS + after)
+    assert told == "- \n" * assistant.MOST_ROWS + after
+    many = assistant.as_shown(tags * (assistant.MOST_ROWS + 1) + after)
+    assert many == "- \n" * assistant.MOST_ROWS + "- "
 
 
 def test_a_scope_of_html_keeps_the_markdown_around_it_open():

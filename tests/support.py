@@ -1832,12 +1832,24 @@ def growth(
     within a try. The ratio comes from the clock, the seconds from process_time()
     over the six tries as one span, so that its step of 1/64 second on Windows
     errs once rather than in every try.
+
+    Nor does the tracer of the coverage run within a try, which made a try up to
+    three times as slow and the check 45 to 95 seconds longer, by runner (#532): the trace
+    function of the thread goes for the six tries and comes back after them, also
+    when a side raises. It is what traces: under pytest-xdist each process has two
+    collectors of the coverage stacked, and stopping the current one of Coverage
+    only hands the tracing to the other. From Python 3.14 on, the coverage measures
+    through sys.monitoring, the trace function is None, and the pause changes
+    nothing. So the tries add no coverage: what only they reach needs a test of its
+    own.
     """
     if clock_step(clock) > 0.001:
         shortest *= 10
     best = [math.inf, math.inf]
     collecting = gc.isenabled()
+    tracing = sys.gettrace()
     gc.disable()
+    sys.settrace(None)
     try:
         started, first = time.process_time(), clock()
         for _ in range(3):
@@ -1850,6 +1862,7 @@ def growth(
                 best[index] = min(best[index], (clock() - counted) / calls)
         tick = (time.process_time() - started) / (clock() - first)
     finally:
+        sys.settrace(tracing)
         if collecting:
             gc.enable()
     return Growth(best[0] * tick, best[1] * tick, best[1] / best[0])
@@ -1859,8 +1872,13 @@ def growth(
 # eighth of its repetitions. A reading in linear time takes 8 times as long, or less
 # where a part of it stops early, and one in which a part grows with the square of the
 # length 64 times: such a part fails this once it takes about 44 % of the time of the
-# whole text. The highest growth on main was 9.5 (2026-11-22, #504). The timing tests
-# and the fuzz target of the converter hold their readings to it alike.
+# whole text. That time is counted without the tracer of the coverage, as growth()
+# times its tries, where the parts in C, such as re, take a larger share of it than
+# under the tracer. In four runs of #532 without the tracer, the highest growth was
+# 10.09 to 13.40 (2026-11-22). Three runs reached 12 or more, each in one reading of a
+# few hundredths of a second, and the 13.40 failed its run: noise of the short cases,
+# as 12.87 was under the tracer on main. The timing tests and the fuzz target of the
+# converter hold their readings to it alike.
 GROWTH = 13
 
 
