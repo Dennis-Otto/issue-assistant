@@ -14,6 +14,7 @@ import itertools
 import json
 import re
 import unicodedata
+from html.parser import HTMLParser
 from unittest import mock
 
 import hypothesis
@@ -27,6 +28,7 @@ from oracle import (
     PARSER,
     browser_text,
     code_text,
+    github_html,
     headings,
     hides_the_rest,
     problems,
@@ -1715,3 +1717,89 @@ def test_the_engine_reads_no_text_of_a_discussion_comment_that_github_collapsed(
     for word in words:
         assert word not in rendered
     assert visible.collapsed == len(words)
+
+
+# Way D (#520): the converter reads GitHub's HTML of a text, which github_html makes
+# in the shapes that GitHub writes, from the texts of the strategies above.
+CONVERTED = st.one_of(TEXT, STRUCTURE, HTML_BLOCKS, TABLES, TITLES, DRAWN)
+LANGUAGE_ROW = re.compile(r"(?:`{3,}|~{3,})([^`\s]*)[ \t]*$", re.MULTILINE)
+ALERT_KINDS = {kind.upper() for kind in assistant.ALERTS}
+NOTE_WORDS = {
+    word
+    for note in (assistant.DRAWING_NOTE, assistant.MATH_NOTE, assistant.CUT_NOTE)
+    for word in re.findall(r"[^\W_]+", note)
+}
+
+
+class TextAndAlts(HTMLParser):
+    """Every word of the text nodes of HTML, of its `alt`s and of its languages,
+    and the text of its text nodes one after the other, where a word can run over
+    the end of one."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.words = set()
+        self.data = []
+
+    def handle_starttag(self, tag, attrs):
+        for name, value in attrs:
+            if name in ("alt", "lang"):
+                self.words |= set(re.findall(r"[^\W_]+", value or ""))
+            elif name == "class":
+                # Of the classes, only the language of a highlighted fence.
+                for one in (value or "").split():
+                    found = re.fullmatch(r"highlight-(?:source|text)-(.+)", one)
+                    if found:
+                        self.words |= set(re.findall(r"[^\W_]+", found[1]))
+
+    def handle_data(self, data):
+        self.words |= set(re.findall(r"[^\W_]+", data))
+        self.data.append(data)
+
+
+@hypothesis.settings(
+    max_examples=EXAMPLES * 8, suppress_health_check=[hypothesis.HealthCheck.too_slow]
+)
+@given(CONVERTED)
+@hypothesis.example("<div\nPlugh\n")
+@hypothesis.example("```Plugh\nx\n```\n[a](Plugh)")
+@hypothesis.example("<!-- Plugh")
+def test_the_converter_shows_no_more_than_the_page_and_makes_up_nothing(text):
+    """`Plugh` comes no more often in the Markdown of GitHub's HTML than a browser
+    shows it, but in an address that the source holds and in the language of a
+    fence; the converter never raises and stays within its bounds; and each word
+    that it writes comes from the HTML, an address of the source, a number or a
+    note."""
+    html = github_html(text)
+    result = assistant.markdown_of(html, text, notes=False)
+    written = result.text.count("Plugh") - sum(
+        address.count("Plugh") for address in result.addresses
+    )
+    written -= sum(
+        language.count("Plugh") for language in LANGUAGE_ROW.findall(result.text)
+    )
+    assert written <= browser_text(text, descriptions=True).count("Plugh"), result.text
+    noted = assistant.markdown_of(html, text)
+    assert len(noted.text) <= assistant.LONGEST + len(assistant.CUT_NOTE) + 1
+    found = TextAndAlts()
+    found.feed(html)
+    found.close()
+    allowed = (
+        found.words
+        | {
+            word
+            for address in noted.addresses
+            for word in re.findall(r"[^\W_]+", address)
+        }
+        | NOTE_WORDS
+        | ALERT_KINDS
+        | {"x"}
+    )
+    made_up = {
+        word
+        for word in re.findall(r"[^\W_]+", noted.text)
+        if word not in allowed
+        and not word.isdigit()
+        and word not in "".join(found.data)
+    }
+    assert made_up == set(), noted.text

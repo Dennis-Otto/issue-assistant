@@ -757,3 +757,95 @@ def tag_end(source: str, position: int) -> int:
         elif state != "name":
             state = "attribute"
     return len(source)
+
+
+# The parser of github_html: CommonMark with GitHub's tables.
+GITHUB = Parser("commonmark").disable("text_join").enable("table")
+# An open tag of HTML as CommonMark reads it, and each attribute in it.
+OPEN_TAG = re.compile(
+    r"<[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*"
+    r"(?:\s*=\s*(?:[^\s\"'=<>`]+|'[^']*'|\"[^\"]*\"))?)*\s*/?>"
+)
+ATTRIBUTE = re.compile(
+    r"(\s+)([A-Za-z_:][A-Za-z0-9_.:-]*)(\s*=\s*(?:[^\s\"'=<>`]+|'[^']*'|\"[^\"]*\"))?"
+)
+# What GitHub's sanitizer takes from a tag that a text wrote, and what of it it
+# keeps for footnotes (probe p4 of #520).
+DROPPED = re.compile(r"class|style|hidden|aria-[\w-]*|data-[\w-]*", re.IGNORECASE)
+FOOTNOTE_ATTRIBUTES = {"data-footnotes", "data-footnote-ref", "data-footnote-backref"}
+FOOTNOTE_CLASSES = {"footnotes", "data-footnote-backref"}
+TASK = re.compile(r"<li>(<p>)?\[([ xX])\] ")
+# markdown-it aligns a cell with a style, GitHub with `align`.
+ALIGNED = re.compile(r' style="text-align:(left|right|center)"')
+
+
+def sanitized(tag: str) -> str:
+    """A tag of the text's HTML without what GitHub's sanitizer drops."""
+
+    def attribute(found: re.Match[str]) -> str:
+        name = found[2].lower()
+        if not DROPPED.fullmatch(name) or name in FOOTNOTE_ATTRIBUTES:
+            return found[0]
+        value = (found[3] or "").split("=", 1)[-1].strip().strip("\"'")
+        if name == "class" and value in FOOTNOTE_CLASSES:
+            return found[0]
+        return ""
+
+    return OPEN_TAG.sub(lambda tag: ATTRIBUTE.sub(attribute, tag[0]), tag)
+
+
+def github_fence(
+    self: Any, tokens: list[Token], index: int, options: Any, env: Any
+) -> str:
+    token = tokens[index]
+    language = token.info.split()[0] if token.info.split() else ""
+    lang = f' lang="{html.escape(language)}"' if language else ""
+    return (
+        f'<pre{lang} class="notranslate"><code class="notranslate">'
+        f"{html.escape(token.content)}</code></pre>\n"
+    )
+
+
+def github_code(
+    self: Any, tokens: list[Token], index: int, options: Any, env: Any
+) -> str:
+    return f'<code class="notranslate">{html.escape(tokens[index].content)}</code>'
+
+
+def github_raw(
+    self: Any, tokens: list[Token], index: int, options: Any, env: Any
+) -> str:
+    return sanitized(tokens[index].content)
+
+
+GITHUB.add_render_rule("fence", github_fence)
+GITHUB.add_render_rule("code_block", github_fence)
+GITHUB.add_render_rule("code_inline", github_code)
+GITHUB.add_render_rule("html_inline", github_raw)
+GITHUB.add_render_rule("html_block", github_raw)
+
+
+def github_html(markdown: str) -> str:
+    """HTML of a text in the shapes in which GitHub writes it, for the converter of
+    way D: fences as `pre[lang]` with `code.notranslate`, code spans with
+    `notranslate`, tables in `markdown-accessiblity-table` and task lists, without
+    what GitHub's sanitizer drops from the HTML that the text wrote (`class`,
+    `style`, `hidden`, `aria-*` and `data-*`, but the attributes of footnotes), and
+    with the tags that GitHub's filter shows as text escaped, as browser_text reads
+    them."""
+    rendered = GITHUB.render(without_extra_cells(markdown))
+    rendered = ALIGNED.sub(r' align="\1"', rendered)
+    rendered = rendered.replace(
+        "<table>", '<markdown-accessiblity-table><table role="table">'
+    ).replace("</table>", "</table></markdown-accessiblity-table>")
+    rendered = TASK.sub(
+        lambda found: (
+            '<li class="task-list-item">'
+            + (found[1] or "")
+            + '<input type="checkbox" id="" disabled="" class="task-list-item-checkbox"'
+            + (' checked="">' if found[2] != " " else ">")
+            + " "
+        ),
+        rendered,
+    )
+    return FILTERED_TAG.sub(r"&lt;\1", rendered)
