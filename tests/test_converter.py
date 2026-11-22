@@ -8,6 +8,7 @@ and on the renderings of the texts of the four fixtures of marker words.
 
 import json
 import re
+import time
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -365,6 +366,25 @@ def test_a_reference_of_many_digits_stands_for_its_character():
     assert result.text == "/�x A � A &#"
     found = tree_of(f'<img alt="&#{digits};&#{"0" * 5000}66">')
     assert found.children[0].attributes["alt"] == "�B"
+
+
+def test_a_run_of_text_is_one_text_node():
+    """html.parser hands on each `<` of a run by itself, as Fuzzing found it slow;
+    the tree holds one text node for each run of text, as a browser does, and the
+    text of an element that html.parser reads raw stays as it is."""
+    root = tree_of('a<<b c="<<">x<<<script>y<<z</script>&#0;<<')
+    assert root.children[0] == "a<"
+    b = root.children[1]
+    assert (b.tag, b.attributes) == ("b", {"c": "<<"})
+    assert b.children[0] == "x<<"
+    assert b.children[1].tag == "script"
+    assert b.children[1].children == ["y<<z"]
+    # After an element of raw text, the text stays as html.parser reads it.
+    assert b.children[2] == "�<"
+    assert b.children[3].tag == "<markup without end>"
+    started = time.process_time()
+    assert converted("<p>" + "<" * assistant.MAX_TEXT + "</p>").text.count("<") > 0
+    assert time.process_time() - started < 0.5
 
 
 def test_a_space_goes_only_where_the_page_leaves_one():

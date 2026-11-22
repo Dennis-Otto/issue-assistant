@@ -172,6 +172,13 @@ LANGUAGE = re.compile(r"[\w.+#-]+")
 # which refuses more than 4,300 of them. Past 7 digits, without the zeros before
 # them, it stands for no character, which HTML shows as U+FFFD.
 DECIMAL_REFERENCE = re.compile(r"&#(0*+)([0-9]*+)")
+# A `<` before another is text, which html.parser hands on by itself, one `<` at a
+# time; as a reference it comes in one piece with the text around it. Not inside
+# an element whose text html.parser reads raw, nor after where one may start.
+LESS_THAN_RUN = re.compile(r"<(?=<)")
+RAW_TEXT_START = re.compile(
+    r"<(?i:script|style|xmp|iframe|noembed|noframes|noscript|textarea|title|plaintext)"
+)
 
 
 def classes(allowed: frozenset[str], pattern: re.Pattern[str] | None = None) -> Rule:
@@ -433,8 +440,34 @@ def short_reference(found: re.Match[str]) -> str:
 
 def tree_of(html: str) -> HtmlElement:
     builder = TreeBuilder()
-    builder.feed(DECIMAL_REFERENCE.sub(short_reference, html) if "&#" in html else html)
+    if "&#" in html:
+        html = DECIMAL_REFERENCE.sub(short_reference, html)
+    if "<<" in html:
+        raw = RAW_TEXT_START.search(html)
+        end = raw.start() if raw else len(html)
+        html = LESS_THAN_RUN.sub("&lt;", html[:end]) + html[end:]
+    builder.feed(html)
     builder.close()
+    # html.parser hands on a run of text in pieces, such as each `<` of `<<<` by
+    # itself; a browser makes one text node of them, and so does the tree, so that
+    # the walk reads each run once.
+    elements = [builder.root]
+    while elements:
+        element = elements.pop()
+        children: list[HtmlElement | str] = []
+        texts: list[str] = []
+        for child in element.children:
+            if isinstance(child, str):
+                texts.append(child)
+                continue
+            if texts:
+                children.append("".join(texts))
+                texts = []
+            children.append(child)
+            elements.append(child)
+        if texts:
+            children.append("".join(texts))
+        element.children = children
     return builder.root
 
 
