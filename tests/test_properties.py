@@ -1874,3 +1874,53 @@ def test_the_converter_shows_no_more_than_the_page_and_makes_up_nothing(text):
         and word not in "".join(found.data)
     }
     assert made_up == set(), noted.text
+
+
+# Pieces of texts around the address of an attachment: what cuts it, ends it, holds
+# it or escapes it, as the reading of where GitHub ends an address meets them.
+ADDRESS_PIECES = st.sampled_from(
+    [
+        "https://github.com/user-attachments/files/1/",
+        "https://github.com",
+        "/user-attachments/assets/0f9a7e1c-1111-2222-3333-444455556666",
+        "log",
+        ".txt",
+        *("<!--", "-->", "<b>", "</b>", '<img src="', '">', "<br>", "<", ">"),
+        *("[", "]", "![", "](", "(", ")", "`", "\\", "|", "'", '"', "*", "_"),
+        *(" ", "\n", "\n\n", "> ", "- ", "```\n", "    ", ".", "x", "ü", "\x01"),
+        *("&#58;", "&amp;", "&#46;"),
+    ]
+)
+
+
+@given(st.lists(ADDRESS_PIECES, max_size=30).map("".join))
+def test_every_attachment_stands_whole_in_the_text_as_it_is_linked(text):
+    """An address counts only where it stands whole in the text as written, not
+    where it forms once something is taken out, and only as GitHub links it: in
+    characters that a link holds as they are written. Only the value of a tag may
+    write it with references."""
+    issue = make_issue(body=text)
+    for item in assistant.attachments_of(issue, [], REPOSITORY):
+        assert assistant.LINKED_AS_WRITTEN.fullmatch(item.url)
+        assert item.url in text or "&" in text
+
+
+@given(st.text(max_size=80))
+def test_no_address_makes_a_download_raise_anything_but_its_error(url):
+    """A download either fails with its reason or asks urllib for an address that a
+    link holds as it is written."""
+    asked = []
+
+    def opener():
+        def opened(request, timeout):
+            asked.append(request.full_url)
+            raise assistant.AttachmentError("asked")
+
+        return opened
+
+    with (
+        mock.patch.object(assistant.attachments, "opener", opener),
+        pytest.raises(assistant.AttachmentError),
+    ):
+        assistant.download("https://github.com/" + url, "")
+    assert all(assistant.LINKED_AS_WRITTEN.fullmatch(full) for full in asked)

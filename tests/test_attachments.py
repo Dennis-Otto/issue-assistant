@@ -8,6 +8,7 @@ a hostile file, and the last tests show that none can change what is posted.
 import dataclasses
 import io
 import json
+import re
 import shutil
 import time
 import urllib.error
@@ -179,8 +180,11 @@ def test_an_address_counts_only_where_github_shows_a_link_or_an_image():
     assert found(f'Crash [log](https://example.com/a "{hover}")') == []
     assert found(f'Crash ![x](https://example.com/p.png "{hover}")') == []
     assert found(f"[log.txt]({log} '{hover}')") == [(log, 0, "text", "log.txt")]
-    # An address in the description of an image still counts, as before.
-    assert [item[0] for item in found(f"![{log}](https://example.com/p.png)")] == [log]
+    # The description of an image, which the page shows only where the picture
+    # fails, as the text of a link to the picture, and the text of a link that
+    # leads elsewhere.
+    assert found(f"![{log}](https://example.com/p.png)") == []
+    assert found(f"[{log}](https://example.com/)") == []
 
 
 # Where GitHub shows no link of an address (`gh api -X POST markdown` with the mode
@@ -317,7 +321,14 @@ def test_a_comment_end_in_a_quoted_value_ends_no_tag(place, before):
 
 def test_a_tag_that_github_shows_as_text_shows_its_address():
     """In fenced code, behind GitHub's filter of tags, and in a paragraph where it
-    is no tag by the rules of CommonMark, as an autolink."""
+    is no tag by the rules of CommonMark, as an autolink. Where GitHub's autolink
+    takes more of the text than the address, the page links another address, and
+    the address counts as none."""
+    for body in (
+        f'<span data-x="{LOG}"x>y</span>',
+        f'Here <span\n\ndata-x="{LOG}">x',
+    ):
+        assert found(body) == [], body
     for body in (
         f"<{LOG}>",
         f"Here <{LOG}>",
@@ -326,15 +337,240 @@ def test_a_tag_that_github_shows_as_text_shows_its_address():
         f"<script>{LOG}</script>",
         f'<textarea title="{LOG}">x</textarea>',
         f'```\n<span data-x="{LOG}">\n```',
-        f'<span data-x="{LOG}"x>y</span>',
         f'<span data-x="{LOG}"',
         f'Here <a href="{LOG}" title="x"x>y</a>',
         f'Here <img src="{LOG}" <b>',
-        f'Here <span\n\ndata-x="{LOG}">x',
         f"<div>\n{LOG}\n</div>",
         f"<!--> {LOG}",
     ):
         assert found(body) == SHOWN_LOG, body
+
+
+# Where GitHub ends an address (`gh api -X POST markdown` with the mode gfm,
+# 2026-11-22): an address counts only where the page links exactly it, or shows it
+# as text in code; where the page links it cut, with a suffix or as something else,
+# it counts as what the page links, or as none.
+F1 = f"{FILES}/1"
+UUID = IMAGE.rsplit("/", 1)[1]
+ENDS = {
+    # A comment or a tag ends a bare address and an autolink at its `<`.
+    "a comment in a bare address": (f"See {F1}/log<!-- -->.txt", [f"{F1}/log"]),
+    "an empty comment": (f"See {F1}/log<!---->.txt", [f"{F1}/log"]),
+    "a tag": (f"See {F1}/log<b></b>.txt", [f"{F1}/log"]),
+    "a tag with text": (f"See {F1}/log<span>.txt</span>", [f"{F1}/log"]),
+    "a void tag": (f"See {F1}/log<wbr>.txt", [f"{F1}/log"]),
+    "a comment in a list item": (f"- {F1}/log<!-- -->.txt", [f"{F1}/log"]),
+    "a comment in a cell": (f"| a |\n|---|\n| {F1}/log<!-- -->.txt |", [f"{F1}/log"]),
+    "a comment in an autolink": (f"<{F1}/log<!---->.txt>", [f"{F1}/log"]),
+    "a comment in the number": (f"See {FILES}/12<!-- -->345/log.txt", []),
+    "a comment after the host": (
+        "See https://github.com<!-- -->/user-attachments/files/1/log.txt",
+        [],
+    ),
+    "a comment after the scheme": (
+        "See https:<!-- -->//github.com/user-attachments/files/1/log.txt",
+        [],
+    ),
+    # A destination keeps the comment or the tag, percent-encoded.
+    "a comment in a destination": (f"[log]({F1}/log<!---->.txt)", []),
+    "a tag in a destination": (f"[log]({F1}/log<b></b>.txt)", []),
+    "a comment in an image": (f"![shot]({ASSETS}/{UUID[:24]}<!---->{UUID[24:]})", []),
+    # A suffix that GitHub keeps makes another address.
+    **{
+        f"a bare address before {tail}": (f"See {F1}/log.txt{tail}", [])
+        for tail in ("'x", '"x', ">", "]", "[x]", "(x)", ")x", "`x`")
+    },
+    "an escaped autolink": (f"\\<{F1}/log.txt>", []),
+    "escaped brackets": (f"\\[see {F1}/log.txt]", []),
+    "a destination before 'x": (f"[log]({F1}/log.txt'x)", []),
+    "a destination before (1)": (f"[log]({F1}/log.txt(1))", []),
+    "a blank in a pointed destination": (f"[log](<{F1}/log.txt x>)", []),
+    "an image upload before a letter": (f"![shot]({IMAGE}x)", []),
+    "a bare image upload before letters": (f"See {IMAGE}zz", []),
+    "the src of an image upload before letters": (f'<img src="{IMAGE}zz">', []),
+    "a tag that GitHub shows as text": (f'<img src="{IMAGE}"zz>', []),
+    "a letter before the scheme": (f"See x{F1}/log.txt", []),
+    "another host": ("See https://example.com/files/1/log.txt", []),
+    "an entity in an autolink": (f"<{F1}/log&#46;txt>", []),
+    "an entity in a destination": (f"[log]({F1}/log&#46;txt)", []),
+    "a backslash in a destination": (f"[log]({F1}/log\\.txt)", []),
+    "a letter outside ASCII": (f"[log]({F1}/ü.log)", []),
+    "a control character": (f"[log]({F1}/a\x01b.log)", []),
+    "a backslash in a bare address": (f"See {F1}/log\\.txt", []),
+    # The description of an image, and the text of a link that leads elsewhere.
+    "the description of an image": (f"![{F1}/log.txt](https://example.com/p.png)", []),
+    "words around it": (f"![a {F1}/log.txt b](https://example.com/p.png)", []),
+    "a description by reference": (
+        f"![{F1}/log.txt][p]\n\n[p]: https://example.com/p.png",
+        [],
+    ),
+    "a link in a description": (
+        f"![a [b]({F1}/log.txt)](https://example.com/p.png)",
+        [],
+    ),
+    "an image in a description": (
+        f"![a ![b]({IMAGE})](https://example.com/p.png)",
+        [],
+    ),
+    "a tag in a description": (
+        f'![<img src="{IMAGE}">](https://example.com/p.png)',
+        [],
+    ),
+    "the text of a link": (f"[{F1}/log.txt](https://example.com/)", []),
+    "words in the text of a link": (f"[a {F1}/log.txt b](https://example.com/)", []),
+    "the text of a link by reference": (
+        f"[a {F1}/log.txt b][r]\n\n[r]: https://example.com/",
+        [],
+    ),
+    "plain brackets": (f"[see {F1}/log.txt now]", []),
+    "a bracket that never closes": (f"[see {F1}/log.txt", []),
+    "code in the text of a link": (f"[a `{F1}/log.txt` b](https://example.com/)", []),
+    # A link, an image or a tag in the text of a link still counts.
+    "a link in the text of a link": (
+        f"[a [b]({F1}/log.txt) c](https://example.com/)",
+        [f"{F1}/log.txt"],
+    ),
+    "an image in the text of a link": (
+        f"[![shot]({IMAGE})](https://example.com/)",
+        [IMAGE],
+    ),
+    "a tag in the text of a link": (
+        f'[<img src="{IMAGE}">](https://example.com/)',
+        [IMAGE],
+    ),
+    # What GitHub links of an address before punctuation, as the reading lost it.
+    "a full stop": (f"The log is {F1}/log.txt.", [f"{F1}/log.txt"]),
+    "emphasis": (f"*{F1}/log.txt*", [f"{F1}/log.txt"]),
+    "strong emphasis": (f"**{F1}/log.txt**", [f"{F1}/log.txt"]),
+    "underscores": (f"_{F1}/log.txt_", [f"{F1}/log.txt"]),
+    "strikethrough": (f"~~{F1}/log.txt~~", [f"{F1}/log.txt"]),
+    "an entity": (f"{F1}/log.txt&amp;", [f"{F1}/log.txt"]),
+    "a line break": (f"{F1}/log.txt<br>next", [f"{F1}/log.txt"]),
+    "a link that the text ends": (f"{F1}/log.txt [a](  ", [f"{F1}/log.txt"]),
+}
+
+
+@pytest.mark.parametrize(("text", "counted"), ENDS.values(), ids=ENDS)
+def test_an_address_counts_only_as_github_links_it(text, counted):
+    assert [item[0] for item in found(text)] == counted
+
+
+# The usual ways to attach a file, and the places where GitHub links an address as
+# it is written: each counts.
+KEPT = {
+    "a file dragged into the text": f"[log.txt]({LOG})",
+    "a screenshot": f"![image]({IMAGE})",
+    "a screenshot with a size": f'<img width="300" alt="image" src="{IMAGE}" />',
+    "a video on its own row": f"Before\n\n{IMAGE}\n\nAfter",
+    "a list item": f"- [log]({LOG})",
+    "a task item": f"- [ ] [log]({LOG})",
+    "a quote": f"> [log]({LOG})",
+    "a cell": f"| a |\n|---|\n| [log]({LOG}) |",
+    "a footnote": f"See [^1].\n\n[^1]: [log]({LOG})",
+    "a details element": f"<details>\n\n[log]({LOG})\n\n</details>",
+    "the end of a row": f"See {LOG}",
+    "parentheses": f"({LOG})",
+    "double quotes": f'"{LOG}"',
+    "single quotes": f"'{LOG}'",
+    "a parenthesis and a full stop": f"See {LOG}).",
+    "bold": f"<b>{LOG}</b>",
+    "a subscript": f"<sub>{LOG}</sub>",
+    "a line break at the end of a row": f"{LOG}<br>\nnext",
+    "an autolink": f"<{LOG}>",
+    "an autolink and a full stop": f"<{LOG}>.",
+    "a destination on the next row": f"[log](\n{LOG}\n)",
+    "a destination after a carriage return": f"[log](\r\n{LOG}\r\n)",
+    "blanks around a destination": f"[log](  {LOG}  )",
+    "a title": f'[log]({LOG} "title")',
+    "a letter after the link": f"[log]({LOG})x",
+    "'s after the link": f"[log]({LOG})'s",
+    "a link in parentheses": f"([log]({LOG}))",
+    "a closed bracket": f"[a] {LOG}",
+    "a ticked box": f"- [x] {LOG}",
+    "a footnote mark": f"See [^1] {LOG}\n\n[^1]: note",
+    "brackets in code": f"`[` {LOG} `]`",
+    "a code span": f"`{LOG}`",
+    "fenced code": f'```json\n{{"log": "{LOG}"}}\n```',
+    "an HTML block": f"<p>See {LOG}</p>",
+    "a cell of an HTML table": f"<table><tr><td>{LOG}</td></tr></table>",
+    "a script": f"<script>{LOG}</script>",
+}
+
+
+@pytest.mark.parametrize("text", KEPT.values(), ids=KEPT)
+def test_each_usual_link_to_a_file_still_counts(text):
+    assert [item[0] for item in found(text)] == [IMAGE if IMAGE in text else LOG]
+
+
+def test_the_autolink_leaves_out_what_github_leaves_out():
+    assert attachments.autolinked("x).,", 1, 4) == 1
+    assert attachments.autolinked("a(b)c)", 0, 6) == 5
+    assert attachments.autolinked("a&amp;", 0, 6) == 1
+    assert attachments.autolinked("a&;", 0, 3) == 2
+
+
+def test_a_query_or_a_fragment_still_counts():
+    for end in ("?x=1", "#x"):
+        assert [item[0] for item in found(f"[log]({LOG}{end})")] == [LOG + end]
+
+
+ADDRESS_SEARCH = json.loads(
+    (Path(__file__).with_name("fixtures") / "attachment-addresses.json").read_text(
+        "utf-8"
+    )
+)
+SEARCHED = re.compile(
+    attachments.file_link(REPOSITORY) + "|" + assistant.IMAGE_LINK.pattern
+)
+
+
+@pytest.mark.parametrize(
+    "case", ADDRESS_SEARCH["texts"], ids=range(len(ADDRESS_SEARCH["texts"]))
+)
+def test_each_searched_address_counts_as_github_links_or_shows_it(case):
+    """The texts of a search with GitHub's renderer: each address that counts is
+    the href of a link or the src of an image of the page, or a word that the page
+    shows as text; each that the page links as it is written counts, but for those
+    that the reading takes out where it is hard to tell, which the file lists."""
+    text, links = case["text"], case["github links"]
+    got = [item[0] for item in found(text)]
+    shown = " ".join(case.get("github shows as text", []))
+    assert [url for url in got if url not in links and url not in shown] == []
+    written = {link for link in links if SEARCHED.fullmatch(link) and link in text}
+    assert sorted(written - set(got)) == case.get("the reading loses", [])
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        f"{F1}/ü.log",
+        f"{F1}/a\x01b.log",
+        f"{F1}/a\x7fb.log",
+        f"{F1}/a b.log",
+        f"{F1}/a\\b.log",
+        f"{F1}/a\nb.log",
+    ],
+)
+def test_no_address_makes_a_download_raise_anything_else(monkeypatch, url):
+    """urllib can't send such an address, and raised an error that nothing caught,
+    so that the job failed with every file of the issue: the download fails before
+    any request, as one that GitHub doesn't answer."""
+
+    def unused():
+        raise AssertionError("no request")
+
+    monkeypatch.setattr(attachments, "opener", unused)
+    with pytest.raises(assistant.AttachmentError, match="holds a character"):
+        assistant.download(url, "token")
+
+
+def test_an_address_that_urllib_refuses_fails_as_a_download(monkeypatch):
+    """urllib's own opener, which raises http.client's error for a port that is no
+    number before it reaches the network, and without a proxy, which it would ask."""
+    for name in ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    with pytest.raises(assistant.AttachmentError, match="no answer: .*port"):
+        assistant.download("https://github.com:x/user-attachments/files/1/a.log", "")
 
 
 def test_an_instruction_or_a_declaration_hides_what_it_holds():

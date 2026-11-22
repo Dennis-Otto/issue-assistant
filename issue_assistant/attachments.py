@@ -12,13 +12,16 @@ opens images. Nothing of a file is ever run or unpacked (decisions 0033 and 0034
 from __future__ import annotations
 
 import codecs
+import http.client
 import json
 import re
 import shutil
 import urllib.error
 import urllib.request
+from bisect import bisect_right
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cached_property
 from html import unescape
 from pathlib import Path
 from typing import Any
@@ -40,8 +43,8 @@ from .markup import (
     row_end,
 )
 from .paths import CONTEXT
-from .patterns import INVISIBLE, without_references
-from .structures import structures_of
+from .patterns import INVISIBLE, REFERENCE, without_references
+from .structures import BLANK_ROW, Places, Reader, structures_of
 from .tags import html_parts
 from .values import command, fence, login
 
@@ -226,26 +229,52 @@ class Attachment:
         return "text" if self.name.lower().endswith(TEXT_SUFFIXES) else "other"
 
 
-def shown_links(text: str) -> str:
-    """The part of a text whose links GitHub shows: without HTML comments and link
-    reference definitions, which it hides, and without invisible characters; each
-    tag of HTML in place of the addresses that GitHub shows of it, as a link or an
-    image, and of none other. The tables, drawings and math go before: no link
-    shows in a cell that GitHub drops, nor in a drawing or math, whose text is drawn
-    and leads nowhere. Before anything goes, an address that holds an invisible
-    character or a reference of one becomes none (unhidden)."""
-    text = unlinked(unhidden(text))
+def shown_links(text: str) -> list[tuple[str, bool]]:
+    """The addresses that GitHub shows of a text, in order: each that the page
+    links, as a link or an image, exactly as it links it, and each that code or an
+    HTML block shows as text, with whether all of it is the address (`True`) or only
+    its start, as code shows it among other characters (`False`).
+
+    An address counts only where it stands whole in the text as it is written, and
+    where GitHub ends it (Addresses). It then has to show: none in an HTML comment
+    or a link reference definition, which GitHub hides, in a cell that it drops, in
+    a drawing or math, whose text is drawn and leads nowhere, in the title of a link
+    or in the description of an image; and none that holds an invisible character
+    or a reference of one (unhidden). Of a tag of HTML, only the addresses that
+    GitHub shows of it as a link or an image count (ShownTags).
+
+    Each address that the reading of the text as written counts gets a mark, which
+    goes with it where the reading of the comments and the tags takes it out: those
+    whose marks are left are shown."""
+    text = unhidden(text.replace(MARK, "\ufffd"))
+    text, hidden = unlinked(text)
+    links: list[tuple[str, bool]] = []
+    described: list[tuple[int, int]] = []
+    loose: set[int] = set()
+    # An address of a tag may be written with references.
+    if "https://" in text or ("&" in text and "<" in text):
+        text, described, loose = Addresses(text, hidden, links).marked()
     spans, middle, end = html_parts(text)
-    tags = ShownTags(text, spans)
+    tags = ShownTags(text, spans, links, described, loose)
     # A tag of the first part may hold the last `-->` in a quoted value, where it
     # ends no comment: the second part starts where the reading of that tag ended.
     first, reached = tags.part(0, min(middle, end), COMMENT_OR_TAG)
     shown = first + tags.part(max(middle, reached), end, TAG_OPENING)[0]
-    return Visible().title(strip_definitions(shown, None, end < len(text))[0])
+    shown = strip_definitions(shown, None, end < len(text))[0]
+    return [links[int(number)] for number in MARKED.findall(shown)]
 
 
 # The scheme of an address, which every link to an attachment starts with.
 SCHEME = re.compile(r"(https?):", re.IGNORECASE)
+# The mark of an address that counts, after its `https://`, with its number in the
+# list of the addresses: no text holds the character, which GitHub reads as U+FFFD
+# and the reading replaces with it first.
+MARK = "\x00"
+MARKED = re.compile(r"\x00(\d++)\x00")
+# The characters of an address that GitHub links as they are written: any other,
+# such as a backslash, a space, a character outside ASCII or a control character,
+# it percent-encodes, so that the page links another address than the text holds.
+LINKED_AS_WRITTEN = re.compile(r"[A-Za-z0-9!#$%&'()*+,\-./:;=?@_~]++")
 
 
 # The characters of a link, up to one of LINK_END, and those that end it.
@@ -281,21 +310,453 @@ def unhidden(text: str) -> str:
     return "".join(pieces) + text[position:]
 
 
-def unlinked(text: str) -> str:
+def unlinked(text: str) -> tuple[str, list[tuple[int, int, str]]]:
     """The text with each address of the structures in which GitHub shows no link
-    made into none: the colon after its scheme goes, and nothing else changes that
-    could change how its HTML reads."""
+    made into none, and those structures: the colon after its scheme becomes a `_`,
+    and nothing else changes that could change how its HTML reads, nor where any
+    part of the text stands."""
     pieces, position = [], 0
-    for start, end, _ in structures_of(text).unlinked():
-        pieces += [text[position:start], SCHEME.sub(r"_", text[start:end])]
+    spans = structures_of(text).unlinked()
+    for start, end, _ in spans:
+        pieces += [text[position:start], SCHEME.sub(r"\1_", text[start:end])]
         position = end
     pieces.append(text[position:])
-    return "".join(pieces)
+    return "".join(pieces), spans
+
+
+# What the reading of the addresses of a text looks for, in order: an address, the
+# brackets that may open the text of a link or an image, one after the other, one
+# that may close it, and a `<`, a backtick or a dollar sign, which can hold a `]`
+# that closes nothing, as Titles reads them. A backslash may escape the first.
+EVENT = re.compile(r"https://|(?P<open>(?:!?\[)++)|(?P<close>\])|[<`$]")
+# What code shows of an address, as LINK_RUN finds it, up to the length of the
+# longest that file_link and IMAGE_LINK match, so that each address is read a
+# bounded number of times.
+CODE_RUN = re.compile(rf"[^{LINK_END}]{{0,400}}+")
+# What GitHub's autolink takes of a bare address: everything up to a blank or a
+# `<`; and of an autolink between `<` and `>`, everything up to its `>`. The
+# destination of a link ends at a blank or a parenthesis.
+BARE_RUN = re.compile(r"[^\t\n\v\f\r <]*+")
+POINTY_RUN = re.compile(r"[^\x00-\x20<>]*+")
+DESTINATION_RUN = re.compile(r"[^\x00-\x20()]*+")
+# The punctuation that GitHub's autolink leaves out at the end of an address.
+AUTOLINK_TRAILING = frozenset("?!.,:*_~'\"")
+# The blanks that may stand between the `](` of a link and its destination, with
+# one line break and the marks of the quotes of the next row.
+DESTINATION_BLANKS = frozenset(" \t\f\v")
+# The most characters of a tag that the reading of the addresses reads as a tag.
+LONGEST_TAG = 2_000
+# The start of a tag.
+TAG_START = re.compile(r"</?[A-Za-z]")
+# What any address of an attachment holds, as written or in the value of a tag
+# with references: the name of GitHub, or a `&`. The reading passes a paragraph
+# without either, which holds none.
+ATTACHMENT_HINT = re.compile(r"github|&", re.IGNORECASE)
+# The places of an address: code of a block, a code span, the text of a paragraph,
+# and the destination of a link.
+IN_BLOCK, IN_SPAN, IN_TEXT, IN_DESTINATION = range(4)
+
+
+def autolinked(text: str, start: int, end: int) -> int:
+    """Where GitHub's autolink ends an address that runs from `start` to `end`: it
+    leaves out trailing punctuation, an entity such as `&amp;` and a `)` that no
+    `(` of the address opens, one after the other."""
+    opening, closing = text.count("(", start, end), text.count(")", start, end)
+    while end > start:
+        last = text[end - 1]
+        if last in AUTOLINK_TRAILING:
+            end -= 1
+        elif last == ";":
+            name = end - 2
+            while name > start and text[name].isascii() and text[name].isalpha():
+                name -= 1
+            end = name if name < end - 2 and text[name] == "&" else end - 1
+        elif last == ")" and closing > opening:
+            end, closing = end - 1, closing - 1
+        else:
+            break
+    return end
+
+
+def escaped_at(text: str, position: int) -> bool:
+    """Whether an odd number of backslashes stands right before a position."""
+    before = position
+    while before and text[before - 1] == "\\":
+        before -= 1
+    return (position - before) % 2 == 1
+
+
+class Addresses:
+    """Reads where GitHub ends each address of a text as it is written, and marks
+    each that the page links exactly, or that code shows as text, for shown_links.
+
+    - **Code of a block and a code span** show an address as text, as decision 0033
+      counts it: there it ends where it did before, at the first of LINK_END.
+    - **A bare address**, outside code, is GitHub's autolink: it runs to the first
+      blank or `<` and leaves out what autolinked leaves out. After a letter, as in
+      `xhttps://`, GitHub links none, and one that holds a `|`, which ends it in a
+      row of a table but not outside one, counts as none.
+    - **After `<`**, an autolink runs to its `>`; one that no `>` ends is bare.
+    - **After `](`**, blanks and one line break may come first, and the destination
+      ends at a blank or a `)`; between `<` and `>`, at the `>`. One with any other
+      end, or with an entity or an escape, which GitHub reads, is none. Where the
+      `]` surely ends the text of a link, the destination counts; where it may not,
+      as after a tag in that text, only an address on which both readings agree.
+    - **Brackets**: GitHub's autolink links nothing while a `[` is open, in the
+      text of a link and in plain brackets, which show the address as text; such
+      an address counts as none, and so does one of a code span there, which the
+      page may show in a link that leads elsewhere. A destination in the text of a
+      link counts, as GitHub shows that link, but in the description of an image,
+      from its `![` to the `]` that may close it, nothing counts, no tag either
+      (ShownTags). Outside code, a `]` closes the last `[`,
+      but one after a `<`, a backtick or a dollar sign of its brackets may close
+      nothing, as in a tag, and the `[` stays open: the safe side. The destination
+      and the title of a link close none.
+    - An address of which any part is in a structure of `hidden` is none.
+
+    The text is read once from the left, and each address a bounded number of times:
+    the reading goes on after the end of each.
+    """
+
+    def __init__(
+        self,
+        text: str,
+        hidden: list[tuple[int, int, str]],
+        links: list[tuple[str, bool]],
+    ) -> None:
+        self.text = text
+        self.hidden = hidden
+        self.next_hidden = 0
+        self.links = links
+        self.blanks = [row.start() for row in BLANK_ROW.finditer(text)]
+        self.paragraph = 0
+        self.row = 0
+        self.block_row, self.row_blocked = -1, False
+        # The brackets of the paragraph that may still close, each with whether it
+        # opens an image; how many of them open images, and where the first of
+        # those opens; how many from the first can no longer open a link, as a link
+        # closed after them; the last `<`, backtick or dollar sign; the last `]`;
+        # and the last `]` that closed one, with whether it surely closed a link.
+        self.open: list[tuple[int, bool]] = []
+        self.images, self.described_from = 0, -1
+        self.inactive = 0
+        self.unsure = -1
+        self.last_close = -1
+        self.closed = (-1, False)
+        # Where the destination of the last link ends, in which no bracket counts.
+        self.skip = -1
+        # The addresses of the paragraph: each one's span, place, and the address
+        # that it counts as, or None.
+        self.waiting: list[tuple[int, int, int, str | None]] = []
+        self.descriptions: list[tuple[int, int]] = []
+        # Where each tag starts that GitHub shows as text outside an HTML block.
+        self.loose: list[int] = []
+        self.marks: list[tuple[int, int]] = []
+
+    @cached_property
+    def places(self) -> Places:
+        """Where code holds the text, read once a paragraph may hold an address of
+        an attachment."""
+        places = Places(self.text, Reader(self.text))
+        places.blank_rows = self.blanks
+        return places
+
+    @cached_property
+    def starts(self) -> list[int]:
+        """Where each row of the text starts."""
+        return self.places.reader.starts
+
+    def marked(self) -> tuple[str, list[tuple[int, int]], set[int]]:
+        """The text with the mark of each address that counts after its
+        `https://`, the span of each description of an image in it, and where
+        each tag starts in it that GitHub shows as text, though an HTML block
+        might hold it."""
+        text, reached, after = self.text, 0, 0
+        relevant = self.relevant()
+        if not relevant:
+            return text, [], set()
+        while (event := EVENT.search(text, after)) is not None:
+            after = event.end()
+            opening, position = event["open"], event.start()
+            address = event[0] == "https://"
+            if position < self.skip and not address:
+                continue
+            self.enter(position)
+            if self.paragraph not in relevant:
+                if self.paragraph == len(self.blanks):
+                    break
+                after = self.blanks[self.paragraph]
+                continue
+            row = self.row_of(position)
+            if address:
+                reached = self.address(position, row)
+                after = max(after, reached)
+            elif self.blocked(row, position) or self.places.coded(row, position):
+                continue
+            elif opening:
+                self.opened(position, opening)
+            elif event["close"]:
+                if not escaped_at(text, position):
+                    self.close(position)
+            else:
+                self.unsure = position
+                end = self.tag_end(position)
+                if end == position and TAG_START.match(text, position):
+                    self.loose.append(position)
+                after = max(after, end)
+        self.settle()
+        return self.applied()
+
+    def opened(self, start: int, run: str) -> None:
+        """Opens each bracket of a run of `[` and `![` from `start`: all but a first
+        one that a backslash escapes, each as an image after a `!` that none
+        escapes."""
+        images = self.images
+        escaped = escaped_at(self.text, start)
+        for at, character in enumerate(run):
+            if character != "[" or (at == 0 and escaped):
+                continue
+            image = at > 0 and run[at - 1] == "!" and not (at == 1 and escaped)
+            if image and not images:
+                self.described_from = start + at - 1
+            images += image
+            self.open.append((start + at, image))
+        self.images = images
+
+    def relevant(self) -> set[int]:
+        """The paragraphs that may hold an address of an attachment, by the number
+        of blank rows before each: those with the name of GitHub, which the address
+        of every attachment holds, or a `&`, which can write it in a tag."""
+        text, blanks, found = self.text, self.blanks, set()
+        position = 0
+        while (hint := ATTACHMENT_HINT.search(text, position)) is not None:
+            paragraph = bisect_right(blanks, hint.start())
+            found.add(paragraph)
+            if paragraph == len(blanks):
+                break
+            position = blanks[paragraph]
+        return found
+
+    def row_of(self, position: int) -> int:
+        """The row of a position, asked in order."""
+        starts = self.starts
+        while self.row + 1 < len(starts) and starts[self.row + 1] <= position:
+            self.row += 1
+        return self.row
+
+    def blocked(self, row: int, position: int) -> bool:
+        """Whether code of a block surely holds a position, as Places.block reads
+        it, with what holds its row read once."""
+        if row != self.block_row:
+            places = self.places
+            self.block_row = row
+            self.row_blocked = places.code[row] or places.indented_code(row)
+        return self.row_blocked or self.places.held_at(position)
+
+    def tag_end(self, position: int) -> int:
+        """Where a tag that GitHub reads as a tag ends, which starts at `position`,
+        or `position`: its addresses are what ShownTags reads of it, and it closes
+        no bracket. A tag that GitHub's filter shows as text is none, and neither is
+        one of more than LONGEST_TAG characters, which the reading reads as text,
+        so that each part of the text is read a bounded number of times."""
+        text = self.text
+        if not text.startswith("<", position) or FILTERED_TAG.match(text, position):
+            return position
+        stop = min(len(text), position + LONGEST_TAG)
+        tag = INLINE_TAG.match(text, position, stop)
+        return tag.end() if tag else position
+
+    def enter(self, position: int) -> None:
+        """Settles the paragraph before `position` where a blank row ends it."""
+        blanks, paragraph = self.blanks, self.paragraph
+        while paragraph < len(blanks) and blanks[paragraph] <= position:
+            paragraph += 1
+        if paragraph != self.paragraph:
+            self.settle()
+            self.paragraph = paragraph
+
+    def close(self, position: int) -> None:
+        """A `]` closes the last `[` that is open, where nothing between may hold it;
+        once it closes the text of a link, no `[` before can open one any more. The
+        destination of a link after it closes nothing, nor does its title, where
+        the reading can't tell where it ends."""
+        self.last_close = position
+        if not self.open or self.unsure > self.open[-1][0]:
+            return
+        image = self.open.pop()[1]
+        self.closed = (position, len(self.open) >= self.inactive)
+        if self.text.startswith("(", position + 1):
+            end = self.link_end(position + 2)
+            if end < 0:
+                self.unsure = position + 1
+            self.skip = end
+        if not image:
+            self.inactive = len(self.open)
+            return
+        self.inactive = min(self.inactive, len(self.open))
+        self.images -= 1
+        if not self.images:
+            self.descriptions.append((self.described_from, position))
+
+    def link_end(self, start: int) -> int:
+        """The end of an inline link whose destination may start at `start`, after
+        its `](`: past its blanks, the destination and the blanks after it, at its
+        `)`; -1 where something else follows, as a title."""
+        text = self.text
+        position = self.spaced(start)
+        if text.startswith("<", position):
+            position = run(POINTY_RUN, text, position + 1)
+            if not text.startswith(">", position):
+                return -1
+            position += 1
+        else:
+            position = run(DESTINATION_RUN, text, position)
+        position = self.spaced(position)
+        return position + 1 if text.startswith(")", position) else -1
+
+    def spaced(self, position: int) -> int:
+        """The position after the blanks from `position`, with one line break and
+        the marks of the quotes of the next row."""
+        text, newline = self.text, False
+        while position < len(text):
+            character = text[position]
+            if character in DESTINATION_BLANKS or (newline and character == ">"):
+                position += 1
+            elif character in "\r\n" and not newline:
+                newline = True
+                position += 2 if text.startswith("\r\n", position) else 1
+            else:
+                break
+        return position
+
+    def settle(self) -> None:
+        """Marks the addresses of the paragraph that count, and ends its brackets:
+        the description of an image that may still close runs to the last `]`."""
+        last = self.last_close
+        if self.images and last > self.described_from:
+            self.descriptions.append((self.described_from, last))
+        descriptions = self.descriptions
+        first = self.waiting[0][0] if self.waiting else 0
+        index = max(bisect_right(descriptions, (first, len(self.text))) - 1, 0)
+        for start, end, place, address in self.waiting:
+            while index < len(descriptions) and descriptions[index][1] < start:
+                index += 1
+            described = index < len(descriptions) and descriptions[index][0] < start
+            if address is None or described or not self.shown(start, end):
+                continue
+            self.marks.append((start, len(self.links)))
+            self.links.append((address, place in (IN_TEXT, IN_DESTINATION)))
+        self.waiting = []
+        self.open, self.images, self.inactive = [], 0, 0
+        self.unsure, self.last_close, self.closed = -1, -1, (-1, False)
+
+    def shown(self, start: int, end: int) -> bool:
+        """Whether no structure that GitHub hides or draws holds a part of the
+        address from `start` to `end`."""
+        hidden = self.hidden
+        while self.next_hidden < len(hidden) and hidden[self.next_hidden][1] <= start:
+            self.next_hidden += 1
+        return self.next_hidden == len(hidden) or hidden[self.next_hidden][0] >= end
+
+    def address(self, start: int, row: int) -> int:
+        """Reads the address that starts at `start`, for the paragraph to settle,
+        and returns where the reading goes on."""
+        text, places = self.text, self.places
+        block = self.blocked(row, start)
+        if block or places.coded(row, start):
+            end = run(CODE_RUN, text, start)
+            shown = None if self.open and not block else text[start:end]
+            self.waiting.append((start, end, IN_BLOCK if block else IN_SPAN, shown))
+            return start + len("https://")
+        before = text[start - 1 : start]
+        if before.isascii() and before.isalpha():
+            return start + 1
+        # GitHub's autolink links nothing while a bracket is open.
+        address, end = (None, start + 1) if self.open else self.bare(start)
+        pointy = before == "<" and not escaped_at(text, start - 1)
+        joint = self.joint(start - pointy)
+        if joint >= 0:
+            destination, stop = self.destination(start, pointy)
+            if self.closed != (joint, True) and destination != address:
+                destination = None
+            self.waiting.append((start, stop, IN_DESTINATION, destination))
+            return stop
+        if pointy and address is not None:
+            stop = run(POINTY_RUN, text, start)
+            if text.startswith(">", stop):
+                address, end = text[start:stop], stop
+                if REFERENCE.search(address):
+                    address = None
+        self.waiting.append((start, end, IN_TEXT, address))
+        return end
+
+    def bare(self, start: int) -> tuple[str | None, int]:
+        """The address that GitHub's autolink links from `start`, or None where a
+        `|` ends it in a row of a table but not outside one; and where it ends."""
+        text = self.text
+        end = autolinked(text, start, run(BARE_RUN, text, start))
+        pipe = text.find("|", start, end)
+        return (None, pipe) if pipe >= 0 else (text[start:end], end)
+
+    def joint(self, start: int) -> int:
+        """Where the `](` before a destination at `start` stands, past its blanks
+        and one line break with the marks of the quotes of the next row; or -1."""
+        text, position, newline, marks = self.text, start, False, False
+        while position:
+            before = text[position - 1]
+            if before in DESTINATION_BLANKS:
+                position -= 1
+            elif before == ">" and not newline:
+                marks, position = True, position - 1
+            elif before in "\r\n" and not newline:
+                newline, position = True, position - 1
+                if before == "\n" and text[position - 1 : position] == "\r":
+                    position -= 1
+            else:
+                break
+        if (marks and not newline) or text[position - 2 : position] != "](":
+            return -1
+        return position - 2
+
+    def destination(self, start: int, pointy: bool) -> tuple[str | None, int]:
+        """The address of the destination of a link from `start`, or None: one that
+        ends at a blank or a `)`, and between `<` and `>` at the `>`, without an
+        entity or an escape; and where the destination ends."""
+        text = self.text
+        stop = run(POINTY_RUN if pointy else DESTINATION_RUN, text, start)
+        after = text[stop : stop + 1]
+        address = text[start:stop]
+        ends = after == ">" if pointy else (after == ")" or after.isspace())
+        if not ends or "\\" in address or REFERENCE.search(address):
+            return None, stop
+        return address, stop
+
+    def applied(self) -> tuple[str, list[tuple[int, int]], set[int]]:
+        """The text with the marks, and where the descriptions of images and the
+        tags that GitHub shows as text stand in it."""
+        text, pieces, position = self.text, [], 0
+        moved: list[int] = []
+        shifts: list[int] = []
+        for start, number in self.marks:
+            at = start + len("https://")
+            mark = f"{MARK}{number}{MARK}"
+            pieces += [text[position:at], mark]
+            position = at
+            moved.append(at)
+            shifts.append((shifts[-1] if shifts else 0) + len(mark))
+        pieces.append(text[position:])
+
+        def place(position: int) -> int:
+            index = bisect_right(moved, position) - 1
+            return position + (shifts[index] if index >= 0 else 0)
+
+        spans = [(place(start), place(end)) for start, end in self.descriptions]
+        return "".join(pieces), spans, {place(start) for start in self.loose}
 
 
 class ShownTags:
-    """Reads the tags of a text as GitHub does, and puts the addresses that it shows
-    of each in its place.
+    """Reads the tags of a text as GitHub does, and puts the mark of each address
+    that it shows of a tag, with the address in `links`, in the place of the tag.
 
     GitHub's sanitizer keeps a few attributes of a few tags, and the page shows a
     link or an image for those of SHOWN alone: an address in any other attribute,
@@ -311,9 +772,19 @@ class ShownTags:
     once, and asks the fences and the blocks for positions that never fall.
     """
 
-    def __init__(self, text: str, spans: list[tuple[int, int]]) -> None:
+    def __init__(
+        self,
+        text: str,
+        spans: list[tuple[int, int]],
+        links: list[tuple[str, bool]],
+        described: list[tuple[int, int]],
+        loose: set[int],
+    ) -> None:
         self.text = text
         self.spans = spans
+        self.links = links
+        self.described = described
+        self.loose = loose
         self.index = 0
         rows = HtmlRows(text)
         self.fences = Fences(text, rows)
@@ -390,11 +861,18 @@ class ShownTags:
         return not self.blocks.holding(opening) and not INLINE_TAG.match(text, opening)
 
     def addresses(self, start: int, end: int) -> str:
-        """What GitHub shows of the tag from `start` to `end` as a link or an image:
-        the value of the first attribute of its name that SHOWN names for the tag,
-        once its entities are read, when it is an address without spaces and
+        """The mark of what GitHub shows of the tag from `start` to `end` as a link
+        or an image, with the address in `links`: the value of the first attribute
+        of its name that SHOWN names for the tag, once its entities are read and
+        without the marks of Addresses, when it is an address without spaces and
         invisible characters; or nothing. An instruction, a declaration or a section
-        of CDATA, which html_parts reads over several rows too, shows nothing."""
+        of CDATA, which html_parts reads over several rows too, shows nothing, nor
+        does a tag in the description of an image, which the page shows as its
+        text, or a tag of `loose`, which GitHub shows as text outside an HTML block,
+        though one might hold it."""
+        at = bisect_right(self.described, (start, len(self.text))) - 1
+        if start in self.loose or (at >= 0 and self.described[at][1] > start):
+            return ""
         tag = self.text[start:end]
         name = TAG_NAME.match(tag)
         wanted = None if name is None else SHOWN.get(name[0][1:].lower())
@@ -403,9 +881,11 @@ class ShownTags:
         for attribute in ATTRIBUTE.finditer(tag, name.end()):
             if attribute["name"].lower() == wanted:
                 quoted = attribute["double"] or attribute["single"]
-                value = unescape(quoted or attribute["bare"] or "")
-                shown = ADDRESS.fullmatch(value) and not INVISIBLE.search(value)
-                return f" {value} " if shown else ""
+                value = MARKED.sub("", unescape(quoted or attribute["bare"] or ""))
+                if not ADDRESS.fullmatch(value) or INVISIBLE.search(value):
+                    return ""
+                self.links.append((value, True))
+                return f" {MARK}{len(self.links) - 1}{MARK} "
         return ""
 
 
@@ -415,7 +895,9 @@ def attachments_of(
     """The files attached to the issue and to the comments of its reporter, each
     once, in the order of issue.md. A link that GitHub hides, as in an HTML comment,
     counts as none, so that no attachment reaches the AI that no maintainer sees,
-    and so does every link of a comment that GitHub shows collapsed."""
+    and so does every link of a comment that GitHub shows collapsed. An address
+    counts only as the page links it, or as code shows it (shown_links), and only
+    in characters that a link holds as they are written."""
     links = re.compile(file_link(repository) + "|" + IMAGE_LINK.pattern)
     reporter = login(issue.get("user"))
     texts = [(0, text_of(issue))] + [
@@ -425,8 +907,10 @@ def attachments_of(
     ]
     found: dict[str, Attachment] = {}
     for index, text in texts:
-        for match in links.finditer(shown_links(text)):
-            found.setdefault(match[0], Attachment(match[0], index))
+        for address, whole in shown_links(text):
+            match = links.fullmatch(address) if whole else links.match(address)
+            if match and LINKED_AS_WRITTEN.fullmatch(match[0]):
+                found.setdefault(match[0], Attachment(match[0], index))
     return list(found.values())
 
 
@@ -469,8 +953,12 @@ def download(url: str, token: str, most: int = MOST_BYTES) -> tuple[bytes, bool]
 
     Only a link to github.com, or the older link of an image to GitHub's storage,
     starts a download, and the token, which a private repository needs, goes to
-    github.com alone.
+    github.com alone. An address with a character that a link holds only
+    percent-encoded starts none, and every error of the request is an
+    AttachmentError, so that no address can end the job.
     """
+    if not LINKED_AS_WRITTEN.fullmatch(url):
+        raise AttachmentError("the link holds a character that GitHub encodes")
     host = urlsplit(url).hostname
     if host not in (START_HOST, *STORAGE_HOSTS) or not url.startswith("https://"):
         raise AttachmentError(f"{url} is no link to {START_HOST}")
@@ -482,7 +970,14 @@ def download(url: str, token: str, most: int = MOST_BYTES) -> tuple[bytes, bool]
             data: bytes = response.read(most + 1)
     except urllib.error.HTTPError as error:
         raise AttachmentError(f"GitHub answered {error.code}") from error
-    except (urllib.error.URLError, OSError) as error:
+    except (
+        urllib.error.URLError,
+        OSError,
+        http.client.HTTPException,
+        ValueError,
+    ) as error:
+        # An address that urllib can't send, such as one with a port that is no
+        # number, fails before it sends anything, as one that GitHub doesn't answer.
         raise AttachmentError(f"no answer: {error}") from error
     return data[:most], len(data) > most
 
