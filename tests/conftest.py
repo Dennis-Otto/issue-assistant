@@ -112,7 +112,9 @@ def pytest_sessionfinish(session: pytest.Session) -> None:
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary and TIMINGS and not hasattr(session.config, "workerinput"):
         with open(summary, "a", encoding="utf-8") as file:
-            file.write(timing_summary(TIMINGS))
+            # A blank line first, so that the heading starts a line of its own even
+            # where the summary of an earlier step does not end with one.
+            file.write("\n" + timing_summary(TIMINGS))
 
 
 def git(root: Path, *args: str) -> None:

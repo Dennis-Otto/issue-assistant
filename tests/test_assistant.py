@@ -606,22 +606,23 @@ def test_no_twin_makes_reading_an_issue_slow(text, name, record_property):
     holds_its_growth(TWINS[text][1], name, text, record_property)
 
 
-def test_each_case_of_the_timing_records_its_figures():
+def test_each_case_of_the_timing_records_its_figures(monkeypatch):
+    # A measurement of its own, so that this test checks the figures and their
+    # order without timing a reading once more.
+    measured = types.SimpleNamespace(times=7.5, eighth=0.001, whole=0.0075)
+    monkeypatch.setitem(globals(), "growth", lambda *_: measured)
     recorded = []
     text = "attached files in a row"
     holds_its_growth(
         SLOW_TEXTS[text], "attachments_of", text, lambda *pair: recorded.append(pair)
     )
-    assert [key for key, _ in recorded] == [
-        "reading",
-        "text",
-        "growth",
-        "eighth",
-        "whole",
+    assert recorded == [
+        ("reading", "attachments_of"),
+        ("text", text),
+        ("growth", "7.50"),
+        ("eighth", "0.0010"),
+        ("whole", "0.0075"),
     ]
-    assert recorded[:2] == [("reading", "attachments_of"), ("text", text)]
-    growth_of, eighth, whole = (float(value) for _, value in recorded[2:])
-    assert growth_of < GROWTH and eighth < whole < CEILING
 
 
 def timed(when, reading_name, text, growth_of, whole):
@@ -659,6 +660,7 @@ def test_the_summary_of_the_job_shows_the_timing_of_each_reading(monkeypatch, tm
     assert summary.read_text(encoding="utf-8") == "\n".join(
         [
             "before",
+            "",
             "### The timing of the readings",
             "",
             "For each reading of an issue, how many times as long it took at most on a "
