@@ -32,6 +32,7 @@ from support import (
     CONFIG,
     ESCAPES,
     FORK_COMMIT,
+    GROWTH,
     NOW,
     REF,
     REPOSITORY,
@@ -530,12 +531,9 @@ def reading(name, text):
     return lambda: READINGS[name](text, issue, comments)
 
 
-# How many times as long a reading may take on the whole text as on the text with an
-# eighth of its repetitions. A reading in linear time takes 8 times as long, or less
-# where a part of it stops early, and one in which a part grows with the square of the
-# length 64 times: such a part fails this once it takes about 44 % of the time of the
-# whole text. The highest growth on main was 9.5 (2026-11-22, #504).
-GROWTH = 13
+# The growth that a reading may have is GROWTH of tests/support.py, which the fuzz
+# target of the converter holds as well.
+
 # The processor time of one reading of a whole text, in seconds. Not the promise of
 # the reading, which is that nothing in it backtracks or grows faster than its text,
 # and which the growth holds on every machine: the slowest texts took up to 0.44
