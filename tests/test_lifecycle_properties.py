@@ -7,8 +7,9 @@ GitHub, in any order: time passes with the sweep of every morning, which starts
 some minutes late, and a sweep by hand now and then; the reporter answers in a
 comment or by an edit of the text, or only changes the title, and the event job
 sometimes misses it; a maintainer comments, also while the engine writes a
-follow-up. After every step, the checks below hold, each in its own words rather
-than the code's.
+follow-up; someone collapses a comment, which the page then shows only after a
+click. After every step, the checks below hold, each in its own words rather than
+the code's.
 """
 
 import json
@@ -157,6 +158,19 @@ class Lifecycle(RuleBasedStateMachine):
         self.maintainer(
             self.write("maintainer", "Can you send the log?", "OWNER"), data
         )
+
+    @precondition(lambda self: self.comments)
+    @rule(
+        data=st.data(),
+        reason=st.sampled_from(["spam", "off-topic", "outdated", "resolved", None]),
+    )
+    def a_moderator_collapses_a_comment(self, data, reason):
+        """Someone who may hide comments but neither close nor label the issue, such
+        as a moderator of the organization, collapses any comment: the reporter's
+        answer, a maintainer's question or one of the assistant. The promises below
+        count it as before."""
+        comment = data.draw(st.sampled_from(self.comments), label="the comment")
+        comment["minimized"] = {"reason": reason}
 
     # How it happens
 

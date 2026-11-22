@@ -28,7 +28,7 @@ from .answer import looks_secret
 from .cleaning import EMAIL, run, strip_definitions
 from .errors import AssistantError, GitHubError
 from .github import GitHub
-from .issues import Visible, text_of
+from .issues import Visible, collapsed, text_of
 from .markup import (
     FILTERED_TAG,
     INLINE_TAG,
@@ -414,13 +414,14 @@ def attachments_of(
 ) -> list[Attachment]:
     """The files attached to the issue and to the comments of its reporter, each
     once, in the order of issue.md. A link that GitHub hides, as in an HTML comment,
-    counts as none, so that no attachment reaches the AI that no maintainer sees."""
+    counts as none, so that no attachment reaches the AI that no maintainer sees,
+    and so does every link of a comment that GitHub shows collapsed."""
     links = re.compile(file_link(repository) + "|" + IMAGE_LINK.pattern)
     reporter = login(issue.get("user"))
     texts = [(0, text_of(issue))] + [
         (index, text_of(comment))
         for index, comment in enumerate(comments, start=1)
-        if login(comment.get("user")) == reporter
+        if login(comment.get("user")) == reporter and not collapsed(comment)
     ]
     found: dict[str, Attachment] = {}
     for index, text in texts:

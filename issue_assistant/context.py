@@ -20,6 +20,8 @@ from .github import GitHub
 from .issues import (
     Visible,
     as_shown,
+    collapse_reason,
+    collapsed,
     form_parts,
     is_digest,
     is_maintainer,
@@ -169,9 +171,23 @@ def render_issue(
             f"## Comment {index} by {describe_author(comment, reporter)}, "
             f"{comment['created_at'][:10]}",
             "",
-            rendered_text(text_of(comment), visible),
+            comment_text(comment, visible),
         ]
     return "\n".join(lines) + "\n"
+
+
+def comment_text(comment: dict[str, Any], visible: Visible) -> str:
+    """The text of a comment or a reply for issue.md and discussion.md, or, for one
+    that GitHub shows collapsed, a note in its place, which `visible` counts. The
+    heading above it stays, so that the numbers of the comments stay those of the
+    page; the note is the script's, outside any fence, and names only one of the
+    reasons of GitHub."""
+    if not collapsed(comment):
+        return rendered_text(text_of(comment), visible)
+    visible.collapsed += 1
+    reason = collapse_reason(comment)
+    how = "hidden" if reason == "hidden" else f"marked as {reason}"
+    return f"(GitHub shows this comment collapsed, {how}; its text isn't shown.)"
 
 
 def render_discussion(
@@ -205,14 +221,14 @@ def render_discussion(
             "",
             f"## Comment {index} by {by(comment)}",
             "",
-            rendered_text(text_of(comment), visible),
+            comment_text(comment, visible),
         ]
         for number, reply in enumerate(comment["replies"], start=1):
             lines += [
                 "",
                 f"### Reply {number} to comment {index} by {by(reply)}",
                 "",
-                rendered_text(text_of(reply), visible),
+                comment_text(reply, visible),
             ]
     later = discussion["comment_count"] - len(discussion["comments"])
     if later > 0:
@@ -551,6 +567,10 @@ REMOVED = (
         "removed",
         "invisible characters, such as zero-width spaces and Unicode tags,",
     ),
+    (
+        "collapsed",
+        "comments that GitHub shows collapsed, as spam or off-topic, with their texts,",
+    ),
 )
 
 
@@ -662,16 +682,23 @@ def write_related(
                 "answered": item.get("isAnswered"),
                 "closed": item.get("closed"),
                 "excerpt": excerpt(item.get("body") or "", 1000, visible),
-                "answer": excerpt(
-                    (item.get("answer") or {}).get("body") or "", 1000, visible
-                )
-                or None,
+                "answer": excerpt(shown_answer(item, visible), 1000, visible) or None,
             }
             for item in github.discussions(limit(config, "max_discussions"))
             if item["number"] != issue["number"]
         ),
     )
     return others
+
+
+def shown_answer(discussion: dict[str, Any], visible: Visible) -> str:
+    """The text of the marked answer of a discussion of GitHub.discussions; empty
+    without one, or for one that GitHub shows collapsed, which `visible` counts."""
+    answer = discussion.get("answer") or {}
+    if answer.get("isMinimized"):
+        visible.collapsed += 1
+        return ""
+    return str(answer.get("body") or "")
 
 
 def write_siblings(

@@ -108,6 +108,21 @@ def test_the_files_of_the_issue_and_of_its_reporter_count_once_each():
     ]
 
 
+@pytest.mark.parametrize("minimized", [{"reason": "spam"}, {"reason": None}])
+def test_no_file_of_a_comment_that_github_shows_collapsed_counts(minimized):
+    """The page shows its text only after a click, so the AI reads none of it; the
+    comments after it keep their numbers, which are those of the page."""
+    issue = make_issue(body="The card stays empty.")
+    comments = [
+        make_comment(1, "reporter", f"[log]({LOG})", 1, minimized=minimized),
+        make_comment(2, "reporter", f"[z]({ZIP})", 0.5),
+    ]
+    assert [
+        (item.url, item.comment)
+        for item in assistant.attachments_of(issue, comments, REPOSITORY)
+    ] == [(ZIP, 2)]
+
+
 def test_a_file_of_another_person_or_one_that_github_hides_counts_as_none():
     """Only the reporter's material: a third person can't fill the context, and a
     link that GitHub shows as nothing, in an HTML comment or a link reference
