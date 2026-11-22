@@ -410,7 +410,9 @@ class Addresses:
       from its `![` to the `]` that may close it, nothing counts, no tag either
       (ShownTags). Outside code, a `]` closes the last `[`,
       but one after a `<`, a backtick or a dollar sign of its brackets may close
-      nothing, as in a tag, and the `[` stays open: the safe side. The destination
+      nothing, as in a tag, and the `[` stays open: the safe side. A code span
+      that closes on its row before the `]`, and a `<` that starts no tag, as in
+      `<1>`, hold no `]` and leave it as it is. The destination
       and the title of a link close none.
     - An address of which any part is in a structure of `hidden` is none.
 
@@ -443,6 +445,8 @@ class Addresses:
         self.unsure = -1
         self.last_close = -1
         self.closed = (-1, False)
+        # Where the last code span that closes on its row ends.
+        self.span_until = -1
         # Where the destination of the last link ends, in which no bracket counts.
         self.skip = -1
         # The addresses of the paragraph: each one's span, place, and the address
@@ -498,6 +502,8 @@ class Addresses:
             elif event["close"]:
                 if not escaped_at(text, position):
                     self.close(position)
+            elif self.plain(row, position):
+                continue
             else:
                 self.unsure = position
                 end = self.tag_end(position)
@@ -552,6 +558,22 @@ class Addresses:
             self.block_row = row
             self.row_blocked = places.code[row] or places.indented_code(row)
         return self.row_blocked or self.places.held_at(position)
+
+    def plain(self, row: int, position: int) -> bool:
+        """Whether a `<` or a backtick at `position` surely holds no `]` of its
+        brackets: a `<` that starts no tag, no comment and no autolink, as before a
+        digit or a blank, and the backticks of a code span that closes on its row,
+        which hold what they show as code."""
+        text = self.text
+        if text[position] == "<":
+            after = text[position + 1 : position + 2]
+            return not (after.isascii() and after.isalpha()) and after not in "/!?"
+        if text[position] != "`":
+            return False
+        if position < self.span_until:
+            return True
+        self.span_until = self.places.span_end(row, position)
+        return self.span_until > position
 
     def tag_end(self, position: int) -> int:
         """Where a tag that GitHub reads as a tag ends, which starts at `position`,

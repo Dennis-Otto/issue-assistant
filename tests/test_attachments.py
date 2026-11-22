@@ -438,6 +438,22 @@ ENDS = {
         f'[<img src="{IMAGE}">](https://example.com/)',
         [IMAGE],
     ),
+    # A code span that closes, or a `<` that starts no tag, in the text of a link
+    # leaves its `]` to close it.
+    "a code span as the text of a link": (
+        f"[`log.txt`]({F1}/log.txt)",
+        [f"{F1}/log.txt"],
+    ),
+    "a code span of two backticks": (f"[``log``]({F1}/log.txt)", [f"{F1}/log.txt"]),
+    "strong code": (f"[**`log`**]({F1}/log.txt)", [f"{F1}/log.txt"]),
+    "a code span that holds a bracket": (
+        f"[a `]` b]({F1}/log.txt)",
+        [f"{F1}/log.txt"],
+    ),
+    "code and brackets": (f"[`a` and [b]]({F1}/log.txt)", [f"{F1}/log.txt"]),
+    "a pointed number": (f"[log <1>.txt]({F1}/log.txt)", [f"{F1}/log.txt"]),
+    "a less-than sign": (f"[a <= b]({F1}/log.txt)", [f"{F1}/log.txt"]),
+    "a code span that holds the destination": (f"[`x]({F1}/log.txt)`y", []),
     # What GitHub links of an address before punctuation, as the reading lost it.
     "a full stop": (f"The log is {F1}/log.txt.", [f"{F1}/log.txt"]),
     "emphasis": (f"*{F1}/log.txt*", [f"{F1}/log.txt"]),

@@ -1110,6 +1110,17 @@ class Places:
             self.run = closer + 1
         return False
 
+    def span_end(self, row: int, start: int) -> int:
+        """Where a code span that opens at `start` on its row ends, past its closing
+        backticks, or -1 where none surely opens there; asked in order, at a
+        position that no code span holds."""
+        if not self.coded(row, start + 1):
+            return -1
+        # No span holds `start`, so the one that holds the next position opens there.
+        closer = self.closers[self.run]
+        assert closer is not None  # coded holds only a span that closes.
+        return self.runs[closer][1]
+
     def enter(self, row: int) -> None:
         """Reads the backtick runs of a row, unless an earlier row of its paragraph
         holds a backtick: then a code span could start there, and none counts."""
