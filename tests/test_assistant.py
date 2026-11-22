@@ -12,12 +12,14 @@ import subprocess
 import sys
 import time
 import tomllib
+import types
 import unicodedata
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import conftest
 import pytest
 from markdown_it import MarkdownIt
 
@@ -353,6 +355,20 @@ SLOW_TEXTS = {
     "trailing punctuation": [(f"{ATTACHED}a" + "&amp;.,;:!?*_~'\")" * 4 + " ", 500)],
     "escaped brackets and autolinks": [(f"\\[<{ATTACHED}a> ", 1_250)],
     "image addresses with a suffix": [(f"![a]({UPLOADED}zz) ", 700)],
+    # attachments_of looks at each address that the page shows for a file of either
+    # pattern, attached to GitHub or to the repository, and at each source of an
+    # image of a tag (2026-11-22).
+    "attached files in a row": [(f"{ATTACHED}a.txt\n", 1_300)],
+    "attached files of the repository": [
+        ("https://github.com/owner/project/files/12/log.txt ", 1_250)
+    ],
+    "attached images in tags": [
+        (
+            '<img src="https://github.com/user-attachments/assets/'
+            '0123abcd-0123-4567-89ab-0123456789ab">',
+            700,
+        )
+    ],
 }
 
 # Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
@@ -544,9 +560,21 @@ def reading(name, text):
 CEILING = 2
 
 
-def holds_its_growth(parts, name):
-    """Whether the reading `name` of the text of `parts` holds GROWTH and CEILING."""
+def holds_its_growth(parts, name, text, record_property):
+    """Whether the reading `name` of the text of `parts` holds GROWTH and CEILING.
+
+    Its figures go into the case of the report of JUnit, which the CI writes, and
+    from there into the summary of the job (timing_summary of conftest.py), so that
+    a run that passes shows how near each reading came to the limits."""
     measured = growth(reading(name, built(parts, 8)), reading(name, built(parts)))
+    for key, value in (
+        ("reading", name),
+        ("text", text),
+        ("growth", f"{measured.times:.2f}"),
+        ("eighth", f"{measured.eighth:.4f}"),
+        ("whole", f"{measured.whole:.4f}"),
+    ):
+        record_property(key, value)
     assert measured.times < GROWTH and measured.whole < CEILING, (
         f"{name}: {measured.eighth:.4f} s on an eighth of the text, "
         f"{measured.whole:.4f} s on the whole, {measured.times:.2f} times as long"
@@ -554,9 +582,9 @@ def holds_its_growth(parts, name):
 
 
 @pytest.mark.parametrize("name", READINGS)
-@pytest.mark.parametrize("parts", SLOW_TEXTS.values(), ids=SLOW_TEXTS)
-def test_no_text_makes_reading_an_issue_slow(parts, name):
-    holds_its_growth(parts, name)
+@pytest.mark.parametrize("text", SLOW_TEXTS)
+def test_no_text_makes_reading_an_issue_slow(text, name, record_property):
+    holds_its_growth(SLOW_TEXTS[text], name, text, record_property)
 
 
 # The readings that read the HTML of a text for what the page shows of it, which
@@ -571,9 +599,84 @@ SHOWN_READINGS = [
 
 
 @pytest.mark.parametrize("name", SHOWN_READINGS)
-@pytest.mark.parametrize("parts", [parts for _, parts in TWINS.values()], ids=TWINS)
-def test_no_twin_makes_reading_an_issue_slow(parts, name):
-    holds_its_growth(parts, name)
+@pytest.mark.parametrize("text", TWINS)
+def test_no_twin_makes_reading_an_issue_slow(text, name, record_property):
+    holds_its_growth(TWINS[text][1], name, text, record_property)
+
+
+def test_each_case_of_the_timing_records_its_figures(monkeypatch):
+    # A measurement of its own, so that this test checks the figures and their
+    # order without timing a reading once more.
+    measured = types.SimpleNamespace(times=7.5, eighth=0.001, whole=0.0075)
+    monkeypatch.setitem(globals(), "growth", lambda *_: measured)
+    recorded = []
+    text = "attached files in a row"
+    holds_its_growth(
+        SLOW_TEXTS[text], "attachments_of", text, lambda *pair: recorded.append(pair)
+    )
+    assert recorded == [
+        ("reading", "attachments_of"),
+        ("text", text),
+        ("growth", "7.50"),
+        ("eighth", "0.0010"),
+        ("whole", "0.0075"),
+    ]
+
+
+def timed(when, reading_name, text, growth_of, whole):
+    """A report of a case of the timing, as pytest gives it to its hooks."""
+    figures = {"reading": reading_name, "text": text, "growth": growth_of}
+    figures |= {"eighth": "0.0010", "whole": whole}
+    return types.SimpleNamespace(when=when, user_properties=list(figures.items()))
+
+
+def test_the_summary_of_the_job_shows_the_timing_of_each_reading(monkeypatch, tmp_path):
+    monkeypatch.setattr(conftest, "TIMINGS", [])
+    for report in (
+        timed("call", "shown_links", "tags in a row", "7.90", "0.0500"),
+        timed("call", "attachments_of", "unclosed tags", "8.10", "0.1900"),
+        timed("call", "shown_links", "unclosed tags", "8.02", "0.0490"),
+        timed("call", "attachments_of", "rows | pipes", "7.70", "0.3400"),
+        # Only the call of a case counts, and only one that recorded the figures.
+        timed("setup", "shown_links", "tags in a row", "99.00", "9.0000"),
+        types.SimpleNamespace(when="call", user_properties=[("growth", "99.00")]),
+        types.SimpleNamespace(when="call", user_properties=[]),
+    ):
+        conftest.pytest_runtest_logreport(report)
+    summary = tmp_path / "summary.md"
+    gatherer = types.SimpleNamespace(config=types.SimpleNamespace())
+    worker = types.SimpleNamespace(config=types.SimpleNamespace(workerinput={}))
+
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    conftest.pytest_sessionfinish(gatherer)
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    conftest.pytest_sessionfinish(worker)
+    assert not summary.exists()
+
+    summary.write_text("before\n", encoding="utf-8")
+    conftest.pytest_sessionfinish(gatherer)
+    assert summary.read_text(encoding="utf-8") == "\n".join(
+        [
+            "before",
+            "",
+            "### The timing of the readings",
+            "",
+            "For each reading of an issue, how many times as long it took at most on a "
+            "whole text as on an eighth of it, and its slowest reading of a whole text, "
+            "in seconds of processor time, as tests/test_assistant.py times them.",
+            "",
+            "| Reading | Highest growth | on the text | Slowest whole | on the text |",
+            "| --- | ---: | --- | ---: | --- |",
+            "| attachments_of | 8.10 | unclosed tags | 0.3400 | rows \\| pipes |",
+            "| shown_links | 8.02 | unclosed tags | 0.0500 | tags in a row |",
+            "",
+        ]
+    )
+
+    # A run that timed no reading adds nothing.
+    monkeypatch.setattr(conftest, "TIMINGS", [])
+    conftest.pytest_sessionfinish(gatherer)
+    assert summary.read_text(encoding="utf-8").count("### The timing") == 1
 
 
 def test_each_twin_stays_below_the_cut_that_its_text_reaches():
