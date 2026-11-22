@@ -35,6 +35,7 @@ from .tags import *
 from .depth import *
 from .code_languages import *
 from .structures import *
+from .converter import *
 from .cleaning import *
 from .issues import *
 from .answer import *

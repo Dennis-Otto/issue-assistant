@@ -33,6 +33,7 @@ The code is the package `issue_assistant/`, of the standard library alone ([deci
 | `issue_assistant/depth.py` | How deep GitHub nests a text, which shows nothing inside more than 255 elements and nothing after it: the count of the depth of each row, and the part from the first row whose count reaches 128 on, with every footnote, as `deep_spans` finds it |
 | `issue_assistant/code_languages.py` | `CODE_LANGUAGES`: the names and aliases of the languages of GitHub Linguist, of which the engine reads the one that names a fence |
 | `issue_assistant/structures.py` | The structures of Markdown whose text GitHub doesn't show as it is written: the cells of a table beyond its header, the info string of a fence, the source of a diagram, a map or a 3D model, math, and the title of a link or an image, which the page shows only on hover, as `structures_of` finds them |
+| `issue_assistant/converter.py` | `markdown_of`: the Markdown that the AI is to read, made from GitHub's own HTML of a text by a closed list of what GitHub writes, with what it took out by kind; way D of #488, which no reader uses yet (#520) |
 | `issue_assistant/cleaning.py` | The cleaning of what the engine wrote: `sanitize`, `plain` and the links to files |
 | `issue_assistant/issues.py` | Who wrote an issue or a comment, the marks of the assistant, the issue forms and the commands in a comment |
 | `issue_assistant/answer.py` | The schema of the answer, `validate` and `parse_answer` |
