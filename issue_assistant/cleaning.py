@@ -22,6 +22,8 @@ from .patterns import (
     ISSUE_REFERENCE,
     Checked,
     fenced,
+    guarded,
+    without_references,
 )
 from .settings import Config
 from .structures import (
@@ -476,12 +478,48 @@ def shown_parts(text: str, notes: bool = True) -> tuple[str, int, int, int]:
     titles = len(placed) - len(noted)
     if not notes:
         # A note of a structure in a definition goes with it: the two overlap. No
-        # space takes the place of a title, of which no note took it either.
+        # space takes the place of a title, of which no note took it either. The
+        # marks of quotes and list items before a definition stay, as with its note.
         removals = apart(
-            [(start, end, " ") for start, end, _ in removals]
+            [(start, end, spaced(note)) for start, end, note in removals]
             + [(start, end, " ") for start, end in places(pieces, noted)]
         )
     return splice(shown, removals), definitions, len(noted), titles
+
+
+def spaced(note: str) -> str:
+    """The note of a definition or a footnote with a space in place of its words."""
+    return note.removesuffix(DEFINITION_NOTE).removesuffix(FOOTNOTE_NOTE) + " "
+
+
+def shown_references(
+    text: str, notes: bool = True, decode: bool = False
+) -> tuple[str, int, int, int, int]:
+    """The text as shown_parts reads it, without the references of the characters
+    that GitHub shows as nothing outside code, as without_references reads them,
+    with `decode` also with the references of other characters read; the numbers
+    of shown_parts, and that of the references that went.
+
+    The references go last: an HTML comment that one of them keeps from ending on
+    GitHub, which reads no reference in it, hides the rest, and a definition that
+    one keeps from starting a row shows. The code that keeps its references is
+    found in the text as it is written, where GitHub finds it (guarded), and from
+    the row on which HTML could have started a block, where GitHub reads them in
+    the text of the block, none counts.
+    """
+    guard = ""
+    if "&" in text:
+        html = HTML_BLOCK.search(text)
+        row = None
+        if html is not None:
+            start = html.start()
+            row = 1 + max(text.rfind("\n", 0, start), text.rfind("\r", 0, start))
+        text, guard = guarded(text, row)
+    shown, definitions, structures, titles = shown_parts(text, notes)
+    shown, references = without_references(shown, decode, guard)
+    if guard:
+        shown = shown.replace(guard, "&")
+    return shown, definitions, structures, titles, references
 
 
 def splice(text: str, spans: list[tuple[int, int, str]]) -> str:

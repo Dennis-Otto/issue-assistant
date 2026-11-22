@@ -314,7 +314,7 @@ def learned_corrections(
             parts.append("a maintainer gave your analysis a 👎")
         if not parts:
             continue
-        title = one_line(quiet(issues[number]["title"]))
+        title = one_line(quiet.title(issues[number]["title"]))
         if len(title) > LEARNED_TITLE:
             title = title[: LEARNED_TITLE - 1].rstrip() + "…"
         this = " (this issue)" if number == issue["number"] else ""

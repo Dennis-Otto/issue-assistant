@@ -1,0 +1,1661 @@
+{
+ "about": "Texts with a reference of an invisible character, in hex, in decimal, with nine digits, by its name, each with and without its `;`, and `&shy` before a letter, between the marker words MWa and MWb: in a paragraph, a heading, a list item, a quote, a header of a table, the text of a link, the description of an image, emphasis, strikethrough, a footnote, a task, a summary, an HTML block, code spans and fenced code in and out of HTML blocks, quotes and list items, indented code and after a backslash; with the marker words and the references that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-22). Where it is hard to tell, the cleaning takes out a reference that GitHub shows as it is written: those are listed.",
+ "texts": [
+  {
+   "text": "MWa&#xE0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "MWa&#xE0041MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "MWa&#x0000E0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "MWa&shyMWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "# MWa&#xE0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "# MWa&#xE0041MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "# MWa&#x0000E0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "# MWa&shyMWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "- MWa&#xE0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "- MWa&#xE0041MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "- MWa&#x0000E0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "- MWa&shyMWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "> MWa&#xE0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "> MWa&#xE0041MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "> MWa&#x0000E0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "> MWa&shyMWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "| MWa&#xE0041;MWb |\n|---|",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "| MWa&#xE0041MWb |\n|---|",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "| MWa&#x0000E0041;MWb |\n|---|",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "| MWa&shyMWb |\n|---|",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "[MWa&#xE0041;MWb](https://example.com)",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "[MWa&#xE0041MWb](https://example.com)",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "[MWa&#x0000E0041;MWb](https://example.com)",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "[MWa&shyMWb](https://example.com)",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "![MWa&#xE0041;MWb](https://example.com/a.png)",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "![MWa&#xE0041MWb](https://example.com/a.png)",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "![MWa&#x0000E0041;MWb](https://example.com/a.png)",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "![MWa&shyMWb](https://example.com/a.png)",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "*MWa&#xE0041;MWb*",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "*MWa&#xE0041MWb*",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "*MWa&#x0000E0041;MWb*",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "*MWa&shyMWb*",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "<b>MWa&#xE0041;MWb</b>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "<b>MWa&#xE0041MWb</b>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "<b>MWa&#x0000E0041;MWb</b>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "<b>MWa&shyMWb</b>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "~~MWa&#xE0041;MWb~~",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "~~MWa&#xE0041MWb~~",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "~~MWa&#x0000E0041;MWb~~",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "~~MWa&shyMWb~~",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: MWa&#xE0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: MWa&#xE0041MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: MWa&#x0000E0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: MWa&shyMWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "MWa&#xE0041;MWb\n===",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "MWa&#xE0041MWb\n===",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "MWa&#x0000E0041;MWb\n===",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "MWa&shyMWb\n===",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "- [ ] MWa&#xE0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "- [ ] MWa&#xE0041MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "- [ ] MWa&#x0000E0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "- [ ] MWa&shyMWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "<details><summary>MWa&#xE0041;MWb</summary>x</details>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "<details><summary>MWa&#xE0041MWb</summary>x</details>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "<details><summary>MWa&#x0000E0041;MWb</summary>x</details>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "<details><summary>MWa&shyMWb</summary>x</details>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "<div>\nMWa&#xE0041;MWb\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "<div>\nMWa&#xE0041MWb\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "<div>\nMWa&#917569;MWb\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#917569;"
+   ]
+  },
+  {
+   "text": "<div>\nMWa&#917569MWb\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#917569"
+   ]
+  },
+  {
+   "text": "<div>\nMWa&#x0000E0041;MWb\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "<div>\nMWa&ZeroWidthSpace;MWb\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "<div>\nMWa&ZeroWidthSpaceMWb\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<div>\nMWa&shyMWb\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "<div>\nMWa&zwj;MWb\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&zwj;"
+   ]
+  },
+  {
+   "text": "<div>\nMWa&#x200B;MWb\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#x200B;"
+   ]
+  },
+  {
+   "text": "<div>\n```\nMWa&#xE0041;MWb\n```\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "<div>\n```\nMWa&#xE0041MWb\n```\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "<div>\n```\nMWa&#917569;MWb\n```\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#917569;"
+   ]
+  },
+  {
+   "text": "<div>\n```\nMWa&#917569MWb\n```\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#917569"
+   ]
+  },
+  {
+   "text": "<div>\n```\nMWa&#x0000E0041;MWb\n```\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "<div>\n```\nMWa&ZeroWidthSpace;MWb\n```\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "<div>\n```\nMWa&ZeroWidthSpaceMWb\n```\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<div>\n```\nMWa&shyMWb\n```\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "<div>\n```\nMWa&zwj;MWb\n```\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&zwj;"
+   ]
+  },
+  {
+   "text": "<div>\n```\nMWa&#x200B;MWb\n```\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#x200B;"
+   ]
+  },
+  {
+   "text": "<div>\n`MWa&#xE0041;MWb`\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "<div>\n`MWa&#xE0041MWb`\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "<div>\n`MWa&#917569;MWb`\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#917569;"
+   ]
+  },
+  {
+   "text": "<div>\n`MWa&#917569MWb`\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#917569"
+   ]
+  },
+  {
+   "text": "<div>\n`MWa&#x0000E0041;MWb`\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "<div>\n`MWa&ZeroWidthSpace;MWb`\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "<div>\n`MWa&ZeroWidthSpaceMWb`\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<div>\n`MWa&shyMWb`\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "<div>\n`MWa&zwj;MWb`\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&zwj;"
+   ]
+  },
+  {
+   "text": "<div>\n`MWa&#x200B;MWb`\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#x200B;"
+   ]
+  },
+  {
+   "text": "<div>\n\nMWa&#xE0041;MWb\n\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "<div>\n\nMWa&#xE0041MWb\n\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "<div>\n\nMWa&#917569;MWb\n\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#917569;"
+   ]
+  },
+  {
+   "text": "<div>\n\nMWa&#917569MWb\n\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#917569"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#917569"
+   ]
+  },
+  {
+   "text": "<div>\n\nMWa&#x0000E0041;MWb\n\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#x0000E0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#x0000E0041;"
+   ]
+  },
+  {
+   "text": "<div>\n\nMWa&ZeroWidthSpace;MWb\n\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "<div>\n\nMWa&ZeroWidthSpaceMWb\n\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<div>\n\nMWa&shyMWb\n\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&shy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&shy"
+   ]
+  },
+  {
+   "text": "<div>\n\nMWa&zwj;MWb\n\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&zwj;"
+   ]
+  },
+  {
+   "text": "<div>\n\nMWa&#x200B;MWb\n\n</div>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#x200B;"
+   ]
+  },
+  {
+   "text": "`MWa&#xE0041;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "`MWa&#xE0041MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "`MWa&ZeroWidthSpace;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```\nMWa&#xE0041;MWb\n```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```\nMWa&#xE0041MWb\n```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```\nMWa&ZeroWidthSpace;MWb\n```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```cpp\nauto p = MWa&#xE0041;MWb;\n```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```cpp\nauto p = MWa&#xE0041MWb;\n```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```cpp\nauto p = MWa&ZeroWidthSpace;MWb;\n```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "    MWa&#xE0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "    MWa&#xE0041MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "    MWa&ZeroWidthSpace;MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "MWa\\&#xE0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "MWa\\&#xE0041MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "MWa\\&ZeroWidthSpace;MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "> ```\n> MWa&#xE0041;MWb\n> ```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "> ```\n> MWa&#xE0041MWb\n> ```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "> ```\n> MWa&ZeroWidthSpace;MWb\n> ```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "~~~\nMWa&#xE0041;MWb\n~~~",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "~~~\nMWa&#xE0041MWb\n~~~",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "~~~\nMWa&ZeroWidthSpace;MWb\n~~~",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "> `MWa&#xE0041;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "> `MWa&#xE0041MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "> `MWa&ZeroWidthSpace;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "- `MWa&#xE0041;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "- `MWa&#xE0041MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "- `MWa&ZeroWidthSpace;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "# `MWa&#xE0041;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "# `MWa&#xE0041MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "# `MWa&ZeroWidthSpace;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "| `MWa&#xE0041;MWb` |\n|---|",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "| `MWa&#xE0041MWb` |\n|---|",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "| `MWa&ZeroWidthSpace;MWb` |\n|---|",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "`MWa\n&#xE0041;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "`MWa\n&#xE0041MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "`MWa\n&ZeroWidthSpace;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "``MWa&#xE0041;`MWb``",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "``MWa&#xE0041`MWb``",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "``MWa&ZeroWidthSpace;`MWb``",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<code>MWa&#xE0041;MWb</code>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "<code>MWa&#xE0041MWb</code>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "<code>MWa&ZeroWidthSpace;MWb</code>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "<pre>\nMWa&#xE0041;MWb\n</pre>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "<pre>\nMWa&#xE0041MWb\n</pre>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "<pre>\nMWa&ZeroWidthSpace;MWb\n</pre>",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "<details>\n\n```\nMWa&#xE0041;MWb\n```\n\n</details>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "<details>\n\n```\nMWa&#xE0041MWb\n```\n\n</details>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "<details>\n\n```\nMWa&ZeroWidthSpace;MWb\n```\n\n</details>",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "x<br>MWa&#xE0041;MWb",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "x<br>MWa&#xE0041MWb",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041"
+   ]
+  },
+  {
+   "text": "x<br>MWa&ZeroWidthSpace;MWb",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&ZeroWidthSpace;"
+   ]
+  },
+  {
+   "text": "```\r\nMWa&#xE0041;MWb\r\n```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```\r\nMWa&#xE0041MWb\r\n```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```\r\nMWa&ZeroWidthSpace;MWb\r\n```",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&ZeroWidthSpace;"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "` x\ny `MWa&#xE0041;MWb` z",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "<http://a`b> MWa&#xE0041;MWb `z",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "  ```\n```\nMWa&#xE0041;MWb\n```",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "- a\n  ```\nMWa&#xE0041;MWb\n```",
+   "github shows": [
+    "MWa",
+    "MWb"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "# `MWa&#xE0041;\n`x`",
+   "github shows": [
+    "MWa"
+   ],
+   "github hides": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "\\\\`MWa&#xE0041;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "&#xE0041;"
+   ]
+  },
+  {
+   "text": "`a` `MWa&#xE0041;MWb`",
+   "github shows": [
+    "MWa",
+    "MWb",
+    "&#xE0041;"
+   ],
+   "github hides": []
+  }
+ ]
+}

@@ -12,7 +12,7 @@ from typing import Any
 
 from .answer import schema_json
 from .attachments import keep_shown, render_attachments
-from .cleaning import one_line, shown_parts
+from .cleaning import one_line, shown_references
 from .constants import BOT, DISCUSSION_MODES, MAX_TEXT, MODES
 from .engines import ENGINES, IN_PROMPT, STRICT, Engine, engine_named
 from .errors import AssistantError, GitHubError
@@ -89,12 +89,15 @@ def shown(text: str, visible: Visible) -> str:
     The HTML goes first, as GitHub hides it: an invisible character in the end of an
     HTML comment keeps it from ending on GitHub, and taken out first, it would end
     the comment and show the text after it to the engine. The definitions go before
-    the invisible characters, which can keep a row from being one on GitHub.
+    the invisible characters and their references, which can keep a row from being
+    one on GitHub, and code keeps the references that GitHub shows as they are
+    written (shown_references).
     """
-    text, definitions, structures, titles = shown_parts(text)
+    text, definitions, structures, titles, references = shown_references(text)
     visible.definitions += definitions
     visible.structures += structures
     visible.titles += titles
+    visible.removed += references
     return visible(text)
 
 
@@ -149,7 +152,7 @@ def render_issue(
     visible = visible or Visible()
     reporter = login(issue.get("user"))
     lines = [
-        f"# Issue #{issue['number']}: {one_line(visible(issue['title']))}",
+        f"# Issue #{issue['number']}: {one_line(visible.title(issue['title']))}",
         "",
         f"- Reporter: {describe_author(issue, reporter)}",
         f"- State: {issue['state']}",
@@ -186,10 +189,10 @@ def render_discussion(
     state = discussion["state"] + (", answered" if discussion["answered"] else "")
     lines = [
         f"# Discussion #{discussion['number']}: "
-        f"{one_line(visible(discussion['title']))}",
+        f"{one_line(visible.title(discussion['title']))}",
         "",
         f"- Author: {describe_author(discussion, author, 'author')}",
-        f"- Category: {one_line(visible(discussion['category']['name']))}",
+        f"- Category: {one_line(visible.title(discussion['category']['name']))}",
         f"- State: {state}",
         f"- Opened: {discussion['created_at'][:10]}",
         "",
@@ -335,7 +338,7 @@ def render_other_issue(
     one of this repository."""
     return (
         f"# Issue {repository}#{item['number']}: "
-        f"{one_line(visible(item['title']))}\n\n"
+        f"{one_line(visible.title(item['title']))}\n\n"
         f"{rendered_text(text_of(item), visible)}\n"
     )
 
@@ -347,7 +350,7 @@ def issue_line(
     before its excerpt."""
     return {
         "number": item["number"],
-        "title": visible(item["title"]),
+        "title": visible.title(item["title"]),
         "state": item["state"],
         "state_reason": item.get("state_reason"),
         "labels": sorted(label_names(item)),
@@ -654,7 +657,7 @@ def write_related(
         (
             {
                 "number": item["number"],
-                "title": visible(item["title"]),
+                "title": visible.title(item["title"]),
                 "category": (item.get("category") or {}).get("name"),
                 "answered": item.get("isAnswered"),
                 "closed": item.get("closed"),

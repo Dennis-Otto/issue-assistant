@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from .cleaning import shown_text
+from .cleaning import shown_references
 from .constants import BOT, DIGEST, MAX_TEXT, MUTED, PINNED
 from .github import GitHub
 from .languages import ANSWER_LANGUAGES, detect_language
-from .patterns import INVISIBLE, fenced
+from .patterns import INVISIBLE, fenced, without_references
 from .settings import DEFAULT_LIFECYCLE, Config, Label, Lifecycle, label_names
 from .values import created, login
 
@@ -57,8 +57,13 @@ def as_shown(text: str | None) -> str:
     language or the area, it decides from this, so that nothing that the page hides
     chooses for it, and no word of a note either. The space keeps the words on both
     sides apart, as the page does: `Value` and `Error` on both sides of a drawing
-    stay two words for the search."""
-    return INVISIBLE.sub("", shown_text(text or "", notes=False)[0])
+    stay two words for the search.
+
+    The references of characters outside code read as the page shows them
+    (shown_references): those of invisible characters go with the characters, and
+    the others become their characters, such as `doesn&#39;t` and `[&#120;]`.
+    """
+    return INVISIBLE.sub("", shown_references(text or "", False, decode=True)[0])
 
 
 def marker(comment: dict[str, Any]) -> tuple[str, dict[str, str]] | None:
@@ -409,6 +414,17 @@ class Visible:
         text, count = INVISIBLE.subn("", text)
         self.removed += count
         return text
+
+    def title(self, text: str) -> str:
+        """A title or a name of a category without the invisible characters and
+        every reference of one, such as `&#xE0041;` or `&ZeroWidthSpace;`, which
+        GitHub reads as the characters in Markdown, also in a code span: what GitHub
+        shows of a reference there is unknown, so the safe side; each counts. An
+        answer of the engine and an attached file, which GitHub never reads as
+        Markdown, show a reference as it is written, so they go through the call."""
+        text, count = without_references(text)
+        self.removed += count
+        return self(text)
 
     def everywhere(self, value: Any) -> Any:
         """A value of JSON with each of its texts, at any depth, taken through."""
