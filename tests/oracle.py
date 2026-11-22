@@ -214,13 +214,17 @@ def problems(
 
 
 # The languages of fenced code that GitHub draws as a diagram, a map or a 3D model;
-# fenced code whose language starts with `math` is math (`gh api markdown` with a
-# repository as context, 2026-11-21).
+# fenced code whose language is `math`, and no other word, is math: `mathx`,
+# `math,x` and `Math` are code (`gh api markdown` with a repository as context,
+# 2026-11-21). The language is the first word of the info string, up to a space or a
+# tab, with its entities and escapes read.
 DRAWN = ("mermaid", "geojson", "topojson", "stl")
+INFO_BLANKS = re.compile(r"[ \t]+")
 
 
 def drawn_or_math(markdown: str) -> list[str]:
-    """The fenced code that GitHub would draw or read as math, and each pair of
+    """The fenced code that GitHub would draw or read as math, or whose info string
+    holds words after its language, which GitHub shows nowhere; and each pair of
     dollar signs on a line of shown text that GitHub might read as math: one before
     no blank, and a later one after no blank. GitHub reads fewer pairs as math; a
     code span counts as text that is no blank, since `$` and code may form math. An
@@ -228,9 +232,11 @@ def drawn_or_math(markdown: str) -> list[str]:
     found = []
     for token in PARSER.parse(markdown):
         if token.type == "fence":
-            word = (token.info.split() or [""])[0]
-            if word in DRAWN or word.startswith("math"):
+            words = INFO_BLANKS.split(token.info.strip(" \t"))
+            if words[0] in DRAWN or words[0] == "math":
                 found.append(f"fenced code that GitHub draws: {token.info!r}")
+            if len(words) > 1:
+                found.append(f"words that GitHub hides after a fence: {token.info!r}")
         elif token.type == "inline":
             shown, index = "".join(math_text(c) for c in token.children or []), 0
             while index < len(shown):

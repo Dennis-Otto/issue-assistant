@@ -196,6 +196,11 @@ UNLINKED = (
     '<pre lang="mermaid">graph TD\n%% {}\nA-->B</pre>',
     '```geojson\n{{"type": "Feature", "properties": {{"note": "{}"}}}}\n```',
     "$\\text{{{}}}$",
+    # GitHub shows nothing of the info string of a fence: an address after the
+    # language, as the first word, and in a fence of a quote that never closes.
+    "```python {}\nx\n```",
+    "```{}\nx\n```",
+    "> ```python, {}\n> x\n",
 )
 # The same in a cell that GitHub shows, and in code that it shows as it is.
 LINKED = (
@@ -204,6 +209,8 @@ LINKED = (
     "| a |\n|---|\n| b \\| {} |",
     "```Mermaid\n%% {}\n```",
     "Costs $5 and {} $6",
+    "```python\n{}\n```",
+    "````\n```python {}\n```\n````",
 )
 
 

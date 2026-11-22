@@ -648,6 +648,9 @@ class Fences:
         self.pending: re.Match[str] | None = None
         # Without three backticks or tildes in a row, no row opens fenced code.
         self.done = not rows.fenced()
+        # Up to where the reading is sure, once it has read that far: the start of
+        # the row that it can't tell, or the end of fenced code that may go on.
+        self.sure = len(text)
 
     def holds(self, position: int) -> bool:
         """Whether fenced code surely holds a position."""
@@ -660,13 +663,15 @@ class Fences:
             self.pending, self.after = None, row.end()
             opens = self.opens(row)
             if opens is None:
-                self.done = True
+                self.done, self.sure = True, row.start()
             elif opens:
                 end, clear = self.closed(row)
                 self.starts.append(row.start())
                 self.ends.append(end)
                 self.clear.append(clear)
                 self.after, self.done = end, not clear
+                if not clear:
+                    self.sure = end
         index = bisect_right(self.starts, position) - 1
         return index >= 0 and position < self.ends[index]
 

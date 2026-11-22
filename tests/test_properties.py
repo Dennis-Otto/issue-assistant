@@ -1154,7 +1154,8 @@ DEFINITIONS = st.lists(
 def test_a_commonmark_parser_finds_no_definition_in_what_the_engine_reads(text):
     """What is left of a text after the definitions went holds none, as a CommonMark
     parser reads it, and only notes take their places. The parser reads a footnote
-    as a definition: one that a reference shows stays."""
+    as a definition: one that a reference shows stays. The words of a fence that
+    GitHub doesn't show go as well, with a note of their own."""
     shown, removed = assistant.shown_text(text)
     environment = {}
     tokens = PARSER.parse(shown, environment)
@@ -1166,7 +1167,7 @@ def test_a_commonmark_parser_finds_no_definition_in_what_the_engine_reads(text):
     } <= set(references(tokens))
     notes = (assistant.DEFINITION_NOTE, assistant.FOOTNOTE_NOTE)
     assert sum(shown.count(note) for note in notes) >= removed
-    for note in notes:
+    for note in (*notes, assistant.INFO_NOTE):
         shown = shown.replace(note, "")
     assert subsequence(shown, assistant.strip_html(text))
 
@@ -1340,14 +1341,16 @@ HTML_BLOCKS = st.lists(
 @hypothesis.example("<div\nPlugh\n")
 @hypothesis.example("> <a t=\n> Plugh>")
 @hypothesis.example("<pre")
+@hypothesis.example("<div>\n\n```Plugh\n<div\n```")
 @given(st.one_of(STRUCTURE, HTML_BLOCKS))
 def test_the_engine_reads_nothing_that_an_html_block_hides(text):
     """Nothing after an HTML block that holds a `<!--` that no `-->` follows reaches
     the engine, wherever a CommonMark parser finds the block: GitHub shows none of
     it. Nor does a word of a tag that runs over several rows, or of an instruction,
     a declaration or a section of CDATA, as a browser reads the HTML of a CommonMark
-    parser, in a text without comments, which tests of their own judge, and outside
-    code, whose language a browser doesn't show. And without a `<!--`, a quote, a
+    parser, in a text without comments, which tests of their own judge, nor a word
+    of the info string of a fence, which a browser doesn't show. And without a
+    `<!--`, a quote, a
     tag or such markup over rows, which alone can hide it, nothing ends the text
     early."""
     text += "\n\nXyzzy"
@@ -1356,7 +1359,7 @@ def test_the_engine_reads_nothing_that_an_html_block_hides(text):
     # A `<!--` in a tag is part of the tag: GitHub showed `zqd` after `<div><div<!--`
     # and a blank row (`gh api markdown -f mode=gfm`, 2026-11-20).
     assert not hides_the_rest(text) or "Xyzzy" not in shown or "Xyzzy" in seen
-    if not any(mark in text for mark in ("<!--", "-->", "`")):
+    if not any(mark in text for mark in ("<!--", "-->")):
         assert shown.count("Plugh") <= seen.count("Plugh")
         assert "Xyzzy" in seen or "Xyzzy" not in shown
     assert (
@@ -1400,15 +1403,15 @@ TABLES = st.lists(
 @hypothesis.example("| a |\n|---|\n| b | Plugh |")
 @hypothesis.example("> | a |\n> |---|\n> | b | Plugh\n| c | Plugh")
 @hypothesis.example("| a |\n|---|\n|b\\\\|Plugh|Plugh|")
+@hypothesis.example("```Plugh\n| a |\n|---|\n| b | Plugh |")
+@hypothesis.example("| a |\n|---|\n```x Plugh\n| b |")
 @given(TABLES)
 def test_the_engine_reads_no_cell_that_github_drops(text):
     """No word of a cell beyond the cells of a table's header reaches the engine: a
-    browser shows none of it, as the oracle splits the rows. The language of fenced
-    code, which a browser doesn't show, reaches it, so a text with a fence counts
-    as none."""
-    if "```" not in text:
-        shown = assistant.shown_text(text)[0]
-        assert shown.count("Plugh") <= browser_text(text).count("Plugh")
+    browser shows none of it, as the oracle splits the rows. Nor does a word of the
+    info string of a fence, which a browser doesn't show either."""
+    shown = assistant.shown_text(text)[0]
+    assert shown.count("Plugh") <= browser_text(text).count("Plugh")
 
 
 # Text made of the pieces of links and images with titles. `Plugh` never stands in
@@ -1535,6 +1538,7 @@ def test_the_spans_that_strip_html_keeps_make_its_text(text):
 
 NOTES = (
     assistant.TABLE_NOTE,
+    assistant.INFO_NOTE,
     assistant.DRAWING_NOTE,
     assistant.DIAGRAM_NOTE,
     assistant.MATH_NOTE,

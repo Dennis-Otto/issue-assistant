@@ -1,8 +1,9 @@
 """The structures of Markdown whose text GitHub doesn't show as it is written: the
 cells of a row of a table beyond the cells of its header, which GitHub drops; the
-source of a diagram, a map or a 3D model, which it draws in place of the source;
-math, whose TeX it hands to a renderer that can draw some of it as nothing; and the
-title of an inline link or image, which the page shows only on hover.
+info string of fenced code, of which the page shows nothing; the source of a
+diagram, a map or a 3D model, which it draws in place of the source; math, whose
+TeX it hands to a renderer that can draw some of it as nothing; and the title of an
+inline link or image, which the page shows only on hover.
 
 Each is found in the text as it was written, as GitHub's renderer finds it
 (`gh api -X POST markdown` with `mode: gfm` and a repository as `context`,
@@ -20,12 +21,15 @@ import re
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 
+from .code_languages import CODE_LANGUAGES
 from .depth import deep_spans
 from .markup import (
     BLOCK_TAGS,
     COMMENT_START,
     CONTAINER,
+    CONTAINER_MARK,
     FENCE_ROW,
+    FOOTNOTE_MARK,
     HTML_ENDS,
     ROW_END,
     ROW_START,
@@ -38,6 +42,9 @@ from .tags import BACKTICKS
 # The notes that take the place of what goes, so that the engine knows that
 # something was there.
 TABLE_NOTE = "(cells beyond the header of the table removed)"
+# After the fence or the language that stays, with a space before it, and without a
+# backtick, so that the row stays a fence.
+INFO_NOTE = " (words of the fence that GitHub doesn't show removed)"
 DRAWING_NOTE = (
     "(the source of a drawing removed: GitHub shows a diagram, a map or a 3D model "
     "in its place)"
@@ -123,6 +130,8 @@ class Found:
     source could hide text, and the plain math."""
 
     cells: list[Span] = field(default_factory=list)
+    # What goes of the info string of each row that may open fenced code.
+    infos: list[Span] = field(default_factory=list)
     drawn: list[Span] = field(default_factory=list)
     readable: set[Span] = field(default_factory=set)
     diagram: list[Span] = field(default_factory=list)
@@ -141,6 +150,7 @@ class Found:
         """The spans of which GitHub shows nothing as it is written, each with the
         note for its place, in order and apart."""
         spans = [(start, end, TABLE_NOTE) for start, end in self.cells]
+        spans += [(start, end, INFO_NOTE) for start, end in self.infos]
         spans += [
             (start, end, DRAWING_NOTE)
             for start, end in self.drawn
@@ -154,7 +164,8 @@ class Found:
     def unlinked(self) -> list[tuple[int, int, str]]:
         """The spans in which GitHub shows no link: those that it hides, and all of
         a drawing or of math, whose text is drawn and leads nowhere."""
-        spans = self.cells + self.drawn + self.math + self.plain + self.titles
+        spans = self.cells + self.infos + self.drawn + self.math + self.plain
+        spans += self.titles
         spans += [(start, end) for start, end, _ in self.deep]
         return apart([(start, end, "") for start, end in spans])
 
@@ -173,13 +184,15 @@ def apart(spans: list[tuple[int, int, str]]) -> list[tuple[int, int, str]]:
 
 
 def structures_of(text: str) -> Found:
-    """The tables, drawn blocks, math and titles of links of a text, as GitHub reads
-    them."""
+    """The tables, info strings of fences, drawn blocks, math and titles of links of
+    a text, as GitHub reads them."""
     # The searches for a text are fast, a pattern reads every position: a fence or
     # a `<pre>` that GitHub draws, or whose content is math, names its language in
-    # letters or entities.
+    # letters or entities. Only a row of a fence whose info string loses words asks
+    # where it stands.
     found = Found(dollars="$" in text or "&#" in text or "&dollar;" in text)
     fences = "```" in text or "~~~" in text
+    infos = hidden_infos(text) if fences else []
     pres = "<" in text and "lang" in text.lower()
     if fences or pres:
         named = "&" in text or any(word in text for word in ("math", *DRAWN))
@@ -193,9 +206,11 @@ def structures_of(text: str) -> Found:
     # A title follows the destination of a link, after its `](`.
     titles = "](" in text and LINK_TITLE.search(text) is not None
     found.deep = deep_spans(text)
-    if not (fences or tables or pres or dollars or titles):
+    if not (infos or fences or tables or pres or dollars or titles):
         return found
     reader = Reader(text)
+    if infos:
+        reader.infos(found, infos)
     if fences:
         reader.fenced(found)
     if pres:
@@ -224,17 +239,51 @@ class Reader:
     def code(self) -> list[bool]:
         """Whether fenced code surely holds each row, read once."""
         if self.held is None:
-            # Without three backticks or tildes in a row, no row is fenced code.
+            # Without three backticks or tildes in a row, no row is fenced code; the
+            # fenced code found before the reading stopped holds its rows.
             self.held = (
                 [False] * len(self.starts)
-                if self.fences.done
+                if self.fences.done and not self.fences.starts
                 else [self.fences.holds(start) for start in self.starts]
             )
         return self.held
 
+    def infos(self, found: Found, rows: list[tuple[re.Match[str], Span]]) -> None:
+        """What goes of the info strings of the rows that may open fenced code, each
+        with its span of hidden_infos: all but the rows that surely open none, which
+        the page shows as they are. Those are a row of indented code above the first
+        list item, one that fenced code surely holds, as Fences reads it and not as
+        body_of guesses, and one that an HTML block surely holds: one that starts
+        before Fences can't tell any more and before the first list item, which
+        could hold the start of the block.
+
+        Where it is hard to tell, as after a tab, in a footnote, in a row that an
+        HTML block may hold, or after the point where Fences stops, the words go:
+        GitHub may read the row as the opening of fenced code and show none of
+        them."""
+        held: list[Span] | None = None
+        for row, span in rows:
+            start = row.start()
+            if start < self.listed and width(row["indent"]) >= 4 + bool(row["marks"]):
+                continue
+            block = self.fences.block(start)
+            if block is not None and block[0] < start:
+                continue
+            if start < self.listed and "<" in self.text:
+                if held is None:
+                    held = [
+                        (first, end)
+                        for first, end in html_blocks(self.text, self)
+                        if first < self.fences.sure
+                    ]
+                at = bisect_right(held, (start, len(self.text))) - 1
+                if at >= 0 and start < held[at][1]:
+                    continue
+            found.infos.append(span)
+
     def fenced(self, found: Found) -> None:
         """The fences that GitHub draws, or whose content is math: those whose info
-        string starts with a word of DRAWN, or with `math`, outside other code."""
+        string starts with a word of DRAWN, or is `math`, outside other code."""
         text, covered = self.text, 0
         for row in FENCE_ROW.finditer(text):
             if row.start() < covered or (row["fence"][0] == "`" and "`" in row["info"]):
@@ -248,7 +297,7 @@ class Reader:
             ):
                 continue
             word = info_word(row["info"])
-            math = word.startswith("math")
+            math = word == "math"
             if word not in DRAWN and not math:
                 continue
             body = self.body_of(row)
@@ -539,6 +588,63 @@ def html_blocks(text: str, reader: Reader) -> list[Span]:
 
 
 ESCAPED = re.compile(r"\\([!-/:-@\[-`{-~])")
+
+
+# A row of FENCE_ROW whose info string holds more than blanks, which alone can lose
+# words: only those rows are read. A fence of backticks with a backtick after it is
+# none, but code of a row.
+FENCE_MARKS = rf"(?:[ \t]*+(?:{CONTAINER_MARK}|{FOOTNOTE_MARK}))*+"
+INFO_FENCE = r"`{3,}+(?![^\r\n]*`)|~{3,}+"
+INFO_PART = r"[ \t]*+[^ \t\r\n][^\r\n]*+"
+INFO_ROW = re.compile(
+    rf"{ROW_START}(?P<marks>{FENCE_MARKS})(?P<indent>[ \t]*+)(?P<fence>{INFO_FENCE})"
+    rf"(?P<info>{INFO_PART})"
+)
+# The info strings of those rows alone, which findall reads faster than each row.
+INFO_STRINGS = re.compile(
+    rf"{ROW_START}{FENCE_MARKS}[ \t]*+(?:{INFO_FENCE})({INFO_PART})"
+)
+# The blanks before the first word of an info string, and the word.
+INFO_WORD = re.compile(r"[ \t]*+(?P<word>[^ \t]*+)")
+
+
+def info_cut(info: str) -> int:
+    """Where the part of an info string ends that the engine reads: after its first
+    word, up to a space or a tab, where that is a plain word of CODE_LANGUAGES,
+    written in ASCII, without an entity or an escape; before a comma where the part
+    before it is one, at which GitHub ends a language that it knows; at the start
+    where the word is none; and at the end where only blanks follow what stays.
+
+    GitHub shows nothing of the info string: it keeps a language that it highlights
+    as a class, another word as the `lang` of the `<pre>` and the words after it in
+    its `data-meta`, which no reader sees (`gh api -X POST markdown`, 2026-11-21).
+    A word of a fixed list can carry no message, and the AI learns the language."""
+    first = INFO_WORD.match(info)
+    assert first is not None  # It matches the empty text.
+    word = first["word"]
+    name = word.partition(",")[0]
+    if name != word and name.isascii() and name.lower() in CODE_LANGUAGES:
+        cut = first.start("word") + len(name)
+    elif word.isascii() and word.lower() in CODE_LANGUAGES:
+        cut = first.end()
+    else:
+        cut = 0
+    return len(info) if not info[cut:].strip(" \t") else cut
+
+
+def hidden_infos(text: str) -> list[tuple[re.Match[str], Span]]:
+    """Each row of INFO_ROW whose info string loses words, as info_cut reads it,
+    with the span of what goes. Each info string is read once, and the rows only
+    where one loses words: the rows of a text often repeat theirs, such as
+    `mermaid`."""
+    cuts = {info: info_cut(info) for info in set(INFO_STRINGS.findall(text))}
+    if all(cut == len(info) for info, cut in cuts.items()):
+        return []
+    return [
+        (row, (row.start("info") + cuts[row["info"]], row.end()))
+        for row in INFO_ROW.finditer(text)
+        if cuts[row["info"]] < len(row["info"])
+    ]
 
 
 def info_word(info: str) -> str:
