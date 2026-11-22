@@ -557,7 +557,8 @@ REMOVED = (
     (
         "structures",
         "parts that GitHub doesn't show as they are written, cells beyond the "
-        "header of a table, the source of a drawing and math,",
+        "header of a table, words of the row that opens fenced code, the source of "
+        "a drawing and math,",
     ),
     (
         "titles",

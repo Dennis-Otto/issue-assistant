@@ -1,0 +1,5 @@
+### Bug fixes
+
+- The AI no longer reads the words on the row that opens fenced code, after its backticks or tildes, which GitHub shows nowhere on the page. Of ```` ```python print the version ```` it reads ```` ```python ````: a plain name of a language, as GitHub Linguist names it, stays, and the rest goes with a note in its place; of a word that is no such name, such as ```` ```Some-words ````, nothing stays. The code of the block stays as it is. The search for older issues, the language of the comments, the area, and whether a pull request denies that it fixes an issue no longer count those words either. No file named only there is downloaded as an attachment. The log counts them with the other parts that GitHub doesn't show.
+- An answer of the assistant posts only the language on the row that opens fenced code, so that it shows no words that nobody can see; code that the posted language would make a drawing, such as ```` ```mermaid,x ````, becomes code of the language `text`.
+- A table in fenced code stays as it is when a fence that may stand in HTML follows the code: the cleaning took its cells for those of a table.

@@ -32,7 +32,7 @@ from .structures import (
     TITLE_NOTE,
     UNDERLINE,
     apart,
-    info_word,
+    info_cut,
     math_between,
     math_signs,
     quoted,
@@ -933,8 +933,10 @@ def sanitize(text: str, config: Config, numbers: Iterable[Checked] = ()) -> str:
     """The engine's text without mentions, images, HTML, headings, foreign links and
     math.
 
-    Code stays as it is, but for fenced code that GitHub would draw or read as math,
-    which shows as code of the language `text`; issue numbers, and references to issues of related
+    Code stays as it is, but for the info string of fenced code, of which GitHub
+    shows nothing and which keeps only the language that the engine may read, and
+    fenced code that GitHub would draw or read as math, which shows as code of the
+    language `text`; issue numbers, and references to issues of related
     repositories, stay links only when they were checked.
     """
     checked = set(numbers)
@@ -966,17 +968,25 @@ def sanitize(text: str, config: Config, numbers: Iterable[Checked] = ()) -> str:
 
 
 def plain_code(code: re.Match[str]) -> str:
-    """Code of CODE as GitHub shows it: fenced code that it would draw, or whose
-    content it would read as math, with `text` as its language, so that each of its
-    rows, of which a drawing or math may show nothing, shows as it is."""
+    """Code of CODE as GitHub shows it: fenced code with only the part of its info
+    string that the engine reads of an issue (info_cut), since the page shows none
+    of it, so that no answer posts words that nobody sees; and fenced code that
+    GitHub would draw, or whose content it would read as math, with `text` as its
+    language, so that each of its rows, of which a drawing or math may show
+    nothing, shows as it is. The drawing is judged by the word that is posted:
+    `mermaid,x` is code on GitHub, but `mermaid` alone would be drawn."""
     if code["fence"] is None:
         return code[0]
     start = code.end("fence")
     end = code.string.index("\n", start)
-    word = info_word(code.string[start:end])
-    if word not in DRAWN and not word.startswith("math"):
+    info = code.string[start:end]
+    cut = info_cut(info)
+    word = info[:cut].strip(" \t")
+    if word in DRAWN or word == "math":
+        word = "text"
+    elif cut == len(info):
         return code[0]
-    return code[0][: start - code.start()] + "text" + code[0][end - code.start() :]
+    return code[0][: start - code.start()] + word + code[0][end - code.start() :]
 
 
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
