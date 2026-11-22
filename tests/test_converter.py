@@ -8,16 +8,15 @@ and on the renderings of the texts of the four fixtures of marker words.
 
 import json
 import re
-import time
 from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
-from test_assistant import CEILING, GROWTH, built
+from test_assistant import CEILING, built
 
 import issue_assistant as assistant
 from issue_assistant.converter import tree_of
-from support import CONFIG, growth, make_issue
+from support import CONFIG, GROWTH, Growth, growth, make_issue, too_slow
 
 FIXTURES = Path(__file__).with_name("fixtures")
 RENDERINGS = json.loads((FIXTURES / "renderings.json").read_text("utf-8"))
@@ -371,7 +370,8 @@ def test_a_reference_of_many_digits_stands_for_its_character():
 def test_a_run_of_text_is_one_text_node():
     """html.parser hands on each `<` of a run by itself, as Fuzzing found it slow;
     the tree holds one text node for each run of text, as a browser does, and the
-    text of an element that html.parser reads raw stays as it is."""
+    text of an element that html.parser reads raw stays as it is. How long a run of
+    `<` takes is held by `a run of <` of CONVERTER_TEXTS, to its growth (#528)."""
     root = tree_of('a<<b c="<<">x<<<script>y<<z</script>&#0;<<')
     assert root.children[0] == "a<"
     b = root.children[1]
@@ -382,9 +382,24 @@ def test_a_run_of_text_is_one_text_node():
     # After an element of raw text, the text stays as html.parser reads it.
     assert b.children[2] == "�<"
     assert b.children[3].tag == "<markup without end>"
-    started = time.process_time()
     assert converted("<p>" + "<" * assistant.MAX_TEXT + "</p>").text.count("<") > 0
-    assert time.process_time() - started < 0.5
+
+
+# The end of the input that failed Fuzzing by chance on a slow runner (run
+# 45041178791, #528), after a run of 76,180 `<`.
+FUZZED_END = (
+    "&" + "\x00" * 31 + "'" + "\x00" * 9 + "<!--\x00\x00'&'&\x00<![\x00\x00222222"
+)
+
+
+def test_the_input_that_failed_fuzzing_by_chance_reads_as_before():
+    """The run of `<` stays text, the nulls become replacement characters and the
+    unclosed comment is markup without end, as on main before #528."""
+    result = converted("<" * 76_180 + FUZZED_END)
+    assert result.text == "<" * 76_180 + "&" + "\ufffd" * 31 + "'" + "\ufffd" * 9
+    assert result.addresses == ()
+    assert counted(result) == {"unknown": 1}
+    assert result.counts["unknown"] == {"<markup without end>": 1}
 
 
 def test_a_space_goes_only_where_the_page_leaves_one():
@@ -919,6 +934,14 @@ CONVERTER_TEXTS = {
     ],
     "unclosed comments and tags": [P, ("<!--", 8_000), ("<a ", 8_000)],
     "character references": [P, ("&#xE0041;&amp;&ZeroWidthSpace;x", 6_000), "</p>"],
+    # The dense but linear HTML that is the slowest under the fuzzer (#528):
+    # html.parser hands on a `<` that can't start a tag by itself, and reads each tag.
+    "a run of <": [P, ("<", 2 * assistant.MAX_TEXT), "</p>"],
+    "< before a space": [P, ("< ", assistant.MAX_TEXT), "</p>"],
+    "< before a null": [P, ("<\x00", assistant.MAX_TEXT), "</p>"],
+    "the input that failed Fuzzing by chance": [("<", 76_180), FUZZED_END],
+    "rows of a table without a table": [("<tr><td>b</td><td>c</td></tr>", 4_519)],
+    "paragraphs without an end": [("<p>x", assistant.MAX_TEXT // 2)],
 }
 
 
@@ -936,6 +959,57 @@ def test_no_html_makes_the_converter_slow(parts):
     )
     result = assistant.markdown_of(whole, whole)
     assert len(result.text) <= assistant.LONGEST + len(assistant.CUT_NOTE) + 1
+
+
+def test_the_fuzz_target_judges_a_slow_conversion_by_its_growth():
+    """fuzz/fuzz_converter.py passes a conversion slower than its budget that grows
+    with its text, and fails one that grows with its square, one above its ceiling
+    and one without an eighth (#528). No input is slower than the budget on a fast
+    machine, so local fuzzing never gets here."""
+
+    def linear(text):
+        return lambda: [text.count("\x00", i, i + 64) for i in range(0, len(text), 64)]
+
+    def square(text):
+        return lambda: [text.count("\x00", i) for i in range(0, len(text), 64)]
+
+    eighth, whole = "x" * 8_000, "x" * 64_000
+    assert too_slow(0.5, 8, square(eighth), square(whole), 0.5, 1) is None
+    assert too_slow(0.6, 8, linear(eighth), linear(whole), 0.5, 1) is None
+    problem = too_slow(0.6, 8, square(eighth), square(whole), 0.5, 1)
+    assert problem.startswith("took ") and problem.endswith(
+        "(at most 13 times and 1 s)"
+    )
+    assert GROWTH == 13
+    assert too_slow(0.6, 7, linear(eighth), linear(whole), 0.5, 1) == (
+        "took 0.60 s, more than 0.5 s"
+    )
+
+    def linear_but_slow(eighth, whole):
+        return Growth(0.15, 1.2, 8.0)
+
+    assert too_slow(0.9, 8, print, print, 0.5, 1, linear_but_slow) == (
+        "took 0.1500 s on an eighth of the text, 1.2000 s on the whole, "
+        "8.00 times as long (at most 13 times and 1 s)"
+    )
+
+    # A first call above the ceiling is told against one call of its eighth, and
+    # the whole is not called again: the timeout of the fuzzer counts every call.
+    calls = []
+    clock = iter([2.0, 2.25, 3.0, 3.0])
+    ticks = clock.__next__
+    assert too_slow(
+        1.5, 8, lambda: calls.append(8), calls.clear, 0.5, 1, clock=ticks
+    ) == (
+        "took 0.2500 s on an eighth of the text, 1.5000 s on the whole, "
+        "6.00 times as long (at most 13 times and 1 s)"
+    )
+    assert too_slow(
+        1.5, 8, lambda: calls.append(8), calls.clear, 0.5, 1, clock=ticks
+    ).startswith(
+        "took 0.0000 s on an eighth of the text, 1.5000 s on the whole, inf times"
+    )
+    assert calls == [8, 8]
 
 
 CHIP = (
