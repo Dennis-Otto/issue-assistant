@@ -1853,3 +1853,51 @@ def growth(
         if collecting:
             gc.enable()
     return Growth(best[0] * tick, best[1] * tick, best[1] / best[0])
+
+
+# How many times as long a reading may take on the whole text as on the text with an
+# eighth of its repetitions. A reading in linear time takes 8 times as long, or less
+# where a part of it stops early, and one in which a part grows with the square of the
+# length 64 times: such a part fails this once it takes about 44 % of the time of the
+# whole text. The highest growth on main was 9.5 (2026-11-22, #504). The timing tests
+# and the fuzz target of the converter hold their readings to it alike.
+GROWTH = 13
+
+
+def too_slow(
+    seconds: float,
+    count: int,
+    eighth: Callable[[], object],
+    whole: Callable[[], object],
+    budget: float,
+    ceiling: float,
+    measure: Callable[[Callable[[], object], Callable[[], object]], Growth] = growth,
+) -> str | None:
+    """Why a call that took `seconds` of processor time on a text that repeats a piece
+    `count` times is too slow, or None, as fuzz/fuzz_converter.py judges it (#528).
+
+    A call of up to `budget` seconds passes. A slower one passes only on its growth:
+    `whole` calls it again, `eighth` on the text with an eighth of the repetitions,
+    and it fails when the whole takes GROWTH times as long or more, or longer than
+    `ceiling`. A text of fewer than 8 repetitions has no eighth and keeps the budget;
+    a first call above the ceiling is not timed again, as the timeout of the fuzzer
+    counts every call, and is told against one call of its eighth.
+    """
+    if seconds <= budget:
+        return None
+    if count < 8:
+        return f"took {seconds:.2f} s, more than {budget} s"
+    if seconds > ceiling:
+        started = time.process_time()
+        eighth()
+        part = time.process_time() - started
+        measured = Growth(part, seconds, seconds / part if part else math.inf)
+    else:
+        measured = measure(eighth, whole)
+        if measured.times < GROWTH and measured.whole <= ceiling:
+            return None
+    return (
+        f"took {measured.eighth:.4f} s on an eighth of the text, "
+        f"{measured.whole:.4f} s on the whole, {measured.times:.2f} times as long "
+        f"(at most {GROWTH} times and {ceiling} s)"
+    )
