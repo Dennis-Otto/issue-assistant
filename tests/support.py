@@ -1830,32 +1830,26 @@ def growth(
     millisecond; a call that the first try of a side makes for the first time can't
     count, as two tries are without it. As in timeit, no collection of garbage runs
     within a try. The ratio comes from the clock, the seconds from process_time()
-    over all six tries.
+    over the six tries as one span, so that its step of 1/64 second on Windows
+    errs once rather than in every try.
     """
     if clock_step(clock) > 0.001:
         shortest *= 10
     best = [math.inf, math.inf]
-    seconds = ticks = 0.0
     collecting = gc.isenabled()
     gc.disable()
     try:
+        started, first = time.process_time(), clock()
         for _ in range(3):
             for index, side in enumerate((eighth, whole)):
                 calls = 0
-                began, started, counted = (
-                    time.perf_counter(),
-                    time.process_time(),
-                    clock(),
-                )
+                began, counted = time.perf_counter(), clock()
                 while not calls or time.perf_counter() - began < shortest:
                     side()
                     calls += 1
-                spent = clock() - counted
-                seconds += time.process_time() - started
-                ticks += spent
-                best[index] = min(best[index], spent / calls)
+                best[index] = min(best[index], (clock() - counted) / calls)
+        tick = (time.process_time() - started) / (clock() - first)
     finally:
         if collecting:
             gc.enable()
-    tick = seconds / ticks
     return Growth(best[0] * tick, best[1] * tick, best[1] / best[0])

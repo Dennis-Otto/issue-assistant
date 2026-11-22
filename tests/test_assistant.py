@@ -5681,6 +5681,9 @@ HIDING_MATH = [
         "$`\\color{red}Xyzzy`$ and `$\\color{red}shown$`",
         f"{MATH} and `$\\color{{red}}shown$`",
     ),
+    # A backtick that no other of its length closes opens no code, and GitHub draws
+    # the math around it (`gh api -X POST markdown`, 2026-11-22).
+    ("$x ` % Xyzzy$", MATH),
     # In list items, quotes, headings and table cells.
     (
         "- $x % Xyzzy$\n\n> $y % Xyzzy$\n\n# $z % Xyzzy$",
