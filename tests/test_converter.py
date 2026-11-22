@@ -801,6 +801,27 @@ CONVERTER_TEXTS = {
         ('<span class="pl-k">def</span> <span class="pl-en">f</span>():\n', 16_000),
         "</pre></div>",
     ],
+    # Spans widen each row to WIDEST columns at most, and the rows past the cut
+    # aren't padded: without both, these grew with the square or the cube.
+    "rows of cells with wide spans": [
+        "<table>",
+        ('<tr><td colspan="999" rowspan="999">x</td></tr>', 800),
+        "</table>",
+    ],
+    "a row of wide spans over empty rows": [
+        "<table><tr>",
+        ('<td colspan="999" rowspan="999">x</td>', 60),
+        "</tr>",
+        ("<tr></tr>", 999),
+        "</table>",
+    ],
+    "a row of wide cells over narrow rows": [
+        "<table><tr>",
+        ('<td colspan="999">x</td>', 800),
+        "</tr>",
+        ("<tr><td>y</td></tr>", 800),
+        "</table>",
+    ],
     "rows of a table": [
         '<table role="table"><thead><tr><th>a</th><th>b</th></tr></thead><tbody>',
         ("<tr><td>b</td><td>c</td></tr>", 6_000),
@@ -935,3 +956,18 @@ def test_html_that_github_doesn_t_write_fails_closed(html, markdown, counts):
     result = converted(html)
     assert result.text == markdown
     assert counted(result) == counts
+
+
+def test_a_table_keeps_widest_columns():
+    wide = assistant.WIDEST
+    result = converted(
+        f'<table><tr><td colspan="{wide + 5}" rowspan="2">zqa</td><td>zqb</td></tr>'
+        "<tr></tr><tr><td>zqc</td></tr></table>"
+    )
+    rows = result.text.split("\n")
+    assert [row.count("|") for row in rows] == [wide + 1] * 5
+    assert "zqa" in rows[2] and "zqc" in rows[4] and "zqb" not in result.text
+    assert result.counts["cut"] == {
+        f"spans past {wide} columns": 1,
+        f"cells past {wide} columns": 1,
+    }

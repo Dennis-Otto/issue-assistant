@@ -1743,8 +1743,14 @@ class TextAndAlts(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         for name, value in attrs:
-            if name in ("alt", "lang", "class"):
+            if name in ("alt", "lang"):
                 self.words |= set(re.findall(r"[^\W_]+", value or ""))
+            elif name == "class":
+                # Of the classes, only the language of a highlighted fence.
+                for one in (value or "").split():
+                    found = re.fullmatch(r"highlight-(?:source|text)-(.+)", one)
+                    if found:
+                        self.words |= set(re.findall(r"[^\W_]+", found[1]))
 
     def handle_data(self, data):
         self.words |= set(re.findall(r"[^\W_]+", data))

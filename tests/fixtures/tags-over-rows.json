@@ -1,5 +1,5 @@
 {
- "about": "Texts with a tag over several rows, made of pieces, and the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, 2026-11-20). Where it is hard to tell whether a block holds a row, the cleaning takes out a marker that GitHub shows: those are listed.",
+ "about": "Texts with a tag over several rows, made of pieces, and the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, 2026-11-20). Where it is hard to tell whether a block holds a row, the cleaning takes out a marker that GitHub shows: those are listed. Each text's `html` is GitHub's rendering of it for the converter of way D (#520), by gh api -X POST markdown with mode gfm and the context Dennis-Otto/issue-assistant, 2026-11-22; `the converter takes out` and `the converter keeps` name the rule of #520 by which the converter differs from what GitHub shows.",
  "texts": [
   {
    "text": "x\n\n- <a\n  t=\"zqa>zqb\"\n  >zqc\n\nzqd",

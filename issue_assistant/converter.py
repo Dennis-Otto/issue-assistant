@@ -37,6 +37,10 @@ from .structures import DRAWING_NOTE, DRAWN, MATH_NOTE
 DEEPEST = 128
 # The text stops at twice the length of a text that GitHub keeps.
 LONGEST = 2 * MAX_TEXT
+# A table keeps this many columns: the cells past them, and the columns that a
+# colspan or a rowspan would add past them, give no text and count as `cut`, so that
+# a few cells with wide spans can't make a table of millions of cells.
+WIDEST = 64
 CUT_NOTE = "(the rest of the text removed: it is longer than the assistant reads)"
 # How D reads a mermaid diagram is still open (#520): with False, as here, every
 # drawing gives DRAWING_NOTE; True isn't built.
@@ -1139,35 +1143,44 @@ class HtmlWalk:
         def end() -> None:
             text = out.end_cell()
             out.cell = None
+            if heading:
+                table.heads = len(table.rows)
             row = table.rows[-1]
             column = len(row)
+            if column >= WIDEST:
+                self.counts["cut"][f"cells past {WIDEST} columns"] += 1
+                return
             if len(table.aligns) <= column:
                 table.aligns.append(element.attributes.get("align", ""))
             row.append(text)
             span = int(element.attributes.get("colspan", "1") or 1)
             down = int(element.attributes.get("rowspan", "1") or 1)
-            for extra in range(min(span, 1000)):
+            if span > WIDEST - column:
+                self.counts["cut"][f"spans past {WIDEST} columns"] += 1
+                span = WIDEST - column
+            for extra in range(span):
                 if down > 1:
                     table.spans[column + extra] = min(down, 1000) - 1
                 if extra:
                     row.append("")
             self.fill_spans(table)
-            if heading:
-                table.heads = len(table.rows)
 
         self.descend(element, end)
 
     def fill_spans(self, table: TableRows, finished: bool = False) -> None:
-        """Adds an empty cell in each column that a cell above spans down into."""
+        """Adds an empty cell in each column that a cell above spans down into.
+
+        `spans` holds only the columns that still span, at most WIDEST of them, so
+        that each row costs at most WIDEST cells."""
         row = table.rows[-1]
-        while table.spans.get(len(row), 0):
-            table.spans[len(row)] -= 1
+        while len(row) in table.spans:
+            spanned(table, len(row))
             row.append("")
         if finished:
             for column in sorted(table.spans):
-                if column >= len(row) and table.spans[column]:
+                if column >= len(row):
                     row.extend([""] * (column - len(row) + 1))
-                    table.spans[column] -= 1
+                    spanned(table, column)
 
     def write_table(self, table: TableRows) -> None:
         out = self.out
@@ -1186,9 +1199,20 @@ class HtmlWalk:
         delimiter = {"left": ":--", "right": "--:", "center": ":-:"}
         out.flush()
         for row in [head, [delimiter.get(a, "---") for a in aligns[:width]], *rows]:
+            if out.cut:
+                # The rows past the cut give no text: padding them would cost
+                # time that grows with the rows times the width.
+                break
             cells = row + [""] * (width - len(row))
             out.row("| " + " | ".join(cells) + " |")
         out.blank = True
+
+
+def spanned(table: TableRows, column: int) -> None:
+    """One row less for the span of the column, which ends when none is left."""
+    table.spans[column] -= 1
+    if not table.spans[column]:
+        del table.spans[column]
 
 
 def markdown_of(html: str, source: str, notes: bool = True) -> Converted:
