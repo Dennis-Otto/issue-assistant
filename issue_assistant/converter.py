@@ -168,6 +168,10 @@ CODE_CLASSES = frozenset(
 HIGHLIGHT = re.compile(r"highlight-(?:source|text)-([\w.+-]+)")
 NUMBER = re.compile(r"-?[0-9]{1,9}")
 LANGUAGE = re.compile(r"[\w.+#-]+")
+# A decimal reference to a character: html.parser reads its digits with int(),
+# which refuses more than 4,300 of them. Past 7 digits, without the zeros before
+# them, it stands for no character, which HTML shows as U+FFFD.
+DECIMAL_REFERENCE = re.compile(r"&#(0*+)([0-9]*+)")
 
 
 def classes(allowed: frozenset[str], pattern: re.Pattern[str] | None = None) -> Rule:
@@ -419,9 +423,17 @@ class TreeBuilder(HTMLParser):
         super().close()
 
 
+def short_reference(found: re.Match[str]) -> str:
+    """A decimal reference to the same character in at most 7 digits."""
+    zeros, digits = found[1], found[2]
+    if len(digits) > 7:
+        return "&#65533"
+    return "&#" + (digits or zeros[:1])
+
+
 def tree_of(html: str) -> HtmlElement:
     builder = TreeBuilder()
-    builder.feed(html)
+    builder.feed(DECIMAL_REFERENCE.sub(short_reference, html) if "&#" in html else html)
     builder.close()
     return builder.root
 
