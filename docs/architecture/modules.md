@@ -29,7 +29,7 @@ The code is the package `issue_assistant/`, of the standard library alone ([deci
 | `issue_assistant/rest_shapes.py` | GraphQL's answers in the form of the REST API: issues, authors, comments and discussions |
 | `issue_assistant/github.py` | The class `GitHub`: every request, through `gh` |
 | `issue_assistant/markup.py` | The HTML of an issue as GitHub reads it: the blocks and paragraphs that hold a tag, a comment, an instruction, a declaration or a section of CDATA, and how far each reaches |
-| `issue_assistant/tags.py` | The reading of the tags with what they hide: `strip_html`, the tags that run past their rows or past a `>` in a quoted value, and the content of a `video` or an `rp`, which GitHub keeps and no browser shows |
+| `issue_assistant/tags.py` | The reading of the tags with what they hide: `strip_html`, the tags that run past their rows or past a `>` in a quoted value, and the content of a `video`, an `rp` or a `relative-time`, which GitHub keeps and the page doesn't show |
 | `issue_assistant/structures.py` | The structures of Markdown whose text GitHub doesn't show as it is written: the cells of a table beyond its header, the source of a diagram, a map or a 3D model, math, and the title of a link or an image, which the page shows only on hover, as `structures_of` finds them |
 | `issue_assistant/cleaning.py` | The cleaning of what the engine wrote: `sanitize`, `plain` and the links to files |
 | `issue_assistant/issues.py` | Who wrote an issue or a comment, the marks of the assistant, the issue forms and the commands in a comment |

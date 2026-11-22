@@ -51,12 +51,18 @@ from .markup import (
 )
 
 TAG_REST_ONLY = re.compile(TAG_REST)
-# The start of an element that GitHub's sanitizer keeps but whose content no browser
-# shows: `rp`, the brackets of ruby for a browser without it, which browsers hide,
-# and `video`, whose content is for a browser without video. The search stops at it
-# also where a `>` ends it at once. Its name is in ASCII letters of any case, as the
-# HTML parser reads a name, and `<video/>` starts one as well.
-HIDDEN_NAME = r"(?P<hidden>[Vv][Ii][Dd][Ee][Oo]|[Rr][Pp])(?=[\t\n\f\r />])"
+# The start of an element that GitHub's sanitizer keeps but whose content the page
+# doesn't show: `rp`, the brackets of ruby for a browser without it, which browsers
+# hide; `video`, whose content is for a browser without video; and `relative-time`,
+# in whose place GitHub's script for the element draws a date. The search stops at
+# it also where a `>` ends it at once. Its name is in ASCII letters of any case, as
+# the HTML parser reads a name, and `<video/>` starts one as well. GitHub's sanitizer
+# keeps the start tag of a `relative-time` only in lower case today, but could keep
+# it in any: on the safe side, any case counts.
+HIDDEN_NAME = (
+    r"(?P<hidden>[Vv][Ii][Dd][Ee][Oo]|[Rr][Pp]"
+    r"|[Rr][Ee][Ll][Aa][Tt][Ii][Vv][Ee]-[Tt][Ii][Mm][Ee])(?=[\t\n\f\r />])"
+)
 # The names of the elements that GitHub's HTML parser counts as special and keeps
 # open, such as `p` and `div`, past which no end tag of an element that holds one
 # ends that element; in ASCII of any case.
@@ -73,7 +79,8 @@ SPECIAL = re.compile(SPECIAL_TAGS, re.IGNORECASE | re.ASCII)
 # it or that starts another, of the names of hidden elements, of ruby and of the
 # special elements, also where a `>` ends it at once.
 INNER = (
-    rf"(?P<inner>(?ai:/?(?:video|rp|ruby|rtc|rt|rb|{SPECIAL_TAGS}))(?=[\t\n\f\r />]))"
+    r"(?P<inner>(?ai:/?(?:video|rp|relative-time|ruby|rtc|rt|rb"
+    rf"|{SPECIAL_TAGS}))(?=[\t\n\f\r />]))"
 )
 
 
@@ -324,8 +331,16 @@ REST = -1
 # Content without a `<` or a backtick up to the end tag of its element.
 SIMPLE_CONTENT = {
     name: re.compile(rf"[^<`]*+(?P<end></(?ai:{name})[\t\n\f\r ]*+>)")
-    for name in ("video", "rp")
+    for name in ("video", "rp", "relative-time")
 }
+
+
+def hidden_name(text: str, start: int) -> str:
+    """The name of the hidden element whose start tag HIDDEN_NAME found at a
+    position, in lower case."""
+    if text[start + 1] in "Vv":
+        return "video"
+    return "rp" if text[start + 2] in "Pp" else "relative-time"
 
 
 @functools.lru_cache(maxsize=64)
@@ -335,11 +350,14 @@ def backtick_run(length: int) -> re.Pattern[str]:
 
 
 class Hidden:
-    """The `rp` and `video` elements of a text, for start tags at rising positions:
-    GitHub keeps both and what they hold, and a browser shows none of it, as it
-    hides the brackets of ruby and the content for a browser without video. Their
-    start tags open an Element, whose content the reading of the tags then reads,
-    with every tag in it.
+    """The `rp`, `video` and `relative-time` elements of a text, for start tags at
+    rising positions: GitHub keeps them and what they hold, and the page shows none
+    of it, as a browser hides the brackets of ruby and the content for a browser
+    without video, and GitHub's script draws a date in place of a `relative-time`.
+    Their start tags open an Element, whose content the reading of the tags then
+    reads, with every tag in it. A `relative-time` counts whatever its `datetime`:
+    the script shows the words of one whose date doesn't parse, but which dates the
+    browser parses can't be told here.
 
     The content ends where GitHub's HTML parser ends the element: at its end tag,
     one for each start tag of its name, but only one in the same paragraph, heading
@@ -397,7 +415,7 @@ class Hidden:
         `before` is where the last span or comment ends that the reading of the
         tags passed over."""
         text, search = self.text, self.search
-        name = "video" if text[start + 1] in "Vv" else "rp"
+        name = hidden_name(text, start)
         held = self.blocks.holding(start)
         container: int | None = None
         rows = None
@@ -571,15 +589,15 @@ class Hidden:
 
 
 class Element:
-    """An `rp` or a `video` whose content the reading of the tags is in: where its
-    start tag starts and ends, its name, and where its paragraph or heading ends it,
-    REST in a list item, or None in an HTML block. Its end tags count only before
-    `limit`, the end of its row, its block at the top of the text, its paragraph or
-    its heading, or a backtick before them; after it, at the top of the text, only
-    one alone on a row, before `fence`, and not indented after `listed`, the first
-    row of a list item in its content, which may hold it: GitHub's HTML parser
-    ignores it in a list item. `ruby` says whether a `ruby` holds it, and
-    `following` where the first `<` of its content stands."""
+    """An `rp`, a `video` or a `relative-time` whose content the reading of the tags
+    is in: where its start tag starts and ends, its name, and where its paragraph or
+    heading ends it, REST in a list item, or None in an HTML block. Its end tags
+    count only before `limit`, the end of its row, its block at the top of the text,
+    its paragraph or its heading, or a backtick before them; after it, at the top of
+    the text, only one alone on a row, before `fence`, and not indented after
+    `listed`, the first row of a list item in its content, which may hold it:
+    GitHub's HTML parser ignores it in a list item. `ruby` says whether a `ruby`
+    holds it, and `following` where the first `<` of its content stands."""
 
     __slots__ = (
         "container",
@@ -687,6 +705,7 @@ def shown_html(text: str) -> tuple[str, bool]:
     footnote, which it shows after the end of the text."""
     rows = HtmlRows(text)
     spans, middle, end = html_parts(text, rows)
+    text, spans = dated(text, spans, rows)
     comments = without(text, spans, 0, min(middle, end))
     rest = without(text, spans, middle, end)
     html, tags = (
@@ -698,12 +717,15 @@ def shown_html(text: str) -> tuple[str, bool]:
     return shown, end < len(text)
 
 
-def shown_spans(text: str) -> tuple[list[tuple[int, int]], bool]:
-    """The parts of a text that strip_html keeps, as spans of it in their order, so
-    that what another reading of the same text takes out can go as well; and whether
-    GitHub hides the rest of it from a position on, as shown_html says."""
+def shown_spans(text: str) -> tuple[str, list[tuple[int, int]], bool]:
+    """The parts of a text that strip_html keeps, as spans in their order, so that
+    what another reading of the same text takes out can go as well; the text of the
+    spans, which is the text with a space in the place of each `relative-time` whose
+    content goes, as dated leaves it, and as long as the text; and whether GitHub
+    hides the rest of it from a position on, as shown_html says."""
     rows = HtmlRows(text)
     spans, middle, end = html_parts(text, rows)
+    text, spans = dated(text, spans, rows)
     html, tags = (
         (HTML, HTML_TAG) if rows.fenced() else (HTML_AND_MARKUP, HTML_TAG_AND_MARKUP)
     )
@@ -716,7 +738,30 @@ def shown_spans(text: str) -> tuple[list[tuple[int, int]], bool]:
             match.span() for match in pattern.finditer(joined) if match["open"] is None
         ]
         kept += subtract(pieces, removed)
-    return kept, end < len(text)
+    return text, kept, end < len(text)
+
+
+def dated(
+    text: str, spans: list[tuple[int, int]], rows: HtmlRows
+) -> tuple[str, list[tuple[int, int]]]:
+    """The text with a space in place of the `<` of each `relative-time` whose
+    content a span takes out, and the spans without those `<`: the page draws a date
+    there, so the words on both sides stay apart, as `Value` and `Error` around one
+    stay two words for the search. The text keeps its length, so a position in it is
+    one in the text as it is written for every other reading. Of a `video` and an
+    `rp`, which draw no words in their place, nothing stays, as before."""
+    places = [
+        start for start, _ in spans if start in rows.hidden and text[start + 2] in "Ee"
+    ]
+    if not places:
+        return text, spans
+    pieces, position = [], 0
+    for place in places:
+        pieces += [text[position:place], " "]
+        position = place + 1
+    pieces.append(text[position:])
+    starts = set(places)
+    return "".join(pieces), [(start + (start in starts), end) for start, end in spans]
 
 
 def between(

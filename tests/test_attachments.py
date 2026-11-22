@@ -339,11 +339,16 @@ def test_an_instruction_or_a_declaration_hides_what_it_holds():
         assert found(body) == SHOWN_LOG, body
 
 
+# The start tag of an element in whose place the page draws a date.
+DATED = '<relative-time datetime="2020-01-01T00:00:00Z">'
+
+
 def test_a_file_that_a_video_or_the_brackets_of_ruby_hold_counts_as_none():
-    """GitHub keeps a `video` and an `rp` with what they hold, but no browser shows
-    it: a link or an image inside counts as none; one after the end of the element,
-    and a file dragged into the issue, still count (`gh api -X POST markdown` with
-    the mode gfm, 2026-11-21)."""
+    """GitHub keeps a `video`, an `rp` and a `relative-time` with what they hold, but
+    the page shows none of it, and a date in place of a `relative-time`: a link or
+    an image inside counts as none; one after the end of the element, and a file
+    dragged into the issue, still count (`gh api -X POST markdown` with the mode
+    gfm, 2026-11-21 and 22)."""
     hidden = (
         f"<video>[log]({LOG})</video>",
         f"<video>\n\n![shot]({IMAGE})\n\n</video>",
@@ -356,6 +361,10 @@ def test_a_file_that_a_video_or_the_brackets_of_ruby_hold_counts_as_none():
         # with the rest of the text.
         f"<video>\n\nx\n- item\n\n  </video>\n\n[log]({LOG})",
         f"See [^1].\n\n[^1]: [log]({LOG})\n\n<video>\n\nx",
+        f"{DATED}[log]({LOG})</relative-time>",
+        f'<relative-time datetime="2020">![shot]({IMAGE})</relative-time>',
+        f'a <relative-time><img src="{IMAGE}"></relative-time>',
+        f"x\n\n{DATED}\n\n[log]({LOG})",
     )
     for body in hidden:
         assert found(body) == [], body
@@ -364,6 +373,8 @@ def test_a_file_that_a_video_or_the_brackets_of_ruby_hold_counts_as_none():
         f"<video>\n\nx\n\n</video>\n\n[log]({LOG})",
         f"<video>\n\nx\n\n- item\n\n</video>\n\n[log]({LOG})",
         f"`<video>` [log]({LOG})",
+        f"{DATED}x</relative-time> [log]({LOG})",
+        f"`<relative-time>` [log]({LOG})",
         f"Logs:\n\n[home-assistant.log]({LOG})",
     )
     for body in shown:
