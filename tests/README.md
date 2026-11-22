@@ -4,7 +4,7 @@
 
 | File | What it holds |
 | --- | --- |
-| `support.py` | Builders of issues, comments and answers, the fake GitHub, the fake `gh` and `assert_golden` |
+| `support.py` | Builders of issues, comments and answers, the fake GitHub, the fake `gh`, `assert_golden` and `growth`, which times a reading on a text and on its eighth |
 | `fake_gh.py` | The program that the tests of the class `GitHub` start in place of `gh` |
 | `golden/` | What the assistant writes, word for word: comments, contexts, plans and job summaries |
 | `test_golden.py` | The tests that compare those texts with their golden files |

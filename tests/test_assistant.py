@@ -45,6 +45,7 @@ from support import (
     event,
     fake_gh,
     follow_up,
+    growth,
     make_alert,
     make_answer,
     make_comment,
@@ -176,229 +177,229 @@ def test_only_as_much_of_a_text_as_github_keeps_is_read():
 
 
 # Texts of 64 KiB on which the earlier patterns took up to hours: blanks after a
-# heading, comments and tags that never close, and many of them.
+# heading, comments and tags that never close, and many of them. Each is given as its
+# parts, a piece that comes once or a piece and how often it comes, so that the
+# timing can build it with an eighth of its repetitions too.
 SLOW_TEXTS = {
-    "blanks after a heading": "### " + " " * 65_000 + "x",
-    "tabs after a heading": "### " + "\t" * 65_000 + "x",
-    "headings alone": "### a\n" * 10_922,
-    "unclosed comments": "<!--" * 16_384,
-    "unclosed tags": "<a" * 32_768,
-    "unclosed tags and comments": "<a <!--\n" * 8_192,
-    "unclosed comments within lines": "x<!--" * 13_107,
-    "comments that end at the very end": "<!--" * 16_383 + "-->",
-    "a comment line after unclosed comments": "x<!--" * 13_000 + "\n<!--",
-    "a tag on every line": "</a\n" * 16_384,
-    "unclosed comments in deep quotes": "> " * 32_000 + "x <!--",
-    "unclosed comments after list marks": "- " * 32_000 + "x <!--",
-    "blanks before an unclosed comment": " " * 65_000 + "x <!--",
-    "HTML blocks that never end": "<?\n" * 16_000 + "<!--",
-    "HTML blocks on every row": "<div>\n" * 10_000 + "x <!--",
-    "blank quotes after HTML": "> <div>\n" + ">\n" * 32_000 + "x <!--",
-    "HTML blocks between blank rows": "<a>\n\n" * 13_000 + "x <!--",
-    "comments after HTML blocks that end": "<a>\n\nx <!--\n\n" * 5_400,
-    "blocks that end on their rows": "<?a?>\n<!X>\n" * 5_400 + "<!--",
-    "values that end after HTML blocks": '<a>\n\n<a b="c"\n\n' * 4_000 + '<a b="',
-    "tags in a row": "<a>" * 21_000 + "\n<!--",
-    "comments in a row after HTML": "<a>\n\n" + "x<!--" * 13_000 + "\n<b>",
-    "attributes on one row": '<a b="c" ' * 7_000 + "<!--",
-    "values that never end": '<a b="' * 10_000,
-    "names before a value that never ends": "<a b " * 13_000 + '="',
-    "quoted values with a > in tags": '<a b=">' * 9_000 + "\n<!--",
-    "footnote marks in a row": "[^a]: " * 10_000 + "<div> <!--",
-    "footnote labels that never end": "[^a" * 21_000 + "\n<!--",
-    "tags over rows that never end": "<div\na b\n" * 8_000,
-    "tags over rows in a paragraph": "x <a\nb\n" * 9_000,
-    "values over rows in a block": '<div t="\n' * 7_000,
-    "values over rows in quotes": '> <div t="\n> a\n' * 4_000,
-    "blocks after tags without their end": "<div\nx\n\n" * 7_000,
-    "tags in a paragraph of quotes": "> x <a b\n" * 7_000,
-    "tags in deep quotes": ("> " * 100 + "<div\n") * 300,
-    "tags below deep quotes": "> " * 30_000 + "<div\n" + "x <a\n" * 1_000,
-    "list items of tags": "- <div\n  a\n" * 4_000,
-    "fenced code of tags": "```\n<div\na\n```\n" * 4_000,
-    "fences in quotes after tags": "> <div\n> ```\n" * 5_000,
-    "fences that open no code": "``` a`\n<div\n" * 5_000,
-    "tags in rows of a block": "<div>\n" + "x <span\n" * 8_000,
-    "values with the other quote": '<a t="' + "<a t='" * 10_000,
-    "blank rows in a tag of HTML blocks": "<?\n<v" + "\n" * 64_000 + "'='",
+    "blanks after a heading": ["### ", (" ", 65_000), "x"],
+    "tabs after a heading": ["### ", ("\t", 65_000), "x"],
+    "headings alone": [("### a\n", 10_922)],
+    "unclosed comments": [("<!--", 16_384)],
+    "unclosed tags": [("<a", 32_768)],
+    "unclosed tags and comments": [("<a <!--\n", 8_192)],
+    "unclosed comments within lines": [("x<!--", 13_107)],
+    "comments that end at the very end": [("<!--", 16_383), "-->"],
+    "a comment line after unclosed comments": [("x<!--", 13_000), "\n<!--"],
+    "a tag on every line": [("</a\n", 16_384)],
+    "unclosed comments in deep quotes": [("> ", 32_000), "x <!--"],
+    "unclosed comments after list marks": [("- ", 32_000), "x <!--"],
+    "blanks before an unclosed comment": [(" ", 65_000), "x <!--"],
+    "HTML blocks that never end": [("<?\n", 16_000), "<!--"],
+    "HTML blocks on every row": [("<div>\n", 10_000), "x <!--"],
+    "blank quotes after HTML": ["> <div>\n", (">\n", 32_000), "x <!--"],
+    "HTML blocks between blank rows": [("<a>\n\n", 13_000), "x <!--"],
+    "comments after HTML blocks that end": [("<a>\n\nx <!--\n\n", 5_400)],
+    "blocks that end on their rows": [("<?a?>\n<!X>\n", 5_400), "<!--"],
+    "values that end after HTML blocks": [('<a>\n\n<a b="c"\n\n', 4_000), '<a b="'],
+    "tags in a row": [("<a>", 21_000), "\n<!--"],
+    "comments in a row after HTML": ["<a>\n\n", ("x<!--", 13_000), "\n<b>"],
+    "attributes on one row": [('<a b="c" ', 7_000), "<!--"],
+    "values that never end": [('<a b="', 10_000)],
+    "names before a value that never ends": [("<a b ", 13_000), '="'],
+    "quoted values with a > in tags": [('<a b=">', 9_000), "\n<!--"],
+    "footnote marks in a row": [("[^a]: ", 10_000), "<div> <!--"],
+    "footnote labels that never end": [("[^a", 21_000), "\n<!--"],
+    "tags over rows that never end": [("<div\na b\n", 8_000)],
+    "tags over rows in a paragraph": [("x <a\nb\n", 9_000)],
+    "values over rows in a block": [('<div t="\n', 7_000)],
+    "values over rows in quotes": [('> <div t="\n> a\n', 4_000)],
+    "blocks after tags without their end": [("<div\nx\n\n", 7_000)],
+    "tags in a paragraph of quotes": [("> x <a b\n", 7_000)],
+    "tags in deep quotes": [("> " * 100 + "<div\n", 300)],
+    "tags below deep quotes": [("> ", 30_000), "<div\n", ("x <a\n", 1_000)],
+    "list items of tags": [("- <div\n  a\n", 4_000)],
+    "fenced code of tags": [("```\n<div\na\n```\n", 4_000)],
+    "fences in quotes after tags": [("> <div\n> ```\n", 5_000)],
+    "fences that open no code": [("``` a`\n<div\n", 5_000)],
+    "tags in rows of a block": ["<div>\n", ("x <span\n", 8_000)],
+    "values with the other quote": ['<a t="', ("<a t='", 10_000)],
+    "blank rows in a tag of HTML blocks": ["<?\n<v", ("\n", 64_000), "'='"],
     # Each tag of one long row looked for the end of the row again (2026-11-20).
-    "comment ends in values of tags after comments": "<!-- <a> --><b c='-->'>" * 2_800,
-    "sections of CDATA in a row of a block": "<div>\n" + "\t><![CDATA[>    " * 4_000,
+    "comment ends in values of tags after comments": [
+        ("<!-- <a> --><b c='-->'>", 2_800)
+    ],
+    "sections of CDATA in a row of a block": ["<div>\n", ("\t><![CDATA[>    ", 4_000)],
     # The search, the language and the area read the text as GitHub shows it
     # (2026-11-21), without its link reference definitions.
-    "link definitions in a row": "[a]: https://example.com/b\n" * 2_300,
+    "link definitions in a row": [("[a]: https://example.com/b\n", 2_300)],
     # Each start of a hidden element would read the rest of the text for its end.
-    "hidden elements that never end": "<video>" * 9_000,
-    "hidden elements in a row": "<rp>x</rp>" * 3_000,
-    "hidden elements on rows of their own": "<video>\n\nx\n\n" * 5_000,
-    "end tags of hidden elements alone on rows": "<video>\n\n" + "</rp>\n\n" * 9_000,
-    "brackets of ruby": "<ruby>x<rp>(</rp><rt>y</rt><rp>)</rp></ruby>" * 800,
-    "brackets of ruby that never end": "<ruby>x<rp>(<b>" * 4_000,
-    "hidden elements in code": "`<rp>` " * 3_000,
-    "hidden elements after backticks": "`" * 30_000 + "<rp>x</rp>" * 3_000,
-    "hidden elements after comments": "<!-- ` --> <rp>x</rp>" * 2_000,
-    "hidden elements between tags of rows": "x <rp>" + "<a\nb>" * 4_000,
-    "hidden elements in quotes": "> <video>\n" * 6_000,
+    "hidden elements that never end": [("<video>", 9_000)],
+    "hidden elements in a row": [("<rp>x</rp>", 3_000)],
+    "hidden elements on rows of their own": [("<video>\n\nx\n\n", 5_000)],
+    "end tags of hidden elements alone on rows": ["<video>\n\n", ("</rp>\n\n", 9_000)],
+    "brackets of ruby": [("<ruby>x<rp>(</rp><rt>y</rt><rp>)</rp></ruby>", 800)],
+    "brackets of ruby that never end": [("<ruby>x<rp>(<b>", 4_000)],
+    "hidden elements in code": [("`<rp>` ", 3_000)],
+    "hidden elements after backticks": [("`", 30_000), ("<rp>x</rp>", 3_000)],
+    "hidden elements after comments": [("<!-- ` --> <rp>x</rp>", 2_000)],
+    "hidden elements between tags of rows": ["x <rp>", ("<a\nb>", 4_000)],
+    "hidden elements in quotes": [("> <video>\n", 6_000)],
     # Each quoted value with a `>` could read the rest of the text for its quote.
-    "quoted values with a > in paragraphs": 'x <a t=">' * 7_000,
-    "quoted values over rows in paragraphs": 'x <a t="\n' * 7_000,
-    "values with the other quote and a >": "<a t='x\" >" * 6_000,
-    "quoted values with a > in quotes": '> <a t=">\n' * 6_000,
-    "quoted values with a > in list items": '- <a t=">\n' * 6_000,
-    "quoted values with a > in HTML blocks": "<div>\n" + '<a t=">' * 9_000,
-    "tags after instructions that end at once": "x <?><span " * 6_000,
-    "names of an = at the start of rows": '<div\n="\n' * 5_000,
+    "quoted values with a > in paragraphs": [('x <a t=">', 7_000)],
+    "quoted values over rows in paragraphs": [('x <a t="\n', 7_000)],
+    "values with the other quote and a >": [("<a t='x\" >", 6_000)],
+    "quoted values with a > in quotes": [('> <a t=">\n', 6_000)],
+    "quoted values with a > in list items": [('- <a t=">\n', 6_000)],
+    "quoted values with a > in HTML blocks": ["<div>\n", ('<a t=">', 9_000)],
+    "tags after instructions that end at once": [("x <?><span ", 6_000)],
+    "names of an = at the start of rows": [('<div\n="\n', 5_000)],
     # The tables, the drawings and the math of a text are read once (2026-11-21).
-    "rows of a table": "| a |\n|---|\n" + "| b | c |\n" * 6_500,
-    "rows of pipes in quotes": "> | a |\n> |---|\n" + "> |\n" * 16_000,
-    "a row of pipes": "| a |\n|---|\n" + "|" * 64_000,
-    "delimiter rows": "|-|\n" * 16_000,
-    "escaped pipes": "| a |\n|---|\n" + "\\|" * 32_000,
-    "drawn fences that never close": "```mermaid\n" * 5_900,
-    "drawn fences in quotes": "> ```mermaid\n> %% x\n" * 3_000,
-    "comments of a diagram": "```mermaid\n" + "%% x\n" * 13_000 + "```",
-    "drawn pre that never end": '<pre lang="mermaid">' * 3_000,
-    "drawn pre that end": '<pre lang="mermaid">x</pre>' * 2_400,
-    "comments before pre": "<!-- <pre lang=mermaid> -->" * 2_400,
-    "dollars that never close": "$x " * 21_000,
-    "dollars before blanks": "$ " * 32_000,
-    "double dollars": "$$x " * 16_000,
-    "escaped dollars": "\\$x " * 16_000,
-    "dollars before code": "$`x " * 16_000,
-    "rows of double dollars": "$$\nx\n" * 13_000,
-    "dollars as entities": "&#36;x " * 9_000,
+    "rows of a table": ["| a |\n|---|\n", ("| b | c |\n", 6_500)],
+    "rows of pipes in quotes": ["> | a |\n> |---|\n", ("> |\n", 16_000)],
+    "a row of pipes": ["| a |\n|---|\n", ("|", 64_000)],
+    "delimiter rows": [("|-|\n", 16_000)],
+    "escaped pipes": ["| a |\n|---|\n", ("\\|", 32_000)],
+    "drawn fences that never close": [("```mermaid\n", 5_900)],
+    "drawn fences in quotes": [("> ```mermaid\n> %% x\n", 3_000)],
+    "comments of a diagram": ["```mermaid\n", ("%% x\n", 13_000), "```"],
+    "drawn pre that never end": [('<pre lang="mermaid">', 3_000)],
+    "drawn pre that end": [('<pre lang="mermaid">x</pre>', 2_400)],
+    "comments before pre": [("<!-- <pre lang=mermaid> -->", 2_400)],
+    "dollars that never close": [("$x ", 21_000)],
+    "dollars before blanks": [("$ ", 32_000)],
+    "double dollars": [("$$x ", 16_000)],
+    "escaped dollars": [("\\$x ", 16_000)],
+    "dollars before code": [("$`x ", 16_000)],
+    "rows of double dollars": [("$$\nx\n", 13_000)],
+    "dollars as entities": [("&#36;x ", 9_000)],
     # Read twice, as written and as its HTML leaves it, in 36 KiB: the processor
     # time of 64 KiB under the measure of the coverage came near the limit.
-    "math over comments": "$x <!--\n-->\\y$ " * 2_400,
+    "math over comments": [("$x <!--\n-->\\y$ ", 2_400)],
     # The titles of links and images, which the page shows only on hover, are read
     # once (2026-11-21). Those that are each a link, in 32 KiB: as for the math over
     # comments, 64 KiB under the measure of the coverage came near the limit.
-    "titles of links": '[a](b "c") ' * 3_000,
-    "titles that never end": '[a](b "' * 9_300,
-    "titles over rows": '[a](b "c\n' * 7_200,
-    "titles of images": '![a](b "c") ' * 2_700,
-    "brackets before a title": "[" * 32_000 + '](b "c")',
-    "link targets that never close": "](b " * 16_000,
-    "titles in quotes": '> [a](b "\n' * 6_500,
-    "titles in descriptions of images": '![a [b](c "d")](e "f")' * 1_500,
-    "titles in parentheses that never end": "[a](b (" * 9_000,
-    "titles over the rows of list items": '- [a](b "\nc\n' * 5_000,
-    "backslashes in titles": '[a](b "' + "\\" * 60_000 + '")',
-    "titles over two rows": '[a](b\n"c")\n' * 2_700,
-    "backticks around titles": '`[a](b "c")` ' * 2_500,
-    "brackets that close before titles": '[a] [b](c "d") ' * 2_000,
-    "titles in indented code": '    [a](b "c")\n' * 2_000,
+    "titles of links": [('[a](b "c") ', 3_000)],
+    "titles that never end": [('[a](b "', 9_300)],
+    "titles over rows": [('[a](b "c\n', 7_200)],
+    "titles of images": [('![a](b "c") ', 2_700)],
+    "brackets before a title": [("[", 32_000), '](b "c")'],
+    "link targets that never close": [("](b ", 16_000)],
+    "titles in quotes": [('> [a](b "\n', 6_500)],
+    "titles in descriptions of images": [('![a [b](c "d")](e "f")', 1_500)],
+    "titles in parentheses that never end": [("[a](b (", 9_000)],
+    "titles over the rows of list items": [('- [a](b "\nc\n', 5_000)],
+    "backslashes in titles": ['[a](b "', ("\\", 60_000), '")'],
+    "titles over two rows": [('[a](b\n"c")\n', 2_700)],
+    "backticks around titles": [('`[a](b "c")` ', 2_500)],
+    "brackets that close before titles": [('[a] [b](c "d") ', 2_000)],
+    "titles in indented code": [('    [a](b "c")\n', 2_000)],
     # The references of invisible characters go with them, outside code, and what
     # the assistant decides reads the others as their characters (2026-11-22).
-    "references of tags": "&#xE0041;" * 7_222,
-    "named references": "&ZeroWidthSpace;" * 4_062,
-    "references without their end": "&#x" * 21_666,
-    "leading zeros of a reference": "&#x" + "0" * 64_990,
-    "references in code spans": "`&it;` " * 9_000,
-    "references after backticks": "`" * 30_000 + "&#xE0041;" * 3_500,
-    "references of block marks": "&#35;\n" * 10_000,
-    "references after block marks": "#" * 60_000 + "&#35;" * 1_000,
-    "references in addresses": "https://a/&#x200B;\n" * 3_400,
+    "references of tags": [("&#xE0041;", 7_222)],
+    "named references": [("&ZeroWidthSpace;", 4_062)],
+    "references without their end": [("&#x", 21_666)],
+    "leading zeros of a reference": ["&#x", ("0", 64_990)],
+    "references in code spans": [("`&it;` ", 9_000)],
+    "references after backticks": [("`", 30_000), ("&#xE0041;", 3_500)],
+    "references of block marks": [("&#35;\n", 10_000)],
+    "references after block marks": [("#", 60_000), ("&#35;", 1_000)],
+    "references in addresses": [("https://a/&#x200B;\n", 3_400)],
 }
 
 
-@pytest.mark.parametrize("text", SLOW_TEXTS.values(), ids=SLOW_TEXTS)
-def test_no_text_makes_reading_an_issue_slow(text):
+def built(parts, share=1):
+    """The text of the parts of a text of SLOW_TEXTS, with each repeated piece `share`
+    times less often: a repetition within a piece stays, such as the depth of the
+    quotes of `tags in deep quotes`."""
+    return "".join(
+        part if isinstance(part, str) else part[0] * (part[1] // share)
+        for part in parts
+    )
+
+
+def test_each_text_that_times_the_reading_has_an_eighth():
+    """Each text of SLOW_TEXTS repeats a piece, and each repeated piece comes at least
+    eight times, so that the eighth of the text has it too."""
+    for name, parts in SLOW_TEXTS.items():
+        assert any(not isinstance(part, str) for part in parts), name
+        assert all(isinstance(part, str) or part[1] >= 8 for part in parts), name
+    assert built(["a", ("bc", 9), "d"], 8) == "abcd"
+    assert built([("> " * 2 + "<", 16)], 8) == "> > <> > <"
+
+
+# What the timing reads of a text, each on its own: as an issue, three comments and
+# one that GitHub shows collapsed, which the readers leave out after one key.
+READINGS = {
+    "form_fields": lambda text, issue, comments: assistant.form_fields(text),
+    "excerpt of 1500": lambda text, issue, comments: assistant.excerpt(text, 1500),
+    "excerpt of a quarter": lambda text, issue, comments: assistant.excerpt(
+        text, assistant.MAX_TEXT // 4
+    ),
+    "render_issue": lambda text, issue, comments: assistant.render_issue(
+        issue, comments
+    ),
+    "issue_language": lambda text, issue, comments: assistant.issue_language(
+        issue, comments
+    ),
+    "search_terms": lambda text, issue, comments: assistant.search_terms(issue),
+    "form_labels": lambda text, issue, comments: assistant.form_labels(issue, CONFIG),
+    "box_ticked": lambda text, issue, comments: assistant.box_ticked(text, CONFIG),
+    "shown_links": lambda text, issue, comments: assistant.shown_links(text),
+    "denies_closing": lambda text, issue, comments: assistant.denies_closing(
+        text, "owner/project", 1
+    ),
+}
+
+
+def reading(name, text):
+    """A call of the reading `name` of READINGS on the text."""
     issue = make_issue(body=text)
     comments = [make_comment(number, "reporter", text, 0) for number in (1, 2, 3)]
-    # One that GitHub shows collapsed, which the readers leave out after one key.
     comments.append(make_comment(4, "reporter", text, 0, minimized={"reason": "spam"}))
-    for function, *args in (
-        (assistant.form_fields, text),
-        (assistant.excerpt, text, 1500),
-        (assistant.excerpt, text, assistant.MAX_TEXT // 4),
-        (assistant.render_issue, issue, comments),
-        (assistant.issue_language, issue, comments),
-        (assistant.search_terms, issue),
-        (assistant.form_labels, issue, CONFIG),
-        (assistant.box_ticked, text, CONFIG),
-        (assistant.shown_links, text),
-        (assistant.denies_closing, text, "owner/project", 1),
-    ):
-        assert fast(0.5, function, *args), function.__name__
+    return lambda: READINGS[name](text, issue, comments)
 
 
-# The slowest texts of SLOW_TEXTS as the start, a piece, how often it comes and the
-# end after them: each is read in time linear in its length.
-GROWING = {
-    "blocks after tags without their end": ("", "<div\nx\n\n", 7_000, ""),
-    "values that end after HTML blocks": ("", '<a>\n\n<a b="c"\n\n', 4_000, '<a b="'),
-    "HTML blocks between blank rows": ("", "<a>\n\n", 13_000, "x <!--"),
-    "fenced code of tags": ("", "```\n<div\na\n```\n", 4_000, ""),
-    "blank rows in a tag of HTML blocks": ("<?\n<v", "\n", 64_000, "'='"),
-    "comment ends in values of tags after comments": (
-        "",
-        "<!-- <a> --><b c='-->'>",
-        2_800,
-        "",
-    ),
-    "sections of CDATA in a row of a block": (
-        "<div>\n",
-        "\t><![CDATA[>    ",
-        4_000,
-        "",
-    ),
-    "hidden elements in a row": ("", "<rp>x</rp>", 3_000, ""),
-    "hidden elements in code": ("", "`<rp>` ", 3_000, ""),
-    "hidden elements between tags of rows": ("x <rp>", "<a\nb>", 4_000, ""),
-    "names of an = at the start of rows": ("", '<div\n="\n', 5_000, ""),
-    "rows of pipes in quotes": ("> | a |\n> |---|\n", "> |\n", 16_000, ""),
-    "comments of a diagram": ("```mermaid\n", "%% x\n", 13_000, "```"),
-    "drawn pre that end": ("", '<pre lang="mermaid">x</pre>', 2_400, ""),
-    "rows of double dollars": ("", "$$\nx\n", 13_000, ""),
-    "math over comments": ("", "$x <!--\n-->\\y$ ", 2_400, ""),
-    "delimiter rows": ("", "|-|\n", 16_000, ""),
-    "drawn fences in quotes": ("", "> ```mermaid\n> %% x\n", 3_000, ""),
-    "titles of links": ("", '[a](b "c") ', 3_000, ""),
-    "titles over two rows": ("", '[a](b\n"c")\n', 2_700, ""),
-    "brackets that close before titles": ("", '[a] [b](c "d") ', 2_000, ""),
-    "backticks around titles": ("", '`[a](b "c")` ', 2_500, ""),
-}
+# How many times as long a reading may take on the whole text as on the text with an
+# eighth of its repetitions. A reading in linear time takes 8 times as long, or less
+# where a part of it stops early, and one in which a part grows with the square of the
+# length 64 times: such a part fails this once it takes about 44 % of the time of the
+# whole text. The highest growth on main was 9.5 (2026-11-22, #504).
+GROWTH = 13
+# The processor time of one reading of a whole text, in seconds. Not the promise of
+# the reading, which is that nothing in it backtracks or grows faster than its text,
+# and which the growth holds on every machine: the slowest texts took up to 0.44
+# seconds under the measure of the coverage on a machine of a maintainer, a busy
+# runner of GitHub one and a half times as long, so a limit of 0.5 seconds measured
+# the runner (#500, #504). The ceiling holds only that no reading becomes many times
+# slower everywhere; how fast it reads has issues of its own (#487, #488, #494).
+CEILING = 2
 
 
-def processor_time(calls, function, *args):
-    """The processor time of a number of calls, in the best of three tries: a busy
-    machine can slow down one try, but not all three."""
-    times = []
-    for _ in range(3):
-        start = time.process_time()
-        for _ in range(calls):
-            function(*args)
-        times.append(time.process_time() - start)
-    return min(times)
-
-
-@pytest.mark.parametrize(
-    ("start", "piece", "count", "end"), GROWING.values(), ids=GROWING
-)
-def test_twice_the_text_takes_about_twice_the_time(start, piece, count, end):
-    """Twice the text takes less than three times the processor time. Each try
-    reads the half four times and the whole twice, so that both sides take about
-    as long, and a text that is read fast that many times more, so that each side
-    takes at least a quarter of a second: many times what the clock of a processor
-    tells apart (1/64 second on Windows)."""
-    assert start + piece * count + end in SLOW_TEXTS.values()
-
-    def read(text):
-        issue = make_issue(body=text)
-        comments = [make_comment(number, "reporter", text, 0) for number in (1, 2, 3)]
-        return lambda: assistant.render_issue(issue, comments)
-
-    half, whole = (
-        read(start + piece * (count // 2) + end),
-        read(start + piece * count + end),
+@pytest.mark.parametrize("name", READINGS)
+@pytest.mark.parametrize("parts", SLOW_TEXTS.values(), ids=SLOW_TEXTS)
+def test_no_text_makes_reading_an_issue_slow(parts, name):
+    measured = growth(reading(name, built(parts, 8)), reading(name, built(parts)))
+    assert measured.times < GROWTH and measured.whole < CEILING, (
+        f"{name}: {measured.eighth:.4f} s on an eighth of the text, "
+        f"{measured.whole:.4f} s on the whole, {measured.times:.2f} times as long"
     )
-    began = time.perf_counter()
-    half()
-    rounds = max(1, round(0.25 / 4 / (time.perf_counter() - began)))
-    halves = processor_time(4 * rounds, half)
-    wholes = processor_time(2 * rounds, whole)
-    assert wholes < 3 / 2 * halves
+
+
+def test_a_reading_that_grows_faster_than_its_text_fails_the_timing():
+    """The growth tells a reading in linear time from one in which a part grows with
+    the square of the length, as the planted steps of #504 did."""
+
+    def linear(text):
+        return lambda: [text.count("\x00", i, i + 64) for i in range(0, len(text), 64)]
+
+    def square(text):
+        return lambda: [text.count("\x00", i) for i in range(0, len(text), 64)]
+
+    eighth, whole = "x" * 8_000, "x" * 64_000
+    assert growth(linear(eighth), linear(whole)).times < GROWTH
+    measured = growth(square(eighth), square(whole))
+    assert measured.times > GROWTH
+    assert 0 < measured.eighth < measured.whole < CEILING
 
 
 # The names of the tags that start an HTML block of CommonMark's sixth kind.
@@ -5680,6 +5681,9 @@ HIDING_MATH = [
         "$`\\color{red}Xyzzy`$ and `$\\color{red}shown$`",
         f"{MATH} and `$\\color{{red}}shown$`",
     ),
+    # A backtick that no other of its length closes opens no code, and GitHub draws
+    # the math around it (`gh api -X POST markdown`, 2026-11-22).
+    ("$x ` % Xyzzy$", MATH),
     # In list items, quotes, headings and table cells.
     (
         "- $x % Xyzzy$\n\n> $y % Xyzzy$\n\n# $z % Xyzzy$",
