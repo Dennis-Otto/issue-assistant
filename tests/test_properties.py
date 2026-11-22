@@ -760,6 +760,9 @@ DECIDED = st.lists(
             "[a]: https://example.com/GnuError",
             "<details>",
             "</details>",
+            '<relative-time datetime="2020-01-01T00:00:00Z">',
+            "OwlError",
+            "</relative-time>",
             "```",
             "`TypeError`",
             "> ",
@@ -1318,6 +1321,8 @@ HTML_BLOCKS = st.lists(
             "</video>",
             "<rp>",
             "</rp>",
+            '<relative-time datetime="2020-01-01T00:00:00Z">',
+            "</relative-time>",
             "Plugh",
         ]
     ),
@@ -1514,11 +1519,15 @@ def test_no_text_of_math_or_a_drawing_reaches_the_engine_that_could_hide(text):
 
 @given(st.one_of(TEXT, TABLES, DRAWN, HTML_BLOCKS))
 def test_the_spans_that_strip_html_keeps_make_its_text(text):
-    """The spans of shown_spans, joined, are the text of shown_html."""
-    spans, cut = assistant.shown_spans(text)
-    assert "".join(text[start:end] for start, end in spans) == assistant.strip_html(
-        text
+    """The spans of shown_spans, joined, are the text of shown_html; their text is the
+    text as it is written but for a space in place of each date that the page
+    draws."""
+    spaced, spans, cut = assistant.shown_spans(text)
+    assert len(spaced) == len(text)
+    assert "".join(spaced[start:end] for start, end in spans) == (
+        assistant.strip_html(text)
     )
+    assert spaced == text or "<relative-time" in text.lower()
     assert cut == assistant.shown_html(text)[1]
     assert all(end > start for start, end in spans)
     assert all(left[1] <= right[0] for left, right in itertools.pairwise(spans))

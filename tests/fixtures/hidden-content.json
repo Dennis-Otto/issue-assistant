@@ -1,5 +1,5 @@
 {
- "about": "Texts with an element whose content GitHub keeps and no browser shows, `video` and `rp`, in a paragraph, a heading, a cell of a table, an HTML block, a quote and a list item, closed, open, closed on a row of its own, self-closed and nested; and with a tag whose quoted value holds a `>`, or which GitHub reads over rows past markup, in each place; made of pieces, with the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-21). The content of a <details> counts as shown, as GitHub shows it on a click. Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed.",
+ "about": "Texts with an element whose content GitHub keeps and no browser shows, `video`, `rp` and `relative-time`, in a paragraph, a heading, a cell of a table, an HTML block, a quote and a list item, closed, open, closed on a row of its own, self-closed and nested; and with a tag whose quoted value holds a `>`, or which GitHub reads over rows past markup, in each place; made of pieces, with the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-21). The content of a <details> counts as shown, as GitHub shows it on a click. Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed. The texts with a `relative-time`, in whose place GitHub's script for the element draws a date from its `datetime` (2026-11-22), count its content as hidden where the date parses, as the element of GitHub draws it; without a `datetime`, with one that doesn't parse, and with a start tag in another case, which the sanitizer drops, the page shows the words, and the cleaning takes them out, on the safe side. Until GitHub's ends of an open element in a list item, a quote or a cell are read, the cleaning takes out the rest of such a text, as for a `video`. A `relative-time` in the alt text of an image has no text of its own here: the page shows no alt text.",
  "texts": [
   {
    "text": "<ruby>x<rp>zqa</rp><rt>y</rt></ruby>",
@@ -2175,6 +2175,1486 @@
    "github shows": [
     "zqb",
     "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb\n\nzqc",
+   "github shows": [
+    "zqc"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</relative-time> zqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "a <relative-time>zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</relative-time> zqd",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "a <relative-time>zqa</relative-time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"nonsense\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <Relative-Time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-TIME datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</RELATIVE-TIME> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time DATETIME=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "# zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb\n\nzqc",
+   "github shows": [
+    "zqa",
+    "zqc"
+   ],
+   "github hides": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "# zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc",
+   "github shows": [
+    "zqa",
+    "zqc"
+   ],
+   "github hides": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "| h |\n|---|\n| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb |\n| zqc |",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| h |\n|---|\n| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa |\n| zqb |\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "- <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n- zqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n- zqb\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "> <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n>\n> zqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb\n>\n> zqc\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "<details><summary><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</summary>\n\nzqc <relative-time datetime=\"2020-01-01T00:00:00Z\">zqd</relative-time> zqe\n\n</details>\n\nzqf",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqe",
+    "zqf"
+   ],
+   "github hides": [
+    "zqa",
+    "zqd"
+   ]
+  },
+  {
+   "text": "[zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc](https://example.com) zqd",
+   "github shows": [
+    "zqa",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "zqa\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqb\n\n</relative-time>\n\nzqc",
+   "github shows": [
+    "zqa",
+    "zqc"
+   ],
+   "github hides": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "zqa\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqb\n\n## zqc",
+   "github shows": [
+    "zqa"
+   ],
+   "github hides": [
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "zqa\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time>\n\nzqc",
+   "github shows": [
+    "zqa",
+    "zqc"
+   ],
+   "github hides": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n\nzqb </relative-time> zqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a `<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time>` zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time>\n```\nzqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "a <relative-time\ndatetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time\n> zqb\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <copilot-directive>zqa</copilot-directive> <tracking-block>zqb</tracking-block> <tracking-block-omnibar>zqc</tracking-block-omnibar> <time-ago>zqd</time-ago>",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<div>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n</div>\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<div>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n</div>\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "- [x] <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<relative-time datetime=\"2020-01-01T00:00:00Z\">\nzqa\n</relative-time>\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "1. zqa\n\n   <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb\n\n2. zqc",
+   "github shows": [
+    "zqa",
+    "zqc"
+   ],
+   "github hides": [
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqc"
+   ]
+  },
+  {
+   "text": "> <relative-time datetime=\"2020-01-01T00:00:00Z\">\n>\n> zqa\n>\n> </relative-time>\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\nzqb</relative-time> zqc\n\nzqd",
+   "github shows": [
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <video>zqb</video> zqc</relative-time> zqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "a <video>zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc</video> zqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\"><p>zqa</p> zqb</relative-time> zqc",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "<div>\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n</div>\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"January 1, 2020\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"some words Jan 1 2020\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\" datetime=\"nonsense\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"nonsense\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "*x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb y*\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "*x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb y*\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "*x <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb y*\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "*x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb y*\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "*x <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb y*\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "*x <relative-time datetime=2020-01-01>zqa</relative-time> zqb y*\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb |\n|---|\n| zqz |",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb |\n|---|\n| zqz |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "| <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb |\n|---|\n| zqz |",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb |\n|---|\n| zqz |",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb |\n|---|\n| zqz |",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "| <relative-time datetime=2020-01-01>zqa</relative-time> zqb |\n|---|\n| zqz |",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- x\n  - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n  - zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- x\n  - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb\n  - zqy\n\nzqz",
+   "github shows": [
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqy",
+    "zqz"
+   ]
+  },
+  {
+   "text": "- x\n  - <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb\n  - zqy\n\nzqz",
+   "github shows": [
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqy",
+    "zqz"
+   ]
+  },
+  {
+   "text": "- x\n  - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb\n  - zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- x\n  - <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n  - zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- x\n  - <relative-time datetime=2020-01-01>zqa</relative-time> zqb\n  - zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<a href=\"https://example.com\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</a> zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<a href=\"https://example.com\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb</a> zqy\n\nzqz",
+   "github shows": [
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqy"
+   ]
+  },
+  {
+   "text": "<a href=\"https://example.com\"><relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb</a> zqy\n\nzqz",
+   "github shows": [
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqy"
+   ]
+  },
+  {
+   "text": "<a href=\"https://example.com\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb</a> zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<a href=\"https://example.com\"><relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</a> zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<a href=\"https://example.com\"><relative-time datetime=2020-01-01>zqa</relative-time> zqb</a> zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "See [^1].\n\n[^1]: <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "See [^1].\n\n[^1]: <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "See [^1].\n\n[^1]: <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqz"
+   ]
+  },
+  {
+   "text": "See [^1].\n\n[^1]: <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "See [^1].\n\n[^1]: <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "See [^1].\n\n[^1]: <relative-time datetime=2020-01-01>zqa</relative-time> zqb\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n---\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb\n---\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb\n---\n\nzqz",
+   "github shows": [
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "x <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb\n---\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n---\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "x <relative-time datetime=2020-01-01>zqa</relative-time> zqb\n---\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n> - zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa zqb\n> - zqy\n\nzqz",
+   "github shows": [
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqy",
+    "zqz"
+   ]
+  },
+  {
+   "text": "> - <relative-time datetime=\"2020-01-01T00:00:00Z\"/>zqa zqb\n> - zqy\n\nzqz",
+   "github shows": [
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "the cleaning takes out": [
+    "zqy",
+    "zqz"
+   ]
+  },
+  {
+   "text": "> - <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</Relative-Time> zqb\n> - zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> - <relative-time title=\">\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n> - zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "> - <relative-time datetime=2020-01-01>zqa</relative-time> zqb\n> - zqy\n\nzqz",
+   "github shows": [
+    "zqb",
+    "zqy",
+    "zqz"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "- <relative-time datetime=\"2020-01-01T00:00:00Z\">\n\n  zqa\n\n  </relative-time>\n\n  zqb\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<ruby>x<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time><rt>zqb</rt></ruby> zqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa<details><summary>zqb</summary>zqc</details> zqd</relative-time> zqe",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd",
+    "zqe"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <div>zqb</div> zqc</relative-time> zqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<div>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <div>zqb</div> zqc</relative-time> zqd\n</div>\n\nzqe",
+   "github shows": [
+    "zqd",
+    "zqe"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ],
+   "the cleaning takes out": [
+    "zqd",
+    "zqe"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa `zqb </relative-time>` zqc\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n> zqb </relative-time>\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n# zqb\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n- zqb\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n```\nzqb\n```\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "    <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <!-- zqb --> zqc</relative-time> zqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "<!-- <relative-time datetime=\"2020-01-01T00:00:00Z\"> --> zqa </relative-time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "a <relative-time lang=\"de\" datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\"\n  title=\"x\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time></relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\"><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</relative-time> zqc",
+   "github shows": [
+    "zqc"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa <relative-time datetime=\"2020-01-01T00:00:00Z\">zqb</relative-time> zqc\n\nzqd",
+   "github shows": [
+    "zqd"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\nzqa\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n  </relative-time>\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n    </relative-time>\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n</RELATIVE-TIME>\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n```\n</relative-time>\n```\n\n</relative-time>\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "<details>\n<summary>x</summary>\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n</relative-time>\n\nzqb\n\n</details>\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<table><tr><td><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</td><td>zqb</td></tr></table>\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "| a | b |\n|---|---|\n| <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa | zqb |\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "> x\n>\n> <relative-time datetime=\"2020-01-01T00:00:00Z\">\n>\n> zqa\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa<br>zqb</relative-time> zqc",
+   "github shows": [
+    "zqc"
+   ],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa<p>zqb</relative-time> zqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time-x>zqa</relative-time-x> <relative-timer>zqb</relative-timer> zqc",
+   "github shows": [
+    "zqa",
+    "zqb",
+    "zqc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "a <relative-time/datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<pre><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</pre>\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <sub><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb</sub> zqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<blockquote>\n<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\n</blockquote>\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "<ul><li><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</li><li>zqb</li></ul>\n\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb",
+    "zqc"
+   ]
+  },
+  {
+   "text": "a <span><relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</span> zqb</relative-time> zqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb\r\n\r\nzqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa\r\n\r\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "\t<relative-time datetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a &lt;relative-time datetime=\"2020-01-01T00:00:00Z\"&gt;zqa</relative-time> zqb",
+   "github shows": [
+    "zqa",
+    "zqb"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "a <relative-time\tdatetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a <relative-time\r\ndatetime=\"2020-01-01T00:00:00Z\">zqa</relative-time> zqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ]
+  },
+  {
+   "text": "a **b <relative-time datetime=\"2020-01-01T00:00:00Z\">zqa** zqb</relative-time> zqc",
+   "github shows": [
+    "zqb",
+    "zqc"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "a\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n\n<details>\n\nzqa\n\n</details>\n\n</relative-time>\n\nzqb",
+   "github shows": [
+    "zqb"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb"
+   ]
+  },
+  {
+   "text": "x\n\n  <relative-time datetime=\"2020-01-01T00:00:00Z\">\n\nzqa\n\n</relative-time>\n\nzqb",
+   "github shows": [
+    "zqb"
    ],
    "github hides": [
     "zqa"

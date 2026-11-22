@@ -463,9 +463,11 @@ def shown_parts(text: str, notes: bool = True) -> tuple[str, int, int, int]:
     found = structures_of(text)
     hidden, joins = found.hidden(), found.dollars and "<" in text
     if hidden or joins:
-        spans, cut = shown_spans(text)
-        hidden = apart(hidden + math_between(text, spans)) if joins else hidden
-        pieces, placed = cut_out(text, spans, hidden)
+        # The text of the spans keeps the length of the text, with a space in the
+        # place of each date that the page draws.
+        spaced_text, spans, cut = shown_spans(text)
+        hidden = apart(hidden + math_between(spaced_text, spans)) if joins else hidden
+        pieces, placed = cut_out(spaced_text, spans, hidden)
         shown = "".join(pieces)
     else:
         (shown, cut), pieces, placed = shown_html(text), [], []
