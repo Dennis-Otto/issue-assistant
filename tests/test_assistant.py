@@ -319,6 +319,143 @@ SLOW_TEXTS = {
     "fences with words in a row": [("```a b\n", 9_000)],
     "fences with words in quotes": [("> ```a b\n", 7_000)],
     "fences of tildes with backticks": [("~~~a `b`\n", 7_000)],
+    # The depth of a text is counted once, and where it may hide the rest on GitHub,
+    # the reading stops there (2026-11-22). Deep quotes, list items, marks of
+    # emphasis, elements and rows after a deep one.
+    "deep quotes on many rows": [(">" * 120 + " x\n", 520)],
+    "indented rows of fenced code after a tag": [
+        '<img src="x">\n\n```\n',
+        ('  File "a/__init__.py", line 9, in f(*args, **kwargs)\n', 1_100),
+        "```\n\nrest",
+    ],
+    "rows of a table with marks": ["| a |\n|---|\n", ("| **x** `__y__` [z |\n", 3_200)],
+    "spaced deep quotes on many rows": [("> " * 120 + "x\n", 260)],
+    "marks of emphasis": [("*x ", 21_000)],
+    "elements that close": [("<b></b>", 9_000)],
+    "list items in and out": [
+        ("".join(" " * (2 * k) + "- x\n" for k in range(60)), 16)
+    ],
+    "rows before a deep quote": [("x\n", 32_000), ">" * 256],
+}
+
+# Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
+# its HTML and of what the page shows of it stops near its start, has a twin of 64
+# KiB at most below the cut: void elements in place of the others, or fewer of
+# them, so that the reading it was made for still runs on the whole text. Its
+# original stays as it is. A text whose cut takes away fewer than ten characters of
+# that reading has none (2026-11-22): its rows and blocks of HTML hide all the rest
+# of it anyway, and their reading runs on the whole text as before. "tags in deep
+# quotes", whose cut takes away 200 characters, has one all the same.
+TWINS = {
+    "unclosed void tags and comments": (
+        "unclosed tags and comments",
+        [("<br <!--\n", 7_281)],
+    ),
+    "unclosed comments in quotes": (
+        "unclosed comments in deep quotes",
+        [("> " * 60 + "x <!--\n", 500)],
+    ),
+    "unclosed comments after some list marks": (
+        "unclosed comments after list marks",
+        [("- " * 30 + "x <!--\n", 978)],
+    ),
+    "blanks before unclosed comments": (
+        "blanks before an unclosed comment",
+        [(" " * 100 + "x <!--\n", 600)],
+    ),
+    "void HTML blocks on every row": (
+        "HTML blocks on every row",
+        [("<hr>\n", 10_000)],
+    ),
+    "void HTML blocks between blank rows": (
+        "HTML blocks between blank rows",
+        [("<br>\n\n", 10_922)],
+    ),
+    "comments after void HTML blocks": (
+        "comments after HTML blocks that end",
+        [("<br>\n\nx <!--\n\n", 4_681)],
+    ),
+    "values that end after void HTML blocks": (
+        "values that end after HTML blocks",
+        [('<br>\n\n<br b="c"\n\n', 3_854), '<br b="'],
+    ),
+    "void tags in a row": ("tags in a row", [("<br>", 16_382), "\n<!--"]),
+    "attributes of void tags on one row": (
+        "attributes on one row",
+        [('<br b="c" ', 6_553), "<!--"],
+    ),
+    "values of void tags that never end": (
+        "values that never end",
+        [('<br b="', 9_362)],
+    ),
+    "names of void tags before a value": (
+        "names before a value that never ends",
+        [("<br b ", 10_922), '="'],
+    ),
+    "some footnote marks in a row": (
+        "footnote marks in a row",
+        [("[^a]: " * 30 + "<hr> <!--\n", 340)],
+    ),
+    "void tags over rows in a paragraph": (
+        "tags over rows in a paragraph",
+        [("x <br\nb\n", 8_192)],
+    ),
+    "void tags in a paragraph of quotes": (
+        "tags in a paragraph of quotes",
+        [("> x <br b\n", 6_553)],
+    ),
+    "void tags in quotes of 100": (
+        "tags in deep quotes",
+        [(">" * 100 + " <hr\n", 600)],
+    ),
+    "void tags below quotes": (
+        "tags below deep quotes",
+        ["> " * 60 + "<hr\n", ("x <br\n", 10_000)],
+    ),
+    "values of void tags with the other quote": (
+        "values with the other quote",
+        ['<br t="', ("<br t='", 9_361)],
+    ),
+    "comment ends in values of void tags": (
+        "comment ends in values of tags after comments",
+        [("<!-- <br> --><br c='-->'>", 2_621)],
+    ),
+    "some hidden elements in code": (
+        "hidden elements in code",
+        [("`<rp>` " + "x " * 300, 100)],
+    ),
+    "quoted values of void tags in paragraphs": (
+        "quoted values with a > in paragraphs",
+        [('x <br t=">', 6_553)],
+    ),
+    "quoted values of void tags over rows": (
+        "quoted values over rows in paragraphs",
+        [('x <br t="\n', 6_553)],
+    ),
+    "values of void tags with the other quote and a >": (
+        "values with the other quote and a >",
+        [("<br t='x\" >", 5_957)],
+    ),
+    "quoted values of void tags in quotes": (
+        "quoted values with a > in quotes",
+        [('> <br t=">\n', 5_957)],
+    ),
+    "quoted values of void tags in list items": (
+        "quoted values with a > in list items",
+        [('- <br t=">\n', 5_957)],
+    ),
+    "void tags after instructions that end at once": (
+        "tags after instructions that end at once",
+        [("x <?><br ", 6_000)],
+    ),
+    "some drawn pre that never end": (
+        "drawn pre that never end",
+        [('<pre lang="mermaid">' + "x" * 620, 100)],
+    ),
+    "some comments before pre": (
+        "comments before pre",
+        [("<!-- <pre lang=mermaid> -->" + "x" * 600, 100)],
+    ),
 }
 
 
@@ -334,8 +471,8 @@ def built(parts, share=1):
 
 def test_each_text_that_times_the_reading_has_an_eighth():
     """Each text of SLOW_TEXTS repeats a piece, and each repeated piece comes at least
-    eight times, so that the eighth of the text has it too."""
-    for name, parts in SLOW_TEXTS.items():
+    eight times, so that the eighth of the text has it too; and so does each twin."""
+    for name, parts in [*SLOW_TEXTS.items(), *TWINS.values()]:
         assert any(not isinstance(part, str) for part in parts), name
         assert all(isinstance(part, str) or part[1] >= 8 for part in parts), name
     assert built(["a", ("bc", 9), "d"], 8) == "abcd"
@@ -393,14 +530,71 @@ GROWTH = 13
 CEILING = 2
 
 
-@pytest.mark.parametrize("name", READINGS)
-@pytest.mark.parametrize("parts", SLOW_TEXTS.values(), ids=SLOW_TEXTS)
-def test_no_text_makes_reading_an_issue_slow(parts, name):
+def holds_its_growth(parts, name):
+    """Whether the reading `name` of the text of `parts` holds GROWTH and CEILING."""
     measured = growth(reading(name, built(parts, 8)), reading(name, built(parts)))
     assert measured.times < GROWTH and measured.whole < CEILING, (
         f"{name}: {measured.eighth:.4f} s on an eighth of the text, "
         f"{measured.whole:.4f} s on the whole, {measured.times:.2f} times as long"
     )
+
+
+@pytest.mark.parametrize("name", READINGS)
+@pytest.mark.parametrize("parts", SLOW_TEXTS.values(), ids=SLOW_TEXTS)
+def test_no_text_makes_reading_an_issue_slow(parts, name):
+    holds_its_growth(parts, name)
+
+
+# The readings that read the HTML of a text for what the page shows of it, which
+# stop at the cut. The others read the form and the links of the text as it is
+# written, the whole of it, whether it reaches the cut or not, so that the original
+# of a twin still times them on all of its text, and its twin adds nothing there.
+SHOWN_READINGS = [
+    name
+    for name in READINGS
+    if name not in ("form_fields", "shown_links", "attachments_of")
+]
+
+
+@pytest.mark.parametrize("name", SHOWN_READINGS)
+@pytest.mark.parametrize("parts", [parts for _, parts in TWINS.values()], ids=TWINS)
+def test_no_twin_makes_reading_an_issue_slow(parts, name):
+    holds_its_growth(parts, name)
+
+
+def test_each_twin_stays_below_the_cut_that_its_text_reaches():
+    assert len({original for original, _ in TWINS.values()}) == len(TWINS)
+    for name, (original, parts) in TWINS.items():
+        assert assistant.deep_spans(built(SLOW_TEXTS[original])), original
+        assert len(built(parts)) <= assistant.MAX_TEXT, name
+        for share in (1, 8):
+            assert not assistant.deep_spans(built(parts, share)), name
+
+
+@pytest.mark.parametrize("name", READINGS)
+def test_only_the_readings_of_what_the_page_shows_stop_at_the_cut(monkeypatch, name):
+    """Each reading of SHOWN_READINGS reads the HTML of a text that reaches the cut
+    up to the cut, and no other reads it at all."""
+    text = "<a>" * 200 + "\n\nwords"
+    reads = []
+
+    def recorded(real):
+        def recording(read, *limit):
+            reads.append((len(read), *limit))
+            return real(read, *limit)
+
+        return recording
+
+    for function in ("shown_spans", "shown_html"):
+        real = getattr(assistant.cleaning, function)
+        monkeypatch.setattr(assistant.cleaning, function, recorded(real))
+    reading(name, text)()
+    whole = [read for read in reads if read[0] == len(text)]
+    if name in SHOWN_READINGS:
+        assert whole
+        assert all(read[1:] == (assistant.deep_spans(text)[0][0],) for read in whole)
+    else:
+        assert not whole
 
 
 def test_a_reading_that_grows_faster_than_its_text_fails_the_timing():
@@ -542,6 +736,8 @@ SLOW_DEFINITIONS = {
     "labels that never end after HTML": "<a>\n" + "- [a\n" * 13_106,
     "footnotes with indented rows": "[^a]: b\n\n    c\n" * 4_369,
     "deep quotes": ">" * 32_000 + "[a]:\n" + ">" * 32_000,
+    # Its twin, whose depth stays below the cut.
+    "quotes of 100": (">" * 100 + "[a]:\n") * 600,
     # Each backslash could take the character after it or leave it.
     "escapes in a destination that never ends": "[a]: <" + "\\a" * 32_000,
     "escapes in a label that never ends": "[" + "\\a" * 32_000 + "]",
@@ -1098,6 +1294,7 @@ def test_both_readings_of_the_html_leave_the_same_text(monkeypatch, text, shown)
         """Found structures of none but math, which reads the spans."""
 
         dollars = True
+        deep: list[tuple[int, int, str]] = []
 
         @staticmethod
         def hidden():
@@ -4141,7 +4338,7 @@ REMOVED = {
     "definition": (assistant.DEFINITION_NOTE, "\n\n[a]: https://example.com\n\n"),
     "footnote": (assistant.FOOTNOTE_NOTE, "\n\n[^n]: x\n\n"),
 }
-NOTES = [note for note, _ in REMOVED.values()]
+NOTES = [note for note, _ in REMOVED.values()] + [assistant.DEPTH_NOTE]
 
 
 @pytest.mark.parametrize(("note", "part"), REMOVED.values(), ids=REMOVED)
@@ -4257,6 +4454,403 @@ def test_a_row_that_held_only_a_part_that_went_still_holds_text():
     text = "[a]: https://example.com '<pre lang=\"mermaid\">x</pre>'\n\nshown"
     assert assistant.shown_text(text)[0] == f"{assistant.DEFINITION_NOTE}\n\nshown"
     assert assistant.as_shown(text) == " \n\nshown"
+
+
+# How deep a text nests (`gh api -X POST markdown` with the mode gfm, 2026-11-21
+# and 22): GitHub drops the text inside more than 255 elements, everything after it
+# in the HTML and every footnote, which it prints after the text; what comes before
+# stays. The cleaning cuts from the row on whose count of the depth reaches 128.
+DEEP = assistant.DEPTH_NOTE
+DEEP_QUOTE = ">" * 255 + " x"
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        (
+            f"Thanks for the app.\n\n{DEEP_QUOTE}\n\nhidden words",
+            f"Thanks for the app.\n\n{DEEP}",
+        ),
+        # A quote with no text in it, and elements of HTML.
+        (">" * 256 + "\n\nhidden words", DEEP),
+        ("<div>" * 256 + "</div>" * 256 + "\n\nhidden words", DEEP),
+        # Emphasis within a deep quote.
+        (">" * 254 + " shown *hidden* hidden words", DEEP),
+        # A footnote above the deep row: GitHub prints it after the text.
+        (f"Intro.[^1]\n\n[^1]: hidden words\n\n{DEEP_QUOTE}", f"Intro.[^1]\n\n{DEEP}"),
+        # Few tags, which close nothing, or which the parser nests in more elements.
+        ("<div></b>" * 256 + "x\n\nhidden words", DEEP),
+        ("<div/>" * 256 + "x\n\nhidden words", DEEP),
+        ("<div></div2>" * 256 + "x\n\nhidden words", DEEP),
+        ("<b><div></b>" * 256 + "x\n\nhidden words", DEEP),
+        ("<table><td>" * 64 + "x\n\nhidden words", DEEP),
+        ("| " + "<table><td>" * 63 + "x |\n|---|\n\nhidden words", DEEP),
+        # A deep footnote hides the one that is written above it but referenced
+        # after it.
+        (
+            "a[^2] b[^1]\n\n[^1]: hidden words\n\n[^2]: " + ">" * 254 + " x",
+            f"a[^2] b[^1]\n\n{DEEP}",
+        ),
+    ],
+)
+def test_text_nested_deeper_than_github_shows_goes_with_the_rest(text, shown):
+    assert assistant.shown_text(text)[0] == shown
+    assert assistant.as_shown(text) == shown.replace(DEEP, " ")
+
+
+def test_list_items_deeper_than_the_count_go_with_the_rest():
+    """GitHub shows 127 levels of a list and none below; the count of the cleaning
+    reaches 128 at the 62nd level, from where the rest goes."""
+    text = "".join(" " * (2 * k) + f"- x{k}\n" for k in range(128)) + "\nhidden words"
+    shown = assistant.shown_text(text)[0]
+    assert shown.endswith(f"- x60\n{DEEP}")
+    assert "x61" not in shown
+
+
+def test_a_scope_of_html_keeps_the_markdown_around_it_open():
+    """A quote or a list item that ends in Markdown stays open around a table, an
+    object or a select of HTML, whose scope keeps its end tag from closing it: in
+    12 quotes of 20 marks with a table each, GitHub hides the last two. The count
+    takes in what each keeps open, also once it closed on a later row."""
+    for tag in ("<table><td>", "<object>", "<select>"):
+        text = "".join(">" * 20 + f" a {tag}x{k}\n\n" for k in range(12)) + "hidden"
+        shown = assistant.shown_text(text)[0]
+        assert shown.endswith(DEEP) and "hidden" not in shown and "x0" in shown, tag
+    later = "".join(">" * 20 + f" a <object>x{k}\n\n</object>\n\n" for k in range(14))
+    assert "hidden" not in assistant.shown_text(later + "hidden")[0]
+    # Closed on its own row, it keeps nothing open.
+    same = "".join(">" * 20 + f" a <object>x{k}</object>\n\n" for k in range(14))
+    assert assistant.shown_text(same + "shown")[0].endswith("shown")
+
+
+def test_what_the_assistant_decides_reads_nothing_nested_too_deep(config):
+    hidden = f"\n\n{'>' * 255} "
+    body = f"The card is empty.{hidden}ZqaError"
+    assert "zqaerror" not in assistant.search_terms(make_issue(body=body))
+    german = (
+        "Die Karte bleibt leer, wenn ich die Seite neu lade. Das passiert jeden Tag."
+    )
+    issue = make_issue(body=f"The card is empty.{hidden}{german}")
+    assert assistant.issue_language(issue, []) == "en"
+    area = f"### What happened?\n\nThe live card stays empty.{hidden}x\n\n### Area\n\n"
+    assert assistant.form_labels(make_issue(body=f"{area}Live card"), config) == []
+    denial = f"Fixes #12{hidden}This doesn't close #12"
+    assert not assistant.denies_closing(denial, "owner/project", 12)
+    # Below the depth of the cut, each reads as it did.
+    shallow = "\n\n" + ">" * 100 + " "
+    assert "zqaerror" in assistant.search_terms(
+        make_issue(body=f"The card is empty.{shallow}ZqaError")
+    )
+    shown_area = area.replace(hidden, shallow) + "Live card"
+    assert assistant.form_labels(make_issue(body=shown_area), config) == ["area: cards"]
+    assert assistant.denies_closing(
+        denial.replace(hidden, shallow), "owner/project", 12
+    )
+
+
+def test_a_box_beside_a_deep_row_is_read_as_ever():
+    """A ticked box above the deep row shows and is read; one below it shows on no
+    page, and a hidden ticked box only keeps the AI out: the safe side."""
+    box = "- [{}] Don't let the AI assistant read this issue.\n"
+    for tick, ticked in (("X", True), (" ", False)):
+        above = (
+            f"{BUG_BODY}\n### Automated analysis\n\n{box.format(tick)}\n{DEEP_QUOTE}"
+        )
+        assert assistant.box_ticked(above, CONFIG) is ticked
+    below = f"{BUG_BODY}\n### Automated analysis\n\n{DEEP_QUOTE}\n\n{box.format('X')}"
+    assert assistant.box_ticked(below, CONFIG)
+
+
+def test_the_note_of_the_depth_counts_for_no_language():
+    text = f"Value\n\n{DEEP_QUOTE}\n\nError"
+    assert assistant.shown_text(text)[0] == f"Value\n\n{DEEP}"
+    assert assistant.as_shown(text) == "Value\n\n "
+    assert "error" not in assistant.search_terms(make_issue(body=text))
+    assert not assistant.denies_closing(
+        f"This doesn't\n\n{DEEP_QUOTE} close #12", "o/p", 12
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # A long tight list of bold items, and as many bold words as the count lets
+        # through in one paragraph.
+        "".join(f"- **item{k}** text\n" for k in range(70)),
+        "**a** " * 60,
+        # A quote of 100 marks with what goes in it as ever: a cell too many, a
+        # footnote that nothing refers to, a comment, a definition.
+        ">" * 100
+        + " x\n"
+        + ">" * 100
+        + " | a |\n"
+        + ">" * 100
+        + " |---|\n"
+        + ">" * 100
+        + " | b | c |\n\n[^n]: x\n\n<!-- c -->\n\n[a]: https://example.com",
+        # Elements that close, a thousand of them, and nested ones.
+        "<details><summary>Log</summary>\n\n- [a](https://example.com/a)\n\n</details>\n"
+        * 1_000,
+        "<div>" * 100 + "x" + "</div>" * 100 + "<div>y</div>" * 1_000,
+        # Tags in code, which GitHub shows as text.
+        "```java\n" + "List<String> x;\n" * 1_000 + "```",
+    ],
+    ids=["bold items", "bold words", "quote", "details", "elements", "code"],
+)
+def test_a_text_below_the_cut_shows_what_it_showed(text):
+    shown = assistant.shown_text(text)[0]
+    assert DEEP not in shown
+    assert assistant.deep_spans(text) == []
+
+
+def test_some_texts_that_github_shows_go_for_the_safe_side():
+    """Where the count can't tell, it counts more: a numbered list of bold items,
+    whose rows can go on a paragraph, and text 128 to 255 levels deep."""
+    numbered = "".join(f"{k + 1}. **item{k}** text\n" for k in range(70))
+    assert assistant.shown_text(numbered)[0].endswith(f"60. **item59** text\n{DEEP}")
+    assert assistant.shown_text(">" * 130 + " x")[0] == DEEP
+
+
+def test_no_answer_of_the_engine_nests_so_deep_that_it_hides_the_rest():
+    """In a comment of the assistant, its answer comes before the questions, the
+    links and the footer: an answer in a deep quote would hide them all."""
+    answer = f"Fine.\n\n{DEEP_QUOTE}\n\nSecret line for later."
+    assert assistant.sanitize(answer, CONFIG) == f"Fine.\n\n{DEEP}"
+    ordinary = "Fine.\n\n> a quote\n> - a list\n\n1. one\n2. two"
+    assert assistant.sanitize(ordinary, CONFIG) == ordinary
+    assert assistant.sanitize(">" * 120 + " x", CONFIG) == ">" * 120 + " x"
+
+
+@pytest.mark.parametrize(
+    ("piece", "deep"),
+    [
+        ("<div>a</div>\n", False),
+        # What may hold the end tag as text, after the start tag.
+        ("<div>`</div>`\n", True),
+        ("<div>`x`\n\n</div>\n\n", False),
+        ("<div>[a](b)</div>\n", False),
+        ("<div>[a](</div>)\n", True),
+        ("<div>![a](b)</div>\n", True),
+        ("<div>| a | </div>\n", True),
+        ("<div>\n| a |\n</div>\n", False),
+        ("<div>$</div>$\n", True),
+        ("<div>[a]: </div>\n", True),
+        ("<div>\\</div>\n", True),
+        ("<div>\n    </div>\n", True),
+        ("<div>\n\t</div>\n", True),
+        ("<div>\n```\n</div>\n```\n", True),
+        ("<div>\n~~~\n</div>\n~~~\n", True),
+        ("<div><!-- </div> -->\n", True),
+        # Markup that ends before the end tag.
+        ("<div><!-- a --></div>\n", False),
+        ("<div><!-- <!-- </div> -->\n", True),
+        ("<div><?a?></div>\n", False),
+        ("<div><![CDATA[</div>]]>\n", True),
+        ("<div><!a></div>\n", False),
+        # Tags: one with quoted values that ends on its row, one that runs past it,
+        # an end tag with more than its name, and tags inside a tag.
+        ('<div title="a > b">x</div>\n', False),
+        ("<div a='x>' b c = d e/ f=\"g\">x<br></div>\n", False),
+        ("<div><a title='x></div>'>\n", True),
+        ("<div><a \"title='x></div>\n", True),
+        ('<div title="a\nb">x</div>\n', True),
+        ("<div\n>x</div>\n", True),
+        ("<div>x</div title>\n", True),
+        ('<b t="<div>"></b>\n', False),
+        ('<b t="<div>"></b><i>\n', True),
+        ('<b t="<div></b>\n', True),
+        ("<DIV>x</div>\n", False),
+        ("<div>x</span>\n", True),
+    ],
+)
+def test_an_end_tag_closes_an_element_only_where_it_surely_does(piece, deep):
+    """Of each element, the count closes the innermost one where its end tag surely
+    is one: not where a code span, math, a cell, a link destination or markup could
+    hold the end tag as text, and not inside another tag. Each piece comes 130
+    times, so that it reaches the cut where its elements stay open."""
+    assert bool(assistant.deep_spans(piece * 130)) is deep
+
+
+@pytest.mark.parametrize(
+    ("text", "deep"),
+    [
+        # Fenced code that surely holds its rows counts no tag in them.
+        ("```\n" + "<div>\n" * 200 + "```\n<div>x</div>", False),
+        ("> ~~~\n" + "> <div>\n" * 200, False),
+        ("> ```\n" + "<div>\n" * 200, True),
+        ("<p>\n```\n" + "<div>\n" * 200 + "```", True),
+        ("<p>\n\n```\n" + "<div>\n" * 200 + "```", False),
+        ("<pre>\n\n```\n" + "<div>\n" * 200 + "```", True),
+        ("- ```\n" + "  <div>\n" * 200, True),
+        # Emphasis, strikethrough and brackets.
+        ("> </b>" + "<object>" * 20 + '<a t="x', False),
+        ("a_b " * 200, False),
+        ("_a " * 200, True),
+        ("~~a " * 100, True),
+        ("a * b " * 200, False),
+        ("[a] " * 200, False),
+        ("*a*\n" * 200, True),
+        ("- *a\n" * 200, False),
+        # A row after a line break of `\r` alone, and labels of footnotes.
+        ("x\r" + ">" * 200 + " y", True),
+        ("[^a]: " * 60 + "x", True),
+        ("[^a]: x\n" * 200, False),
+        # Elements whose scope keeps the Markdown around them, few and many.
+        ("<table>" * 10 + "*" * 20, False),
+        ("*" * 30 + "x " + "<object>" * 3, True),
+    ],
+)
+def test_the_count_of_the_depth(text, deep):
+    assert bool(assistant.deep_spans(text)) is deep
+
+
+def test_the_quick_count_reads_no_tag_in_fenced_code_that_surely_is_code():
+    """Of fenced code from a fence at the start of a row to the fence that closes it
+    there, Markdown reads all as code, where no HTML block can hold the fence."""
+    code = "```\n" + "<div>\n" * 200 + "~~~\n````\n"
+    assert assistant.without_code(f"a\n{code}b") == "a\n\nb"
+    assert assistant.shallow(f"a\n{code}b")
+    assert assistant.without_code(f"<div>\n{code}") is None
+    assert assistant.without_code(f"<pre>\n\n{code}") is None
+    # A fence of backticks with a backtick after it opens no code.
+    assert assistant.without_code("``` a`\n<div>\n```") is None
+    assert assistant.deep_spans("``` a`\n" + "<div>\n" * 200)
+
+
+def test_the_quick_count_reads_no_void_element():
+    """A start tag of a void element adds nothing to the depth, so the quick count
+    leaves it out, in either case of its letters; a longer name is another element,
+    which counts."""
+    for tag in ("<br>", "<BR>", "<Hr/>", '<img src="x">', "<wbr\n", "<input\t"):
+        assert assistant.shallow(tag * 200), tag
+        assert assistant.deep_spans(tag * 200) == [], tag
+    for tag in ("<brx>", "<b>", "<br-x>"):
+        assert not assistant.shallow(tag * 200), tag
+        assert assistant.deep_spans(tag * 200), tag
+    # HTML lowers only ASCII letters: a Kelvin sign makes another element of
+    # `<link>`, which nests in an HTML block (`gh api markdown`, 2026-11-22).
+    assert not assistant.shallow("<linK>" * 200)
+    assert assistant.deep_spans("<linK>" * 200)
+    text = "Intro words.\n\n<div>" + "<linK>" * 300 + " inner\n\nafter words"
+    assert "after words" not in assistant.shown_text(text)[0]
+
+
+@pytest.mark.parametrize(
+    ("foreign", "tag"),
+    [("<svg>", "<image>"), ("<math>", "<input>"), ("<SVG>", "<Source>")],
+)
+def test_void_names_nest_inside_svg_and_math(foreign, tag):
+    """Inside `<svg>` or `<math>`, HTML's parser makes no element void: 300 tags of
+    a void name nest there, and GitHub shows nothing after them (`gh api markdown`,
+    2026-11-22). A tag that breaks out of SVG and MathML stays void there, and so
+    does a void tag after they close."""
+    text = f"Intro words.\n\n{foreign}{tag * 300} inner\n\nafter words"
+    assert not assistant.shallow(text)
+    shown = assistant.shown_text(text)[0]
+    assert "Intro words." in shown
+    assert "inner" not in shown
+    assert "after words" not in shown
+    assert assistant.DEPTH_NOTE in shown
+    end = "</" + foreign[1:]
+    for text in (f"{foreign}{'<br>' * 300} inner", f"{foreign}{end}{tag * 300} x"):
+        assert assistant.deep_spans(text) == [], text
+
+
+TRACEBACK = '  File "a/__init__.py", line 9, in f(*args, **kwargs)\n' * 60
+LOG_TEXTS = [
+    f'<img src="https://x/y.png">\n\n```\n{TRACEBACK}```\n\nrest',
+    f"<details><summary>Log</summary>\n\n```\n{TRACEBACK}```\n\n</details>\n\nrest",
+    '<img src="https://x/y.png">\n\n> ```\n'
+    + TRACEBACK.replace("  File", ">     File")
+    + "> ```\n\nrest",
+]
+
+
+@pytest.mark.parametrize("text", LOG_TEXTS, ids=["image", "details", "quote"])
+def test_indented_rows_of_fenced_code_stay_code(text):
+    """The rows of fenced code may be indented past its fence, as a traceback is,
+    and their marks count nothing, also where a tag of HTML above keeps the quick
+    count from leaving the code out."""
+    assert assistant.shown_text(text)[0].endswith("rest")
+    rendered = assistant.render_issue(make_issue(body=text), [])
+    assert "\nrest\n" in rendered and DEEP not in rendered
+    assert assistant.deep_spans(text) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "  ```\ncode\n```\n" + DEEP_QUOTE + "\n\nhidden words\n```\nx\n",
+        "```\ncode\n  ```\n" + DEEP_QUOTE + "\n\nhidden words\n```\nx\n",
+        "```\n" + "<div>\n" * 200 + "   ```\n" + "<div>\n" * 200,
+        "> ```\n>     </div>\n>    ```\n" + "> <div>\n" * 200,
+    ],
+)
+def test_a_fence_indented_by_up_to_three_blanks_opens_and_closes_code(text):
+    """GitHub ends fenced code at a fence indented by up to three blanks, and opens
+    it at one too: the text below it counts again."""
+    assert assistant.deep_spans(text)
+
+
+@pytest.mark.parametrize(
+    ("text", "deep"),
+    [
+        # A fence indented by four blanks past the fence is code, and a tab, whose
+        # columns are hard to tell, ends the code for the count.
+        ("```\n" + "<div>\n" * 200 + "    ```\n" + "<div>\n" * 200, False),
+        ("<img>\n\n```\n" + "\t<div>\n" * 200 + "```", True),
+        ("<img>\n\n```\n" + "  <div>\n" * 200 + "```", False),
+    ],
+    ids=["fence inside", "tab", "blanks"],
+)
+def test_the_rows_of_fenced_code_past_its_fence(text, deep):
+    assert bool(assistant.deep_spans(text)) is deep
+
+
+def test_each_row_of_a_table_is_read_by_itself():
+    """GitHub reads each cell of a table by itself, so that the marks of a row can't
+    go on in the next one: a long table of bold cells or code spans shows in full,
+    with 140 rows of an emphasis and a bracket that never close."""
+    for cell in ("**sensor.x{}**", "`__opt{}__`", "**zq{} [x"):
+        rows = "".join(f"| {cell.format(k)} |\n" for k in range(140))
+        text = f"| a |\n|---|\n{rows}\nrest"
+        assert assistant.shown_text(text)[0].endswith("rest"), cell
+        # Without a delimiter row, or with as many cells, it is no table.
+        assert assistant.deep_spans(f"| a |\n{rows}"), cell
+        assert assistant.deep_spans(f"| a | b |\n|---|\n{rows}"), cell
+    marks = "".join(f"> | **x{k} |\n" for k in range(140))
+    assert assistant.deep_spans(f"> | a |\n> |---|\n{marks}") == []
+    # Another block ends it, and the rows after it go on with a paragraph.
+    for after in ("> ", "\n", "# ", "<b>", "***\n", "[a]"):
+        text = f"| a |\n|---|\n| b |\n{after}" + "**x\n" * 140
+        assert assistant.deep_spans(text), after
+    for header in ("# a | b", "> # a | b", "<b> | c", "    a | b", "\ta | b"):
+        marks = header[: len(header) - len(header.lstrip("> \t"))]
+        rows = f"{marks}-|-\n" + f"{marks}**x |\n" * 140
+        assert assistant.deep_spans(f"{header}\n{rows}"), header
+
+
+@pytest.mark.parametrize(
+    ("row", "cells"),
+    [
+        ("| a |", 1),
+        ("a | b", 2),
+        ("|a|b|", 2),
+        ("a \\| b", 0),
+        ("a \\\\| b", 2),
+        ("|", 1),
+        ("---|---", 2),
+    ],
+)
+def test_the_cells_of_a_row_of_a_table(row, cells):
+    assert assistant.cells(row) == cells
+
+
+def test_every_footnote_goes_with_the_rest():
+    note = assistant.FOOTNOTE_NOTE
+    text = f"a[^1] b[^2]\n\n[^1]: one\n\n    more\n\nmiddle\n\n[^2]: two\n{DEEP_QUOTE}"
+    assert assistant.shown_text(text)[0] == f"a[^1] b[^2]\n\n{note}middle\n\n{DEEP}"
+    assert assistant.shown_text(f"[^1]: one\n[^2]: two\n\n{DEEP_QUOTE}")[0] == DEEP
 
 
 @pytest.mark.parametrize("code", ["de", "ja", "ru", "zh"])

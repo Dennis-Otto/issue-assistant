@@ -226,6 +226,21 @@ def test_no_link_shows_in_a_dropped_cell_a_drawing_or_math():
     assert [item[0] for item in image] == [IMAGE]
 
 
+def test_no_file_shows_where_github_shows_nothing_for_the_depth():
+    """GitHub drops text nested in more than 255 elements, and all of the HTML after
+    it (`gh api -X POST markdown` with the mode gfm, 2026-11-21): the log behind a
+    quote of 255 marks shows as nothing, and of an image in 255 elements only an
+    empty link stays. Neither is a file that a maintainer sees."""
+    assert found("Log below.\n\n" + ">" * 255 + f" {LOG}") == []
+    assert found("<div>" * 255 + f'<img src="{IMAGE}">') == []
+    assert found(f"Log below.\n\n{LOG}\n\n" + ">" * 255 + " x") == [SHOWN_LOG[0]]
+    # Below the depth that the count cuts at, both still show.
+    assert found(">" * 100 + f" {LOG}") == [SHOWN_LOG[0]]
+    assert [item[0] for item in found("<div>" * 100 + f'<img src="{IMAGE}">')] == [
+        IMAGE
+    ]
+
+
 @pytest.mark.parametrize("place", PLACES)
 def test_only_the_href_of_a_link_and_the_src_of_an_image_show_an_address(place):
     tags = ("a", "img", "span", "div", "blockquote", "q", "details", "picture")

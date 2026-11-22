@@ -13,6 +13,7 @@ from typing import Any
 from urllib.parse import quote, unquote, urlsplit
 
 from .constants import MAX_NUMBER
+from .depth import DEPTH_NOTE, FOOTNOTE_NOTE, deep_spans
 from .languages import say
 from .markup import CONTAINER, CONTAINER_MARK, ROW_END
 from .patterns import (
@@ -372,7 +373,6 @@ def settled(
 # A note takes the place of each in the text for the engine, so that it doesn't
 # wonder about the missing target of a [text][label] link.
 DEFINITION_NOTE = "(link definition removed)"
-FOOTNOTE_NOTE = "(footnote removed)"
 
 LIST_MARK = re.compile(r"(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)")
 # A row that may open a fence, after the marks of quotes and list items and at any
@@ -465,7 +465,9 @@ def shown_parts(text: str, notes: bool = True) -> tuple[str, int, int, int]:
     if hidden or joins:
         # The text of the spans keeps the length of the text, with a space in the
         # place of each date that the page draws.
-        spaced_text, spans, cut = shown_spans(text)
+        spaced_text, spans, cut = shown_spans(
+            text, found.deep[-1][0] if found.deep else None
+        )
         hidden = apart(hidden + math_between(spaced_text, spans)) if joins else hidden
         pieces, placed = cut_out(spaced_text, spans, hidden)
         shown = "".join(pieces)
@@ -963,8 +965,16 @@ def sanitize(text: str, config: Config, numbers: Iterable[Checked] = ()) -> str:
         last = match.end()
     parts.append(prose(last, len(text)))
     # Only the spaces and line breaks that the cleaning left at the ends, which
-    # Markdown reads as such, too.
-    return joined(parts).strip(" \t\n")
+    # Markdown reads as such, too. No row of it nests so deep that GitHub would
+    # hide the rest of the comment after it.
+    return shallower(joined(parts).strip(" \t\n"))
+
+
+def shallower(text: str) -> str:
+    """The text up to the row from which its depth may hide the rest of it on
+    GitHub, as deep_spans counts it, with the note in place of that rest."""
+    deep = deep_spans(text)
+    return text[: deep[-1][0]] + DEPTH_NOTE if deep else text
 
 
 def plain_code(code: re.Match[str]) -> str:

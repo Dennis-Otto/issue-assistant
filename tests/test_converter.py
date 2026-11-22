@@ -8,6 +8,7 @@ and on the renderings of the texts of the four fixtures of marker words.
 
 import json
 import re
+import time
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -15,6 +16,7 @@ import pytest
 from test_assistant import CEILING, GROWTH, built
 
 import issue_assistant as assistant
+from issue_assistant.converter import tree_of
 from support import CONFIG, growth, make_issue
 
 FIXTURES = Path(__file__).with_name("fixtures")
@@ -353,6 +355,36 @@ def test_an_element_off_the_list_gives_no_text(html, name):
     assert {"Value", "Error"} <= words(result.text), result.text
     assert "ValueError" not in result.text
     assert any(name in found for found in result.counts["unknown"]), result.counts
+
+
+def test_a_reference_of_many_digits_stands_for_its_character():
+    """A decimal reference of more digits than int() reads, as Fuzzing found one,
+    stands for no character, as HTML reads it; zeros before its digits change
+    nothing, in the text and in an attribute."""
+    digits = "8" + "3" * 5000
+    result = converted(f"<p>/&#{digits}x &#{'0' * 5000}65; &#000; &#x41; &#</p>")
+    assert result.text == "/�x A � A &#"
+    found = tree_of(f'<img alt="&#{digits};&#{"0" * 5000}66">')
+    assert found.children[0].attributes["alt"] == "�B"
+
+
+def test_a_run_of_text_is_one_text_node():
+    """html.parser hands on each `<` of a run by itself, as Fuzzing found it slow;
+    the tree holds one text node for each run of text, as a browser does, and the
+    text of an element that html.parser reads raw stays as it is."""
+    root = tree_of('a<<b c="<<">x<<<script>y<<z</script>&#0;<<')
+    assert root.children[0] == "a<"
+    b = root.children[1]
+    assert (b.tag, b.attributes) == ("b", {"c": "<<"})
+    assert b.children[0] == "x<<"
+    assert b.children[1].tag == "script"
+    assert b.children[1].children == ["y<<z"]
+    # After an element of raw text, the text stays as html.parser reads it.
+    assert b.children[2] == "�<"
+    assert b.children[3].tag == "<markup without end>"
+    started = time.process_time()
+    assert converted("<p>" + "<" * assistant.MAX_TEXT + "</p>").text.count("<") > 0
+    assert time.process_time() - started < 0.5
 
 
 def test_a_space_goes_only_where_the_page_leaves_one():

@@ -26,6 +26,10 @@ examples:
 - **Link reference definitions,** where markdown-it reads more of them than
   CommonMark (2026-11-20): none runs over the line under a heading, and in a
   destination, a backslash before a space, a tab or a line feed escapes nothing.
+- **Depth.** GitHub builds the HTML only so deep: text inside more than 255
+  elements shows as nothing, and neither does anything after it (2026-11-21). The
+  parser nests as deep as the text, and the browser reads the elements by the rules
+  of HTML's parser (nested_too_deep).
 
 Where GitHub's rules depend on what exists, or on details that a cleaning should not
 rely on, the oracle errs on the safe side: it counts a mention or a reference after
@@ -63,6 +67,8 @@ class Parser(MarkdownIt):
 
     def __init__(self, config: str) -> None:
         super().__init__(config)
+        # CommonMark's preset nests 20 levels, GitHub more than 255.
+        self.options["maxNesting"] = 1_000
         # Its own helpers, so that the module of markdown-it stays as it is for
         # every other parser.
         self.helpers = SimpleNamespace(
@@ -620,6 +626,7 @@ def browser_text(markdown: str, descriptions: bool = False) -> str:
     shows: the page shows it only on hover."""
     parser = DESCRIBING if descriptions else PARSER
     source = FILTERED_TAG.sub(r"&lt;\1", parser.render(without_extra_cells(markdown)))
+    source = source[: nested_too_deep(source)]
     shown, position = [], 0
     while (start := source.find("<", position)) >= 0:
         shown.append(source[position:start])
@@ -629,6 +636,333 @@ def browser_text(markdown: str, descriptions: bool = False) -> str:
             position += 1
     shown.append(source[position:])
     return html.unescape("".join(shown))
+
+
+# How deep GitHub nests: it drops the text inside more than DEEPEST elements, and
+# all after it (`gh api markdown -f mode=gfm`, 2026-11-21). The elements that HTML
+# never opens, those that keep an end tag from closing what holds them, those past
+# which no end tag of another element closes one, and those that close an open `p`.
+DEEPEST = 255
+VOID_ELEMENTS = frozenset(
+    [
+        "area",
+        "base",
+        "basefont",
+        "bgsound",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "image",
+        "img",
+        "input",
+        "keygen",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    ]
+)
+SCOPES = frozenset(
+    [
+        "applet",
+        "caption",
+        "html",
+        "marquee",
+        "object",
+        "table",
+        "td",
+        "th",
+        "template",
+        "button",
+        "ol",
+        "ul",
+        "select",
+        "foreignobject",
+        "desc",
+        "title",
+        "mi",
+        "mo",
+        "mn",
+        "ms",
+        "mtext",
+        "annotation-xml",
+    ]
+)
+SPECIAL_ELEMENTS = frozenset(
+    [
+        "address",
+        "applet",
+        "area",
+        "article",
+        "aside",
+        "base",
+        "basefont",
+        "bgsound",
+        "blockquote",
+        "body",
+        "br",
+        "button",
+        "caption",
+        "center",
+        "col",
+        "colgroup",
+        "dd",
+        "details",
+        "dir",
+        "div",
+        "dl",
+        "dt",
+        "embed",
+        "fieldset",
+        "figcaption",
+        "figure",
+        "footer",
+        "form",
+        "frame",
+        "frameset",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "head",
+        "header",
+        "hgroup",
+        "hr",
+        "html",
+        "iframe",
+        "img",
+        "input",
+        "keygen",
+        "li",
+        "link",
+        "listing",
+        "main",
+        "marquee",
+        "menu",
+        "meta",
+        "nav",
+        "noembed",
+        "noframes",
+        "noscript",
+        "object",
+        "ol",
+        "p",
+        "param",
+        "plaintext",
+        "pre",
+        "script",
+        "search",
+        "section",
+        "select",
+        "source",
+        "style",
+        "summary",
+        "table",
+        "tbody",
+        "td",
+        "template",
+        "textarea",
+        "tfoot",
+        "th",
+        "thead",
+        "title",
+        "tr",
+        "track",
+        "ul",
+        "wbr",
+        "xmp",
+    ]
+)
+CLOSES_P = frozenset(
+    [
+        "address",
+        "article",
+        "aside",
+        "blockquote",
+        "center",
+        "details",
+        "dialog",
+        "dir",
+        "div",
+        "dl",
+        "fieldset",
+        "figcaption",
+        "figure",
+        "footer",
+        "header",
+        "hgroup",
+        "main",
+        "menu",
+        "nav",
+        "ol",
+        "p",
+        "search",
+        "section",
+        "summary",
+        "ul",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "pre",
+        "listing",
+        "form",
+        "table",
+        "hr",
+        "xmp",
+    ]
+)
+TABLE_PARTS = ("table", "tbody", "thead", "tfoot", "tr")
+# SVG and MathML, the elements inside them that hold HTML again, and the start tags
+# that close them, by the rules of HTML's parser for foreign content.
+FOREIGN_ROOTS = frozenset(["math", "svg"])
+INTEGRATION_POINTS = frozenset(
+    [
+        "annotation-xml",
+        "desc",
+        "foreignobject",
+        "mi",
+        "mn",
+        "mo",
+        "ms",
+        "mtext",
+        "title",
+    ]
+)
+BREAKING_OUT = frozenset(
+    [
+        "b",
+        "big",
+        "blockquote",
+        "body",
+        "br",
+        "center",
+        "code",
+        "dd",
+        "div",
+        "dl",
+        "dt",
+        "em",
+        "embed",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "head",
+        "hr",
+        "i",
+        "img",
+        "li",
+        "listing",
+        "menu",
+        "meta",
+        "nobr",
+        "ol",
+        "p",
+        "pre",
+        "ruby",
+        "s",
+        "small",
+        "span",
+        "strong",
+        "strike",
+        "sub",
+        "sup",
+        "table",
+        "tt",
+        "u",
+        "ul",
+        "var",
+    ]
+)
+NAME = re.compile(r"</?([A-Za-z][^\t\n\f\r />]*)")
+
+
+def nested_too_deep(source: str) -> int:
+    """Where HTML first opens more than DEEPEST elements around a position, as a
+    browser builds them, or the end of the HTML: an end tag closes the innermost
+    element of its name and those inside it, unless an element of SCOPES is
+    inside it, or, for an element that isn't special, one of SPECIAL_ELEMENTS; a
+    `<td>` or `<th>` in a table opens the `<tbody>` and the `<tr>` around it, and a
+    `<tr>` the `<tbody>`; a block closes an open `<p>`, and a `<li>` an open one."""
+    stack: list[str] = []
+    position = 0
+    while (start := source.find("<", position)) >= 0:
+        position = max(markup_end(source, start), start + 1)
+        found = NAME.match(source, start)
+        if found is None:
+            continue
+        name = found[1].lower()
+        if source[start + 1] == "/":
+            close(stack, name)
+            continue
+        if foreign(stack):
+            if name not in BREAKING_OUT:
+                # Inside SVG or MathML no element is void, but one that closes
+                # itself.
+                if source[position - 2 : position] != "/>":
+                    stack.append(name)
+            else:
+                # It closes the SVG or MathML, and is read as HTML.
+                roots = [i for i, held in enumerate(stack) if held in FOREIGN_ROOTS]
+                del stack[roots[-1] :]
+                if name not in VOID_ELEMENTS:
+                    open_element(stack, name)
+        elif name not in VOID_ELEMENTS:
+            open_element(stack, name)
+        if len(stack) > DEEPEST:
+            # The element may stay, but empty, and nothing after it.
+            return position
+    return len(source)
+
+
+def foreign(stack: list[str]) -> bool:
+    """Whether the innermost open element is one of SVG or MathML, below which no
+    element holds HTML again."""
+    for held in reversed(stack):
+        if held in FOREIGN_ROOTS:
+            return True
+        if held in INTEGRATION_POINTS:
+            return False
+    return False
+
+
+def close(stack: list[str], name: str) -> None:
+    """Closes an element of HTML by its end tag, as nested_too_deep says."""
+    for index in range(len(stack) - 1, -1, -1):
+        if stack[index] == name:
+            del stack[index:]
+            return
+        if stack[index] in SCOPES or (
+            name not in SPECIAL_ELEMENTS and stack[index] in SPECIAL_ELEMENTS
+        ):
+            return
+
+
+def open_element(stack: list[str], name: str) -> None:
+    """Opens an element of HTML by its start tag, as nested_too_deep says."""
+    if name in CLOSES_P and "p" in stack:
+        close(stack, "p")
+    if name == "li" and "li" in stack:
+        close(stack, "li")
+    if name in ("td", "th", "tr"):
+        table = [part for part in stack if part in TABLE_PARTS]
+        if not table:
+            return  # Outside a table, HTML opens none.
+        if table[-1] == "table":
+            stack.append("tbody")
+        if name != "tr" and table[-1] != "tr":
+            stack.append("tr")
+    stack.append(name)
 
 
 # The marks of quotes before a line, and what ends a table on GitHub after them: a

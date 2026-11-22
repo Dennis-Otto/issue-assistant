@@ -22,6 +22,7 @@ from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 
 from .code_languages import CODE_LANGUAGES
+from .depth import deep_spans
 from .markup import (
     BLOCK_TAGS,
     COMMENT_START,
@@ -141,6 +142,9 @@ class Found:
     # Whether the text holds a dollar sign, as an entity too, of which math could
     # also form where its HTML leaves the text.
     dollars: bool = False
+    # What GitHub may not show for the depth of the text, with its notes: the rest
+    # of the text from a row on, and the footnotes.
+    deep: list[tuple[int, int, str]] = field(default_factory=list)
 
     def hidden(self) -> list[tuple[int, int, str]]:
         """The spans of which GitHub shows nothing as it is written, each with the
@@ -155,13 +159,14 @@ class Found:
         spans += [(start, end, DIAGRAM_NOTE) for start, end in self.diagram]
         spans += [(start, end, MATH_NOTE) for start, end in self.math]
         spans += [(start, end, TITLE_NOTE) for start, end in self.titles]
-        return apart(spans)
+        return apart(spans + self.deep)
 
     def unlinked(self) -> list[tuple[int, int, str]]:
         """The spans in which GitHub shows no link: those that it hides, and all of
         a drawing or of math, whose text is drawn and leads nowhere."""
         spans = self.cells + self.infos + self.drawn + self.math + self.plain
         spans += self.titles
+        spans += [(start, end) for start, end, _ in self.deep]
         return apart([(start, end, "") for start, end in spans])
 
 
@@ -200,6 +205,7 @@ def structures_of(text: str) -> Found:
     dollars = found.dollars
     # A title follows the destination of a link, after its `](`.
     titles = "](" in text and LINK_TITLE.search(text) is not None
+    found.deep = deep_spans(text)
     if not (infos or fences or tables or pres or dollars or titles):
         return found
     reader = Reader(text)

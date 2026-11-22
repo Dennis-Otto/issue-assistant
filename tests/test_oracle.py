@@ -348,6 +348,42 @@ def test_a_browser_reads_markup_as_github_showed_it(markdown, shown, hidden):
     assert [word for word in hidden if word in seen] == []
 
 
+@pytest.mark.parametrize(
+    ("markdown", "shown", "hidden"),
+    [
+        (">" * 30 + " zqdeep\n\nzqafter", ["zqdeep", "zqafter"], []),
+        (
+            "zqthanks\n\n" + ">" * 255 + " x\n\nzqsystem",
+            ["zqthanks"],
+            ["zqsystem"],
+        ),
+        (">" * 254 + " zqshown\n\nzqafter", ["zqshown", "zqafter"], []),
+        (">" * 256 + "\n\nzqhidden", [], ["zqhidden"]),
+        ("<div>" * 256 + "</div>" * 256 + "\n\nzqhidden", [], ["zqhidden"]),
+        ("<div>" * 255 + "zqshown", ["zqshown"], []),
+        (
+            "".join(" " * (2 * k) + f"- zqa{k}\n" for k in range(128)) + "\nzqhidden",
+            ["zqa126"],
+            ["zqa127", "zqhidden"],
+        ),
+        ("<div></b>" * 256 + "x\n\nzqhidden", [], ["zqhidden"]),
+        ("<div/>" * 256 + "x\n\nzqhidden", [], ["zqhidden"]),
+        ("<div></div2>" * 256 + "x\n\nzqhidden", [], ["zqhidden"]),
+        ("<b><div></b>" * 256 + "x\n\nzqhidden", [], ["zqhidden"]),
+        ("<table><td>" * 64 + "x\n\nzqhidden", [], ["zqhidden"]),
+        ("<table><td>" * 63 + "zqshown", ["zqshown"], []),
+        ("<div>zqa</div>" * 300 + "\n\nzqafter", ["zqafter"], []),
+    ],
+)
+def test_a_browser_reads_the_depth_as_github_showed_it(markdown, shown, hidden):
+    """GitHub's renderer (`gh api markdown -f mode=gfm`, 2026-11-21 and 22) showed
+    the words of `shown` and hid those of `hidden`: nothing inside more than 255
+    elements, and nothing after it."""
+    seen = browser_text(markdown)
+    assert [word for word in shown if word not in seen] == []
+    assert [word for word in hidden if word in seen] == []
+
+
 def test_a_browser_shows_a_lone_angle_bracket_as_text():
     assert browser_text("x < y </") == "x < y </\n"
     assert browser_text("<div>\nx </> <!-->y<!--->z") == "\nx  yz\n"
