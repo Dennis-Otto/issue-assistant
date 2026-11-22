@@ -4727,9 +4727,33 @@ def test_the_quick_count_reads_no_void_element():
     for tag in ("<brx>", "<b>", "<br-x>"):
         assert not assistant.shallow(tag * 200), tag
         assert assistant.deep_spans(tag * 200), tag
-    # The Kelvin sign that Depth reads as a `k`, where the quick count counts more.
+    # HTML lowers only ASCII letters: a Kelvin sign makes another element of
+    # `<link>`, which nests in an HTML block (`gh api markdown`, 2026-11-22).
     assert not assistant.shallow("<linK>" * 200)
-    assert assistant.deep_spans("<linK>" * 200) == []
+    assert assistant.deep_spans("<linK>" * 200)
+    text = "Intro words.\n\n<div>" + "<linK>" * 300 + " inner\n\nafter words"
+    assert "after words" not in assistant.shown_text(text)[0]
+
+
+@pytest.mark.parametrize(
+    ("foreign", "tag"),
+    [("<svg>", "<image>"), ("<math>", "<input>"), ("<SVG>", "<Source>")],
+)
+def test_void_names_nest_inside_svg_and_math(foreign, tag):
+    """Inside `<svg>` or `<math>`, HTML's parser makes no element void: 300 tags of
+    a void name nest there, and GitHub shows nothing after them (`gh api markdown`,
+    2026-11-22). A tag that breaks out of SVG and MathML stays void there, and so
+    does a void tag after they close."""
+    text = f"Intro words.\n\n{foreign}{tag * 300} inner\n\nafter words"
+    assert not assistant.shallow(text)
+    shown = assistant.shown_text(text)[0]
+    assert "Intro words." in shown
+    assert "inner" not in shown
+    assert "after words" not in shown
+    assert assistant.DEPTH_NOTE in shown
+    end = "</" + foreign[1:]
+    for text in (f"{foreign}{'<br>' * 300} inner", f"{foreign}{end}{tag * 300} x"):
+        assert assistant.deep_spans(text) == [], text
 
 
 TRACEBACK = '  File "a/__init__.py", line 9, in f(*args, **kwargs)\n' * 60

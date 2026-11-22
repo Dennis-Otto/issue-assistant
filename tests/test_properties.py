@@ -1720,7 +1720,8 @@ def test_the_engine_reads_no_text_of_a_discussion_comment_that_github_collapsed(
 
 
 # Pieces that nest, as deep as GitHub's limit and past it: quotes, list items,
-# elements of HTML and their scopes, emphasis, and blanks.
+# elements of HTML and their scopes, emphasis, blanks, and void names in SVG and
+# MathML.
 NESTING = st.lists(
     st.tuples(
         st.sampled_from(
@@ -1742,6 +1743,12 @@ NESTING = st.lists(
                 "<b><div></b>",
                 "<br>",
                 "<div><img src=x>",
+                "<svg>",
+                "<math>",
+                "<image>",
+                "<input>",
+                "<svg><image/>",
+                "<math></math><input>",
             ]
         ),
         st.integers(1, 300),
@@ -1760,6 +1767,8 @@ NESTING = st.lists(
 @hypothesis.example([(">", 255, "\n\n")])
 @hypothesis.example([("  ", 128, "\n"), ("- ", 1, "\n")])
 @hypothesis.example([("<table><td>", 64, " ")])
+@hypothesis.example([("<svg>", 1, " "), ("<image>", 300, " ")])
+@hypothesis.example([("<math>", 1, "\n"), ("<input>", 300, " ")])
 @given(NESTING)
 def test_the_cleaning_keeps_nothing_that_github_shows_nothing_of_for_its_depth(parts):
     """Each part nests a piece, and a marker word follows it: of the words that a

@@ -8,6 +8,7 @@ time linear in the length of the text.
 from __future__ import annotations
 
 import re
+import string
 from dataclasses import dataclass, field
 
 from .markup import BLANK_ROW, FOOTNOTE_MARK, ROW_END, ROW_ENDS, ROW_START, row_end
@@ -107,6 +108,12 @@ VOID = frozenset(
         "wbr",
     ]
 )
+# Inside `<svg>` or `<math>`, HTML's parser makes no element void: those of VOID
+# nest there like any other (`gh api markdown`, 2026-11-22), but for those that
+# break out of it, which close it, and stay void.
+FOREIGN = frozenset(["math", "svg"])
+ASCII_LOWER = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
+BREAKING_OUT = frozenset(["br", "embed", "hr", "img", "meta"])
 WEIGHTS = {"td": 3, "th": 3, "tr": 2}
 # For shallow: a start tag of a void element, of a name in ASCII letters of either
 # case, which Depth reads as one of VOID, so that it adds nothing to the depth.
@@ -115,6 +122,7 @@ VOID_TAG = re.compile(
     + "|".join("".join(f"[{c.upper()}{c}]" for c in name) for name in sorted(VOID))
     + r")(?=[\t\n\f\r />]|\Z)"
 )
+FOREIGN_TAG = re.compile(r"<(?i:math|svg)(?=[\t\n\f\r />]|\Z)")
 # The elements that keep the end tag of an element around them from closing it, by
 # the scopes of HTML's parser, so that a quote, a list item or a paragraph that
 # ends in Markdown stays open around them (12 quotes of 20 marks, each with
@@ -191,7 +199,8 @@ class Depth:
     count again only after a row of INLINE_RESET.
 
     The HTML is read over the whole text, code too: each start tag of an element
-    that isn't void opens it, also one with `/>`, `<td>` and `<th>` as 3 and `<tr>`
+    that isn't void, or any inside an open `<svg>` or `<math>` but those of
+    BREAKING_OUT, opens it, also one with `/>`, `<td>` and `<th>` as 3 and `<tr>`
     as 2. One of SCOPES also keeps the count of the Markdown around it, which
     stays open for good once a row ends while it is open. An end tag closes the
     innermost open element, and only one of its name, where it surely is an end
@@ -215,6 +224,8 @@ class Depth:
     # The open elements, and what they and those that closed add.
     tags: list[Open] = field(default_factory=list)
     html: int = 0
+    # How many of the open elements are of FOREIGN.
+    foreign: int = 0
     # The starts of what may hold an end tag as text, by how far it may reach: the
     # end of the text, the paragraph, the row; the open fence, with the marks of
     # its row and its run; and the markup, each with its end.
@@ -315,7 +326,9 @@ class Depth:
             if token["run"]:
                 self.inline += self.run(token, start, body, end)
             elif token["name"]:
-                name = token["name"].lower()
+                # HTML lowers only ASCII letters: `<linK>` with a Kelvin sign
+                # is no `<link>`, and nests.
+                name = token["name"].translate(ASCII_LOWER)
                 if token["slash"]:
                     self.end_tag(token, name, start)
                     continue
@@ -495,8 +508,10 @@ class Depth:
         """Opens the element of a start tag, as deep as it may nest."""
         if closing:
             self.reach(token)
-        if name in VOID:
+        if name in VOID and (not self.foreign or name in BREAKING_OUT):
             return
+        if name in FOREIGN:
+            self.foreign += 1
         kept = inline = 0
         if name in SCOPES:
             inline = self.inline
@@ -527,6 +542,8 @@ class Depth:
             holders.append(self.fence[0])
         if opened > max(holders) and text[start - 1 : start] != "\\":
             closed = tags.pop()
+            if closed.name in FOREIGN:
+                self.foreign -= 1
             # What it kept open of the Markdown around it stays open where that
             # closed meanwhile: an inline element on the same row, and anything
             # once a row ended.
@@ -643,7 +660,7 @@ def counted_shallow(text: str) -> bool:
     """Whether no row of a text can reach DEPTH_LIMIT by its counts: each unit of
     the marks of the longest start of a row counts 4, each mark of emphasis 1, the
     brackets 3; each start tag as its weight in Depth, but those of void elements
-    and those that an end tag on the row surely closes, and each of SCOPES as much
+    outside `<svg>` and `<math>` and those that an end tag on the row surely closes, and each of SCOPES as much
     again as all of the Markdown."""
     markdown = (
         2
@@ -669,7 +686,7 @@ def counted_shallow(text: str) -> bool:
             - text.count("</")
             - text.count("<!")
             - text.count("<?")
-            - len(VOID_TAG.findall(text))
+            - (0 if FOREIGN_TAG.search(marks) else len(VOID_TAG.findall(text)))
         )
         if weights >= DEPTH_LIMIT - markdown:
             return False

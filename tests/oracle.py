@@ -820,6 +820,70 @@ CLOSES_P = frozenset(
     ]
 )
 TABLE_PARTS = ("table", "tbody", "thead", "tfoot", "tr")
+# SVG and MathML, the elements inside them that hold HTML again, and the start tags
+# that close them, by the rules of HTML's parser for foreign content.
+FOREIGN_ROOTS = frozenset(["math", "svg"])
+INTEGRATION_POINTS = frozenset(
+    [
+        "annotation-xml",
+        "desc",
+        "foreignobject",
+        "mi",
+        "mn",
+        "mo",
+        "ms",
+        "mtext",
+        "title",
+    ]
+)
+BREAKING_OUT = frozenset(
+    [
+        "b",
+        "big",
+        "blockquote",
+        "body",
+        "br",
+        "center",
+        "code",
+        "dd",
+        "div",
+        "dl",
+        "dt",
+        "em",
+        "embed",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "head",
+        "hr",
+        "i",
+        "img",
+        "li",
+        "listing",
+        "menu",
+        "meta",
+        "nobr",
+        "ol",
+        "p",
+        "pre",
+        "ruby",
+        "s",
+        "small",
+        "span",
+        "strong",
+        "strike",
+        "sub",
+        "sup",
+        "table",
+        "tt",
+        "u",
+        "ul",
+        "var",
+    ]
+)
 NAME = re.compile(r"</?([A-Za-z][^\t\n\f\r />]*)")
 
 
@@ -840,12 +904,36 @@ def nested_too_deep(source: str) -> int:
         name = found[1].lower()
         if source[start + 1] == "/":
             close(stack, name)
+            continue
+        if foreign(stack):
+            if name not in BREAKING_OUT:
+                # Inside SVG or MathML no element is void, but one that closes
+                # itself.
+                if source[position - 2 : position] != "/>":
+                    stack.append(name)
+            else:
+                # It closes the SVG or MathML, and is read as HTML.
+                roots = [i for i, held in enumerate(stack) if held in FOREIGN_ROOTS]
+                del stack[roots[-1] :]
+                if name not in VOID_ELEMENTS:
+                    open_element(stack, name)
         elif name not in VOID_ELEMENTS:
             open_element(stack, name)
-            if len(stack) > DEEPEST:
-                # The element may stay, but empty, and nothing after it.
-                return position
+        if len(stack) > DEEPEST:
+            # The element may stay, but empty, and nothing after it.
+            return position
     return len(source)
+
+
+def foreign(stack: list[str]) -> bool:
+    """Whether the innermost open element is one of SVG or MathML, below which no
+    element holds HTML again."""
+    for held in reversed(stack):
+        if held in FOREIGN_ROOTS:
+            return True
+        if held in INTEGRATION_POINTS:
+            return False
+    return False
 
 
 def close(stack: list[str], name: str) -> None:
