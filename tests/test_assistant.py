@@ -179,6 +179,11 @@ def test_only_as_much_of_a_text_as_github_keeps_is_read():
 
 # The start tag of an element in whose place the page draws a date.
 DATED = '<relative-time datetime="2020-01-01T00:00:00Z">'
+# The addresses of an attached file and of an uploaded image.
+ATTACHED = "https://github.com/user-attachments/files/1/"
+UPLOADED = (
+    "https://github.com/user-attachments/assets/0f9a7e1c-1111-2222-3333-444455556666"
+)
 # Texts of 64 KiB on which the earlier patterns took up to hours: blanks after a
 # heading, comments and tags that never close, and many of them. Each is given as its
 # parts, a piece that comes once or a piece and how often it comes, so that the
@@ -337,6 +342,17 @@ SLOW_TEXTS = {
         ("".join(" " * (2 * k) + "- x\n" for k in range(60)), 16)
     ],
     "rows before a deep quote": [("x\n", 32_000), ">" * 256],
+    # Where GitHub ends each address, and whether a bracket or the description of an
+    # image holds it, is read once (2026-11-22).
+    "addresses cut by comments": [(f"{ATTACHED}a<!-- -->.log ", 1_050)],
+    "brackets that never close before addresses": [
+        ("[", 32_000),
+        (f"{ATTACHED} ", 600),
+    ],
+    "descriptions with addresses": [(f"![{ATTACHED}a [b]({ATTACHED}c)](d) ", 600)],
+    "trailing punctuation": [(f"{ATTACHED}a" + "&amp;.,;:!?*_~'\")" * 4 + " ", 500)],
+    "escaped brackets and autolinks": [(f"\\[<{ATTACHED}a> ", 1_250)],
+    "image addresses with a suffix": [(f"![a]({UPLOADED}zz) ", 700)],
 }
 
 # Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
@@ -5335,7 +5351,8 @@ def test_the_engine_reads_no_reference_that_github_shows_as_nothing(text, shown)
     rendered = assistant.render_issue(make_issue(body=text), [])
     assert f"\n```\n{shown}\n```\n" in rendered
     assert assistant.as_shown(text).strip() == shown
-    assert assistant.REFERENCE.search(assistant.shown_links(text)) is None
+    links = " ".join(address for address, _ in assistant.shown_links(text))
+    assert assistant.REFERENCE.search(links) is None
 
 
 def test_a_reference_of_an_invisible_character_counts_as_one():
@@ -6445,7 +6462,7 @@ def test_the_engine_reads_of_each_searched_fence_what_github_shows(case):
     ):
         assert [marker for marker in case["github hides"] if marker in read] == []
         assert [marker for marker in case["github shows"] if marker not in read] == cut
-    links = assistant.shown_links(text)
+    links = " ".join(address for address, _ in assistant.shown_links(text))
     linked = [m for m in case["github hides"] if re.search(rf"https?://\S*{m}", links)]
     assert linked == []
 
