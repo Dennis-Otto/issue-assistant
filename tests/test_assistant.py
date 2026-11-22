@@ -517,7 +517,7 @@ def reading(name, text):
 
 # The growth that a reading may have is GROWTH of tests/support.py, which the fuzz
 # target of the converter holds as well.
-#
+
 # The processor time of one reading of a whole text, in seconds. Not the promise of
 # the reading, which is that nothing in it backtracks or grows faster than its text,
 # and which the growth holds on every machine: the slowest texts took up to 0.44

@@ -1872,6 +1872,7 @@ def too_slow(
     budget: float,
     ceiling: float,
     measure: Callable[[Callable[[], object], Callable[[], object]], Growth] = growth,
+    clock: Callable[[], float] = time.process_time,
 ) -> str | None:
     """Why a call that took `seconds` of processor time on a text that repeats a piece
     `count` times is too slow, or None, as fuzz/fuzz_converter.py judges it (#528).
@@ -1881,20 +1882,20 @@ def too_slow(
     and it fails when the whole takes GROWTH times as long or more, or longer than
     `ceiling`. A text of fewer than 8 repetitions has no eighth and keeps the budget;
     a first call above the ceiling is not timed again, as the timeout of the fuzzer
-    counts every call, and is told against one call of its eighth.
+    counts every call, and is told against one call of its eighth, timed by `clock`.
     """
     if seconds <= budget:
         return None
     if count < 8:
         return f"took {seconds:.2f} s, more than {budget} s"
     if seconds > ceiling:
-        started = time.process_time()
+        started = clock()
         eighth()
-        part = time.process_time() - started
+        part = clock() - started
         measured = Growth(part, seconds, seconds / part if part else math.inf)
     else:
         measured = measure(eighth, whole)
-        if measured.times < GROWTH and measured.whole <= ceiling:
+        if measured.times < GROWTH and measured.whole < ceiling:
             return None
     return (
         f"took {measured.eighth:.4f} s on an eighth of the text, "

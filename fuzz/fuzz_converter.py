@@ -41,11 +41,15 @@ BUDGET = 0.5
 # seconds under the instrumentation on a machine of a maintainer and about 0.47 on a
 # slow runner of GitHub, which failed an input of 0.51 seconds by chance (#528, as
 # #500 and #504 found for the timing tests). The promise is linear time. The ceiling
-# fits libFuzzer's timeout of five seconds, which counts the whole call: the growth
-# calls the whole three more times and the eighth three times, about 4.4 times the
-# first call, so an input of up to a second ends with the message of the growth
-# rather than a bare timeout; CEILING of the tests (2 s) could never be judged.
+# fits the timeout of TIMEOUT seconds that main() gives libFuzzer, which counts the
+# whole call in wall time, not processor time: the growth calls the whole three more
+# times and the eighth three times, about 4.4 seconds of processor time for a first
+# call of a second, and a busy runner can take longer in wall time than in processor
+# time: the timeout leaves more than twice that, so an input of up to a second ends
+# with the message of the growth rather than a bare timeout. CEILING of the tests (2 s) would need
+# twice the timeout.
 CEILING = 1
+TIMEOUT = 10
 LONGEST_HTML = 2 * assistant.MAX_TEXT
 
 
@@ -84,10 +88,10 @@ def test_one_input(data: bytes) -> None:
 def main() -> None:
     # A reading that grows with the square of its text can take minutes on one
     # input, and the time is judged only after a call returns: unless the command
-    # line sets another limit, libFuzzer stops an input after five seconds.
+    # line sets another limit, libFuzzer stops an input after TIMEOUT seconds.
     argv = with_seeds(sys.argv, "fuzz_converter")
     timeout = any(arg.startswith("-timeout=") for arg in argv)
-    atheris.Setup(argv if timeout else [*argv, "-timeout=5"], test_one_input)
+    atheris.Setup(argv if timeout else [*argv, f"-timeout={TIMEOUT}"], test_one_input)
     atheris.Fuzz()
 
 

@@ -961,7 +961,7 @@ def test_no_html_makes_the_converter_slow(parts):
     assert len(result.text) <= assistant.LONGEST + len(assistant.CUT_NOTE) + 1
 
 
-def test_the_fuzz_target_judges_a_slow_conversion_by_its_growth(monkeypatch):
+def test_the_fuzz_target_judges_a_slow_conversion_by_its_growth():
     """fuzz/fuzz_converter.py passes a conversion slower than its budget that grows
     with its text, and fails one that grows with its square, one above its ceiling
     and one without an eighth (#528). No input is slower than the budget on a fast
@@ -997,12 +997,16 @@ def test_the_fuzz_target_judges_a_slow_conversion_by_its_growth(monkeypatch):
     # the whole is not called again: the timeout of the fuzzer counts every call.
     calls = []
     clock = iter([2.0, 2.25, 3.0, 3.0])
-    monkeypatch.setattr("support.time.process_time", lambda: next(clock))
-    assert too_slow(1.5, 8, lambda: calls.append(8), calls.clear, 0.5, 1) == (
+    ticks = clock.__next__
+    assert too_slow(
+        1.5, 8, lambda: calls.append(8), calls.clear, 0.5, 1, clock=ticks
+    ) == (
         "took 0.2500 s on an eighth of the text, 1.5000 s on the whole, "
         "6.00 times as long (at most 13 times and 1 s)"
     )
-    assert too_slow(1.5, 8, lambda: calls.append(8), calls.clear, 0.5, 1).startswith(
+    assert too_slow(
+        1.5, 8, lambda: calls.append(8), calls.clear, 0.5, 1, clock=ticks
+    ).startswith(
         "took 0.0000 s on an eighth of the text, 1.5000 s on the whole, inf times"
     )
     assert calls == [8, 8]
