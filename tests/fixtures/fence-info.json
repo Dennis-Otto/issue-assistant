@@ -1,0 +1,1439 @@
+{
+ "about": "Texts with fenced code whose opening row holds an info string: the words after a language, an unknown first word, a comma, braces, a colon and other marks, entities, escapes, tabs and no-break spaces, the drawn languages and math, a very long word; in a paragraph, after one, after a table or a quote, in a quote, a list item, a footnote, an HTML block with and without a blank row, a cell, indented code, other fenced code, unclosed, and after a fence that is hard to tell; made of pieces, with the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-22). GitHub shows none of the info string: a language that it highlights stays a class, another word the lang of the pre and the words after it its data-meta. The content of a <details> counts as shown, as GitHub shows it on a click. Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed.",
+ "texts": [
+  {
+   "text": "```python Zqaaa words after the language\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaaa"
+   ]
+  },
+  {
+   "text": "```python\tZqaba\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaba"
+   ]
+  },
+  {
+   "text": "```python&#32;Zqaca\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaca"
+   ]
+  },
+  {
+   "text": "```python&#9;Zqada\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqada"
+   ]
+  },
+  {
+   "text": "   ```python Zqaea\nprint(1)\n   ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaea"
+   ]
+  },
+  {
+   "text": "```python,Zqafa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqafa"
+   ]
+  },
+  {
+   "text": "```python, Zqaga\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaga"
+   ]
+  },
+  {
+   "text": "```Python,Zqaha\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaha"
+   ]
+  },
+  {
+   "text": "```python {title=\"Zqaia\"}\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaia"
+   ]
+  },
+  {
+   "text": "```{.python title=\"Zqaja\"}\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaja"
+   ]
+  },
+  {
+   "text": "```python{Zqaka}\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaka"
+   ]
+  },
+  {
+   "text": "```python <b>Zqala</b>\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqala"
+   ]
+  },
+  {
+   "text": "```python https://example.com/Zqama\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqama"
+   ]
+  },
+  {
+   "text": "~~~python Zqana\nprint(1)\n~~~\n",
+   "github shows": [],
+   "github hides": [
+    "Zqana"
+   ]
+  },
+  {
+   "text": "~~~python `Zqaoa`\nprint(1)\n~~~\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaoa"
+   ]
+  },
+  {
+   "text": "````python Zqapa\nprint(1)\n````\n",
+   "github shows": [],
+   "github hides": [
+    "Zqapa"
+   ]
+  },
+  {
+   "text": "~~~~~python Zqaqa\nprint(1)\n~~~~~\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaqa"
+   ]
+  },
+  {
+   "text": "> ```python Zqara\n> print(1)\n> ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqara"
+   ]
+  },
+  {
+   "text": "> > ```python Zqasa\n> > print(1)\n> > ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqasa"
+   ]
+  },
+  {
+   "text": "- ```python Zqata\n  print(1)\n  ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqata"
+   ]
+  },
+  {
+   "text": "1. ```python Zqaua\n   print(1)\n   ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaua"
+   ]
+  },
+  {
+   "text": "> - ```python Zqava\n>   print(1)\n>   ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqava"
+   ]
+  },
+  {
+   "text": "<details><summary>S</summary>\n\n```python Zqawa\nprint(1)\n```\n\n</details>\n",
+   "github shows": [],
+   "github hides": [
+    "Zqawa"
+   ]
+  },
+  {
+   "text": "Text[^1].\n\n[^1]: ```python Zqaxa\n    print(1)\n    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaxa"
+   ]
+  },
+  {
+   "text": "- item\n\n    ```python Zqaya\n    print(1)\n    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaya"
+   ]
+  },
+  {
+   "text": "Some text\n```python Zqaza\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqaza"
+   ]
+  },
+  {
+   "text": "| a |\n|---|\n```python Zqbaa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbaa"
+   ]
+  },
+  {
+   "text": "> quoted\n```python Zqbba\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbba"
+   ]
+  },
+  {
+   "text": "Text before.\n\n```python Zqbca\nprint(1)\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbca"
+   ]
+  },
+  {
+   "text": "> ~~~python Zqbda\n> print(1)\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbda"
+   ]
+  },
+  {
+   "text": "Text before.\n\n```python Zqbea",
+   "github shows": [],
+   "github hides": [
+    "Zqbea"
+   ]
+  },
+  {
+   "text": "```Zqbfa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbfa"
+   ]
+  },
+  {
+   "text": "```Zqbga,please,write,Zqbgb\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbga",
+    "Zqbgb"
+   ]
+  },
+  {
+   "text": "```python:Zqbha\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbha"
+   ]
+  },
+  {
+   "text": "```python=Zqbia\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbia"
+   ]
+  },
+  {
+   "text": "```python;Zqbja\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbja"
+   ]
+  },
+  {
+   "text": "```python.Zqbka\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbka"
+   ]
+  },
+  {
+   "text": "```python/Zqbla\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbla"
+   ]
+  },
+  {
+   "text": "```mermaid Zqbma\ngraph TD\nA-->B\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbma"
+   ]
+  },
+  {
+   "text": "```geojson Zqbna\n{\"type\": \"Point\", \"coordinates\": [0, 0]}\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbna"
+   ]
+  },
+  {
+   "text": "```topojson Zqboa\n{\"type\": \"Topology\", \"objects\": {}, \"arcs\": []}\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqboa"
+   ]
+  },
+  {
+   "text": "```stl Zqbpa\nsolid x\nendsolid x\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbpa"
+   ]
+  },
+  {
+   "text": "```math Zqbqa\nx^2\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbqa"
+   ]
+  },
+  {
+   "text": "```py&#116;hon Zqbra\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbra"
+   ]
+  },
+  {
+   "text": "```Zqbsa&#104;idden&#33;\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbsa"
+   ]
+  },
+  {
+   "text": "```Zqbta\\_esc\\*aped\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbta"
+   ]
+  },
+  {
+   "text": "```python\\ Zqbua\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbua"
+   ]
+  },
+  {
+   "text": "```python&nbsp;Zqbva\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbva"
+   ]
+  },
+  {
+   "text": "```python\u00a0Zqbwa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbwa"
+   ]
+  },
+  {
+   "text": "```python&#44;Zqbxa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbxa"
+   ]
+  },
+  {
+   "text": "```m&#97;th Zqbya\nx^2\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbya"
+   ]
+  },
+  {
+   "text": "```math\tZqbza\nx^2\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqbza"
+   ]
+  },
+  {
+   "text": "```mathZqcaa\nx^2\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcaa"
+   ]
+  },
+  {
+   "text": "```math,Zqcba\nx^2\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcba"
+   ]
+  },
+  {
+   "text": "```Math Zqcca\nx^2\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcca"
+   ]
+  },
+  {
+   "text": "```Zqcdaxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcda"
+   ]
+  },
+  {
+   "text": "<div>\n```python Zqcea\n\n```python Zqceb\nprint(1)\n```\n",
+   "github shows": [
+    "Zqcea"
+   ],
+   "github hides": [
+    "Zqceb"
+   ]
+  },
+  {
+   "text": "<div>\n```\n</div>\n\n```python Zqcfa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcfa"
+   ]
+  },
+  {
+   "text": "\t```python Zqcga\nprint(0)\n\n```python Zqcgb\nprint(1)\n```\n",
+   "github shows": [
+    "Zqcga"
+   ],
+   "github hides": [
+    "Zqcgb"
+   ]
+  },
+  {
+   "text": "    ```python Zqcha\n    print(1)\n",
+   "github shows": [
+    "Zqcha"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "| a | b |\n|---|---|\n| ```python Zqcia | x |\n",
+   "github shows": [
+    "Zqcia"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<div>\n```python Zqcja\nprint(1)\n```\n</div>\n",
+   "github shows": [
+    "Zqcja"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<details>\n```python Zqcka\nprint(1)\n```\n</details>\n",
+   "github shows": [
+    "Zqcka"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```python\nprint(1)\n``` Zqcla\n",
+   "github shows": [
+    "Zqcla"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<pre lang=\"python Zqcma\">print(1)</pre>\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcma"
+   ]
+  },
+  {
+   "text": "```python https://github.com/user-attachments/files/123/Zqcna.txt\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcna"
+   ]
+  },
+  {
+   "text": "```https://github.com/user-attachments/files/123/Zqcoa.txt\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcoa"
+   ]
+  },
+  {
+   "text": "```python https://github.com/user-attachments/assets/Zqcpa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcpa"
+   ]
+  },
+  {
+   "text": "### Area\n\n```js, Live card Zqcqa\n\n### Version\n\n1.9.0",
+   "github shows": [],
+   "github hides": [
+    "Zqcqa"
+   ]
+  },
+  {
+   "text": "Fixes #12\n\n```sh this does not fix #12 Zqcra\nmake\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcra"
+   ]
+  },
+  {
+   "text": "```python Zqcsa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcsa"
+   ]
+  },
+  {
+   "text": "```Zqcta\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcta"
+   ]
+  },
+  {
+   "text": "```rust,Zqcua\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcua"
+   ]
+  },
+  {
+   "text": "```js\tZqcva\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcva"
+   ]
+  },
+  {
+   "text": "```python{Zqcwa}\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcwa"
+   ]
+  },
+  {
+   "text": "```yaml:Zqcxa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcxa"
+   ]
+  },
+  {
+   "text": "```PYTHON Zqcya\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcya"
+   ]
+  },
+  {
+   "text": "```py Zqcza\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqcza"
+   ]
+  },
+  {
+   "text": "```c++ Zqdaa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdaa"
+   ]
+  },
+  {
+   "text": "```objective-c Zqdba\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdba"
+   ]
+  },
+  {
+   "text": "```asn.1 Zqdca\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdca"
+   ]
+  },
+  {
+   "text": "```c# Zqdda\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdda"
+   ]
+  },
+  {
+   "text": "```Zqdea,python\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdea"
+   ]
+  },
+  {
+   "text": "```py&#116;hon,Zqdfa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdfa"
+   ]
+  },
+  {
+   "text": "```,Zqdga\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdga"
+   ]
+  },
+  {
+   "text": "```text Zqdha\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdha"
+   ]
+  },
+  {
+   "text": "```diff Zqdia Zqdib\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdia",
+    "Zqdib"
+   ]
+  },
+  {
+   "text": "```dockerfile Zqdja\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdja"
+   ]
+  },
+  {
+   "text": "```json,Zqdka,Zqdkb\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdka",
+    "Zqdkb"
+   ]
+  },
+  {
+   "text": "```python, Zqdla\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdla"
+   ]
+  },
+  {
+   "text": "```\\Zqdma\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdma"
+   ]
+  },
+  {
+   "text": "```Zqdna&amp;x\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdna"
+   ]
+  },
+  {
+   "text": "> ```python Zqdoa\n> print(1)\n> ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdoa"
+   ]
+  },
+  {
+   "text": "> ```Zqdpa\n> print(1)\n> ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdpa"
+   ]
+  },
+  {
+   "text": "> > > ```python Zqdqa\n> > > print(1)\n> > > ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdqa"
+   ]
+  },
+  {
+   "text": "> > > ```Zqdra\n> > > print(1)\n> > > ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdra"
+   ]
+  },
+  {
+   "text": "- ```python Zqdsa\n  print(1)\n  ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdsa"
+   ]
+  },
+  {
+   "text": "- ```Zqdta\n  print(1)\n  ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdta"
+   ]
+  },
+  {
+   "text": "10. ```python Zqdua\n    print(1)\n    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdua"
+   ]
+  },
+  {
+   "text": "10. ```Zqdva\n    print(1)\n    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdva"
+   ]
+  },
+  {
+   "text": "- a\n  - ```python Zqdwa\n    print(1)\n    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdwa"
+   ]
+  },
+  {
+   "text": "- a\n  - ```Zqdxa\n    print(1)\n    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdxa"
+   ]
+  },
+  {
+   "text": "- > ```python Zqdya\n  > print(1)\n  > ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdya"
+   ]
+  },
+  {
+   "text": "- > ```Zqdza\n  > print(1)\n  > ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqdza"
+   ]
+  },
+  {
+   "text": "> 1. ```python Zqeaa\n>    print(1)\n>    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeaa"
+   ]
+  },
+  {
+   "text": "> 1. ```Zqeba\n>    print(1)\n>    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeba"
+   ]
+  },
+  {
+   "text": "   ```python Zqeca\n   print(1)\n   ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeca"
+   ]
+  },
+  {
+   "text": "   ```Zqeda\n   print(1)\n   ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeda"
+   ]
+  },
+  {
+   "text": "-  ```python Zqeea\n   print(1)\n   ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeea"
+   ]
+  },
+  {
+   "text": "-  ```Zqefa\n   print(1)\n   ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqefa"
+   ]
+  },
+  {
+   "text": "-     ```python Zqega\n      print(1)\n      ```\n",
+   "github shows": [
+    "Zqega"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zqega"
+   ]
+  },
+  {
+   "text": "-     ```Zqeha\n      print(1)\n      ```\n",
+   "github shows": [
+    "Zqeha"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zqeha"
+   ]
+  },
+  {
+   "text": ">     ```python Zqeia\n>     print(1)\n>     ```\n",
+   "github shows": [
+    "Zqeia"
+   ],
+   "github hides": []
+  },
+  {
+   "text": ">     ```Zqeja\n>     print(1)\n>     ```\n",
+   "github shows": [
+    "Zqeja"
+   ],
+   "github hides": []
+  },
+  {
+   "text": ">\t```python Zqeka\n>\tprint(1)\n>\t```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeka"
+   ]
+  },
+  {
+   "text": ">\t```Zqela\n>\tprint(1)\n>\t```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqela"
+   ]
+  },
+  {
+   "text": "-\t```python Zqema\n\tprint(1)\n\t```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqema"
+   ]
+  },
+  {
+   "text": "-\t```Zqena\n\tprint(1)\n\t```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqena"
+   ]
+  },
+  {
+   "text": "- a\n\n```python Zqeoa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeoa"
+   ]
+  },
+  {
+   "text": "- a\n\n```Zqepa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqepa"
+   ]
+  },
+  {
+   "text": "- a\n  ```python Zqeqa\n  print(1)\n  ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeqa"
+   ]
+  },
+  {
+   "text": "- a\n  ```Zqera\n  print(1)\n  ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqera"
+   ]
+  },
+  {
+   "text": "# Title\n```python Zqesa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqesa"
+   ]
+  },
+  {
+   "text": "# Title\n```Zqeta\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeta"
+   ]
+  },
+  {
+   "text": "***\n```python Zqeua\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeua"
+   ]
+  },
+  {
+   "text": "***\n```Zqeva\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqeva"
+   ]
+  },
+  {
+   "text": "Title\n===\n```python Zqewa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqewa"
+   ]
+  },
+  {
+   "text": "Title\n===\n```Zqexa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqexa"
+   ]
+  },
+  {
+   "text": "<details><summary>S</summary>\n\n```python Zqeya\nprint(1)\n```\n\n</details>",
+   "github shows": [],
+   "github hides": [
+    "Zqeya"
+   ]
+  },
+  {
+   "text": "<details><summary>S</summary>\n\n```Zqeza\nprint(1)\n```\n\n</details>",
+   "github shows": [],
+   "github hides": [
+    "Zqeza"
+   ]
+  },
+  {
+   "text": "<!-- x -->\n```python Zqfaa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfaa"
+   ]
+  },
+  {
+   "text": "<!-- x -->\n```Zqfba\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfba"
+   ]
+  },
+  {
+   "text": "<!-- x -->\n\n```python Zqfca\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfca"
+   ]
+  },
+  {
+   "text": "<!-- x -->\n\n```Zqfda\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfda"
+   ]
+  },
+  {
+   "text": "<div>\n\n```python Zqfea\nprint(1)\n```\n\n</div>",
+   "github shows": [],
+   "github hides": [
+    "Zqfea"
+   ]
+  },
+  {
+   "text": "<div>\n\n```Zqffa\nprint(1)\n```\n\n</div>",
+   "github shows": [],
+   "github hides": [
+    "Zqffa"
+   ]
+  },
+  {
+   "text": "<pre>\nx\n</pre>\n```python Zqfga\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfga"
+   ]
+  },
+  {
+   "text": "<pre>\nx\n</pre>\n```Zqfha\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfha"
+   ]
+  },
+  {
+   "text": "<span>\n```python Zqfia\nprint(1)\n```\n",
+   "github shows": [
+    "Zqfia"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zqfia"
+   ]
+  },
+  {
+   "text": "<span>\n```Zqfja\nprint(1)\n```\n",
+   "github shows": [
+    "Zqfja"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zqfja"
+   ]
+  },
+  {
+   "text": "Text[^1].\n\n[^1]: Note.\n\n    ```python Zqfka\n    print(1)\n    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfka"
+   ]
+  },
+  {
+   "text": "Text[^1].\n\n[^1]: Note.\n\n    ```Zqfla\n    print(1)\n    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfla"
+   ]
+  },
+  {
+   "text": "```\ncode\n```\n```python Zqfma\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfma"
+   ]
+  },
+  {
+   "text": "```\ncode\n```\n```Zqfna\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfna"
+   ]
+  },
+  {
+   "text": "~~~\ncode\n~~~\n```python Zqfoa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfoa"
+   ]
+  },
+  {
+   "text": "~~~\ncode\n~~~\n```Zqfpa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfpa"
+   ]
+  },
+  {
+   "text": "    code\n\n```python Zqfqa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfqa"
+   ]
+  },
+  {
+   "text": "    code\n\n```Zqfra\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfra"
+   ]
+  },
+  {
+   "text": "> ```\n> x\n\n```python Zqfsa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfsa"
+   ]
+  },
+  {
+   "text": "> ```\n> x\n\n```Zqfta\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfta"
+   ]
+  },
+  {
+   "text": "| a | b |\n|---|---|\n| c | d |\n```python Zqfua\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfua"
+   ]
+  },
+  {
+   "text": "| a | b |\n|---|---|\n| c | d |\n```Zqfva\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfva"
+   ]
+  },
+  {
+   "text": "- a\n```python Zqfwa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfwa"
+   ]
+  },
+  {
+   "text": "- a\n```Zqfxa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfxa"
+   ]
+  },
+  {
+   "text": "*a*\n\n```python Zqfya\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfya"
+   ]
+  },
+  {
+   "text": "*a*\n\n```Zqfza\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqfza"
+   ]
+  },
+  {
+   "text": "[x]: https://example.com\n```python Zqgaa\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgaa"
+   ]
+  },
+  {
+   "text": "[x]: https://example.com\n```Zqgba\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgba"
+   ]
+  },
+  {
+   "text": "> ~~~python Zqgca\n> print(1)\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgca"
+   ]
+  },
+  {
+   "text": "> ````python Zqgda\n> print(1)\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgda"
+   ]
+  },
+  {
+   "text": "- ~~~python Zqgea\n  print(1)\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgea"
+   ]
+  },
+  {
+   "text": "- ````python Zqgfa\n  print(1)\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgfa"
+   ]
+  },
+  {
+   "text": "~~~python Zqgga\nprint(1)\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgga"
+   ]
+  },
+  {
+   "text": "````python Zqgha\nprint(1)\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgha"
+   ]
+  },
+  {
+   "text": "Text[^1].\n\n[^1]: Note.\n\n    ~~~python Zqgia\n    print(1)\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgia"
+   ]
+  },
+  {
+   "text": "Text[^1].\n\n[^1]: Note.\n\n    ````python Zqgja\n    print(1)\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgja"
+   ]
+  },
+  {
+   "text": "<details><summary>S</summary>\n\n~~~python Zqgka\nprint(1)\n\n</details>",
+   "github shows": [],
+   "github hides": [
+    "Zqgka"
+   ]
+  },
+  {
+   "text": "<details><summary>S</summary>\n\n````python Zqgla\nprint(1)\n\n</details>",
+   "github shows": [],
+   "github hides": [
+    "Zqgla"
+   ]
+  },
+  {
+   "text": "\t```python Zqgma\nx\n```\n\n```python Zqgmb\ny\n```\n",
+   "github shows": [
+    "Zqgma",
+    "Zqgmb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zqgmb"
+   ]
+  },
+  {
+   "text": "- a\n\n\t```python Zqgna\n\tx\n\t```\n\n```python Zqgnb\ny\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgna",
+    "Zqgnb"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: ```python Zqgoa\n    y\n    ```\n\n```python Zqgob\nz\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgoa",
+    "Zqgob"
+   ]
+  },
+  {
+   "text": "<div>\n```python Zqgpa\n</div>\n\n<div>\n```python Zqgpb\n</div>\n",
+   "github shows": [
+    "Zqgpa",
+    "Zqgpb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zqgpb"
+   ]
+  },
+  {
+   "text": "<div>\n```python Zqgqa\n\n```python Zqgqb\nx\n```\n\n```python Zqgqc\ny\n```\n",
+   "github shows": [
+    "Zqgqa"
+   ],
+   "github hides": [
+    "Zqgqb",
+    "Zqgqc"
+   ]
+  },
+  {
+   "text": "````\n```python Zqgra\nx\n```\n````\n",
+   "github shows": [
+    "Zqgra"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "~~~\n```python Zqgsa\nx\n```\n~~~\n",
+   "github shows": [
+    "Zqgsa"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```\n~~~python Zqgta\n```\n",
+   "github shows": [
+    "Zqgta"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "````python Zqgua\nx\n```\n```python Zqgub\n````\n",
+   "github shows": [
+    "Zqgub"
+   ],
+   "github hides": [
+    "Zqgua"
+   ]
+  },
+  {
+   "text": "> ```\n> x\n> ``` Zqgva\n> ```\n",
+   "github shows": [
+    "Zqgva"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```python Zqgwa\nx\n```\n```rust Zqgwb\ny\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgwa",
+    "Zqgwb"
+   ]
+  },
+  {
+   "text": ">     ```python Zqgxa\n>     x\n",
+   "github shows": [
+    "Zqgxa"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Text\n    ```python Zqgya\n",
+   "github shows": [
+    "Zqgya"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "- a\n\n    ```python Zqgza\n    x\n    ```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqgza"
+   ]
+  },
+  {
+   "text": "- a\n\n\t```python Zqhaa\n\tx\n\t```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqhaa"
+   ]
+  },
+  {
+   "text": "```python `Zqhba`\nx\n```\n",
+   "github shows": [
+    "Zqhba"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "``` Zqhca `\nx\n",
+   "github shows": [
+    "Zqhca"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<!--\n```python Zqhda\n-->\n",
+   "github shows": [],
+   "github hides": [
+    "Zqhda"
+   ]
+  },
+  {
+   "text": "<div title=\"\n```python Zqhea\n\">\n",
+   "github shows": [],
+   "github hides": [
+    "Zqhea"
+   ]
+  },
+  {
+   "text": "- a\n  <div>\n```python Zqhfa\nx\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqhfa"
+   ]
+  },
+  {
+   "text": "- a\n\n<div>\n```python Zqhga\nx\n```\n</div>\n",
+   "github shows": [
+    "Zqhga"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zqhga"
+   ]
+  },
+  {
+   "text": "```math\nx\n```\n```python Zqhha\ny\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqhha"
+   ]
+  },
+  {
+   "text": "```mermaid\ngraph TD\n```python Zqhia\n```\n\n```python Zqhib\nz\n```\n",
+   "github shows": [
+    "Zqhia"
+   ],
+   "github hides": [
+    "Zqhib"
+   ]
+  },
+  {
+   "text": "```python Zqhja\r\nprint(1)\r\n```\r\n",
+   "github shows": [],
+   "github hides": [
+    "Zqhja"
+   ]
+  },
+  {
+   "text": "```python Zqhka\rprint(1)\r```\r",
+   "github shows": [],
+   "github hides": [
+    "Zqhka"
+   ]
+  },
+  {
+   "text": "```python\fZqhla\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqhla"
+   ]
+  },
+  {
+   "text": "```python\u000bZqhma\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqhma"
+   ]
+  },
+  {
+   "text": "```python\u3000Zqhna\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqhna"
+   ]
+  },
+  {
+   "text": "```\u212a Zqhoa\nx\n```\n",
+   "github shows": [],
+   "github hides": [
+    "Zqhoa"
+   ]
+  },
+  {
+   "text": "```   \nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": []
+  },
+  {
+   "text": "```python\nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": []
+  },
+  {
+   "text": "```python \t \nprint(1)\n```\n",
+   "github shows": [],
+   "github hides": []
+  }
+ ]
+}
