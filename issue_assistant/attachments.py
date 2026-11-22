@@ -25,7 +25,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from .answer import looks_secret
-from .cleaning import EMAIL, strip_definitions
+from .cleaning import EMAIL, run, strip_definitions
 from .errors import AssistantError, GitHubError
 from .github import GitHub
 from .issues import Visible, text_of
@@ -40,7 +40,7 @@ from .markup import (
     row_end,
 )
 from .paths import CONTEXT
-from .patterns import INVISIBLE
+from .patterns import INVISIBLE, without_references
 from .structures import structures_of
 from .tags import html_parts
 from .values import command, fence, login
@@ -232,19 +232,53 @@ def shown_links(text: str) -> str:
     tag of HTML in place of the addresses that GitHub shows of it, as a link or an
     image, and of none other. The tables, drawings and math go before: no link
     shows in a cell that GitHub drops, nor in a drawing or math, whose text is drawn
-    and leads nowhere."""
-    text = unlinked(text)
+    and leads nowhere. Before anything goes, an address that holds an invisible
+    character or a reference of one becomes none (unhidden)."""
+    text = unlinked(unhidden(text))
     spans, middle, end = html_parts(text)
     tags = ShownTags(text, spans)
     # A tag of the first part may hold the last `-->` in a quoted value, where it
     # ends no comment: the second part starts where the reading of that tag ended.
     first, reached = tags.part(0, min(middle, end), COMMENT_OR_TAG)
     shown = first + tags.part(max(middle, reached), end, TAG_OPENING)[0]
-    return Visible()(strip_definitions(shown, None, end < len(text))[0])
+    return Visible().title(strip_definitions(shown, None, end < len(text))[0])
 
 
 # The scheme of an address, which every link to an attachment starts with.
 SCHEME = re.compile(r"(https?):", re.IGNORECASE)
+
+
+# The characters of a link, up to one of LINK_END, and those that end it.
+LINK_RUN = re.compile(rf"[^{LINK_END}]*+")
+ENDS_LINK = frozenset("()<>[]\"'`")
+
+
+def unhidden(text: str) -> str:
+    """The text with each address that holds a character of INVISIBLE, or a
+    reference of one in any form that GitHub reads somewhere, made into none, in
+    the target of a link, alone or between `<` and `>`: the colon after its scheme
+    goes, as in unlinked. GitHub links such an address with the character in it,
+    percent-encoded or as it is written, and serves an attachment only under the
+    name it was uploaded with, so the page shows a dead link. Taken out first, the
+    character would leave the address of the file, which the AI would read. Only
+    the characters of a link around a scheme are read, each once."""
+    if "&" not in text and not INVISIBLE.search(text):
+        return text
+    pieces, position, reached = [], 0, 0
+    for scheme in SCHEME.finditer(text):
+        begin = scheme.start()
+        if begin < reached:
+            continue
+        while begin > reached and not (
+            text[begin - 1].isspace() or text[begin - 1] in ENDS_LINK
+        ):
+            begin -= 1
+        reached = run(LINK_RUN, text, scheme.start())
+        address = text[begin:reached]
+        if INVISIBLE.search(address) or without_references(address)[1]:
+            pieces += [text[position:begin], SCHEME.sub("_", address)]
+            position = reached
+    return "".join(pieces) + text[position:]
 
 
 def unlinked(text: str) -> str:

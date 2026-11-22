@@ -575,6 +575,24 @@ def hides_the_rest(markdown: str) -> bool:
     return False
 
 
+def code_text(markdown: str) -> str:
+    """What a CommonMark parser reads of a text as code, in code spans, fenced code
+    and indented code, each part on a row of its own: the only places where GitHub
+    shows a character reference as it is written, but after a backslash, in an
+    entity such as `&amp;` and where Markdown takes no reference, such as one without
+    its `;` (`gh api markdown -f mode=gfm`, 2026-11-22)."""
+    parts: list[str] = []
+
+    def read(tokens: list[Token]) -> None:
+        for token in tokens:
+            if token.type in ("code_inline", "fence", "code_block"):
+                parts.append(token.content)
+            read(token.children or [])
+
+    read(PARSER.parse(markdown))
+    return "\n".join(parts)
+
+
 # The tags that GitHub's filter of tags shows as text, wherever they stand.
 FILTERED_TAG = re.compile(
     r"<(/?(?:iframe|noembed|noframes|plaintext|script|style|textarea|title|xmp)"

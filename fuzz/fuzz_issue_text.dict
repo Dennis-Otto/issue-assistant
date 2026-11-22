@@ -38,3 +38,14 @@
 "\\$"
 "&#36;"
 "`"
+
+# References of characters, whose numbers, names and ends are read.
+"&#x"
+"&#"
+"&#X"
+"0"
+";"
+"&shy"
+"&ZeroWidthSpace;"
+"&it;"
+"&amp;"

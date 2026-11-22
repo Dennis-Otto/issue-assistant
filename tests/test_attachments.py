@@ -365,6 +365,41 @@ def test_where_it_is_hard_to_tell_an_address_counts_as_none():
     assert found(f'`<span data-x="{JSON}">` and [log]({LOG})') == SHOWN_LOG
 
 
+@pytest.mark.parametrize(
+    "hidden",
+    ["\u200b", "\U000e0041", "&#x200B;", "&#xE0041", "&#917569;", "&zwj;", "&shy"],
+)
+def test_an_address_with_an_invisible_character_is_no_attachment(hidden):
+    """GitHub links such an address with the character in it, percent-encoded or as
+    it is written, and serves a file only under the name it was uploaded with: the
+    page shows a dead link, so the AI reads no file (gh api markdown, 2026-11-22).
+    That holds in the target of a link, alone and between `<` and `>`, inside the
+    name and at its end, also for a reference of the character."""
+    for address in (LOG.replace(".log", f"{hidden}.log"), LOG + hidden):
+        for body in (
+            f"[log]({address})",
+            address,
+            f"<{address}>",
+            f"log:{address}",
+            f"{address}#https://example.com",
+        ):
+            assert found(body) == [], body
+        # The address of the file next to it still counts.
+        assert found(f"[log]({address}) {LOG}") == SHOWN_LOG
+
+
+def test_a_reference_in_an_attached_file_stays_as_it_is_written():
+    """An attached file is never rendered, so GitHub shows a reference in it as
+    text: the AI reads it so, and it counts as no invisible character."""
+    visible = assistant.Visible()
+    assert attachments.cleaned("a&#xE0041;b&shy;c", visible) == (
+        "a&#xE0041;b&shy;c",
+        0,
+        0,
+    )
+    assert visible.removed == 0
+
+
 # Texts of 64 KiB on which the reading of the links looked for the next tag in the
 # rest of the text again after each tag over several rows, for up to 18 seconds
 # (2026-11-20).

@@ -23,7 +23,14 @@ from hypothesis import strategies as st
 
 import issue_assistant as assistant
 from issue_assistant import markup
-from oracle import PARSER, browser_text, headings, hides_the_rest, problems
+from oracle import (
+    PARSER,
+    browser_text,
+    code_text,
+    headings,
+    hides_the_rest,
+    problems,
+)
 from support import (
     BOT_USER,
     BOX,
@@ -1200,6 +1207,64 @@ def test_the_engine_reads_no_text_that_github_hides(text):
     assert not assistant.INVISIBLE.search(inner)
 
 
+# Text made of the references of characters that show nothing and of others, and of
+# the pieces of the code, the HTML and the blocks around them, in which GitHub reads
+# them or shows them as they are written.
+INVISIBLE_REFERENCES = (
+    "&#xE0041;",
+    "&#917569;",
+    "&#x200B",
+    "&ZeroWidthSpace;",
+    "&zwj;",
+    "&shy",
+)
+REFERENCES = st.lists(
+    st.sampled_from(
+        [
+            *INVISIBLE_REFERENCES,
+            "&it;",
+            "&amp;",
+            "&#35;",
+            "&#96;",
+            "`",
+            "``",
+            "```",
+            "~~~",
+            "<div>",
+            "<a ",
+            ">",
+            "\\",
+            "|",
+            "- ",
+            "> ",
+            "   ",
+            "\n",
+            "\r\n",
+            "x",
+        ]
+    ),
+    max_size=40,
+).map("".join)
+
+
+@hypothesis.example("` x\ny `&#x200B;` z")
+@hypothesis.example("  ```\n```\n&#x200B;\n```")
+@hypothesis.example("<div>\n```\nx&#xE0041\n```")
+@hypothesis.example("\\&#xE0041;`&#xE0041;`")
+@given(REFERENCES)
+def test_the_engine_reads_no_reference_that_github_reads_as_nothing(text):
+    """Each reference of a character that shows nothing that the engine reads is
+    one that a CommonMark parser reads as code in the text, where GitHub shows it as
+    it is written: the cleaning takes out every other, and keeps none that the
+    parser doesn't, also where it can't tell."""
+    rendered = assistant.rendered_text(text, assistant.Visible())
+    marks, _, rest = rendered.partition("\n")
+    inner = rest[: rest.rfind("\n" + marks)]
+    code = code_text(text)
+    for reference in INVISIBLE_REFERENCES:
+        assert inner.count(reference) <= code.count(reference), reference
+
+
 # Text made of the pieces of HTML blocks, of the quotes and list items that may hold
 # them, and of what keeps a row from starting one.
 HTML_BLOCKS = st.lists(
@@ -1471,6 +1536,8 @@ NOTES = (
 
 @hypothesis.example("$\\color{red}x$\n[a]: https://example.com\n")
 @hypothesis.example("[a]: x '<pre lang=\"mermaid\">y</pre>'\n\n| a |\n|-|\n| b | c |")
+@hypothesis.example(" []:0")
+@hypothesis.example("> [a]: x\n- [^b]: y")
 @given(st.one_of(TEXT, DECIDED, DEFINITIONS, HTML_BLOCKS, TABLES, DRAWN))
 def test_the_decisions_read_a_space_where_the_ai_reads_a_note(text):
     """What the assistant decides by itself reads the text that the AI reads with a
