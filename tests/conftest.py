@@ -5,6 +5,7 @@ import os
 import shutil
 import stat
 import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -26,6 +27,26 @@ settings.register_profile("ci", deadline=None, derandomize=True, print_blob=True
 settings.register_profile("local", deadline=None)
 settings.register_profile("nightly", max_examples=5000, deadline=None, print_blob=True)
 settings.load_profile("ci" if os.environ.get("CI") else "local")
+
+
+def pytest_xdist_auto_num_workers() -> int | None:
+    """The number of processes of `pytest -n logical` and `-n auto`: one for each core.
+
+    A runner of GitHub has two cores with two threads each, and four processes there
+    slow each other's readings of processor time: a test with a fixed limit of 0.5 s of
+    it took 0.75 s in the check of #523's pull request. So the tests start a process
+    for each core instead of each thread, half of the logical processors that this
+    process may run on (in a container, those of its --cpuset-cpus), and at least one.
+    The --maxprocesses of scripts/check.sh still caps the answer at eight, and with
+    PYTEST_XDIST_AUTO_NUM_WORKERS set, pytest-xdist's own answer gives that number.
+    """
+    if os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS"):
+        return None
+    if sys.platform == "linux":
+        logical = len(os.sched_getaffinity(0))
+    else:
+        logical = os.cpu_count() or 1
+    return max(1, logical // 2)
 
 
 def git(root: Path, *args: str) -> None:
