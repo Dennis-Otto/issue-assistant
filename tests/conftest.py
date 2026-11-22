@@ -29,6 +29,9 @@ settings.register_profile("nightly", max_examples=5000, deadline=None, print_blo
 settings.load_profile("ci" if os.environ.get("CI") else "local")
 
 
+# Optional, so that pytest still loads this file without pytest-xdist, as the serial
+# fallback of scripts/check.sh runs it.
+@pytest.hookimpl(optionalhook=True)
 def pytest_xdist_auto_num_workers() -> int | None:
     """The number of processes of `pytest -n logical` and `-n auto`: one for each core.
 
@@ -39,6 +42,8 @@ def pytest_xdist_auto_num_workers() -> int | None:
     process may run on (in a container, those of its --cpuset-cpus), and at least one.
     The --maxprocesses of scripts/check.sh still caps the answer at eight, and with
     PYTEST_XDIST_AUTO_NUM_WORKERS set, pytest-xdist's own answer gives that number.
+    Half assumes two threads per core, as on GitHub's x64 runners; on a machine with
+    one thread per core, such as an arm64 runner, it starts one process for two cores.
     """
     if os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS"):
         return None
