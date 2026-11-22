@@ -4776,6 +4776,15 @@ def test_code_keeps_its_references_while_a_character_of_private_use_is_free():
     assert assistant.excerpt(every + code, 10_000) == every + "\n``"
 
 
+def test_a_reference_of_the_guard_stays_apart_from_the_code():
+    """A reference of the character that stands for the `&` of code stays as it is
+    written where the assistant decides, so that putting the `&` back takes no
+    character of the page for one, and no new reference forms."""
+    assert assistant.as_shown("Say &#xE000; `a&b` here") == "Say &#xE000; `a&b` here"
+    assert assistant.as_shown("x &#xE000;#x200B; `a&b`") == "x &#xE000;#x200B; `a&b`"
+    assert assistant.as_shown("Say &#57344; and &#xE001;") == "Say  and "
+
+
 def test_what_the_assistant_decides_reads_the_characters_of_references():
     """GitHub reads the reference of a visible character as the character in
     Markdown: with its `;` and up to eight digits. A line break becomes a space, so

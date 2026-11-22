@@ -516,7 +516,7 @@ def shown_references(
             row = 1 + max(text.rfind("\n", 0, start), text.rfind("\r", 0, start))
         text, guard = guarded(text, row)
     shown, definitions, structures, titles = shown_parts(text, notes)
-    shown, references = without_references(shown, decode)
+    shown, references = without_references(shown, decode, guard)
     if guard:
         shown = shown.replace(guard, "&")
     return shown, definitions, structures, titles, references

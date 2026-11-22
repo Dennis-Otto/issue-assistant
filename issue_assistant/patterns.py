@@ -309,7 +309,9 @@ def guarded(text: str, until: int | None = None) -> tuple[str, str]:
     return guard.join([*pieces, text[position:]]), guard
 
 
-def without_references(text: str, decode: bool = False) -> tuple[str, int]:
+def without_references(
+    text: str, decode: bool = False, guard: str = ""
+) -> tuple[str, int]:
     """The text without the references of the characters of INVISIBLE, and how many
     went: `guarded` keeps those that code holds apart, where GitHub shows them as
     they are written.
@@ -329,7 +331,9 @@ def without_references(text: str, decode: bool = False) -> tuple[str, int]:
     reads it as text, as GitHub ticks the box of `- &#32;[x]` (gh api markdown,
     2026-11-22), and no reading of the assistant takes it for a block. Each
     character before a reference is read once: those of BLOCK_START before one end
-    at the `&` of the reference before it at the latest.
+    at the `&` of the reference before it at the latest. A reference of the `guard`
+    that stands for the `&` of code stays as it is written, such as `&#xE000;`, so
+    that putting the `&` of code back can't take its character for one.
     """
     if "&" not in text:
         return text, 0
@@ -364,7 +368,7 @@ def without_references(text: str, decode: bool = False) -> tuple[str, int]:
         if rest is not None:
             count += 1
             return rest
-        if value is None:
+        if value is None or (guard and guard in value):
             return match[0]
         if value[0] in BLOCK_START:
             start = match.start()
