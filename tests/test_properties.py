@@ -844,9 +844,10 @@ def shown(text):
     return assistant.without(text, spans, 0, end)
 
 
-# The earlier pattern, with `<!-->` and `<!--->` whole, and an instruction, a declaration or a section of CDATA that
-# ends on its row at its first `>`, which the earlier pattern left as text, and
-# which GitHub hides wherever it stands outside code.
+# The earlier pattern, with `<!-->` and `<!--->` whole, and an instruction, a
+# declaration or a section of CDATA that ends on its row at its first `>`, which
+# the earlier pattern left as text, and which GitHub hides wherever it stands
+# outside code.
 EARLIER_HTML_AND_MARKUP = re.compile(
     rf"<!---?>|{EARLIER_HTML.pattern}|<(?:\?[^<>\r\n]*\?|![A-Za-z][^<>\r\n]*"
     r"|!\[CDATA\[[^<>\r\n]*\]\])>",
