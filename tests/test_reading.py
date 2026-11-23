@@ -275,9 +275,9 @@ def test_issue_md_takes_the_rendering_of_each_text():
 
 
 def test_a_rendering_reaches_the_ai_without_invisible_characters():
-    issue = make_issue(body="A​B")
+    issue = make_issue(body="A\u200bB")
     visible = assistant.Visible()
-    reader = reader_of({issue_key(12): "<p>A​B</p>"})
+    reader = reader_of({issue_key(12): "<p>A\u200bB</p>"})
     assert "```\nAB\n```" in assistant.render_issue(issue, [], visible, reader)
     assert visible.removed == 1
 
