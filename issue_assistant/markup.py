@@ -16,7 +16,15 @@ import re
 from bisect import bisect_right
 from collections.abc import Callable, Iterator
 
-from .patterns import COMMENT_END_FROM, HTML_COMMENT, comment_close, comment_runs_on
+from .patterns import (
+    BANG_END_FROM,
+    COMMENT_END_FROM,
+    DASHED_END_FROM,
+    HTML_COMMENT,
+    TAG_START,
+    comment_close,
+    plain_comment_close,
+)
 
 # The mark of a quote or of a list item: a `>` needs no space after it, a list mark
 # does.
@@ -262,6 +270,7 @@ class Searches:
         self.found: dict[re.Pattern[str], tuple[int, re.Match[str] | None]] = {}
         self.comment = (len(text) + 1, -1)
         self.closing = (len(text) + 1, -1)
+        self.plain = (len(text) + 1, -1)
 
     def comment_end(self, opening: int) -> int:
         """Where the comment ends whose `<!--` starts at a position, after the `-->`
@@ -275,6 +284,15 @@ class Searches:
             found = comment_close(self.text, opening)
             self.comment = (opening, found)
         return found + 3 if found >= 0 else -1
+
+    def plain_close(self, position: int) -> int:
+        """Where the first `-->` at or after a position starts that no `-` comes
+        before, as plain_comment_close finds it, or -1."""
+        start, found = self.plain
+        if not start <= position <= (len(self.text) if found < 0 else found):
+            found = plain_comment_close(self.text, position)
+            self.plain = (position, found)
+        return found
 
     def close(self, position: int) -> int:
         """Where the first `>` at or after a position ends that is no mark of a quote
@@ -783,6 +801,31 @@ def blanks_fit(mark: str, blanks: str) -> bool:
     if mark == ">":
         return len(blanks) <= 4
     return 1 <= len(blanks) <= 4
+
+
+def comment_runs_on(text: str, opening: int, close: int, search: Searches) -> bool:
+    """Whether GitHub may hide text after the `-->` at `close` that ends the comment
+    whose `<!--` starts at `opening`, as comment_close finds it.
+
+    GitHub's HTML parser ends a comment at the first `-->` or, from the `<` + 4 on,
+    `--!>`. CommonMark ends an inline comment at a `-->` too, but at none that a
+    `-` comes before, as in `--->`: from there it reads on to the next `-->` without
+    one, as plain_comment_close finds it. Up to its own end it hands the HTML on, and
+    the parser reads what follows the end of the comment as HTML: a tag that starts
+    there and holds a `-->` in a quoted value reads on into the text after it, to a
+    quote in the HTML that follows, and an element such as a `<video>` hides what it
+    holds (`gh api -X POST markdown` with the mode gfm, 2026-11-23). Where a tag
+    starts there, the reading can't tell how far it reaches, and the comment hides
+    the rest of the text."""
+    bang = text.find("--!>", opening + BANG_END_FROM, close)
+    reach = close
+    if close >= opening + DASHED_END_FROM and text[close - 1] == "-":
+        plain = search.plain_close(close + len("-->"))
+        reach = close if plain < 0 else plain
+    if bang < 0 and reach == close:
+        return False  # The HTML parser ends the comment where CommonMark does.
+    tag = search(TAG_START, close if bang < 0 else bang)
+    return tag is not None and tag.start() < reach
 
 
 def comment_closes(
