@@ -1,5 +1,5 @@
 ---
-description: The two dry runs of the issue assistant, the canary on the path of an issue through the AI and the Workflow test on each reusable workflow.
+description: The issue assistant's dry runs, the canary of the AI's path, the reading dry run and the Workflow test.
 ---
 
 # The canary and the Workflow test
@@ -39,6 +39,20 @@ Nobody looks at an update of an engine before it merges: Renovate opens a pull r
 - **A red canary keeps every release back.** Not only one with the update of an engine: the release ships what is on `main`, and a red canary means that the path of an issue through the AI is broken there, or not shown to work. The summary of the check names the run and its commit, and the PR coach explains it from `.github/checks.project.toml`. A revert of the update, or a later one that fixes it, runs the canary again and updates the release's pull request, whose check then passes; a canary that failed for a moment needs another run of it, on Monday or by hand with `gh workflow run canary.yml`. The release bot's auto-merge then merges a release of dependency updates.
 - **Every canary lets the release decide again.** The check decides when the release's pull request gets a new head. The last job of every canary of `main` that runs the AI, *the release decides again*, runs `scripts/release_gate.py again`: when the check of the release's pull request ended with another verdict than this canary, a failure after a canary that passed or a pass after one that failed, it runs the check again, which waits until this canary has ended and decides on it. Nobody has to run the check by hand, and a canary that fails after the check passed holds the release back, unless it merged before.
 - **The other engines aren't run with a key.** The canary runs Claude, the engine of this repository. Codex, Gemini and Copilot rest on the week that every update waits and on *engine contracts*; [decision 0030](../decisions/0030-every-update-of-an-engine-merges-on-its-own-and-the-release-waits-for-the-canary.md) names what stays a risk.
+
+## The reading dry run
+
+<details markdown="1">
+<summary>The experimental reading on one issue, by hand, as a dry run</summary>
+
+The workflow *Reading dry run*, `.github/workflows/reading-dry-run.yml`, runs [the experimental reading `rendered`](../security/rendered-reading.md), or `cleaned` to compare, on one issue that the maintainer picks, only by hand: `gh workflow run reading-dry-run.yml -f issue=514 -f reading=rendered`.
+
+- **Its call is the Canary's, with a real issue.** Its job *Issue assistant* calls `./.github/workflows/reusable-issue-assistant.yml` of its commit with the name, the permissions and the engine's secrets by name of the template, which `tests/test_templates.py` keeps equal, and passes only `dry_run: true` and the `reading` of its form. The job `event` reads `issue`, `mode` and `override` of the form as in a run of the template; `apply` writes nothing and shows the comment it would post.
+- **Only `main` runs it.** Its first job, *the run is on the default branch*, blocks every host but GitHub's API with Harden-Runner, as every job of this project that blocks, and stops a run on another branch with a plain message, before the environment `issue-assistant` would refuse the job `analyze`.
+- **It has no concurrency group.** Dry runs write nothing, so they can't get in each other's way, and it never joins the group of the real runs of an issue.
+- **Each run costs a run of the engine.** It goes away once the reading has passed Evaluate and its default is decided.
+
+</details>
 
 ## The Workflow test
 

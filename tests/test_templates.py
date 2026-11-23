@@ -432,6 +432,7 @@ def test_the_tests_leave_the_blueprint_s_workflows_to_the_blueprint():
         "action-test.yml",
         "canary.yml",
         "evaluate.yml",
+        "reading-dry-run.yml",
         "release-gate.yml",
         "workflow-test.yml",
         *(reusable(name).name for name in NAMES),
@@ -1194,6 +1195,7 @@ def test_the_jobs_behind_harden_runner_are_found():
         ("canary.yml", "start"),
         ("canary.yml", "queue"),
         ("canary.yml", "decide"),
+        ("reading-dry-run.yml", "main"),
         ("release-gate.yml", "canary"),
         ("workflow-test.yml", "changes"),
         ("workflow-test.yml", "gate"),
@@ -1329,7 +1331,7 @@ def test_the_jobs_that_make_sure_that_harden_runner_blocks_are_found():
         for workflow, name, _, block in HARDENED_JOBS
         if block["with"]["egress-policy"] == "block"
     }
-    assert len(found) == 24
+    assert len(found) == 25
 
 
 def test_the_step_that_makes_sure_that_harden_runner_blocks_is_the_blueprint_s():
@@ -1959,6 +1961,96 @@ def test_the_canary_calls_the_reusable_workflow_as_every_repository_does():
         if CANARY_INPUT in (job.get("with") or {})
     ]
     assert callers == [("canary.yml", "assistant")]
+
+
+READING_DRY_RUN = load(OWN / "reading-dry-run.yml")
+# The job that stops a run off the default branch, which the call needs.
+ON_MAIN = "main"
+
+
+def test_the_reading_dry_run_calls_the_reusable_workflow_as_every_repository_does():
+    """The Reading dry run tries the experimental reading on one issue, by hand (#562).
+    Its call is the template's, as the Canary's is: its name, its permissions and the
+    engine's secrets passed by name. Only the workflow of the commit, the reading and
+    a dry run that no input can turn off differ, so it writes nothing and no form of
+    another repository offers the reading."""
+    template = ASSISTANT["jobs"]["assistant"]
+    jobs = READING_DRY_RUN["jobs"]
+    assert list(jobs) == [ON_MAIN, "assistant"]
+    call = jobs["assistant"]
+    path = reusable("issue-assistant.yml").relative_to(ROOT).as_posix()
+    assert call["uses"] == f"./{path}"
+    for key in ("name", "permissions", "secrets"):
+        assert call[key] == template[key], key
+    assert call["with"] == {"dry_run": True, "reading": "${{ inputs.reading }}"}
+    assert call["needs"] == ON_MAIN
+    # No concurrency group: dry runs write nothing, and a group without queue: max
+    # would cancel a third run that waits.
+    assert set(call) == set(template) | {"needs"}
+    assert "concurrency" not in READING_DRY_RUN
+    assert READING_DRY_RUN["permissions"] == {}
+
+
+def test_the_reading_dry_run_starts_only_by_hand_with_the_inputs_of_the_event():
+    """The job event of the reusable workflow reads issue, mode and override from the
+    event of a run by hand, as the template passes them. mode leaves out backlog,
+    which needs the template's job backlog, and there is no instruction, so that the
+    two runs of a pair differ only in their reading. dry_run is no input: the call
+    is always one."""
+    template = ASSISTANT[True]["workflow_dispatch"]["inputs"]
+    assert list(READING_DRY_RUN[True]) == ["workflow_dispatch"]
+    inputs = READING_DRY_RUN[True]["workflow_dispatch"]["inputs"]
+    assert list(inputs) == ["issue", "mode", "override", "reading"]
+    # The description of the template's issue speaks of the backlog too.
+    for key in ("required", "type"):
+        assert inputs["issue"][key] == template["issue"][key], key
+    assert inputs["override"] == template["override"]
+    assert inputs["mode"] == {
+        **template["mode"],
+        "options": [mode for mode in template["mode"]["options"] if mode != "backlog"],
+    }
+    reading = inputs["reading"]
+    assert reading["type"] == "choice"
+    assert reading["options"] == ["cleaned", "rendered"]
+    assert reading["default"] == "cleaned"
+    assert reading["description"].startswith("Experimental:")
+    # The reusable workflow takes the reading, with the same default.
+    called = load(reusable("issue-assistant.yml"))[True]["workflow_call"]["inputs"]
+    assert called["reading"]["default"] == reading["default"]
+
+
+def test_the_reading_dry_run_stops_a_run_off_the_default_branch(tmp_path):
+    """Only the default branch may use the environment issue-assistant, which would
+    refuse the job analyze elsewhere, but only after the jobs before it. The first
+    job, behind Harden-Runner as every job of this project, says so plainly, and
+    needs no token."""
+    job = READING_DRY_RUN["jobs"][ON_MAIN]
+    assert job["permissions"] == {}
+    step = step_named(job, "Make sure that the run is on the default branch")
+    assert step["env"] == {
+        "DEFAULT_BRANCH": "${{ github.event.repository.default_branch }}"
+    }
+    for ref, code in (("refs/heads/main", 0), ("refs/heads/feature", 1)):
+        result, _ = run_step(
+            {"run": step["run"]}, tmp_path, GITHUB_REF=ref, DEFAULT_BRANCH="main"
+        )
+        assert result.returncode == code, result.stdout
+    assert result.stdout.startswith(
+        "::error title=Not on the default branch::The reading dry run runs only on"
+        " main,"
+    )
+
+
+def test_only_the_reading_dry_run_passes_reading():
+    """No template passes the experimental reading, so no repository's run reads
+    differently from what it did, and no other workflow here does."""
+    callers = [
+        (path.name, job_name)
+        for path in [*EVERY_WORKFLOW, *VARIANT_WORKFLOWS.values()]
+        for job_name, job in load(path)["jobs"].items()
+        if "uses" in job and "reading" in (job.get("with") or {})
+    ]
+    assert callers == [("reading-dry-run.yml", "assistant")]
 
 
 def test_the_canary_writes_nothing():
