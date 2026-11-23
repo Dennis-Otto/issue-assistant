@@ -31,10 +31,9 @@ FOOTNOTES = "[^1]" * 2200
 ISSUE_ALIAS = re.compile(r"(\w+): issue\(number: (\d+)\) \{ body bodyHTML \}")
 DISCUSSION_ALIAS = re.compile(r"(\w+): discussion\(number: (\d+)\) \{ body bodyHTML \}")
 ANSWER_ALIAS = re.compile(r"(\w+): discussion\(number: (\d+)\) \{ answer \{")
-COMMENTS_ALIAS = re.compile(
-    r"(c\d+): issue\(number: (\d+)\) \{ ((?:w\d+: comments.*?\} \} ?)+)\}"
-)
 WINDOW_ALIAS = re.compile(r"(w\d+): comments\(first: (\d+)(?:, after: \$(w\d+))?\)")
+# The issue of the comments, or one of its windows, in the order of the document.
+COMMENTS_PART = re.compile(r"(c\d+): issue\(number: (\d+)\)|" + WINDOW_ALIAS.pattern)
 
 
 def html_of(body: str) -> str:
@@ -181,17 +180,22 @@ class GitHubOfRenderings:
         for alias, number in ANSWER_ALIAS.findall(query):
             body = self.answers.get((repository, int(number)))
             found[alias] = {"answer": None if body is None else self.entry(body)}
-        for alias, number, windows in COMMENTS_ALIAS.findall(query):
-            if int(number) in self.gone:
-                found[alias] = None
-                absent(["repository", alias], int(number))
-                continue
-            comments = self.comments[(repository, int(number))]
-            ids = [comment for comment, _ in comments]
-            found[alias] = {}
-            for window, first, after in WINDOW_ALIAS.findall(windows):
+        # Each window belongs to the issue whose alias came last before it.
+        holder: dict[str, Any] | None = None
+        comments: list[tuple[str, str]] = []
+        for part in COMMENTS_PART.finditer(query):
+            alias, number, window, first, after = part.groups()
+            if alias is not None:
+                holder = None if int(number) in self.gone else {}
+                found[alias] = holder
+                if holder is None:
+                    absent(["repository", alias], int(number))
+                else:
+                    comments = self.comments[(repository, int(number))]
+            elif holder is not None:
+                ids = [comment for comment, _ in comments]
                 start = 0 if not after else ids.index(variables[after][7:]) + 1
-                found[alias][window] = {
+                holder[window] = {
                     "nodes": [
                         {"fullDatabaseId": comment, **self.entry(body)}
                         for comment, body in comments[start : start + int(first)]
