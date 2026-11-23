@@ -953,6 +953,8 @@ CONVERTER_TEXTS = {
 }
 
 
+# Timed: mutmut's trampolines slow it down in its copy (#553).
+@pytest.mark.mutation_unsafe
 @pytest.mark.parametrize("parts", CONVERTER_TEXTS.values(), ids=CONVERTER_TEXTS)
 def test_no_html_makes_the_converter_slow(parts):
     eighth, whole = built(parts, 8), built(parts)
@@ -965,6 +967,14 @@ def test_no_html_makes_the_converter_slow(parts):
         f"{measured.eighth:.4f} s on an eighth of the text, "
         f"{measured.whole:.4f} s on the whole, {measured.times:.2f} times as long"
     )
+
+
+@pytest.mark.parametrize("parts", CONVERTER_TEXTS.values(), ids=CONVERTER_TEXTS)
+def test_the_converter_cuts_each_slow_html_to_its_longest(parts):
+    """What the timing of the converter checks besides the clock, in a test of its
+    own, which runs in mutmut's copy as well (#553): the text of each slow HTML stays
+    within LONGEST and the note of the cut."""
+    whole = built(parts)
     result = assistant.markdown_of(whole, whole)
     assert len(result.text) <= assistant.LONGEST + len(assistant.CUT_NOTE) + 1
 
