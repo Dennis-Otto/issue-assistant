@@ -608,11 +608,13 @@ def html_blocks(text: str, reader: Reader) -> list[Span]:
             closing = EMPTY_ROW.search(text, opening.end())
             end = len(text) if closing is None else closing.start()
         elif kind == "comment":
-            # A comment's end is its first `-->`, found as text, not by a pattern.
-            close = text.find("-->", opening.end())
+            # A comment's end is its first `-->`, found as text, not by a pattern,
+            # and like the end of every other kind searched from its `<`: CommonMark
+            # also finds it on the opening row, so `<!-->` and `<?>` end there.
+            close = text.find("-->", opening.start(kind))
             end = len(text) if close < 0 else close + 3
         else:
-            closing = HTML_END[kind].search(text, opening.end())
+            closing = HTML_END[kind].search(text, opening.start(kind))
             end = len(text) if closing is None else closing.end()
         blocks.append((start, end))
         position = max(end, opening.end())
@@ -733,13 +735,15 @@ TAG_INSIDE = re.compile(r"(?:[^>\"']++|\"[^\"]*+\"|'[^']*+')*+>")
 def drawn_pres(text: str, reader: Reader, found: Found) -> None:
     """The content of each `<pre>` whose `lang` GitHub draws, up to the `</pre>` that
     ends it as HTML reads it, or to the end of the text; outside fenced code and
-    comments. Once one never ends, nothing after it is read."""
+    comments, each of which ends at the first `-->` from its `<`, so that `<!-->`
+    ends at once, as GitHub reads it. Once one never ends, nothing after it is
+    read."""
     code, starts = reader.code(), reader.starts
     position = 0
     while (pre := PRE.search(text, position)) is not None:
         comment = COMMENT_START.search(text, position, pre.start())
         if comment is not None:
-            close = text.find("-->", comment.end())
+            close = text.find("-->", comment.start())
             if close < 0:
                 return
             position = close + 3
@@ -775,12 +779,12 @@ def pre_lang(text: str, position: int) -> tuple[str, int | None]:
 
 def pre_end(text: str, position: int) -> int:
     """Where the content of a `<pre>` that starts at `position` ends: at the `</pre>`
-    that ends it, past those in comments, in quoted values and of a `<pre>` within
-    it, or at the end of the text."""
+    that ends it, past those in comments, which end at the first `-->` from their
+    `<`, in quoted values and of a `<pre>` within it, or at the end of the text."""
     depth = 1
     while (mark := PRE_CONTENT.search(text, position)) is not None:
         if mark[0] == "<!--":
-            close = text.find("-->", mark.end())
+            close = text.find("-->", mark.start())
             if close < 0:
                 return len(text)
             position = close + 3

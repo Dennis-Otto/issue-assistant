@@ -414,10 +414,12 @@ CANDIDATE = re.compile(
 # that starts an HTML block, in which a fence is no fence, also in a quote or a list
 # item, which then takes no lazy row, and text after the end of a comment, whose row
 # ends the block that the comment started. strip_html takes out a comment that
-# starts a row outside them, or the rest of the text with it.
+# starts a row outside them, or the rest of the text with it. A `<!-->` or a
+# `<!--->` ends at once on GitHub, as a block and inline, but strip_html still reads
+# a comment from it up to a later `-->`: from there on, every row may start a block.
 HTML_BLOCK = re.compile(
     rf"^(?:[ \t]*{CONTAINER_MARK})++[ \t]*+<[A-Za-z/?!]"
-    r"|^[ \t]*<(?!!--)[A-Za-z/?!]|-->[ \t]*\S",
+    r"|^[ \t]*<(?!!--)[A-Za-z/?!]|-->[ \t]*\S|<!---?>",
     re.MULTILINE,
 )
 
