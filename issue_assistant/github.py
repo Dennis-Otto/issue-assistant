@@ -194,7 +194,7 @@ class GitHub:
             if html is None:
                 continue
             if size_of(html) > CAP:
-                found.fallbacks[ARRIVED_TOO_LARGE] += 1
+                found.fall(text.key, ARRIVED_TOO_LARGE)
             else:
                 found.html[text.key] = html
         return found
