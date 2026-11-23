@@ -1831,7 +1831,8 @@ class Growth:
 # time as under the tracer before it fails, `delimiter rows` about a quarter longer;
 # 1 second would measure the runner again, since the slowest whole reached 0.69
 # seconds without the tracer on a busy machine, and 1.21 to 1.39 seconds in a
-# container of four processors on a machine loaded to 99 and 100 % (#543).
+# container of four processors on a Windows host loaded to 99 and 100 %, whose
+# Docker VM averaged 80 to 98 % (#543).
 CEILING = 2
 
 # One call of the whole text that takes longer than this, in seconds of processor
@@ -1950,9 +1951,9 @@ def plain_growth(eighth: Callable[[], object], whole: Callable[[], object]) -> G
 # failed its run: noise of a busy moment that lifted one side alone. With the tries
 # of both sides over the same span and the three more tries of #543, the highest
 # growth was 9.78 to 10.99 in four runs on a quiet machine, with no case or one at
-# 10 or more, and 10.95 in both runs on a machine loaded to 99 and 100 %, with 2 and
-# 6 cases at 10 or more (2026-11-23). The timing tests and the fuzz targets hold
-# their readings to it alike.
+# 10 or more, and 10.95 in both runs on a Windows host loaded to 99 and 100 %, whose
+# Docker VM averaged 96 and 80 %, with 6 and 2 cases at 10 or more (2026-11-23). The
+# timing tests and the fuzz targets hold their readings to it alike.
 GROWTH = 13
 
 

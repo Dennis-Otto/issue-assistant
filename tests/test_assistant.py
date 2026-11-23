@@ -402,6 +402,8 @@ SLOW_TEXTS = {
     "escapes in a label of a definition": ["[", ("\\a", 32_000), "]"],
     "declarations without their end": [("x <!X", 13_000), "\n\n>"],
     "closing keywords in a row": [("close #1 ", 7_281)],
+    "keywords without a number": [("fix ", 16_384)],
+    "denials in a row": [("doesn't ", 8_192)],
 }
 
 # Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
@@ -895,9 +897,11 @@ def test_the_tries_of_the_eighth_stop_at_the_ceiling():
 def test_a_growth_near_the_limit_takes_three_more_tries():
     """Three more tries of each side follow where the first three give 10 times or
     more, and only there."""
-    for eighth_seconds, more in ((0.000_02, True), (0.001, False)):
-        eighth, whole, calls = timed_sides(eighth_seconds, 0.001)
-        measured = growth(eighth, whole, shortest=0.002)
+    # The sides busy-wait in real time and growth() counts processor time, so that
+    # a busy machine could skew a side: 400 times and 1 time stay far from 10.
+    for eighth_seconds, more in ((0.000_005, True), (0.002, False)):
+        eighth, whole, calls = timed_sides(eighth_seconds, 0.002)
+        measured = growth(eighth, whole, shortest=0.004)
         assert len(tries_of(calls)) == (12 if more else 6)
         assert (measured.times >= 10) is more
 
@@ -928,7 +932,7 @@ def test_the_fuzz_targets_keep_the_tries_of_before():
     """plain_growth(), which too_slow() takes for the fuzz targets, times the eighth
     first in three tries of each side and no more, also after a growth near the
     limit, as their timeouts count it."""
-    eighth, whole, calls = timed_sides(0.000_02, 0.001)
+    eighth, whole, calls = timed_sides(0.000_005, 0.002)
     measured = plain_growth(eighth, whole)
     tries = tries_of(calls)
     assert [side for (side, *_), *_ in tries] == ["eighth", "whole"] * 3
@@ -942,14 +946,16 @@ def test_the_fuzz_target_judges_a_slow_reading_by_its_growth():
     build, is linear, but its readings took 0.8 to 1.35 seconds under the
     instrumentation of the fuzzer, so that a fixed half second failed it. As a seed
     of the fuzzer it took 19 seconds of each input, so it is a test here, of the
-    reading that took longest."""
+    reading that took longest. It takes the matched tries of growth(), as every
+    timing test does: what it checks is the verdict of too_slow() on this text,
+    and the plain tries of the fuzz targets have a test of their own."""
     start, piece, count = "> " * 30 + "<hr\n", "x <br\n", 10_912
     assert len(start + piece * count) == assistant.MAX_TEXT
     eighth = reading("render_issue", start + piece * (count // 8))
     whole = reading("render_issue", start + piece * count)
     # The budget and the ceiling of the fuzz target, for a first call that took
     # longer than its budget.
-    assert too_slow(0.6, count, eighth, whole, 0.5, 3) is None
+    assert too_slow(0.6, count, eighth, whole, 0.5, 3, measure=growth) is None
 
 
 # The names of the tags that start an HTML block of CommonMark's sixth kind.
