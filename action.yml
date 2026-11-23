@@ -40,6 +40,10 @@ inputs:
     description: Only report what would be written
     required: false
     default: "false"
+  reading:
+    description: "Experimental: how attachments, context and evaluate read the texts for the AI: cleaned, from their sources as written, or rendered, from GitHub's renderings, read by number in a second step, each text without one from its cleaned source; the discussion assistant reads cleaned"
+    required: false
+    default: cleaned
   github-token:
     description: Token for the GitHub API; the job's permissions limit it
     required: false
@@ -124,6 +128,7 @@ runs:
         READY_ENGINES: ${{ inputs.ready-engines }}
         EXECUTION_FILE: ${{ inputs.execution-file }}
         DRY_RUN: ${{ inputs.dry-run }}
+        READING: ${{ inputs.reading }}
         GH_TOKEN: ${{ inputs.github-token }}
         GH_REPO: ${{ github.repository }}
         # The jobs of the templates block every host but GitHub's, and the GitHub

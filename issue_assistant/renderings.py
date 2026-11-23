@@ -8,7 +8,8 @@ number: `issue(number:)`, windows of the comments of an issue, and
 `discussion(number:)`, in requests that `rendering_estimate` packs. A request that
 fails is split in halves, and a text without a rendering is read from its cleaned
 source, with a reason that the notice counts. The limits of a command bound the
-time, the requests and the points that the renderings take. No reader uses it yet.
+time, the requests and the points that the renderings take. The readers of
+`reading.py` take them when the switch `reading` says `rendered`.
 """
 
 from __future__ import annotations
@@ -306,6 +307,12 @@ def tables_of(rows: list[str], outside: list[int]) -> tuple[int, int, int]:
     return tables, cells, aligned
 
 
+def comment_id(comment: dict[str, Any]) -> str:
+    """The REST id of a comment as a text's key holds it."""
+    found = comment.get("id")
+    return "" if found is None else str(found)
+
+
 @dataclass(frozen=True)
 class Text:
     """A text of the first step whose rendering is asked for.
@@ -330,12 +337,14 @@ class Text:
 
 @dataclass(frozen=True)
 class Limits:
-    """What the renderings of one command may take."""
+    """What the renderings of one command may take; `lowest` is the lowest
+    `remaining` that an earlier read of the same command saw."""
 
     seconds: float
     requests: int = REQUESTS
     failures: int = FAILURES
     points: int = POINTS
+    lowest: int | None = None
 
     @classmethod
     def of_evaluation(cls, samples: int) -> Limits:
@@ -345,6 +354,18 @@ class Limits:
             REQUESTS + samples,
             FAILURES,
             POINTS + SAMPLE_POINTS * samples,
+        )
+
+    def after(self, spent: Renderings, seconds: float) -> Limits:
+        """What is left to the command after a read that took `spent` and `seconds`:
+        nothing more of what it ran out of, so that its next read stops at once."""
+        stopped = spent.stopped
+        return Limits(
+            0.0 if stopped == OUT_OF_TIME else max(self.seconds - seconds, 0.0),
+            0 if stopped == OTHER_LIMIT else max(self.requests - spent.requests, 0),
+            max(self.failures - spent.failed, 0),
+            max(self.points - spent.points, 0),
+            spent.lowest,
         )
 
 
@@ -363,10 +384,25 @@ class Renderings:
     points: int = 0
     lowest: int | None = None
     seconds: float = 0.0
+    # Why the read stopped before its end, if it did: OUT_OF_TIME or OTHER_LIMIT.
+    stopped: str | None = None
 
     def of(self, text: Text) -> str | None:
         """The rendering of the text; None when it is read from its cleaned source."""
         return self.html.get(text.key)
+
+    def add(self, other: Renderings) -> None:
+        """Take in a later read of the same command, for one notice of both."""
+        self.html.update(other.html)
+        self.fallbacks.update(other.fallbacks)
+        self.requests += other.requests
+        self.failed += other.failed
+        self.points += other.points
+        self.seconds += other.seconds
+        if other.lowest is not None:
+            lowest = self.lowest
+            self.lowest = other.lowest if lowest is None else min(lowest, other.lowest)
+        self.stopped = other.stopped or self.stopped
 
     def notice(self) -> None:
         """A notice in the log with counts alone, no text: the renderings, the texts
@@ -635,7 +671,7 @@ class Reading:
         self.send = send
         self.clock = clock
         self.start = clock()
-        self.result = Renderings()
+        self.result = Renderings(lowest=limits.lowest)
         self.stop: str | None = None
         # The place of each comment among those of its issue, and the REST id of
         # the comment at each place.
@@ -834,6 +870,7 @@ class Reading:
             else:
                 half = (len(request) + 1) // 2
                 queue.extendleft([request[half:], request[:half]])
+        self.result.stopped = self.stop
         return self.result
 
 

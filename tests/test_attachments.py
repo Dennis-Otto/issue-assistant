@@ -1455,3 +1455,82 @@ def test_the_answer_that_repeats_a_secret_of_a_file_is_never_posted(config):
     with pytest.raises(assistant.AssistantError):
         assistant.apply_answer(github, "triage", 12, answer, config, "abc")
     assert github.posted(12) == []
+
+
+# On the experimental reading rendered (#521)
+
+
+def test_the_job_downloads_what_the_renderings_show(config, root, opener):
+    """On rendered, the job takes the links of the renderings of the issue and of
+    its reporter's comments, and asks for no other comment's."""
+    issue = make_issue(body=f"[log]({LOG}) [json]({JSON})")
+    issue["body_html"] = f'<p dir="auto"><a href="{LOG}">log</a> json</p>'
+    github = FakeGitHub(config, issue)
+    github.public = lambda: True
+    github.comment_store[12] = [
+        make_comment(2, "maintainer", "Any log?", 1, "OWNER"),
+        make_comment(3, "reporter", "Here", 0.5),
+    ]
+    opener({LOG: b"ERROR\n", JSON: b"{}"})
+    cleaned = assistant.fetch(github, 12, root, "token")
+    assert [entry["url"] for entry in cleaned] == [LOG, JSON]
+    index = assistant.fetch(
+        github, 12, root, "token", reading=assistant.READING_RENDERED
+    )
+    assert [entry["url"] for entry in index] == [LOG]
+    cursors, request = [call[1] for call in github.calls if call[0] == "RENDERINGS"]
+    # One window of the reporter's comment, after the cursor of the maintainer's.
+    assert cursors == assistant.CURSORS
+    assert "w0: comments(first: 1, after: $w0)" in request
+
+
+def test_attachments_follow_the_text_of_the_context_step(config, root, capsys):
+    """The context step reads the renderings minutes after the job attachments: a
+    link that only its text shows is named as not downloaded, and a file that only
+    the job's showed isn't named; on rendered, a notice counts both."""
+    folder = root / attachments.ATTACHMENTS
+    folder.mkdir(parents=True)
+    (folder / "index.json").write_text(
+        json.dumps([{"url": JSON, "status": "read", "file": "1.txt"}]),
+        encoding="utf-8",
+    )
+    (folder / "1.txt").write_text("{}", encoding="utf-8")
+    issue = make_issue(body=f"[log]({LOG}) [json]({JSON})")
+
+    def rendered(html):
+        renderings = assistant.Renderings(
+            html={(REPOSITORY, assistant.ISSUE, 12, ""): html}
+        )
+        return assistant.TextReader(
+            REPOSITORY, assistant.READING_RENDERED, renderings=renderings
+        )
+
+    reader = rendered(f'<p><a href="{LOG}">log</a></p>')
+    visible = assistant.Visible()
+    text = assistant.render_attachments(
+        root, issue, [], REPOSITORY, visible, reader=reader
+    )
+    assert "home-assistant.log" in text and "config_entry" not in text
+    assert attachments.UNREAD["missing"] in text
+    assert capsys.readouterr().out == (
+        "::notice::Attachments that the readings of the two jobs saw otherwise: 1 "
+        "named as not downloaded for this run, and 1 downloaded that the texts for the "
+        "AI don't show.\n"
+    )
+    # Without a difference, and on cleaned, no notice.
+    reader = rendered(f'<p><a href="{JSON}">json</a></p>')
+    assistant.render_attachments(root, issue, [], REPOSITORY, visible, reader=reader)
+    assistant.render_attachments(root, issue, [], REPOSITORY, visible)
+    # A rendering without links names no attachment.
+    reader = rendered("<p>none</p>")
+    assert (
+        assistant.render_attachments(
+            root, issue, [], REPOSITORY, visible, reader=reader
+        )
+        is None
+    )
+    assert capsys.readouterr().out == (
+        "::notice::Attachments that the readings of the two jobs saw otherwise: 0 "
+        "named as not downloaded for this run, and 1 downloaded that the texts for the "
+        "AI don't show.\n"
+    )

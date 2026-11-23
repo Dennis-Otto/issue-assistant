@@ -175,6 +175,7 @@ nav:
       - PromptPwnd and Comment and Control: security/prompt-attacks.md
       - The engines and their packages: security/engines.md
       - How an issue reaches the AI: security/issue-text.md
+      - The experimental reading rendered: security/rendered-reading.md
       - What becomes of the answer: security/answers.md
       - Threats and countermeasures: security/threats.md
       - Threats to the runs and the workflows: security/threats-to-the-runs.md

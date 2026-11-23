@@ -687,6 +687,10 @@ class FakeGitHub(assistant.GitHub):
         self.edit_store: dict[int, dict] = {}
         # What the fake writes happens at this moment, which a test can move on.
         self.clock = NOW
+        # GitHub as its requests of renderings see it (#521), which _render fills
+        # from the stores at each request: an item's `body_html` is its rendering,
+        # and a paragraph of its text without one. A test sets `failing` there.
+        self.rendering = GitHubOfRenderings()
 
     def time(self):
         """The moment of the clock, as GitHub writes it."""
@@ -1337,6 +1341,37 @@ class FakeGitHub(assistant.GitHub):
             "timelineItems": {"nodes": events},
         }
 
+    def _render(self, request, timeout):
+        """A request of renderings, which GitHub.renderings sends as it sends gh's:
+        answered from the texts of the stores and of the related repositories, as
+        they are at the moment of the request."""
+        self.calls.append(("RENDERINGS", request["query"], request["variables"]))
+        for github in (self, *filter(None, self.sibling_store.values())):
+            github.hold_renderings(self.rendering)
+        return self.rendering.send(request, timeout)
+
+    def hold_renderings(self, fake):
+        """Give the fake of the renderings the texts of this repository."""
+        repository = self.repository
+
+        def held(item):
+            body = item.get("body") or ""
+            if "body_html" in item:
+                fake.html[body] = item["body_html"]
+            return body
+
+        searched = (item for found in self.search_store.values() for item in found)
+        for item in [*self.store.values(), *searched]:
+            fake.issues[(repository, item["number"])] = held(item)
+        for number, comments in self.comment_store.items():
+            fake.comments[(repository, number)] = [
+                (str(comment["id"]), held(comment)) for comment in comments
+            ]
+        for item in self.discussion_store or []:
+            fake.discussions[(repository, item["number"])] = held(item)
+            if item.get("answer"):
+                fake.answers[(repository, item["number"])] = held(item["answer"])
+
     def sibling(self, repository):
         """The fake of a related repository, which GitHub.sibling reads once it is
         public; tests/test_assistant.py tests that with gh itself."""
@@ -1597,6 +1632,196 @@ def fake_gh(monkeypatch, folder, *answers):
 
     monkeypatch.setattr(assistant.subprocess, "run", run)
     return calls
+
+
+# GitHub's renderings, read by number in a second step (#521)
+
+ISSUE_ALIAS = re.compile(r"(\w+): issue\(number: (\d+)\) \{ body bodyHTML \}")
+DISCUSSION_ALIAS = re.compile(r"(\w+): discussion\(number: (\d+)\) \{ body bodyHTML \}")
+ANSWER_ALIAS = re.compile(r"(\w+): discussion\(number: (\d+)\) \{ answer \{")
+WINDOW_ALIAS = re.compile(r"(w\d+): comments\(first: (\d+)(?:, after: \$(w\d+))?\)")
+# The issue of the comments, or one of its windows, in the order of the document.
+COMMENTS_PART = re.compile(r"(c\d+): issue\(number: (\d+)\)|" + WINDOW_ALIAS.pattern)
+
+
+def html_of(body: str) -> str:
+    return f"<p>{body}</p>"
+
+
+def done(stdout: object = "", stderr: str = "", status: int = 0) -> Any:
+    text = stdout if isinstance(stdout, str) else json.dumps(stdout)
+    return subprocess.CompletedProcess(["gh"], status, text, stderr)
+
+
+# The shapes of a failed request: what gh gives for each, as the measurement saw them
+# or as GitHub documents them.
+SHAPES = {
+    "a 504 with an HTML page": done(
+        "<!DOCTYPE html><html>Unicorn</html>", "gh: HTTP 504", 1
+    ),
+    "a body cut off": done("", "unexpected end of JSON input", 1),
+    "exit 0 and no answer": done(),
+    "errors and no data": done(
+        {"errors": [{"message": "Something went wrong while executing your query."}]},
+        "gh: Something went wrong while executing your query.",
+        1,
+    ),
+    "data null": done(
+        {"data": None, "errors": [{"message": "timedout"}]}, "gh: timedout", 1
+    ),
+    "data that isn't an object": done({"data": []}),
+    "a repository that isn't there without a reason": done(
+        {"data": {"repository": None}}
+    ),
+}
+SECONDARY = done(
+    {"message": "You have exceeded a secondary rate limit."},
+    "gh: You have exceeded a secondary rate limit. (HTTP 403)",
+    1,
+)
+PRIMARY = done(
+    {"errors": [{"type": "RATE_LIMITED", "message": "API rate limit exceeded."}]},
+    "gh: API rate limit exceeded.",
+    1,
+)
+
+
+class GitHubOfRenderings:
+    """GitHub as a request of renderings sees it: the texts that it holds, by their
+    numbers, and a clock that each request moves on by `seconds`.
+
+    `failing` gives the answer in place of GitHub's for a request whose aliases it
+    picks, such as a 504 for every request that holds `i5`; `edit` changes what an
+    answer holds without changing the texts of the first step."""
+
+    def __init__(self, seconds: float = 0.5) -> None:
+        self.issues: dict[tuple[str, int], str] = {}
+        self.discussions: dict[tuple[str, int], str] = {}
+        self.answers: dict[tuple[str, int], str] = {}
+        self.comments: dict[tuple[str, int], list[tuple[str, str]]] = {}
+        self.html: dict[str, str] = {}
+        # The issues deleted since the first step, whose comments are gone too.
+        self.gone: set[int] = set()
+        self.seconds: float | Callable[[dict[str, Any]], float] = seconds
+        self.failing: Callable[[set[str], dict[str, Any]], Any] = (
+            lambda aliases, request: None
+        )
+        self.remaining = 5000
+        self.now = 0.0
+        self.requests: list[dict[str, Any]] = []
+
+    def clock(self) -> float:
+        return self.now
+
+    def send(self, request: dict[str, Any], timeout: float) -> Any:
+        self.requests.append({**request, "timeout": timeout})
+        seconds = self.seconds(request) if callable(self.seconds) else self.seconds
+        if seconds > timeout:
+            self.now += timeout
+            raise subprocess.TimeoutExpired(["gh"], timeout)
+        self.now += seconds
+        aliases = set(
+            re.findall(r"(\w+): (?:issue|discussion|comments)\(", request["query"])
+        )
+        failure = self.failing(aliases, request)
+        if failure is not None:
+            return failure
+        self.remaining -= 1
+        rate = {"cost": 1, "remaining": self.remaining}
+        variables = request["variables"]
+        repository = f"{variables['owner']}/{variables['name']}"
+        if request["query"] == assistant.CURSORS:
+            return done(
+                {
+                    "data": {
+                        "repository": self.cursors(repository, variables),
+                        "rateLimit": rate,
+                    }
+                }
+            )
+        return self.answered(repository, request, rate)
+
+    def cursors(self, repository: str, variables: dict[str, Any]) -> dict[str, Any]:
+        comments = self.comments[(repository, variables["number"])]
+        ids = [comment for comment, _ in comments]
+        start = (
+            0 if variables["after"] is None else ids.index(variables["after"][7:]) + 1
+        )
+        page = ids[start : start + 100]
+        return {
+            "issue": {
+                "comments": {
+                    "pageInfo": {
+                        "hasNextPage": start + 100 < len(ids),
+                        "endCursor": f"cursor:{page[-1]}" if page else None,
+                    },
+                    "edges": [
+                        {"cursor": f"cursor:{id}", "node": {"fullDatabaseId": id}}
+                        for id in page
+                    ],
+                }
+            }
+        }
+
+    def entry(self, body: str) -> dict[str, str]:
+        return {"body": body, "bodyHTML": self.html.get(body, html_of(body))}
+
+    def answered(
+        self, repository: str, request: dict[str, Any], rate: dict[str, Any]
+    ) -> Any:
+        query, variables = request["query"], request["variables"]
+        found: dict[str, Any] = {}
+        errors = []
+
+        def absent(path: list[str], number: int) -> None:
+            errors.append(
+                {"type": "NOT_FOUND", "path": path, "message": f"no {number}"}
+            )
+
+        for alias, number in ISSUE_ALIAS.findall(query):
+            body = self.issues.get((repository, int(number)))
+            found[alias] = None if body is None else self.entry(body)
+            if body is None:
+                absent(["repository", alias], int(number))
+        for alias, number in DISCUSSION_ALIAS.findall(query):
+            found[alias] = self.entry(self.discussions[(repository, int(number))])
+        for alias, number in ANSWER_ALIAS.findall(query):
+            body = self.answers.get((repository, int(number)))
+            found[alias] = {"answer": None if body is None else self.entry(body)}
+        # Each window belongs to the issue whose alias came last before it.
+        holder: dict[str, Any] | None = None
+        comments: list[tuple[str, str]] = []
+        for part in COMMENTS_PART.finditer(query):
+            alias, number, window, first, after = part.groups()
+            if alias is not None:
+                holder = None if int(number) in self.gone else {}
+                found[alias] = holder
+                if holder is None:
+                    absent(["repository", alias], int(number))
+                else:
+                    comments = self.comments[(repository, int(number))]
+            elif holder is not None:
+                ids = [comment for comment, _ in comments]
+                start = 0 if not after else ids.index(variables[after][7:]) + 1
+                holder[window] = {
+                    "nodes": [
+                        {"fullDatabaseId": comment, **self.entry(body)}
+                        for comment, body in comments[start : start + int(first)]
+                    ]
+                }
+        answer: dict[str, Any] = {"data": {"repository": found, "rateLimit": rate}}
+        if errors:
+            answer["errors"] = errors
+        return done(answer, "gh: no such issue" if errors else "", 1 if errors else 0)
+
+    def texts_asked(self, request: dict[str, Any]) -> int:
+        query = request["query"]
+        return (
+            len(ISSUE_ALIAS.findall(query))
+            + len(DISCUSSION_ALIAS.findall(query))
+            + len(ANSWER_ALIAS.findall(query))
+            + sum(int(first) for _, first, _ in WINDOW_ALIAS.findall(query))
+        )
 
 
 # Golden files: what the assistant writes, word for word

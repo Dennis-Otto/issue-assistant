@@ -22,6 +22,7 @@ from support import (
     BOX_UNTICKED,
     BUG_BODY,
     OPENED,
+    SHAPES,
     FakeGitHub,
     Frozen,
     analysis,
@@ -210,6 +211,77 @@ def test_the_context_with_related_repositories_reads_as_its_golden_file(config):
     assert_golden(
         "context/triage-related.txt", files_of(config.root / assistant.CONTEXT)
     )
+
+
+# A picture that the reporter uploaded, as its source and as a rendering hold it.
+UPLOADED = (
+    "https://github.com/user-attachments/assets/0123abcd-0123-4567-89ab-0123456789ab"
+)
+SIGNED = (
+    "https://private-user-images.githubusercontent.com/1/2-0123abcd-0123-4567-89ab-"
+    "0123456789ab.png?jwt=a.b.c"
+)
+LOG = "https://github.com/user-attachments/files/101/home-assistant.log"
+
+
+@pytest.mark.usefixtures("root")
+def test_the_context_on_the_reading_rendered_reads_as_its_golden_file(config):
+    """A first analysis on the experimental reading rendered (#521): each text that
+    GitHub rendered is the converter's Markdown of it, the fields of a form as rows
+    of `### label` and an uploaded picture at the address of its source, never the
+    signed one of the rendering; a comment that GitHub shows collapsed is never
+    asked for, and the text whose request failed alone is its cleaned source."""
+    issue = make_issue(
+        body="### What happened?\n\nThe card <!-- hidden --> is empty.\n\n"
+        f"![shot]({UPLOADED})\n\n### Version\n\n1.9.0\n",
+        body_html='<h3 dir="auto">What happened?</h3>\n<p dir="auto">The card  is '
+        'empty.</p>\n<p dir="auto"><a target="_blank" rel="noopener noreferrer" '
+        f'href="{SIGNED}"><img src="{SIGNED}" alt="shot" style="max-width: 100%;">'
+        '</a></p>\n<h3 dir="auto">Version</h3>\n<p dir="auto">1.9.0</p>',
+    )
+    older = make_issue(
+        7,
+        body="Old **bold** text with `code`",
+        body_html='<p dir="auto">Old <strong>bold</strong> text with <code '
+        'class="notranslate">code</code></p>',
+    )
+    older.update(state="closed", state_reason="completed", closed_at=at(5))
+    failing = make_issue(9, body="Its request <!-- hidden --> fails.")
+    github = FakeGitHub(config, issue, older, failing)
+    github.discussion_store = [
+        {
+            "number": 104,
+            "title": "Testers",
+            "category": {"name": "Q&A"},
+            "isAnswered": True,
+            "closed": False,
+            "body": "Please *test*",
+            "body_html": '<p dir="auto">Please <em>test</em></p>',
+            "answer": {
+                "body": "Done in 1.9.0",
+                "body_html": '<p dir="auto">Done in 1.9.0</p>',
+                "createdAt": at(2),
+                "isMinimized": False,
+            },
+        }
+    ]
+    github.comment_store[12] = [
+        make_comment(2, "maintainer", "Which version?", 1.5, "OWNER"),
+        make_comment(3, "reporter", "Buy now", 1.2, minimized={"reason": "SPAM"}),
+        {
+            **make_comment(4, "reporter", f"Still broken: [log]({LOG})", 1),
+            "body_html": f'<p dir="auto">Still broken: <a href="{LOG}">log</a></p>',
+        },
+    ]
+    github.rendering.failing = lambda aliases, request: (
+        SHAPES["a 504 with an HTML page"] if "i9" in aliases else None
+    )
+    assistant.write_context(
+        github, 12, "triage", config, reading=assistant.READING_RENDERED
+    )
+    written = files_of(config.root / assistant.CONTEXT)
+    assert "private-user-images" not in written and "Buy now" not in written
+    assert_golden("context/triage-rendered.txt", written)
 
 
 # The events: what the event job plans, and what it asks of GitHub
@@ -561,6 +633,7 @@ def test_every_golden_file_has_its_test():
         OTHER,
         *(f"context/{mode}.txt" for mode in assistant.MODES),
         "context/triage-related.txt",
+        "context/triage-rendered.txt",
         *(f"events/{case.replace(' ', '-')}.json.txt" for case in EVENTS),
         *(f"summaries/{case}.md.txt" for case in SUMMARIES),
         DIGEST_ISSUE,
