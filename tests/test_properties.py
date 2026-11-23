@@ -1335,6 +1335,12 @@ HTML_BLOCKS = st.lists(
             "<math>",
             "<br>",
             "</svg>",
+            "<details>",
+            "<hr>",
+            "<li>",
+            "<table>",
+            "</p>",
+            "</div>",
             "Plugh",
         ]
     ),
@@ -1342,6 +1348,14 @@ HTML_BLOCKS = st.lists(
 ).map("".join)
 
 
+@hypothesis.settings(
+    max_examples=EXAMPLES * 6, suppress_health_check=[hypothesis.HealthCheck.too_slow]
+)
+@hypothesis.example("</pre><div><svg><br>")
+@hypothesis.example("<video><details><svg><hr>")
+@hypothesis.example("<svg></p><svg><hr>")
+@hypothesis.example("</pre><div><svg>\n\n<br>Plugh")
+@hypothesis.example("x <div><svg>\n\ny </p><br>Plugh")
 @hypothesis.example("a <svg><br> Plugh</svg> b")
 @hypothesis.example("<svg>\n\n<hr>\n\nPlugh\n\n- Plugh")
 @hypothesis.example("x\n\n> <!--\n> a")
