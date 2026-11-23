@@ -12,11 +12,19 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
-from test_assistant import CEILING, built
+from test_assistant import built
 
 import issue_assistant as assistant
 from issue_assistant.converter import tree_of
-from support import CONFIG, GROWTH, Growth, growth, make_issue, too_slow
+from support import (
+    CEILING,
+    CONFIG,
+    GROWTH,
+    Growth,
+    growth,
+    make_issue,
+    too_slow,
+)
 
 FIXTURES = Path(__file__).with_name("fixtures")
 RENDERINGS = json.loads((FIXTURES / "renderings.json").read_text("utf-8"))
