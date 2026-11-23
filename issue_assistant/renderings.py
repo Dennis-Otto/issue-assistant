@@ -386,6 +386,8 @@ class Renderings:
     points: int = 0
     lowest: int | None = None
     seconds: float = 0.0
+    # How many of `html` an earlier read of Evaluate held, so not read by this one.
+    held: int = 0
     # Why the read stopped before its end, if it did: OUT_OF_TIME or OTHER_LIMIT.
     stopped: str | None = None
 
@@ -407,6 +409,7 @@ class Renderings:
         self.failed += other.failed
         self.points += other.points
         self.seconds += other.seconds
+        self.held += other.held
         if other.lowest is not None:
             lowest = self.lowest
             self.lowest = other.lowest if lowest is None else min(lowest, other.lowest)
@@ -423,9 +426,10 @@ class Renderings:
             if self.fallbacks[reason]
         )
         lowest = "none reported" if self.lowest is None else self.lowest
+        held = f", {self.held} held from an earlier replay" if self.held else ""
         command(
             "notice",
-            f"Renderings of GitHub: {len(self.html)} read; requests: {self.requests}, "
+            f"Renderings of GitHub: {len(self.html) - self.held} read{held}; requests: {self.requests}, "
             f"failed: {self.failed}; counted points: {self.points}; seconds: "
             f"{self.seconds:.1f}; lowest remaining points: {lowest}. Texts read from "
             f"their cleaned source: {sum(self.fallbacks.values())}"

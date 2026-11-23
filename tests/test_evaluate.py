@@ -2053,7 +2053,7 @@ def test_the_replays_read_their_renderings_within_one_budget_of_evaluate(
     assert budgets[-1].requests < budgets[0].requests
 
 
-def test_evaluate_reads_each_rendering_once(root, config, github):
+def test_evaluate_reads_each_rendering_once(root, config, github, capsys):
     """On rendered, Evaluate asks first for the renderings of the issue and the
     comments of every sample, packed with the other issues and the discussions that
     the replays read; each replay then asks only for what it doesn't hold yet, such
@@ -2085,6 +2085,10 @@ def test_evaluate_reads_each_rendering_once(root, config, github):
     for number in (22, 21, 20):
         assert "Seven _now_" in engine.read[number]["issues.jsonl"]
     assert "In the settings." in engine.read[20]["discussions.jsonl"]
+    # A replay counts what it read itself apart from what an earlier read held.
+    out = capsys.readouterr().out
+    assert "::notice::Renderings of GitHub: 7 read; requests: 1," in out
+    assert ": 1 read, 6 held from an earlier replay; requests: 1," in out
 
 
 def test_evaluate_leaves_the_renderings_to_the_replays_when_a_source_fails(

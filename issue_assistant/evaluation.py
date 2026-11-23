@@ -411,6 +411,7 @@ class HeldRenderings:
                 found.fall(key, reason)
             else:
                 found.html[key] = html
+                found.held += 1
         return found
 
 
