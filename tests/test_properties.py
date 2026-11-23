@@ -1384,6 +1384,9 @@ HTML_BLOCKS = st.lists(
 @hypothesis.example("<?>\n```Plugh")
 @hypothesis.example("<?>\n\n~~~Plugh")
 @hypothesis.example("<?>\n> ```Plugh")
+# GitHub's HTML parser ends a comment at `--!>`, and what follows is HTML up to the
+# `-->` at which CommonMark ends it.
+@hypothesis.example('x <!-- --!> <a t="-->Plugh">')
 @given(st.one_of(STRUCTURE, HTML_BLOCKS))
 def test_the_engine_reads_nothing_that_an_html_block_hides(text):
     """Nothing after an HTML block that holds a `<!--` that no `-->` follows reaches
@@ -1411,14 +1414,17 @@ def test_the_engine_reads_nothing_that_an_html_block_hides(text):
     )
 
 
-# Text made of `<!-->` and `<!--->`, the ends of comments, and the parts that a
-# page hides and a `-->` may stand in: a quoted value, a definition, a tag over rows
-# and the content of a `video`.
+# Text made of `<!-->` and `<!--->`, the ends of comments, comments that GitHub's
+# HTML parser ends at a `--!>` or a `--->` before CommonMark ends them, and the parts
+# that a page hides and a `-->` may stand in: a quoted value, a definition, a tag
+# over rows and the content of a `video`.
 SHORT_COMMENTS = st.lists(
     st.sampled_from(
         [
             "<!-->",
             "<!--->",
+            "<!-- a --!> ",
+            "<!-- a ---> ",
             "-->",
             '<a title="',
             "<a title='",
@@ -1447,11 +1453,17 @@ SHORT_COMMENTS = st.lists(
 @hypothesis.example('x <!--> <a title="-->Plugh">a</a>')
 @hypothesis.example('<!--->\n[d]: https://example.com "-->Plugh"')
 @hypothesis.example("x <!--> <a title='\n-->Plugh'>a</a>")
+# GitHub's HTML parser ends a comment at a `--!>` or a `--->` before the `-->` at
+# which CommonMark ends it (`gh api -X POST markdown` with the mode gfm, 2026-11-23).
+@hypothesis.example('x <!-- a --!> <a title="-->Plugh">a</a>')
+@hypothesis.example('x <!-- a ---> <a title="-->Plugh">a</a>')
+@hypothesis.example('--><!-- a --!> <!---><a title="<!-->Plugh')
 @given(SHORT_COMMENTS)
 def test_the_engine_reads_nothing_hidden_after_a_short_comment(text):
-    """No `-->` after `<!-->` or `<!--->` ends a comment that took the start of a
-    part that the page hides: the engine reads no more of the marker than a
-    browser shows of the HTML of a CommonMark parser."""
+    """No `-->` after `<!-->` or `<!--->`, nor one after a `--!>` or a `--->` that
+    ends a comment for GitHub's HTML parser, ends a comment that took the start of a
+    part that the page hides: the engine reads no more of the marker than a browser
+    shows of the HTML of a CommonMark parser."""
     assert assistant.shown_text(text)[0].count("Plugh") <= browser_text(text).count(
         "Plugh"
     )

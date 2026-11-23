@@ -313,7 +313,7 @@ def long_tags(
                 # No `-->` follows: no comment hides a tag.
                 comments = False
                 starts = elements.starts(comments, fenced)
-            elif not comment_closes(text, start, closed, fences, blocks):
+            elif not comment_closes(text, start, closed, fences, blocks, search):
                 return spans, cut(text, start, elements.element)
             position = passed = max(closed, position)
             continue

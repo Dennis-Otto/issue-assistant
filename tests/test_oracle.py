@@ -338,6 +338,28 @@ def test_a_browser_reads_the_searched_tags_as_github_showed_them():
         ("<div>\nx </ zqa\n\nzqd", ["zqd"], ["zqa"]),
         ("x\n\n<!DOCTYPE zqa>\nzqb\n\nzqd", ["zqb", "zqd"], ["zqa"]),
         ("x <![CDATA[ zqa ]]> zqb\n\nzqd", ["zqb", "zqd"], ["zqa"]),
+        # HTML's tokenizer ends a comment at `--!>` and at `--->`, CommonMark at the
+        # `-->` after them, and a tag between them holds that `-->` in a quoted value
+        # (2026-11-23).
+        (
+            'zqa <!-- a --!> <a title="-->zqb">zqc</a> zqd',
+            ["zqa"],
+            ["zqb", "zqc", "zqd"],
+        ),
+        (
+            "zqa <!-- a --!> <a title='-->zqb'>zqc</a> zqd",
+            ["zqa", "zqd"],
+            ["zqb", "zqc"],
+        ),
+        ('zqa <!-- a --!> <img alt="-->zqb" src="x"> zqd', ["zqa"], ["zqb", "zqd"]),
+        (
+            'zqa <!-- a ---> <a title="-->zqb">zqc</a> zqd',
+            ["zqa"],
+            ["zqb", "zqc", "zqd"],
+        ),
+        ("zqa <!-- zqb --!> zqc --> zqd", ["zqa", "zqc", "zqd"], ["zqb"]),
+        # Without a later `-->`, CommonMark starts no comment at the `<!--`.
+        ("zqa <!-- zqb ---> zqc", ["zqa", "zqb", "zqc"], []),
     ],
 )
 def test_a_browser_reads_markup_as_github_showed_it(markdown, shown, hidden):

@@ -428,6 +428,18 @@ SLOW_TEXTS = {
             915,
         )
     ],
+    # Comments that GitHub's HTML parser ends at a `--!>` or a `--->` before the
+    # `-->` at which CommonMark ends them: with a tag after that end, without one in
+    # each of many comments, and many ends of either kind before one late `-->`.
+    "tags after comments that end at a bang": [
+        ('x <!-- a --!> <a title="-->y">z</a> w\n\n', 1_680)
+    ],
+    "comments that end at a bang without tags": [("x <!-- a --!> b --> ", 3_276)],
+    "bangs before one late comment end": ["x <!-- ", ("a --!> ", 9_360), "-->"],
+    "comments past three dashes before tags": [
+        ("x <!-- a ---> b --> <b>c</b> ", 2_340)
+    ],
+    "three dashes before one late comment end": [("x <!-- a ---> b ", 4_096), "-->"],
 }
 
 # Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
@@ -7261,6 +7273,108 @@ def test_the_engine_reads_of_each_searched_short_comment_what_github_shows(case)
     comment, and none of that part reaches a reader, in an issue, a comment or a
     discussion; what the page shows, each reads, but for the markers that the
     cleaning takes out where it is hard to tell, which the file lists."""
+    reads_what_github_shows(case)
+
+
+BANG_COMMENT_SEARCH = json.loads(
+    (Path(__file__).with_name("fixtures") / "bang-comments.json").read_text("utf-8")
+)
+
+
+@pytest.mark.parametrize(
+    "case",
+    BANG_COMMENT_SEARCH["texts"],
+    ids=range(len(BANG_COMMENT_SEARCH["texts"])),
+)
+def test_the_engine_reads_of_each_searched_bang_comment_what_github_shows(case):
+    """GitHub's HTML parser ends a comment at a `--!>` or a `--->`, but CommonMark
+    hands the HTML on up to a later `-->`, and a tag between them whose quoted value
+    holds that `-->` reads on into the text after it, or an element hides it: no
+    reader reads what the page hides, in an issue, a comment or a discussion; what
+    the page shows, each reads, but for the markers that the cleaning takes out where
+    it is hard to tell, which the file lists."""
+    reads_what_github_shows(case)
+
+
+# What a `--!>` lets follow a comment: a tag whose quoted value holds the `-->` at
+# which CommonMark ends the comment, and a `<video>` that holds it.
+TITLE_AFTER_BANG = '<!-- a --!> <a title="-->'
+VIDEO_AFTER_BANG = "<!-- a --!> <video>-->"
+
+
+def test_what_the_assistant_decides_reads_nothing_that_a_bang_comment_hides(config):
+    """GitHub's HTML parser ends a comment at a `--!>` before its `-->`: the search,
+    the language, the area and the denial of a fix read nothing that a value of a tag
+    or a `<video>` between them hides, and the box stays as it is ticked."""
+    body = f'Fails with TypeError {TITLE_AFTER_BANG}ValueError ECONNRESET">log</a>'
+    terms = assistant.search_terms(make_issue(body=body))
+    assert "typeerror" in terms
+    assert "valueerror" not in terms
+    assert "econnreset" not in terms
+    german = (
+        "Das Programm stürzt jedes Mal ab, wenn ich die Karte öffne, und ich weiß"
+        " nicht warum"
+    )
+    for body in (
+        f"It does not work. {VIDEO_AFTER_BANG}{german}</video>",
+        f'It does not work. {TITLE_AFTER_BANG}{german}">log</a>',
+    ):
+        assert assistant.issue_language(make_issue(body=body), []) == "en", body
+    area = f"### Area\n\n{VIDEO_AFTER_BANG}Live card</video>\n\n### Version\n\n1.9.0"
+    assert assistant.form_labels(make_issue(body=area), config) == []
+    denial = f"Fixes #12 {VIDEO_AFTER_BANG}this does not fix #12</video>"
+    assert not assistant.denies_closing(denial, "owner/project", 12)
+    box = f"- [X] {VIDEO_AFTER_BANG}Don't let the AI assistant read this issue.\n"
+    body = f"{BUG_BODY}\n### Automated analysis\n\n{box}"
+    assert assistant.box_ticked(body, CONFIG)
+    assert not assistant.box_ticked(body.replace("[X]", "[ ]"), CONFIG)
+
+
+@pytest.mark.parametrize(
+    ("text", "runs_on"),
+    [
+        # A tag between the `--!>` at which GitHub's HTML parser ends the comment and
+        # the `-->` at which CommonMark ends it.
+        ('<!-- a --!> <a title="-->', True),
+        ('<!-- a --!> </a title="-->', True),
+        ("<!----!> <video>-->", True),
+        # No tag there: text, a comment or a bogus comment ends at the `-->` or before.
+        ("<!-- a --!> 1 < 2 -->", False),
+        ("<!-- a --!> <!-- b -->", False),
+        ("<!-- a --!> <? -->", False),
+        ("<!-- a <b> --!> -->", False),
+        # `<!--!>` and `<!---!>` end nothing, nor does a `--!>` after the `-->`.
+        ("<!--!> <a -->", False),
+        ("<!---!> <a -->", False),
+        ("<!-- a --> --!> <a -->", False),
+        # A `--->` ends the comment for the parser, and CommonMark reads on to the
+        # next `-->` without a `-` before it, past every `--->` before that.
+        ('<!-- a ---> <a title="-->', True),
+        ('<!-- a ----> <a title="-->', True),
+        ("<!-- a ---> b ---> <video>-->", True),
+        ("<!-- a ---> b --> <a -->", False),
+        ("<!-- a ---> b -->", False),
+        # Without a later `-->`, CommonMark starts no comment, and nothing is HTML.
+        ('<!-- a ---> <a title="', False),
+        # `<!--->` and `<!---->` are whole comments.
+        ("<!---> <a -->", False),
+        ("<!----> <a -->", False),
+    ],
+)
+def test_a_comment_runs_on_where_a_tag_follows_its_end_before_commonmark_s(
+    text, runs_on
+):
+    """GitHub's HTML parser ends a comment at a `--!>` or a `--->`, and reads what
+    follows it as HTML up to the `-->` at which CommonMark ends the comment, which
+    a tag there may hold in a quoted value (`gh api -X POST markdown`, 2026-11-23)."""
+    close = assistant.comment_close(text, 0)
+    search = assistant.Searches(text)
+    assert assistant.comment_runs_on(text, 0, close, search) is runs_on
+
+
+def reads_what_github_shows(case):
+    """Whether every reader reads of a searched text the markers that the page shows,
+    but for those that the file lists as taken out, and none that it hides."""
     text, cut = case["text"], case.get("the cleaning takes out", [])
     discussion = {
         "number": 7,

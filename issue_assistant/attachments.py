@@ -43,7 +43,13 @@ from .markup import (
     row_end,
 )
 from .paths import CONTEXT
-from .patterns import INVISIBLE, REFERENCE, comment_close, without_references
+from .patterns import (
+    INVISIBLE,
+    REFERENCE,
+    TAG_START,
+    comment_close,
+    without_references,
+)
 from .reading import (
     CLEANED_READER,
     READING_CLEANED,
@@ -355,8 +361,6 @@ AUTOLINK_TRAILING = frozenset("?!.,:*_~'\"")
 DESTINATION_BLANKS = frozenset(" \t\f\v")
 # The most characters of a tag that the reading of the addresses reads as a tag.
 LONGEST_TAG = 2_000
-# The start of a tag.
-TAG_START = re.compile(r"</?[A-Za-z]")
 # What any address of an attachment holds, as written or in the value of a tag
 # with references: the name of GitHub, or a `&`. The reading passes a paragraph
 # without either, which holds none.

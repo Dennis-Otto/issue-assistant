@@ -129,6 +129,30 @@ def comment_close(text: str, opening: int, stop: int | None = None) -> int:
     return text.find("-->", opening + COMMENT_END_FROM, stop)
 
 
+# How far after the `<` of its `<!--` a `--!>` may end a comment: `<!--!>` and
+# `<!---!>` end nothing, `<!----!>` ends at once.
+BANG_END_FROM = len("<!--")
+# How far after the `<` of its `<!--` a `-->` starts that ends a comment for GitHub's
+# HTML parser but not for CommonMark, as a `--->` does: `<!--->` and `<!---->` are
+# whole comments for both.
+DASHED_END_FROM = len("<!---")
+# The start of a tag or an end tag for an HTML parser: every other `<` is text, or
+# starts a comment, a doctype or a bogus comment, which ends at the next `-->`, `--!>`
+# or `>`.
+TAG_START = re.compile(r"</?[A-Za-z]")
+
+
+def plain_comment_close(text: str, position: int) -> int:
+    """Where the first `-->` at or after a position starts that no `-` comes before,
+    or -1: CommonMark ends an inline comment at no `-->` of a `--->`, but reads on to
+    such a one (`gh api -X POST markdown` with the mode gfm, 2026-11-23). Found as a
+    string, as comment_close finds its `-->`."""
+    found = text.find("-->", position)
+    while found > 0 and text[found - 1] == "-":
+        found = text.find("-->", found + 1)
+    return found
+
+
 SHA = re.compile(r"[0-9a-f]{40}")
 
 # The fence that opens a fenced block of code: three backticks or more, with no other
