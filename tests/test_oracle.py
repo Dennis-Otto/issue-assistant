@@ -384,6 +384,77 @@ def test_a_browser_reads_the_depth_as_github_showed_it(markdown, shown, hidden):
     assert [word for word in hidden if word in seen] == []
 
 
+# Forms of an `<svg>` with a `<br>` in it, `{}` where a `</svg> After` may follow it,
+# and whether a tag before the `<svg>` closes the `<p>` of the paragraph: an `<hr>`,
+# a `<li>` and a `</table>` in a cell do; inside the element, no start tag closes
+# anything, nor breaks out of it, also in a later paragraph.
+CLOSED_P_FORMS = [
+    ("x <hr><svg><br>Plugh{}", True),
+    ("x <li><svg><br>Plugh{}", True),
+    ("| a |\n|---|\n| x </table><svg><br>Plugh{} |", True),
+    ("x <svg><div><br>Plugh{}", False),
+    ("x <div><svg>\n\ny <div><br>Plugh{}", False),
+    *(
+        (f"a <svg><{name}><br> Plugh{{}}", False)
+        for name in (
+            "div",
+            "span",
+            "table",
+            "ul",
+            "i",
+            "em",
+            "strong",
+            "pre",
+            "h1",
+            "blockquote",
+            "center",
+            "li",
+        )
+    ),
+]
+
+
+@pytest.mark.parametrize("ending", ["", "</svg> After"])
+@pytest.mark.parametrize("rest", ["\n\nXyzzy", "\nXyzzy"])
+@pytest.mark.parametrize(("form", "closes"), CLOSED_P_FORMS)
+def test_a_browser_reads_an_svg_after_a_closed_paragraph_as_github_showed_it(
+    form, closes, ending, rest
+):
+    """GitHub's renderer (`gh api markdown`, mode gfm, 2026-11-23) showed nothing
+    that the `<br>` holds, up to a `</svg>` or the end of a paragraph whose `<p>`
+    is open; where a tag before the `<svg>` closes it, up to the end of the text."""
+    seen = browser_text(form.format(ending) + rest)
+    shown = (
+        ["After", "Xyzzy"]
+        if ending
+        else []
+        if closes or "\n\n" not in rest
+        else ["Xyzzy"]
+    )
+    assert [word for word in ("After", "Plugh", "Xyzzy") if word in seen] == shown
+
+
+@pytest.mark.parametrize(
+    ("markdown", "shown"),
+    [
+        ("x <dd><svg><br>Plugh\n\nXyzzy", []),
+        ("x <dt><svg><br>Plugh\n\nXyzzy", []),
+        ("x <button><svg><br>Plugh\n\nXyzzy", []),
+        ("x <div><svg>\n\ny </p><br>Plugh\n\nXyzzy", []),
+        ("a <svg><h2><br> Plugh\n\nXyzzy", ["Xyzzy"]),
+        ("x <div><svg><br>Plugh\n\n## Steps\n\nXyzzy", []),
+        ("x <svg></p><br>Plugh\n\nXyzzy", ["Plugh", "Xyzzy"]),
+    ],
+)
+def test_a_browser_closes_the_paragraph_around_an_svg_as_github_did(markdown, shown):
+    """GitHub's renderer (`gh api markdown`, mode gfm, 2026-11-23) showed these words:
+    a `<dd>`, a `<dt>` and a `<button>` close the `<p>`, a `</p>` closes that of a
+    later paragraph inside the element, and inside it an `<h2>` breaks out of
+    nothing; a `</p>` in the element's own paragraph closes it with the `<p>`."""
+    seen = browser_text(markdown)
+    assert [word for word in ("Plugh", "Steps", "Xyzzy") if word in seen] == shown
+
+
 def test_a_browser_shows_a_lone_angle_bracket_as_text():
     assert browser_text("x < y </") == "x < y </\n"
     assert browser_text("<div>\nx </> <!-->y<!--->z") == "\nx  yz\n"

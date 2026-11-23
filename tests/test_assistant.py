@@ -389,6 +389,9 @@ SLOW_TEXTS = {
     "void tags that svg ends": [("a <svg><br></br> x</svg> y\n", 2_400)],
     "paragraphs below an open svg": ["<svg>\n\n", ("a <br></br> x\n\n", 4_600)],
     "void tags in svg in quotes": [("> <svg><br></br> x</svg>\n", 2_700)],
+    # An `<svg>` after a `</p>`, which closes the `<p>` of its paragraph, so that
+    # the reading of where it closes runs in each of them (2026-11-23).
+    "svg after a closed paragraph": [("x </p><svg><br></br> y</svg> z\n\n", 2_400)],
     "rows of a table in a footnote": [
         "[^1]\n\n[^1]: | a |\n    |---|\n",
         ("    | b | x |\n", 4_600),
@@ -1761,6 +1764,76 @@ VOID_IN_SVG = [
     ("a <svg><p>x</p></svg> b", "a x b"),
     ("a `<svg>` <br> b", "a ``  b"),
     ("```\n<svg>\n```\n\na <br> b", "```\n\n```\n\na  b"),
+    # Where a tag before it closes the `<p>` of its paragraph, an `<svg>` or `<math>`
+    # stays open past the end of the paragraph, and a void tag in it hides the rest
+    # of the text, or up to a `</svg>` alone on a later row (2026-11-23): a start
+    # tag of a name outside PHRASING, `</p>`, and the end tag of an element around
+    # the paragraph or of any other name outside PHRASING, also in a heading, a
+    # quote and a cell, and also one that CommonMark hands on after an autolink
+    # that can't hold a `<`.
+    ("</pre><div><svg><br>\n\nXyzzy", ""),
+    ("x <div><svg><br>Plugh\n\nXyzzy\n\n</p>\n\nAfter", "x "),
+    ("x <div><svg><br>Plugh\n\nXyzzy\n\n<div>\nInner\n</div>\n\nAfter", "x "),
+    ("<div>\n\nx </div><svg><br>Plugh\n\nXyzzy", "\n\nx "),
+    ("<details open>\n\nx </details><svg><br>Plugh\n\nXyzzy", "\n\nx "),
+    ("<ul><li>\n\nx </li><svg><br>Plugh\n\nXyzzy", "\n\nx "),
+    ("x <div>\n\ny </div><svg><br>Plugh\n\nXyzzy", "x \n\ny "),
+    ("> x <div><svg><br>Plugh\n>\n> Xyzzy\n\nAfter", "> x "),
+    ("x <div><svg><br>Plugh\n\nXyzzy\n\n</div>\n\nAfter", "x "),
+    ("x <div><svg><br>Plugh\n\nXyzzy\n\n</svg>\n\nAfter", "x  \n\nAfter"),
+    ("# x </h1><svg><br>Plugh\n\nXyzzy", "# x "),
+    ("| a |\n|---|\n| x </table><svg><br>Plugh |\n\nXyzzy", "| a |\n|---|\n| x "),
+    ("> x </blockquote><svg><br>Plugh\n>\n> Xyzzy", "> x "),
+    ("x <https://e.com/<div>> <svg><br>Plugh\n\nXyzzy", "x > "),
+    ("x <hr><svg><br>Plugh\n\nXyzzy", "x "),
+    ("x <div><math><br>Plugh\n\nXyzzy", "x "),
+    ('x <div><SVG width="1"><br>Plugh\n\nXyzzy', "x "),
+    ("x <div><svg><br>Plugh\r\n\r\nXyzzy", "x "),
+    ("x \\\\<div><svg><br>Plugh\n\nXyzzy", "x \\\\"),
+    # In a later paragraph, whose `<p>` GitHub opens inside the element, a void tag
+    # holds to the end of that paragraph, or to the end of the text where an end
+    # tag before it closes that `<p>`.
+    ("</pre><div><svg>\n\n<br>Plugh\n\nXyzzy", "\n\n \n\nXyzzy"),
+    ("</pre><div><svg>\n\nb <img src=x> Plugh\n\nXyzzy", "\n\nb  \n\nXyzzy"),
+    ("x <div><svg>\n\ny </p><br>Plugh\n\nXyzzy", "x \n\ny "),
+    # An end tag inside the element counts too: a `</p>` closes the element with the
+    # `<p>`, so that an `<svg>` after it stays open, which the cleaning can't tell
+    # apart from an end tag that closes nothing, as GitHub shows `Xyzzy` of
+    # `x <svg></p><br>Plugh`.
+    ("<svg></p><svg><hr>\n\nXyzzy", ""),
+    ("x <svg></p><br>Plugh\n\nXyzzy", "x "),
+    # The element stays open with what the void tag holds, also where a quote ends
+    # the paragraph and an `<svg>` or `<math>` opens in it.
+    ("x <svg></p><br>\n> <math>\n\nXyzzy", "x "),
+    ("<svg></e><source>\n><math\n\nXyzzy", ""),
+    # A tag that closes the `<p>` in the content of a hidden element closes the
+    # element as well, and a void tag of an `<svg>` after it hides the rest.
+    ("<video><details><svg><hr>\n\nXyzzy", ""),
+    ("x <video><div><svg><br>Plugh\n\nXyzzy", "x "),
+    ("x <rp><div><svg><br>Plugh\n\nXyzzy", "x "),
+    ("x <video><svg><br>Plugh\n\nXyzzy", "x \n\nXyzzy"),
+    # There, the cleaning doesn't look ahead for the end tag of the `<svg>`, on the
+    # safe side, though GitHub shows what follows it.
+    ("x <div><video><svg><br></svg></video> Plugh\n\nXyzzy", "x "),
+    # A tag of a name of PHRASING closes no `<p>`, nor does one that is none: after
+    # a `\\`, in a code span. In a heading, a start tag doesn't, and inside the
+    # element neither does a start tag.
+    ("x <span><svg><br>Plugh\n\nXyzzy", "x  \n\nXyzzy"),
+    ("x <label><svg><br>Plugh\n\nXyzzy", "x  \n\nXyzzy"),
+    ("x </b><svg><br>Plugh\n\nXyzzy", "x  \n\nXyzzy"),
+    ("<b>\n\nx </b><svg><br>Plugh\n\nXyzzy", "\n\nx  \n\nXyzzy"),
+    ("x <b></b><span>a</span><svg><br>Plugh\n\nXyzzy", "x a \n\nXyzzy"),
+    ("x \\<div><svg><br>Plugh\n\nXyzzy", "x \\ \n\nXyzzy"),
+    ("x `<div>` <svg><br>Plugh\n\nXyzzy", "x ``  \n\nXyzzy"),
+    ("# x <div><svg><br>Plugh\n\nXyzzy", "# x  \n\nXyzzy"),
+    ("a\n   # x <div><svg><br>Plugh\n\nXyzzy", "a\n   # x  \n\nXyzzy"),
+    ("x <svg><div><br>Plugh\n\nXyzzy", "x  \n\nXyzzy"),
+    ("x <div><svg>\n\ny <div><br>Plugh\n\nXyzzy", "x \n\ny  \n\nXyzzy"),
+    ("x <div><svg>\n\ny <table><br>Plugh\n\nXyzzy", "x \n\ny  \n\nXyzzy"),
+    # A `#` indented by four columns or a tab starts no heading, and its row goes
+    # on the paragraph above it.
+    ("a\n    # x <svg><br>Plugh\nmore\n\nXyzzy", "a\n    # x  \n\nXyzzy"),
+    ("a\n\t# x <svg><br>Plugh\nmore\n\nXyzzy", "a\n\t# x  \n\nXyzzy"),
 ]
 
 
@@ -1799,6 +1872,25 @@ def test_issue_md_holds_no_word_that_a_void_element_holds_inside_svg():
         excerpt = assistant.excerpt(body, 1500)
         assert "Xyzzy" not in excerpt
         assert "today." in excerpt
+    # Where a tag before the `<svg>` closes the `<p>` of its paragraph, the void tag
+    # holds the rest of the text, of the issue and of each comment.
+    body = f"Card is empty today.\n\n{CLOSED_P}Xyzzy, a hidden word"
+    rendered = assistant.render_issue(
+        make_issue(body=body), [make_comment(1, "reporter", body, 0)]
+    )
+    assert "Xyzzy" not in rendered
+    assert rendered.count("Card is empty today.") == 2
+    for length in (1500, assistant.MAX_TEXT // 4):
+        excerpt = assistant.excerpt(body, length)
+        assert "Xyzzy" not in excerpt
+        assert "Card is empty today." in excerpt
+    assert "Xyzzy" not in assistant.as_shown(body)
+
+
+# The smallest text after which an `<svg>` with a void tag in it stays open past the
+# end of its paragraph: a stray `</pre>` that starts a paragraph that shows nothing,
+# and a `<div>` that closes its `<p>`; the page shows a line break.
+CLOSED_P = "</pre><div><svg><br>\n\n"
 
 
 def test_what_the_assistant_decides_reads_no_word_that_svg_hides(config):
@@ -1811,20 +1903,35 @@ def test_what_the_assistant_decides_reads_no_word_that_svg_hides(config):
         "<svg>\n\nFails with TypeError <br> ValueError ZeroDivisionError",
         "Fails with TypeError\n\n>| a |\n>|---|\n>\t| b | ValueError |",
         "Fails with TypeError [^1]\n\n[^1]: | a |\n    |---|\n    | b | ValueError |",
+        "Fails with TypeError <div><svg><br>\n\nValueError ZeroDivisionError",
+        f"Fails with TypeError\n\n{CLOSED_P}ValueError ZeroDivisionError",
     ):
         terms = assistant.search_terms(make_issue(body=body))
         assert "typeerror" in terms, body
         assert "valueerror" not in terms, body
+        assert "zerodivisionerror" not in terms, body
     english = "The card stays empty after the update. It shows nothing at all."
-    german = f"{SHORT_GERMAN} <svg><br> {english}"
-    assert assistant.issue_language(make_issue(body=german), []) == "de"
-    area = "### Area\n\n<svg><br> Live card</svg>\n"
-    assert assistant.form_labels(make_issue(body=area), config) == []
-    denial = "<svg><br>This doesn't</svg> close #12"
-    assert not assistant.denies_closing(denial, "owner/project", 12)
-    box = "- [X] <svg><br> Don't let the AI assistant read this issue.</svg>\n"
-    body = f"{BUG_BODY}\n### Automated analysis\n\n{box}"
-    assert assistant.box_ticked(body, CONFIG)
+    for german in (
+        f"{SHORT_GERMAN} <svg><br> {english}",
+        f"{SHORT_GERMAN} <div><svg><br>\n\n{english}",
+    ):
+        assert assistant.issue_language(make_issue(body=german), []) == "de"
+    for area in (
+        "### Area\n\n<svg><br> Live card</svg>\n",
+        f"### Area\n\n{CLOSED_P}Live card\n",
+    ):
+        assert assistant.form_labels(make_issue(body=area), config) == []
+    for denial in (
+        "<svg><br>This doesn't</svg> close #12",
+        f"{CLOSED_P}This doesn't close #12",
+    ):
+        assert not assistant.denies_closing(denial, "owner/project", 12)
+    for box in (
+        "- [X] <svg><br> Don't let the AI assistant read this issue.</svg>\n",
+        f"{CLOSED_P}- [X] Don't let the AI assistant read this issue.\n",
+    ):
+        body = f"{BUG_BODY}\n### Automated analysis\n\n{box}"
+        assert assistant.box_ticked(body, CONFIG)
 
 
 def test_where_github_hides_the_rest_it_hides_the_footnotes():

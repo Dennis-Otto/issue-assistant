@@ -106,6 +106,61 @@ VOID = frozenset(
         "wbr",
     ]
 )
+# The names of the elements whose tags leave the `<p>` of a paragraph open on
+# GitHub, as its HTML parser keeps a `<p>` open around them, and `<svg>` and `<math>`
+# themselves (`gh api markdown`, 2026-11-23). A tag of any other name may close it:
+# a start tag such as `<div>` or `<hr>`, the end tag `</p>`, and the end tag of an
+# element that is open around the paragraph, such as `</h1>`, `</blockquote>`,
+# `</table>`, or a `</div>` of an HTML block above. That is the safe side: a name
+# that isn't listed counts, `<p>` among them, which GitHub doesn't always close.
+PHRASING = frozenset(
+    [
+        "a",
+        "abbr",
+        "b",
+        "bdi",
+        "bdo",
+        "big",
+        "br",
+        "cite",
+        "code",
+        "data",
+        "del",
+        "dfn",
+        "em",
+        "font",
+        "i",
+        "img",
+        "ins",
+        "kbd",
+        "label",
+        "mark",
+        "math",
+        "nobr",
+        "picture",
+        "q",
+        "ruby",
+        "s",
+        "samp",
+        "small",
+        "span",
+        "strike",
+        "strong",
+        "sub",
+        "sup",
+        "svg",
+        "time",
+        "tt",
+        "u",
+        "var",
+        "video",
+        "wbr",
+    ]
+)
+# The start of a tag of a name outside PHRASING, in ASCII of any case.
+CLOSING_TAG = re.compile(
+    rf"</?(?!(?ai:{'|'.join(sorted(PHRASING))})(?![A-Za-z0-9-]))[A-Za-z]"
+)
 FOREIGN_NAME = r"(?ai:svg|math)(?=[\t\n\f\r />]|\Z)"
 FOREIGN_START = re.compile(rf"<{FOREIGN_NAME}")
 VOID_NAME = rf"(?P<void>(?ai:{'|'.join(sorted(VOID))})(?=[\t\n\f\r />]|\Z))"
@@ -408,6 +463,13 @@ class Elements:
         kind, start, rows = found.lastgroup, found.start(), self.hidden.rows
         foreign = self.foreign
         if self.element is not None:
+            if kind == "void" and isinstance(self.element, Element):
+                # In the content of a hidden element, which ends at the end of its
+                # paragraph, a void tag hides the rest of the text where the `<p>`
+                # is closed, as by a `<div>` before it, which closes the element.
+                held = foreign.void(found, read)
+                if held == REST or (isinstance(held, Void) and held.end() < 0):
+                    return REST
             return None
         if kind == "foreign":
             name = found["foreign"].lower()
@@ -635,12 +697,22 @@ class Hidden:
         return end, True
 
     def heading(self, start: int) -> bool:
-        """Whether the row of a position is a heading, read once for each row."""
+        """Whether the row of a position is a heading, read once for each row: not
+        where its `#` is indented by four columns or a tab, as code would be, since
+        such a row goes on the paragraph above it, as GitHub reads `a` / `    # b`
+        (`gh api markdown`, 2026-11-23). The space after the `>` of a quote is part
+        of its mark."""
         begin = self.row_begin(start)
         if begin != self.headed[0]:
             marks = CONTAINER.match(self.text, begin)
             assert marks is not None  # It matches the empty text.
-            self.headed = (begin, HEADING_ROW.match(self.text, marks.end()) is not None)
+            heading = HEADING_ROW.match(self.text, marks.end()) is not None
+            if heading:
+                mark = marks[0].rstrip(" \t")
+                blanks = marks[0][len(mark) :]
+                indent = len(blanks) - bool(mark.endswith(">") and blanks)
+                heading = "\t" not in blanks and indent < 4
+            self.headed = (begin, heading)
         return self.headed[1]
 
     def row_begin(self, position: int) -> int:
@@ -844,28 +916,30 @@ class Foreign:
     of VOID counts, not only these four, so that a change of the sanitizer opens no
     gap; a tag that closes itself, with `/>`, holds nothing.
 
-    A start tag of either name opens one, but where it closes itself or in a
-    paragraph where it is text or a code span of its row surely holds it. One of
-    an HTML block stays open to its end tag, also past blank rows and to the end of
-    the text, as on GitHub; one of a paragraph or a heading also closes at its end,
-    which GitHub ends with its own end tag, but one of a list item, which a tight
-    list hands on without one, only at an end tag. An end tag counts only where it
-    surely is one: of the innermost element and of its name, in any case, with its
-    `>` right after the name, as GitHub reads `</svg>` but not `</svg >`; not after
-    a `\\`, nor on a row indented as code may be, nor after what may make it text or
-    code (UNSURE_END).
+    A start tag of either name opens one, but where it closes itself or in a paragraph
+    where it is text or a code span of its row surely holds it. One of an HTML block
+    stays open to its end tag, also past blank rows and to the end of the text, as on
+    GitHub; one of a paragraph or a heading also closes at its end, which GitHub ends
+    with its own end tag, but only where the `<p>` of the paragraph is open where it
+    starts, as Closings reads it, and one of a list item, which a tight list hands on
+    without one, only at an end tag. An end tag counts only where it surely is one: of
+    the innermost element and of its name, in any case, with its `>` right after the
+    name, as GitHub reads `</svg>` but not `</svg >`; not after a `\\`, nor on a row
+    indented as code may be, nor after what may make it text or code (UNSURE_END).
 
     What a void element holds there ends at the end tag that closes the outermost
     element, or at the end of the paragraph or the heading that holds the tag, which
-    GitHub ends with an end tag; in an HTML block or a list item, at the end of the
-    text. GitHub also ends it at the end tag of an element around it, as `</g>`,
-    `</b>` or an inner `</svg>`, which can be hard to tell, and at an enclosing
-    `</div>` or `</details>`: none of them counts, on the safe side, and neither
-    does an integration point, such as `<foreignObject>`, which GitHub doesn't read
-    as HTML reads it (`<title>` of SVG is none on GitHub)."""
+    GitHub ends with an end tag, where its `<p>` is open at the tag; in an HTML block or
+    a list item, or where that `<p>` is closed, at the end of the text. GitHub also ends
+    it at the end tag of an element around it, as `</g>`, `</b>` or an inner `</svg>`,
+    which can be hard to tell, and at an enclosing `</div>` or `</details>`: none of
+    them counts, on the safe side, and neither does an integration point, such as
+    `<foreignObject>`, which GitHub doesn't read as HTML reads it (`<title>` of SVG is
+    none on GitHub)."""
 
     def __init__(self, text: str, blocks: Blocks, hidden: Hidden) -> None:
         self.text, self.blocks, self.hidden = text, blocks, hidden
+        self.closings = Closings(text, hidden.rows, blocks)
         # The open elements, the innermost last: the name of each, and where its
         # paragraph or heading ends it, or the end of the text.
         self.open: list[tuple[str, int]] = []
@@ -879,20 +953,49 @@ class Foreign:
         while self.open and self.open[-1][1] <= position:
             self.open.pop()
 
-    def reach(self, start: int, held: bool) -> int:
+    def reach(self, start: int, held: bool, before: int) -> int:
         """Where the paragraph or the heading ends that holds a position, and the end
-        of the text in an HTML block or a list item, no earlier than which the open
-        elements end: an element ends no later than the one around it."""
-        text, hidden = self.text, self.hidden
+        of the text in an HTML block or a list item, or where the `<p>` of the
+        paragraph is closed there, no earlier than which the open elements end: an
+        element ends no later than the one around it. `before` is where the last
+        span or comment ends that the reading of the tags passed over."""
+        text, hidden, closings = self.text, self.hidden, self.closings
+        outermost = not self.open
         if held or hidden.rows.lists() <= start:
+            if outermost:
+                closings.outer = (start, REST)
             end = len(text)
-        elif hidden.heading(start):
-            end = hidden.search.row_end(start)
         else:
-            end = hidden.paragraphs.end(start)
-            if end < len(text):
+            heading = hidden.heading(start)
+            end = paragraph = hidden.paragraphs.end(start)
+            if outermost:
+                closings.outer = (start, paragraph)
+            if heading:
+                end = hidden.search.row_end(start)
+            elif end < len(text):
                 end = row_before(text, start, end)
-        return min(end, self.open[-1][1]) if self.open else end
+            # Read only where a tag before it may count: one not read yet, or one
+            # of its paragraph. Where the `<p>` is closed, the element ends with
+            # no element around it, since the tag that closed the `<p>` may have
+            # closed those as well, such as a `</p>` inside them.
+            if (
+                closings.next < start or closings.paragraph == paragraph
+            ) and closings.closed(start, before, paragraph, heading):
+                self.lift()
+                return len(text)
+        return end if outermost else min(end, self.open[-1][1])
+
+    def lift(self) -> None:
+        """Keeps the open elements open to the end of the text, where the `<p>` is
+        closed in a paragraph that they were to end with: what opens or is held
+        there goes on past its end, and so do they, on the safe side. An element
+        ends no later than the one around it, so the outermost that ends at the end
+        of the text already does with all around it: each is lifted once."""
+        none, open_ = len(self.text), self.open
+        index = len(open_) - 1
+        while index >= 0 and open_[index][1] < none:
+            open_[index] = (open_[index][0], none)
+            index -= 1
 
     def start_tag(self, found: re.Match[str], name: str, before: int) -> None:
         """Opens the element whose start tag starts at a position, if it opens one.
@@ -908,7 +1011,7 @@ class Foreign:
         if not self.open:
             mark = self.hidden.search(UNSURE_END, start)
             self.unsure = len(text) if mark is None else mark.start()
-        self.open.append((name, self.reach(start, held)))
+        self.open.append((name, self.reach(start, held, before)))
 
     def end_tag(self, found: re.Match[str], name: str) -> bool:
         """Closes the innermost element where an end tag surely closes it, and says
@@ -952,7 +1055,7 @@ class Foreign:
             end = tag.end()
         if closes_itself(text[start:end]):
             return None
-        return Void(self, end, self.reach(start, bool(held)))
+        return Void(self, end, self.reach(start, bool(held), before))
 
 
 class Void:
@@ -985,6 +1088,124 @@ class Void:
         """Where the content ends that no end tag ended: at the end of its paragraph
         or heading, or REST, at the end of the text."""
         return REST if self.limit >= len(self.foreign.text) else self.limit
+
+
+@functools.lru_cache(maxsize=16)
+def closing_tags(text: str) -> tuple[int, ...]:
+    """Where the tags of a text start whose names are outside PHRASING, which may
+    close the `<p>` of a paragraph: found once for a text that several readings
+    read, each up to its end."""
+    return tuple(found.start() for found in CLOSING_TAG.finditer(text))
+
+
+class Closings:
+    """Whether the `<p>` of the paragraph that holds a position is closed there, as
+    GitHub's HTML parser closes it, for positions that never fall: Foreign asks it
+    at the start tags of `<svg>` and `<math>` and at those of void elements.
+
+    GitHub ends a paragraph with its own `</p>`, which closes an `<svg>` or `<math>`
+    in it, and what a void element holds there. Where the `<p>` is closed already,
+    that `</p>` closes nothing, and the element stays open past the end of the
+    paragraph, as one of an HTML block does (`gh api markdown`, 2026-11-23). The
+    `<p>` is closed at a position where one of these comes before it in its
+    paragraph: an end tag of a name outside PHRASING, `</p>` among them, inside or
+    outside the element, which may close it or an element around it, whichever that
+    is; or, before the outermost open `<svg>` or `<math>`, a start tag of such a
+    name. Inside the element, a start tag closes nothing, also in a later paragraph,
+    whose `<p>` GitHub opens inside the element. An end tag in it counts as well:
+    one in its own paragraph closes it with the `<p>`, so that an `<svg>` after it
+    stays open, which can't be told apart safely from one that closes nothing. In a
+    heading, only an end tag of its row counts, since GitHub ends the element with
+    the heading after a start tag.
+
+    A tag counts only where CommonMark hands it on as one: not after a `\\`, nor in
+    a code span of its row, as Hidden reads them; but where that can't be told, as
+    in a span or a comment that the reading of the tags passed over, it counts. A
+    `<` inside an autolink starts no tag, and one after it that is no part of one,
+    as in `<https://e.com/<div>>`, does.
+
+    The tags are found once for each text, by closing_tags, and read once, from
+    rising positions, and for each paragraph only up to its first such end tag of
+    each row and its first such start tag: nothing is read back from a tag."""
+
+    def __init__(self, text: str, rows: HtmlRows, blocks: Blocks) -> None:
+        self.text = text
+        self.search, self.paragraphs = Searches(text), Paragraphs(text)
+        # The code spans of the rows, read on their own.
+        self.code = Hidden(text, rows, blocks, self.paragraphs, self.search)
+        # Where the tags start that may close it, found at the first question,
+        # which of them is next, and where it starts: -1 before the first question,
+        # and past the end of the text after the last tag.
+        self.tags: tuple[int, ...] = ()
+        self.index, self.next = 0, -1
+        # The paragraph of the last tag that counts, by where it ends; where its
+        # first end tag and its first start tag stand that count; and the row of
+        # the last end tag that counts, with the first that counts on it.
+        self.paragraph, self.ends, self.starts = -1, len(text), len(text)
+        self.row = (-1, len(text))
+        # Where the outermost open `<svg>` or `<math>` starts, and its paragraph by
+        # where it ends, or REST in an HTML block or a list item.
+        self.outer = (-1, REST)
+
+    def closed(self, position: int, before: int, paragraph: int, heading: bool) -> bool:
+        """Whether the `<p>` of the paragraph or heading that holds a position is
+        closed there, where an element is open or opens: `paragraph` is where that
+        paragraph ends. `before` is where the last span or comment ends that the
+        reading of the tags passed over."""
+        if self.next < position:
+            self.passed(position, before)
+        if paragraph != self.paragraph:
+            return False  # No tag before it in its paragraph counts.
+        if heading:
+            # An end tag of its row, which comes before it.
+            return self.row[0] == self.code.row_begin(position)
+        start, holder = self.outer
+        return self.ends < position or (holder == paragraph and self.starts < start)
+
+    def passed(self, position: int, before: int) -> None:
+        """Reads the tags before a position that may close the `<p>`."""
+        text, none = self.text, len(self.text)
+        if self.next < 0:
+            self.tags = closing_tags(text)
+            self.follow()
+        while (at := self.next) < position:
+            self.index += 1
+            self.follow()
+            closing = text[at + 1] == "/"
+            paragraph = self.paragraphs.end(at)
+            if paragraph == self.paragraph and (
+                self.starts < none
+                if not closing
+                else self.row[0] == self.code.row_begin(at)
+            ):
+                continue  # The first of its kind counts already.
+            if not self.counts(at, before):
+                continue
+            if paragraph != self.paragraph:
+                self.paragraph, self.ends, self.starts = paragraph, none, none
+            if closing:
+                self.ends = min(self.ends, at)
+                self.row = (self.code.row_begin(at), at)
+            else:
+                self.starts = at
+
+    def follow(self) -> None:
+        """Takes the next tag that may close the `<p>`: where it starts, or a
+        position past the end of the text after the last."""
+        tags, index = self.tags, self.index
+        self.next = tags[index] if index < len(tags) else len(self.text) + 1
+
+    def counts(self, start: int, before: int) -> bool:
+        """Whether a tag at a position of a paragraph is one, or may be one."""
+        text = self.text
+        if INLINE_TAG.match(text, start) is None:
+            return False
+        if start < before:
+            return True  # In a span or a comment that the reading passed over.
+        escape = start
+        while text[escape - 1 : escape] == "\\":
+            escape -= 1
+        return (start - escape) % 2 == 0 and not self.code.in_code(start, before)
 
 
 def own_row(text: str, start: int, end: int) -> bool:
