@@ -981,8 +981,21 @@ class Foreign:
             if (
                 closings.next < start or closings.paragraph == paragraph
             ) and closings.closed(start, before, paragraph, heading):
+                self.lift()
                 return len(text)
         return end if outermost else min(end, self.open[-1][1])
+
+    def lift(self) -> None:
+        """Keeps the open elements open to the end of the text, where the `<p>` is
+        closed in a paragraph that they were to end with: what opens or is held
+        there goes on past its end, and so do they, on the safe side. An element
+        ends no later than the one around it, so the outermost that ends at the end
+        of the text already does with all around it: each is lifted once."""
+        none, open_ = len(self.text), self.open
+        index = len(open_) - 1
+        while index >= 0 and open_[index][1] < none:
+            open_[index] = (open_[index][0], none)
+            index -= 1
 
     def start_tag(self, found: re.Match[str], name: str, before: int) -> None:
         """Opens the element whose start tag starts at a position, if it opens one.

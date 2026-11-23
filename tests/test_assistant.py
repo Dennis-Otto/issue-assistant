@@ -1792,12 +1792,19 @@ VOID_IN_SVG = [
     # `x <svg></p><br>Plugh`.
     ("<svg></p><svg><hr>\n\nXyzzy", ""),
     ("x <svg></p><br>Plugh\n\nXyzzy", "x "),
+    # The element stays open with what the void tag holds, also where a quote ends
+    # the paragraph and an `<svg>` or `<math>` opens in it.
+    ("x <svg></p><br>\n> <math>\n\nXyzzy", "x "),
+    ("<svg></e><source>\n><math\n\nXyzzy", ""),
     # A tag that closes the `<p>` in the content of a hidden element closes the
     # element as well, and a void tag of an `<svg>` after it hides the rest.
     ("<video><details><svg><hr>\n\nXyzzy", ""),
     ("x <video><div><svg><br>Plugh\n\nXyzzy", "x "),
     ("x <rp><div><svg><br>Plugh\n\nXyzzy", "x "),
     ("x <video><svg><br>Plugh\n\nXyzzy", "x \n\nXyzzy"),
+    # There, the cleaning doesn't look ahead for the end tag of the `<svg>`, on the
+    # safe side, though GitHub shows what follows it.
+    ("x <div><video><svg><br></svg></video> Plugh\n\nXyzzy", "x "),
     # A tag of a name of PHRASING closes no `<p>`, nor does one that is none: after
     # a `\\`, in a code span. In a heading, a start tag doesn't, and inside the
     # element neither does a start tag.

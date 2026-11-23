@@ -1341,6 +1341,9 @@ HTML_BLOCKS = st.lists(
             "<table>",
             "</p>",
             "</div>",
+            "\n> ",
+            "</table>",
+            "<source>",
             "Plugh",
         ]
     ),
@@ -1354,6 +1357,8 @@ HTML_BLOCKS = st.lists(
 @hypothesis.example("</pre><div><svg><br>")
 @hypothesis.example("<video><details><svg><hr>")
 @hypothesis.example("<svg></p><svg><hr>")
+@hypothesis.example("x <svg></p><br>\n> <math>")
+@hypothesis.example("<svg></e><source>\n><math")
 @hypothesis.example("</pre><div><svg>\n\n<br>Plugh")
 @hypothesis.example("x <div><svg>\n\ny </p><br>Plugh")
 @hypothesis.example("a <svg><br> Plugh</svg> b")
