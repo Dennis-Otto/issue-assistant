@@ -218,6 +218,9 @@ TASK_COMMANDS = ("engine", "attachments", "context", "analyze", "apply", "usage"
 # The commands that read only the checkout, so they run anywhere, also on a computer
 # without GH_REPO; the others, but install and accuracy-page, call GitHub.
 OFFLINE_COMMANDS = ("check", "endpoints", "engine", "analyze", "usage")
+# The commands that read texts for the AI and so take the switch `reading`; every
+# other one reads none and leaves READING alone.
+READING_COMMANDS = ("context", "attachments", "evaluate")
 SCRIPT_OPTIONS: dict[str, dict[str, dict[str, Any]]] = {
     "evaluate": {
         "--issues": {
@@ -331,8 +334,11 @@ def main(argv: list[str] | None = None) -> int:
             return analyze_command(root, repository, arguments.mode)
         if arguments.command == "usage":
             return usage_command(root, repository, arguments)
-        # The commands that read texts for the AI: context, attachments, evaluate.
-        reading = reading_of(getattr(arguments, "mode", None))
+        reading = (
+            reading_of(getattr(arguments, "mode", None))
+            if arguments.command in READING_COMMANDS
+            else READING_CLEANED
+        )
         # evaluate only reads; its engine writes into the checkout alone.
         github = run.github = GitHub(
             repository, dry_run=dry_run or arguments.command == "evaluate"

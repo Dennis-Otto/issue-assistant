@@ -89,6 +89,28 @@ def test_any_other_value_of_the_switch_stops_the_step(
     )
 
 
+def test_a_command_that_reads_no_text_leaves_the_switch_alone(
+    monkeypatch, tmp_path, root, config, capsys
+):
+    issue = make_issue(labels=("bug",))
+    payload = tmp_path / "event.json"
+    payload.write_text(
+        json.dumps({"action": "opened", "issue": issue}), encoding="utf-8"
+    )
+    code, outputs, _ = run_main(
+        monkeypatch,
+        tmp_path,
+        root,
+        FakeGitHub(config, issue),
+        "event",
+        GITHUB_EVENT_NAME="issues",
+        GITHUB_EVENT_PATH=str(payload),
+        READING="html",
+    )
+    assert (code, outputs) == (0, "issue=12\nmode=triage\n")
+    assert "reading" not in capsys.readouterr().out
+
+
 def test_a_discussion_mode_reads_cleaned(monkeypatch, config, root, capsys):
     monkeypatch.setenv("READING", RENDERED)
     assert assistant.reading_of("discussion-answer") == CLEANED
