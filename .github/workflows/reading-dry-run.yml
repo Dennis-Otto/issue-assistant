@@ -1,0 +1,182 @@
+name: Reading dry run
+
+# The experimental reading rendered on one issue that the maintainer picks, by hand
+# and as a dry run (#562): the counterpart for one issue of the paired mode of
+# Evaluate, which replays a batch. Its job assistant is the call of the template
+# templates/.github/workflows/issue-assistant.yml, as in every repository that uses
+# the action: its name, its permissions and the engine's secrets by name, which a
+# test keeps equal to the template's. Only the workflow is that of this commit, and
+# the call passes dry_run, always true, and the input reading, nothing else. So no
+# other repository's form offers reading, and no run writes a label or a comment.
+#
+# Only main may use the environment issue-assistant, whose secret the job analyze
+# gets, so the job main stops a run on another branch at once, with a plain message.
+# Each run is one run of the AI engine, which takes from the engine's quota.
+# docs/security/rendered-reading.md says how to start it. Once the reading rendered
+# has passed Evaluate and its default is decided, this workflow goes away with that
+# change.
+
+on:
+  workflow_dispatch:
+    inputs:
+      # issue, mode and override as in the template, since the job event of the
+      # reusable workflow reads them from the event; mode without backlog, which needs
+      # the template's job backlog. No instruction, so that the two runs of a pair
+      # differ only in their reading.
+      issue:
+        description: Number of the issue
+        required: true
+        type: number
+      mode:
+        description: Task of the assistant
+        type: choice
+        options: [triage, follow-up, maintainer-reply, release-reply, maintainer-question]
+        default: triage
+      override:
+        description: Answer again past the one comment of the task (maintainers only)
+        type: boolean
+        default: false
+      reading:
+        description: "Experimental: how the jobs attachments and analyze read the texts for the AI: cleaned, from their sources as written, or rendered, from GitHub's renderings"
+        required: true
+        type: choice
+        options: [cleaned, rendered]
+        default: cleaned
+
+permissions: {}
+
+jobs:
+  main:
+    name: the run is on the default branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      # The job reaches no host of its own: it allows GitHub's API alone, the smallest
+      # list that the jobs of this project block with.
+      - name: Block every host but GitHub's API
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: block
+          disable-sudo-and-containers: true
+          allowed-endpoints: >-
+            api.github.com:443
+      - name: Make sure that Harden-Runner blocks
+        id: blocks
+        # Harden-Runner goes on without its agent when the agent can't be downloaded, as
+        # in GitHub's outage of 8 November 2026, or doesn't start: the job would reach
+        # every host. It stops here instead, so that it can run again (decision 0029).
+        timeout-minutes: 1
+        run: |
+          # The agent writes Initialized into its status once its firewall stands, and
+          # runs as the service agent until the end of the job; one that is there may
+          # still be starting. One that took its changes back says so in its log, and
+          # no status will come.
+          log=/home/agent/agent.log
+          for _ in {1..30}; do
+            [[ -e /home/agent/agent.status || ! -e /home/agent/agent ]] && break
+            grep -qs 'Reverted changes' "$log" && break
+            sleep 1
+          done
+          status="$(cat /home/agent/agent.status 2>/dev/null || true)"
+          # Before its firewall stands, the agent looks up each host that it allows, and
+          # takes itself away again when a single lookup fails; its log names the host.
+          lookup="$(grep -s -m 1 'Error resolving allowed domain' "$log" || true)"
+          if [[ ! -d /home/agent/ ]]; then
+            # Harden-Runner returns before it makes the folder of the agent when
+            # StepSecurity says that it is unavailable, or the repository skips it.
+            why="didn't install its agent, as StepSecurity said that it is unavailable or the repository skips it (the log of its step says which),"
+          elif [[ ! -e /home/agent/agent ]]; then
+            why="couldn't download its agent, mostly in an outage of GitHub (https://www.githubstatus.com),"
+          elif [[ -n "$lookup" ]]; then
+            # The host follows "resolve domain" when the resolver answered with an
+            # error, and "name=" when no resolver could be reached.
+            what="a host that it allows"
+            pattern='resolve domain ([^ ,]+)|name=([^&" ]+)'
+            if [[ "$lookup" =~ $pattern ]]; then
+              host="${BASH_REMATCH[1]:-${BASH_REMATCH[2]}}"
+              what="${host%.}, a host that it allows,"
+            fi
+            why="has an agent that took itself away again because a single lookup of $what failed, which is no outage,"
+          elif [[ "$status" != Initialized ]]; then
+            why="has an agent that didn't start,"
+          elif ! systemctl is-active --quiet agent; then
+            why="has an agent that stopped,"
+          else
+            echo "Harden-Runner blocks every host that the job doesn't name."
+            exit 0
+          fi
+          echo "The status of the agent: ${status:-none}"
+          [[ -z "$lookup" ]] || echo "The log of the agent: $lookup"
+          echo "::error title=Harden-Runner doesn't block::Harden-Runner $why so this job would reach every host, and it stops here instead. That is no problem of the change: run the job again."
+          exit 1
+      - name: Wait until Harden-Runner lets the hosts through
+        # The runner may have asked for an address past Harden-Runner, which then blocks
+        # that address for as long as systemd-resolved keeps it, up to a minute.
+        timeout-minutes: 4
+        env:
+          HOSTS: >-
+            api.github.com:443
+        run: |
+          deadline=$(($(date +%s) + 120))
+          for endpoint in $HOSTS; do
+            host="${endpoint%:*}"
+            # A wildcard names no host to ask.
+            [[ "$host" == '*.'* ]] && continue
+            until curl --silent --head --connect-timeout 3 --max-time 5 --output /dev/null "https://$host/"; do
+              if (($(date +%s) >= deadline)); then
+                echo "::warning::Harden-Runner still blocks $host after two minutes; a step that needs it will fail, and the job can run again."
+                break
+              fi
+              echo "Harden-Runner still blocks $host, waiting 3 s."
+              sleep 3
+            done
+          done
+      - name: Make sure that the run is on the default branch
+        # The environment issue-assistant would refuse the job analyze on another
+        # branch too, but only after the jobs before it, and less plainly.
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+            echo "::error title=Not on the default branch::The reading dry run runs only on $DEFAULT_BRANCH, whose environment issue-assistant holds the engine's secret: start it there, such as with gh workflow run reading-dry-run.yml --ref $DEFAULT_BRANCH -f issue=514 -f reading=rendered."
+            exit 1
+          fi
+          echo "The run is on $DEFAULT_BRANCH."
+      - name: Wait until Harden-Runner has removed Docker
+        # Harden-Runner removes Docker with apt-get in the background; a job that ends
+        # before it finishes hangs in "Cleaning up orphan processes" until its timeout.
+        if: always()
+        run: |
+          for _ in {1..120}; do
+            pgrep -x 'apt-get|dpkg' >/dev/null || exit 0
+            sleep 1
+          done
+          echo "::warning::Harden-Runner still removes Docker after two minutes; the job may hang until its timeout."
+
+  # The call of the template, with the permissions that its jobs need: a called job
+  # can't get more than this job gives. dry_run reaches every command that writes, so
+  # apply shows in its summary the comment that it would post, and writes nothing. In
+  # a fork, the job event skips, and every job after it.
+  assistant:
+    name: Issue assistant
+    needs: main
+    permissions:
+      contents: read
+      issues: write
+      discussions: read
+    # The workflow of this commit; actionlint doesn't know the self-repository
+    # syntax $/ yet (decision 0015).
+    uses: ./.github/workflows/reusable-issue-assistant.yml # zizmor: ignore[self-repository]
+    with:
+      dry_run: true
+      reading: ${{ inputs.reading }}
+    # Passed by name: only the job analyze, or analyze-in-reserve in its place, sees
+    # their values, those of the environment issue-assistant, which only the default
+    # branch may use.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
