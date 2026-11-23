@@ -416,6 +416,11 @@ SLOW_TEXTS = {
         ("> " * 100 + "|a" * 100 + "|\n", 160),
     ],
     "fences on every row": [("```\n", 16_384)],
+    # Blocks that end on their own row, each before a row that GitHub reads as
+    # Markdown again.
+    "fences and definitions below instructions and short comments": [
+        ('<?>\n```a b\n<!-->\n[a]: u "t"\n', 2_300)
+    ],
 }
 
 # Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
@@ -6589,6 +6594,16 @@ HIDDEN_DEFINITIONS = [
     ("><!A[^n]\n[^n]: Xyzzy", f">\n{FOOTNOTE}"),
     # A line under a heading that is lazy in a list item above goes on with it.
     ('- a\n\n  [x]:\n=\n"Xyzzy"', f"- a\n\n  {LINK}"),
+    # `<!-->` and `<!--->` end at once, as a block and inline: the row below is
+    # Markdown again (2026-11-23). Where a later `-->` follows, the cleaning still
+    # reads a comment up to it and takes out the code that GitHub shows.
+    ("<!-->\n[Xyzzy words]: https://example.com", f"<!-->\n{LINK}"),
+    ('<!--->\n[Xyzzy words]: https://example.com "Xyzzy"', f"<!--->\n{LINK}"),
+    ('x\n<!-->\n[d]: https://example.com "Xyzzy"', f"x\n<!-->\n{LINK}"),
+    (
+        'x <!-->\n\n```\ny -->\n```\n\n[d]: https://example.com "Xyzzy"',
+        f"x \n```\n\n{LINK}",
+    ),
 ]
 
 
@@ -6656,6 +6671,10 @@ HIDDEN_TITLES = [
     # A link around a link is text on GitHub, and its title goes as well: the
     # price of the safe side.
     (f'[x [b]({URL} "Xyzzy") y]({URL} "Xyzzy")', f"[x [b]({URL}) y]({URL})"),
+    # Below an instruction or a comment that ends on its row (2026-11-23).
+    (f'<?>\n[a]({URL} "Xyzzy")', f"\n[a]({URL})"),
+    (f'<!-->\n[a]({URL} "Xyzzy")', f"<!-->\n[a]({URL})"),
+    (f'<!--->\n![a]({URL} "Xyzzy")', f"<!--->\n![a]({URL})"),
 ]
 # Texts that GitHub shows as they are written, with the title as text: in code, in
 # a code span that starts before the `](`, after an escaped bracket, after a
@@ -6913,6 +6932,10 @@ DROPPED_CELLS = [
         "> \t| a |\n> \t|---|\n> \t| b | Xyzzy |",
         f"> \t| a |\n> \t|---|\n> \t| b {CELLS}",
     ),
+    # Below an instruction or a comment that ends on its row (2026-11-23).
+    ("<?>\n| a |\n|---|\n| b | Xyzzy |", f"\n| a |\n|---|\n| b {CELLS}"),
+    ("<!-->\n| a |\n|---|\n| b | Xyzzy |", f"<!-->\n| a |\n|---|\n| b {CELLS}"),
+    ("<!--->\n| a |\n|---|\n| b | Xyzzy |", f"<!--->\n| a |\n|---|\n| b {CELLS}"),
 ]
 
 
@@ -7057,6 +7080,15 @@ DRAWINGS = [
         "x[^1]\n\n[^1]: note\n\n    ```stl\n    Xyzzy\n    ```\nshown",
         f"x[^1]\n\n[^1]: note\n\n    ```stl\n{DRAWING}\n    ```\nshown",
     ),
+    # A `<!-->` or a `<!--->` before a drawing, also inline, and in it, ends at
+    # once (2026-11-23).
+    (
+        '<!-->\n<pre lang="mermaid">\ngraph TD\n%% Xyzzy\nA---B\n</pre>',
+        f"<!-->\n{DRAWING}",
+    ),
+    ('x <!--> y\n\n<pre lang="mermaid">\n%% Xyzzy\n</pre>', f"x <!--> y\n\n{DRAWING}"),
+    ('<pre lang="mermaid">\n<!-->\nXyzzy</pre>\n\nshown', f"{DRAWING}\n\nshown"),
+    ('<pre lang="mermaid">\n<!--->\nXyzzy</pre>\n\nshown', f"{DRAWING}\n\nshown"),
 ]
 
 
@@ -7211,6 +7243,33 @@ def test_what_the_assistant_decides_reads_no_word_of_a_fence_that_github_hides(c
     # A box in an info string ticks nothing, as before.
     box = "```text - [x] Don't let the AI assistant read this issue.\nx\n```\n"
     assert not assistant.box_ticked(box, config)
+
+
+def test_what_the_assistant_decides_reads_nothing_hidden_below_a_short_block(config):
+    """`<?>`, `<!-->` and `<!--->` end their HTML block on their own row, and the
+    page reads the rows below as Markdown: the search, the language, the area and a
+    denial of closing read of them what the page shows, also of a drawing after an
+    inline `<!-->` (`gh api -X POST markdown` with the mode gfm, 2026-11-23)."""
+    shown = assistant.search_terms(make_issue(body="It crashes."))
+    hidden = "ZqhiddenError ECONNZQ"
+    for body in (
+        f"It crashes.\n\n<?>\n```python {hidden}\nprint(1)\n```",
+        f"It crashes.\n\n<!-->\n[{hidden}]: https://example.com",
+        f"It crashes.\n\n<!--->\n| a |\n|---|\n| b | {hidden} |",
+        f'It crashes. <!-->\n\n<pre lang="mermaid">\n%% {hidden}\n</pre>',
+    ):
+        assert assistant.search_terms(make_issue(body=body)) == shown, body
+    german = " ".join([*GERMAN_REPORT.split()] * 3)
+    english = "It crashes on start, and I don't know why."
+    body = f"{english}\n\n<?>\n```text {german}\nlog\n```\n"
+    assert assistant.issue_language(make_issue(body=body), []) == "en"
+    area = "### Area\n\n<?>\n```js, Live card\n\n### Version\n\n1.9.0"
+    assert assistant.form_labels(make_issue(body=area), config) == []
+    for denial in (
+        "Fixes #12\n\n<?>\n```sh this does not fix #12\nmake\n```",
+        "Fixes #12\n\n<!-->\n[this does not fix #12]: https://example.com",
+    ):
+        assert not assistant.denies_closing(denial, "owner/project", 12), denial
 
 
 def test_a_table_in_fenced_code_stays_after_a_fence_that_is_hard_to_tell():

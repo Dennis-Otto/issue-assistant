@@ -1157,6 +1157,10 @@ DEFINITIONS = st.lists(
 @hypothesis.example('- [0]:\n=\n"hidden"')
 @hypothesis.example('    >0\n[0]: /u "hidden words"\n\n[0]')
 @hypothesis.example('><!A\n[0]: /u "hidden words"\n\n[0]')
+# `<?>`, `<!-->` and `<!--->` end their block on their own row (2026-11-23).
+@hypothesis.example('<!-->\n[0]: /u "hidden words"\n\n[0]')
+@hypothesis.example('<!--->\n[0]: /u "hidden words"')
+@hypothesis.example('x\n<!-->\n[0]: /u "hidden"')
 @given(st.one_of(st.text(), STRUCTURE, DEFINITIONS))
 def test_a_commonmark_parser_finds_no_definition_in_what_the_engine_reads(text):
     """What is left of a text after the definitions went holds none, as a CommonMark
@@ -1374,6 +1378,10 @@ HTML_BLOCKS = st.lists(
 @hypothesis.example("> <a t=\n> Plugh>")
 @hypothesis.example("<pre")
 @hypothesis.example("<div>\n\n```Plugh\n<div\n```")
+# `<?>`, `<!-->` and `<!--->` end their block on their own row (2026-11-23).
+@hypothesis.example("<?>\n```Plugh")
+@hypothesis.example("<?>\n\n~~~Plugh")
+@hypothesis.example("<?>\n> ```Plugh")
 @given(st.one_of(STRUCTURE, HTML_BLOCKS))
 def test_the_engine_reads_nothing_that_an_html_block_hides(text):
     """Nothing after an HTML block that holds a `<!--` that no `-->` follows reaches
@@ -1443,6 +1451,11 @@ TABLES = st.lists(
 @hypothesis.example("| a |\n|---|\n|b\\\\|Plugh|Plugh|")
 @hypothesis.example("```Plugh\n| a |\n|---|\n| b | Plugh |")
 @hypothesis.example("| a |\n|---|\n```x Plugh\n| b |")
+# `<?>`, `<!-->` and `<!--->` end their block on their own row (2026-11-23).
+@hypothesis.example("<?>\n| a |\n|---|\n| b | Plugh |")
+@hypothesis.example("<!-->\n| a |\n|---|\n| b | Plugh |")
+@hypothesis.example("<!-->\n```Plugh\nx")
+@hypothesis.example("<!--->\n```Plugh\nx")
 @given(TABLES)
 def test_the_engine_reads_no_cell_that_github_drops(text):
     """No word of a cell beyond the cells of a table's header reaches the engine: a
@@ -1490,6 +1503,9 @@ TITLES = st.lists(
 @hypothesis.example('> a\n[b](u "Plugh\n> c")')
 @hypothesis.example('[a](u "`Plugh") `b` [c](u "Plugh")')
 @hypothesis.example('`[a](u "x")` [b](u "Plugh")')
+# `<?>`, `<!-->` and `<!--->` end their block on their own row (2026-11-23).
+@hypothesis.example('<?>\n[a](u "Plugh")')
+@hypothesis.example('<!-->\n[a](u "Plugh")')
 @given(TITLES)
 def test_the_engine_reads_no_title_of_a_link_or_an_image(text):
     """No word of the title of a link or an image reaches the engine, which a page

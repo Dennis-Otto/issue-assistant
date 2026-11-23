@@ -1,5 +1,5 @@
 {
- "about": "Texts with fenced code whose opening row holds an info string: the words after a language, an unknown first word, a comma, braces, a colon and other marks, entities, escapes, tabs and no-break spaces, the drawn languages and math, a very long word; in a paragraph, after one, after a table or a quote, in a quote, a list item, a footnote, an HTML block with and without a blank row, a cell, indented code, other fenced code, unclosed, and after a fence that is hard to tell; made of pieces, with the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-22). GitHub shows none of the info string: a language that it highlights stays a class, another word the lang of the pre and the words after it its data-meta. The content of a <details> counts as shown, as GitHub shows it on a click. Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed.",
+ "about": "Texts with fenced code whose opening row holds an info string: the words after a language, an unknown first word, a comma, braces, a colon and other marks, entities, escapes, tabs and no-break spaces, the drawn languages and math, a very long word; in a paragraph, after one, after a table or a quote, in a quote, a list item, a footnote, an HTML block with and without a blank row, a cell, indented code, other fenced code, unclosed, and after a fence that is hard to tell; made of pieces, with the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-22). GitHub shows none of the info string: a language that it highlights stays a class, another word the lang of the pre and the words after it its data-meta. The content of a <details> counts as shown, as GitHub shows it on a click. Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed. Also below a row that ends its HTML block at once, `<?>`, `<!-->` and `<!--->`, in other places of the row, with text after it and in a quote, and below the instructions, comments, declarations, CDATA and raw tags that end on their row in other ways (2026-11-23).",
  "texts": [
   {
    "text": "```python Zqaaa words after the language\nprint(1)\n```\n",
@@ -1434,6 +1434,467 @@
    "text": "```python \t \nprint(1)\n```\n",
    "github shows": [],
    "github hides": []
+  },
+  {
+   "text": "<?>\n```python Zqinfo words\nprint(1)\n```",
+   "github shows": [],
+   "github hides": [
+    "Zqinfo"
+   ]
+  },
+  {
+   "text": "<?>\n~~~Zqtilde\nx\n~~~",
+   "github shows": [],
+   "github hides": [
+    "Zqtilde"
+   ]
+  },
+  {
+   "text": "<?>\n\n```Zqblank\nx\n```",
+   "github shows": [],
+   "github hides": [
+    "Zqblank"
+   ]
+  },
+  {
+   "text": "<?>\n> ```py Zqqinfo\n> x",
+   "github shows": [],
+   "github hides": [
+    "Zqqinfo"
+   ]
+  },
+  {
+   "text": "<!-->\n```python Zqinfo words\nprint(1)\n```",
+   "github shows": [],
+   "github hides": [
+    "Zqinfo"
+   ]
+  },
+  {
+   "text": "<!-->\n~~~Zqtilde\nx\n~~~",
+   "github shows": [],
+   "github hides": [
+    "Zqtilde"
+   ]
+  },
+  {
+   "text": "<!-->\n\n```Zqblank\nx\n```",
+   "github shows": [],
+   "github hides": [
+    "Zqblank"
+   ]
+  },
+  {
+   "text": "<!-->\n> ```py Zqqinfo\n> x",
+   "github shows": [],
+   "github hides": [
+    "Zqqinfo"
+   ]
+  },
+  {
+   "text": "<!--->\n```python Zqinfo words\nprint(1)\n```",
+   "github shows": [],
+   "github hides": [
+    "Zqinfo"
+   ]
+  },
+  {
+   "text": "<!--->\n~~~Zqtilde\nx\n~~~",
+   "github shows": [],
+   "github hides": [
+    "Zqtilde"
+   ]
+  },
+  {
+   "text": "<!--->\n\n```Zqblank\nx\n```",
+   "github shows": [],
+   "github hides": [
+    "Zqblank"
+   ]
+  },
+  {
+   "text": "<!--->\n> ```py Zqqinfo\n> x",
+   "github shows": [],
+   "github hides": [
+    "Zqqinfo"
+   ]
+  },
+  {
+   "text": "   <?>\n```python Zqinfo words\nprint(1)\n```",
+   "github shows": [],
+   "github hides": [
+    "Zqinfo"
+   ]
+  },
+  {
+   "text": "   <?>\n~~~Zqtilde\nx\n~~~",
+   "github shows": [],
+   "github hides": [
+    "Zqtilde"
+   ]
+  },
+  {
+   "text": "   <?>\n\n```Zqblank\nx\n```",
+   "github shows": [],
+   "github hides": [
+    "Zqblank"
+   ]
+  },
+  {
+   "text": "   <?>\n> ```py Zqqinfo\n> x",
+   "github shows": [],
+   "github hides": [
+    "Zqqinfo"
+   ]
+  },
+  {
+   "text": "<?> Zqrowword\n```python Zqinfo words\nprint(1)\n```",
+   "github shows": [
+    "Zqrowword"
+   ],
+   "github hides": [
+    "Zqinfo"
+   ]
+  },
+  {
+   "text": "<?> Zqrowword\n~~~Zqtilde\nx\n~~~",
+   "github shows": [
+    "Zqrowword"
+   ],
+   "github hides": [
+    "Zqtilde"
+   ]
+  },
+  {
+   "text": "<?> Zqrowword\n\n```Zqblank\nx\n```",
+   "github shows": [
+    "Zqrowword"
+   ],
+   "github hides": [
+    "Zqblank"
+   ]
+  },
+  {
+   "text": "<?> Zqrowword\n> ```py Zqqinfo\n> x",
+   "github shows": [
+    "Zqrowword"
+   ],
+   "github hides": [
+    "Zqqinfo"
+   ]
+  },
+  {
+   "text": "Zqparaabove\n<?>\n```python Zqinfo words\nprint(1)\n```",
+   "github shows": [
+    "Zqparaabove"
+   ],
+   "github hides": [
+    "Zqinfo"
+   ]
+  },
+  {
+   "text": "Zqparaabove\n<?>\n~~~Zqtilde\nx\n~~~",
+   "github shows": [
+    "Zqparaabove"
+   ],
+   "github hides": [
+    "Zqtilde"
+   ]
+  },
+  {
+   "text": "Zqparaabove\n<?>\n\n```Zqblank\nx\n```",
+   "github shows": [
+    "Zqparaabove"
+   ],
+   "github hides": [
+    "Zqblank"
+   ]
+  },
+  {
+   "text": "Zqparaabove\n<?>\n> ```py Zqqinfo\n> x",
+   "github shows": [
+    "Zqparaabove"
+   ],
+   "github hides": [
+    "Zqqinfo"
+   ]
+  },
+  {
+   "text": "Zqx <!--> Zqy\n\n```python Zqinfo words\nprint(1)\n```",
+   "github shows": [
+    "Zqx",
+    "Zqy"
+   ],
+   "github hides": [
+    "Zqinfo"
+   ]
+  },
+  {
+   "text": "Zqx <!--> Zqy\n\n~~~Zqtilde\nx\n~~~",
+   "github shows": [
+    "Zqx",
+    "Zqy"
+   ],
+   "github hides": [
+    "Zqtilde"
+   ]
+  },
+  {
+   "text": "Zqx <!--> Zqy\n\n\n```Zqblank\nx\n```",
+   "github shows": [
+    "Zqx",
+    "Zqy"
+   ],
+   "github hides": [
+    "Zqblank"
+   ]
+  },
+  {
+   "text": "Zqx <!--> Zqy\n\n> ```py Zqqinfo\n> x",
+   "github shows": [
+    "Zqx",
+    "Zqy"
+   ],
+   "github hides": [
+    "Zqqinfo"
+   ]
+  },
+  {
+   "text": "> <?>\n```python Zqinfo words\nprint(1)\n```",
+   "github shows": [],
+   "github hides": [
+    "Zqinfo"
+   ]
+  },
+  {
+   "text": "> <?>\n~~~Zqtilde\nx\n~~~",
+   "github shows": [],
+   "github hides": [
+    "Zqtilde"
+   ]
+  },
+  {
+   "text": "> <?>\n\n```Zqblank\nx\n```",
+   "github shows": [],
+   "github hides": [
+    "Zqblank"
+   ]
+  },
+  {
+   "text": "> <?>\n> ```py Zqqinfo\n> x",
+   "github shows": [],
+   "github hides": [
+    "Zqqinfo"
+   ]
+  },
+  {
+   "text": "<?>Zqrest\n```python Zqinfo words\nprint(1)\n```",
+   "github shows": [
+    "Zqrest"
+   ],
+   "github hides": [
+    "Zqinfo"
+   ]
+  },
+  {
+   "text": "<?>Zqrest\n~~~Zqtilde\nx\n~~~",
+   "github shows": [
+    "Zqrest"
+   ],
+   "github hides": [
+    "Zqtilde"
+   ]
+  },
+  {
+   "text": "<?>Zqrest\n\n```Zqblank\nx\n```",
+   "github shows": [
+    "Zqrest"
+   ],
+   "github hides": [
+    "Zqblank"
+   ]
+  },
+  {
+   "text": "<?>Zqrest\n> ```py Zqqinfo\n> x",
+   "github shows": [
+    "Zqrest"
+   ],
+   "github hides": [
+    "Zqqinfo"
+   ]
+  },
+  {
+   "text": "<!-->Zqcsrest\n```python Zqinfo words\nprint(1)\n```",
+   "github shows": [
+    "Zqcsrest"
+   ],
+   "github hides": [
+    "Zqinfo"
+   ]
+  },
+  {
+   "text": "<!-->Zqcsrest\n~~~Zqtilde\nx\n~~~",
+   "github shows": [
+    "Zqcsrest"
+   ],
+   "github hides": [
+    "Zqtilde"
+   ]
+  },
+  {
+   "text": "<!-->Zqcsrest\n\n```Zqblank\nx\n```",
+   "github shows": [
+    "Zqcsrest"
+   ],
+   "github hides": [
+    "Zqblank"
+   ]
+  },
+  {
+   "text": "<!-->Zqcsrest\n> ```py Zqqinfo\n> x",
+   "github shows": [
+    "Zqcsrest"
+   ],
+   "github hides": [
+    "Zqqinfo"
+   ]
+  },
+  {
+   "text": "<?>\n```py Zqlistl\nx\n```\n\n- item",
+   "github shows": [],
+   "github hides": [
+    "Zqlistl"
+   ]
+  },
+  {
+   "text": "<?\n```py Zqunclosed\nx",
+   "github shows": [],
+   "github hides": [
+    "Zqunclosed"
+   ]
+  },
+  {
+   "text": "- <?>\n```py Zqlistitem\n  x",
+   "github shows": [],
+   "github hides": [
+    "Zqlistitem"
+   ]
+  },
+  {
+   "text": "<?>\n\n    ```py Zqindented",
+   "github shows": [
+    "Zqindented"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<!-->\nZqshown1\n\n```py Zqinfo2\nx\n```\n\n-->\nZqafter",
+   "github shows": [
+    "Zqshown1",
+    "Zqafter"
+   ],
+   "github hides": [
+    "Zqinfo2"
+   ],
+   "the cleaning takes out": [
+    "Zqshown1"
+   ]
+  },
+  {
+   "text": "<?>\nZqshown2\n\n```py Zqinfo3\nx\n```\n\n?>\nZqafter2",
+   "github shows": [
+    "Zqshown2",
+    "Zqafter2"
+   ],
+   "github hides": [
+    "Zqinfo3"
+   ]
+  },
+  {
+   "text": "<?>\n\nA ?> paragraph.\n\n```python Zqpiclosed",
+   "github shows": [],
+   "github hides": [
+    "Zqpiclosed"
+   ]
+  },
+  {
+   "text": "<div>\n```python Zqdiv\nprint(1)\n```",
+   "github shows": [
+    "Zqdiv"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<?x?>\n```python Zqctl words\nprint(1)\n```\n\n| a |\n|---|\n| b | Zqctlcell |",
+   "github shows": [],
+   "github hides": [
+    "Zqctl",
+    "Zqctlcell"
+   ]
+  },
+  {
+   "text": "<??>\n```python Zqctl words\nprint(1)\n```\n\n| a |\n|---|\n| b | Zqctlcell |",
+   "github shows": [],
+   "github hides": [
+    "Zqctl",
+    "Zqctlcell"
+   ]
+  },
+  {
+   "text": "<!-- -->\n```python Zqctl words\nprint(1)\n```\n\n| a |\n|---|\n| b | Zqctlcell |",
+   "github shows": [],
+   "github hides": [
+    "Zqctl",
+    "Zqctlcell"
+   ]
+  },
+  {
+   "text": "<!---->\n```python Zqctl words\nprint(1)\n```\n\n| a |\n|---|\n| b | Zqctlcell |",
+   "github shows": [],
+   "github hides": [
+    "Zqctl",
+    "Zqctlcell"
+   ]
+  },
+  {
+   "text": "<!X>\n```python Zqctl words\nprint(1)\n```\n\n| a |\n|---|\n| b | Zqctlcell |",
+   "github shows": [],
+   "github hides": [
+    "Zqctl",
+    "Zqctlcell"
+   ]
+  },
+  {
+   "text": "<![CDATA[x]]>\n```python Zqctl words\nprint(1)\n```\n\n| a |\n|---|\n| b | Zqctlcell |",
+   "github shows": [],
+   "github hides": [
+    "Zqctl",
+    "Zqctlcell"
+   ]
+  },
+  {
+   "text": "<![CDATA[]]>\n```python Zqctl words\nprint(1)\n```\n\n| a |\n|---|\n| b | Zqctlcell |",
+   "github shows": [],
+   "github hides": [
+    "Zqctl",
+    "Zqctlcell"
+   ]
+  },
+  {
+   "text": "<script></script>\n```python Zqctl words\nprint(1)\n```\n\n| a |\n|---|\n| b | Zqctlcell |",
+   "github shows": [],
+   "github hides": [
+    "Zqctl",
+    "Zqctlcell"
+   ]
+  },
+  {
+   "text": "<pre></pre>\n```python Zqctl words\nprint(1)\n```\n\n| a |\n|---|\n| b | Zqctlcell |",
+   "github shows": [],
+   "github hides": [
+    "Zqctl",
+    "Zqctlcell"
+   ]
   }
  ]
 }

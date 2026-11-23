@@ -612,6 +612,28 @@ def test_an_instruction_or_a_declaration_hides_what_it_holds():
         assert found(body) == SHOWN_LOG, body
 
 
+@pytest.mark.parametrize("opener", ["<?>", "<!-->", "<!--->"])
+def test_a_file_below_a_block_that_ends_on_its_row_counts_as_the_page_shows_it(
+    opener,
+):
+    """An instruction or a comment that ends on its own row ends its HTML block
+    there, and GitHub reads the rows below as Markdown: an address in the info
+    string of a fence, in a cell beyond the header of a table or in a title shows
+    no link; a link and the code below still count (`gh api -X POST markdown` with
+    the mode gfm, 2026-11-23)."""
+    hidden = (
+        f"{opener}\n```python {LOG}\nx\n```",
+        f"{opener}\n```{IMAGE}\nx\n```",
+        f"{opener}\n| a |\n|---|\n| b | {LOG} |",
+        f'{opener}\n[a](https://example.com "{LOG}")',
+        f'{opener}\n![a](https://example.com/a.png "{IMAGE}")',
+    )
+    for body in hidden:
+        assert found(body) == [], body
+    for body in (f"{opener}\n[log]({LOG})", f"{opener}\n\n```text\n{LOG}\n```"):
+        assert found(body) == SHOWN_LOG, body
+
+
 # The start tag of an element in whose place the page draws a date.
 DATED = '<relative-time datetime="2020-01-01T00:00:00Z">'
 
