@@ -2,8 +2,9 @@
 
 #488 chose way D: the AI reads each text as GitHub's HTML of it (`bodyHTML`,
 `body_html`) shows it, instead of the source cleaned by hand, once D has passed.
-This module is its first step (#520): `markdown_of` makes the Markdown, and no
-reader calls it yet, so every reader stays on `shown_text`.
+This module is its first step (#520): `markdown_of` makes the Markdown, which the
+readers take on the experimental reading `rendered` (#521, `reading.py`); on the
+default, `cleaned`, every reader stays on `shown_text`.
 
 It reads a closed list of what GitHub writes. An element whose tag, attribute,
 class or value isn't on the list gives no text, nor does anything inside it, and

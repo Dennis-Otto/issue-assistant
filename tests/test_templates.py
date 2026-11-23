@@ -147,6 +147,8 @@ CANARY_ISSUE = "tests/fixtures/canary-issue.json"
 SMOKE_INPUT = "smoke"
 SMOKE_ANSWER = "tests/fixtures/smoke-answer.json"
 OWN_INPUTS = (CANARY_INPUT, SMOKE_INPUT)
+# The switch reading of #521, which the jobs attachments and analyze pass to the action.
+READING_INPUT = "reading"
 # The template of the issues calls its reusable workflow once more for each issue
 # that a run by hand with the task backlog chose, with the input backlog_issue, in
 # its job backlog.
@@ -494,6 +496,11 @@ def test_each_template_calls_its_reusable_workflow_with_what_its_jobs_need(name)
         assert inputs.pop(BACKLOG_INPUT)["description"].startswith(
             "Only for a run by hand with the task backlog"
         )
+        # The experimental switch of #521, which no template passes: its default
+        # reads as before.
+        reading = inputs.pop(READING_INPUT)
+        assert reading["description"].startswith("Experimental:")
+        assert (reading["type"], reading["default"]) == ("string", "cleaned")
     for own in own_inputs:
         given = inputs.pop(own)
         assert given["type"] == "boolean" and given["default"] is False
@@ -2130,7 +2137,8 @@ def test_the_canary_checks_that_the_engine_answered(
 def without_attachments(job):
     """A job of the AI of the issues without what only the issues have: the job
     attachments that it needs, the step that takes its files, and GitHub's results
-    service for them on the runner in reserve (decision 0033). Discussions have no
+    service for them on the runner in reserve (decision 0033), and the switch
+    reading of #521, which the discussions don't take yet. Discussions have no
     attachments yet."""
     steps = [
         dict(
@@ -2143,6 +2151,8 @@ def without_attachments(job):
             },
         )
         if step.get("uses", "").startswith(HARDEN_RUNNER)
+        else dict(step, **{"with": without_reading(step["with"])})
+        if "with" in step and READING_INPUT in step["with"]
         else step
         for step in job["steps"]
         if step.get("name") != TAKE_ATTACHMENTS
@@ -2151,6 +2161,13 @@ def without_attachments(job):
         "!cancelled() && needs.event.result == 'success' && ", ""
     )
     return dict(job, needs="event", steps=steps, **{"if": condition})
+
+
+def without_reading(given):
+    """The inputs of a step of the action without the switch reading, which must
+    pass on the input of the reusable workflow as it is."""
+    assert given[READING_INPUT] == f"${{{{ inputs.{READING_INPUT} }}}}"
+    return {name: value for name, value in given.items() if name != READING_INPUT}
 
 
 def without_the_canary(job):

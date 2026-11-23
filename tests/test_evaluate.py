@@ -1341,7 +1341,21 @@ def test_a_run_without_a_closed_issue_to_replay_keeps_and_publishes_nothing():
     assert keep["if"] == "steps.replay.outputs.report == 'true'"
     # The condition, not a laxer upload, leaves out a report that doesn't exist.
     assert keep["with"]["if-no-files-found"] == "error"
-    assert jobs["publish"]["if"] == "needs.replay.outputs.report == 'true'"
+    assert jobs["publish"]["if"] == (
+        "needs.replay.outputs.report == 'true' && inputs.reading == 'cleaned'"
+    )
+
+
+def test_evaluate_takes_the_reading_and_publishes_only_the_cleaned_one():
+    """The input reading of a run by hand reaches evaluate as READING; a replay on
+    the experimental reading rendered keeps its report as the artifact of the run,
+    and the page keeps its numbers."""
+    given = EVALUATE[True]["workflow_dispatch"]["inputs"]["reading"]
+    assert given["description"].startswith("Experimental:")
+    assert (given["options"], given["default"]) == (list(assistant.READINGS), "cleaned")
+    replay = step_named("replay", "Replay the closed issues")
+    assert replay["env"]["READING"] == "${{ inputs.reading }}"
+    assert "inputs.reading == 'cleaned'" in EVALUATE["jobs"]["publish"]["if"]
 
 
 def test_the_command_line_of_the_evaluate_workflow_comes_from_its_lock_file():
@@ -1924,3 +1938,33 @@ def test_the_evaluate_command_writes_nothing_on_github(
     monkeypatch.setattr(assistant.cli, "GitHub", connect)
     code, _, _ = run_main(monkeypatch, tmp_path, root, None, "evaluate")
     assert (code, made) == (1, [True])
+
+
+def test_the_replays_read_their_renderings_within_one_budget_of_evaluate(
+    root, config, github
+):
+    """On the experimental reading rendered (#521), the replays share Evaluate's
+    limits, which grow with its samples, in place of those of each context; on
+    cleaned, none asks for a rendering."""
+    samples, _ = assistant.choose_samples(github, config, 3)
+    answers = {22: make_answer(), 21: make_answer(), 20: make_answer()}
+    budgets = []
+    real = github.renderings
+
+    def renderings(texts, limits):
+        budgets.append(limits)
+        return real(texts, limits)
+
+    github.renderings = renderings
+    assistant.replay(github, config, samples, FakeEngine(root, answers))
+    assert budgets == []
+    outcomes = assistant.replay(
+        github, config, samples, FakeEngine(root, answers), assistant.READING_RENDERED
+    )
+    assert [outcome.error for outcome in outcomes] == ["", "", ""]
+    assert budgets[0] == assistant.Limits.of_evaluation(3)
+    # Each read gets what the reads before it left.
+    assert [limits.requests for limits in budgets] == sorted(
+        (limits.requests for limits in budgets), reverse=True
+    )
+    assert budgets[-1].requests < budgets[0].requests

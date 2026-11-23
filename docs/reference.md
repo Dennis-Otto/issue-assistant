@@ -32,6 +32,7 @@ What the commands reach, and how to try them:
 - `install` runs from a git checkout of a release, as [Set up a repository](getting-started.md#set-up-a-repository) shows, and pins its commit and tag; `--ref` and `--version` name them for another checkout. `install --setup` also creates the environment `issue-assistant` for the default branch and has the GitHub CLI ask for the engine's secret.
 - `install`, `check`, `engine`, `usage` and `accuracy-page` read only the checkout, `analyze` reaches npm and the engine besides, and `install --setup` the environment too.
 - The other commands call GitHub, for the repository that `GH_REPO` names as `owner/name`, or else the workflow's `GITHUB_REPOSITORY`; `evaluate` runs the engine's command line on your computer besides, and writes nothing on GitHub.
+- `attachments`, `context` and `evaluate` take the experimental `reading: rendered`, `READING` in the environment, to read GitHub's renderings of the texts in a second step, and `cleaned`, the default, to read their sources as before; the task `discussion-answer` reads `cleaned`. [The experimental reading rendered](security/rendered-reading.md) says what changes.
 - Every command but `install`, `check`, `evaluate` and `accuracy-page` takes `dry-run: true` to only report what it would write; runs by hand under *Actions → Issue assistant → Run workflow* start as dry runs, and their summary shows the comment, as the last step of the set-up shows.
 
 ## Inputs and outputs of the action

@@ -63,6 +63,7 @@ from .installation import (
 from .issues import command_of
 from .labels import sync_labels
 from .paths import FIREWALL, SETTINGS, TOOL, UPDATES_GUIDE
+from .reading import READING_CLEANED, READING_RENDERED, READING_VARIABLE, READINGS
 from .running import (
     analyze,
     choose_engine,
@@ -107,6 +108,26 @@ def event_payload(number: int) -> dict[str, Any]:
     if (payload.get("issue") or {}).get("number") != number:
         return {}
     return payload
+
+
+def reading_of(mode: str | None) -> str:
+    """The switch `reading` of the run (#521), which the action hands on as READING:
+    `cleaned` without it, and any value but the two an error. A task of the
+    discussions reads `cleaned` in this step, with a notice."""
+    value = os.environ.get(READING_VARIABLE, "") or READING_CLEANED
+    if value not in READINGS:
+        raise AssistantError(
+            f"The input reading takes {READING_CLEANED} or {READING_RENDERED}, "
+            f"not {value!r}."
+        )
+    if value == READING_RENDERED and mode in DISCUSSION_MODES:
+        command(
+            "notice",
+            f"{mode} reads its texts {READING_CLEANED}: the reading "
+            f"{READING_RENDERED} isn't built for the discussions yet.",
+        )
+        return READING_CLEANED
+    return value
 
 
 def inputs_by_hand(number: int) -> dict[str, Any]:
@@ -310,6 +331,8 @@ def main(argv: list[str] | None = None) -> int:
             return analyze_command(root, repository, arguments.mode)
         if arguments.command == "usage":
             return usage_command(root, repository, arguments)
+        # The commands that read texts for the AI: context, attachments, evaluate.
+        reading = reading_of(getattr(arguments, "mode", None))
         # evaluate only reads; its engine writes into the checkout alone.
         github = run.github = GitHub(
             repository, dry_run=dry_run or arguments.command == "evaluate"
@@ -319,11 +342,15 @@ def main(argv: list[str] | None = None) -> int:
             return findings_command(github, root, dry_run)
         config = load_config(root, repository)
         if arguments.command == "evaluate":
-            return evaluate_command(github, config, root, repository, arguments)
+            return evaluate_command(
+                github, config, root, repository, arguments, reading
+            )
         # What the engine wrote may link into the repository only at a ref that the
         # checkout vouches for, never at a commit of a fork; see names_a_ref.
         config = replace(config, refs=repository_refs(root))
-        return issue_command(run, github, config, root, arguments, fixture_name)
+        return issue_command(
+            run, github, config, root, arguments, fixture_name, reading
+        )
     except SettingsError as error:
         for problem in error.problems:
             command("error", problem)
@@ -490,6 +517,7 @@ def evaluate_command(
     root: Path,
     repository: str,
     arguments: argparse.Namespace,
+    reading: str = READING_CLEANED,
 ) -> int:
     config = evaluated_config(config, arguments.engine, arguments.model)
     written = (arguments.report or root.parent / f"{github.name}-accuracy.md").resolve()
@@ -513,6 +541,7 @@ def evaluate_command(
             written,
             local_engine(config, work),
             datetime.now(UTC).date(),
+            reading,
         )
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -548,9 +577,11 @@ def issue_command(
     root: Path,
     arguments: argparse.Namespace,
     fixture_name: str,
+    reading: str = READING_CLEANED,
 ) -> int:
     """The commands of an event and of the issues: event, attachments, context,
-    apply, sweep and sync-labels."""
+    apply, sweep and sync-labels; `reading` is the switch of context and
+    attachments."""
     if fixture_name:
         fixture = read_fixture(root, fixture_name)
         # The tasks of the discussions read a discussion, every other an issue.
@@ -584,6 +615,7 @@ def issue_command(
             config,
             event_comment(arguments.issue),
             instruction_of(inputs_by_hand(arguments.issue), arguments.mode),
+            reading,
         )
         output("prompt", written["prompt"])
         output("task", written["task"])
@@ -593,7 +625,7 @@ def issue_command(
     if arguments.command == "attachments":
         token = os.environ.get("GH_TOKEN", "")
         count = attachments_command(
-            github, arguments.issue, config.root, token, opens_images(config)
+            github, arguments.issue, config.root, token, opens_images(config), reading
         )
         output("count", str(count))
         return 0

@@ -58,8 +58,9 @@ def is_time(value: object) -> bool:
 
 def fixture_problems(item: object, where: str, *, issue: bool) -> list[str]:
     """What keeps an issue or a comment of a fixture from being read as GitHub's:
-    the keys that the assistant reads, in their types; of a comment also
-    `minimized`, which says whether GitHub shows it collapsed."""
+    the keys that the assistant reads, in their types, `body_html` among them when
+    the fixture records it; of a comment also `minimized`, which says whether GitHub
+    shows it collapsed."""
     if not isinstance(item, dict):
         return [f"{where} must be an object"]
     problems = []
@@ -74,6 +75,9 @@ def fixture_problems(item: object, where: str, *, issue: bool) -> list[str]:
             problems.append(f"{where}.labels must be a list of objects with a name")
     if not fits(item.get("body") or "", str):
         problems.append(f"{where}.body must be a string")
+    # GitHub's HTML of the text, recorded for the reading `rendered`; optional.
+    if not fits(item.get("body_html") or "", str):
+        problems.append(f"{where}.body_html must be a string")
     user = item.get("user")
     if not isinstance(user, dict) or not fits(user.get("login"), str):
         problems.append(f"{where}.user must be an object with a login")

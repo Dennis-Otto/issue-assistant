@@ -1,0 +1,22 @@
+---
+description: How the experimental reading rendered of the issue assistant reads GitHub's rendering of each text by its number, and the cleaned source of a text without one.
+---
+
+# The experimental reading rendered
+
+[← Security design](../security.md)
+
+[How the text of an issue reaches the AI](issue-text.md) cleans the source of each text by hand, a model of what GitHub shows. Way D of [#488](https://github.com/Dennis-Otto/issue-assistant/issues/488) has the AI read GitHub's own rendering of each text instead, through the converter of [#520](https://github.com/Dennis-Otto/issue-assistant/issues/520), a closed list of what GitHub writes. The input `reading` of the action, of the reusable workflow and of Evaluate switches it on, [#521](https://github.com/Dennis-Otto/issue-assistant/issues/521): `cleaned`, the default, reads every text as above and asks GitHub for no rendering, and `rendered` is experimental, for a run by hand, until it has passed Evaluate.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/how-the-reading-rendered-reads-a-text.dark.svg">
+  <img src="../images/diagrams/how-the-reading-rendered-reads-a-text.svg" alt="How the reading rendered reads a text: On the experimental reading rendered, the sources of the issue, its comments, the other issues and the discussions are read as on cleaned. Then GitHub's rendering of each text is read by its number, in requests that the estimate of each text packs, within the limits of the command: those of the issue and its comments right after their sources, since the search for older issues takes the words of the issue, and those of the other texts at the end. A text that GitHub rendered becomes the converter's Markdown of its HTML, with the signed address of an uploaded picture written back as the address of its source. A text without a rendering, because it is too large, its request failed alone, GitHub answered null for it, it changed between the two steps or a limit of the command left it out, is its cleaned source, as on cleaned. Each text then goes into its code fence as before, and a notice in the log counts the requests and the texts read from their cleaned source, by reason.">
+</picture>
+
+- **The sources come first, as on `cleaned`.** No request of theirs changes. A page of GitHub can't carry renderings, since one text that GitHub can't render in time fails the whole page, so each rendering is read afterwards by its number: `issue(number:)`, windows of the comments of an issue and `discussion(number:)`.
+- **A text without a rendering is its cleaned source.** Nothing else reaches the AI: a text is either the converter's Markdown of its rendering or its source, cleaned as before. That holds for a text estimated or rendered above 1 MB, one whose request failed also on its own, one that GitHub answered with null for, one edited between the two steps and one that a limit of the command left out. The notice in the log counts each reason, and never a text.
+- **A comment that GitHub shows collapsed is never asked for,** and the AI doesn't read it.
+- **An uploaded picture keeps the address of its source.** A rendering holds a signed address of `private-user-images.githubusercontent.com`, valid for minutes and new on every read; its path holds the uuid of the address that the source writes, `github.com/user-attachments/assets/<uuid>`, which the converter keeps. No signed address reaches the AI or `attachments.md`.
+- **The attachments follow the text of the AI.** The job attachments reads the renderings of the issue and of its reporter's comments, minutes before the job of the AI reads them again. `attachments.md` names each attachment that the AI's own text shows; one that the job didn't download is "Not read: it wasn't downloaded for this run.", and one that only the job's text showed isn't named. A notice counts both.
+- **The words that the assistant decides from** are the converter's on `rendered`, with a space for each note: the search for older issues reads the issue's rendering, which is why the issue and its comments are read right after their sources.
+- **The discussion assistant reads `cleaned`** in this step, whatever the switch says, with a notice: no run in this repository could try it yet.

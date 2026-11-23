@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from collections import Counter
 from collections.abc import Callable, Iterable
 from contextlib import ExitStack
@@ -38,6 +39,8 @@ from .issues import (
 from .learning import CHOSEN_GROUPS, plural
 from .paths import CONTEXT, FORMS
 from .patterns import CODE, HTML_COMMENT
+from .reading import READING_CLEANED
+from .renderings import Limits, Renderings, Text
 from .running import (
     ENGINE_MINUTES,
     OUTCOMES,
@@ -345,6 +348,11 @@ def nothing_to_replay(left_out: Counter[str]) -> list[str]:
     ]
 
 
+# The key of the memo of the replays that holds what is left of the budget of their
+# renderings.
+RENDERINGS_LEFT = "renderings left"
+
+
 class Then(GitHub):
     """GitHub as it was at the moment of a sample, for the context of its replay:
     the issue as it was, and of everything else only what existed then.
@@ -446,6 +454,16 @@ class Then(GitHub):
         found = self._before(self._once("releases", self.now.releases), "published_at")
         return str(found[-1]["tag_name"]) if found else None
 
+    def renderings(self, texts: Iterable[Text], limits: Limits) -> Renderings:
+        """The renderings of now, through `github`, within one budget for the
+        replays of every sample, which `replay` puts into the memo: Evaluate's
+        limits, which grow with its samples, not those of each context."""
+        left: Limits = self.memo.get(RENDERINGS_LEFT, limits)
+        began = time.monotonic()
+        found = self.now.renderings(texts, left)
+        self.memo[RENDERINGS_LEFT] = left.after(found, time.monotonic() - began)
+        return found
+
 
 @dataclass(frozen=True)
 class Answered:
@@ -509,6 +527,7 @@ def replay(
     config: Config,
     samples: list[Sample],
     answer: Callable[[], Answered],
+    reading: str = READING_CLEANED,
 ) -> list[Outcome]:
     """The first analysis of each sample as at its moment: its context written by
     Then, the engine's answer from `answer`, and what that answer chose.
@@ -517,13 +536,13 @@ def replay(
     sample whose context, engine or answer fails is an outcome with its error, and
     the others go on.
     """
-    memo: dict[str, Any] = {}
+    memo: dict[str, Any] = {RENDERINGS_LEFT: Limits.of_evaluation(len(samples))}
     outcomes = []
     for index, sample in enumerate(samples, start=1):
         place = f"{index} of {len(samples)}, #{sample.number}"
         then = Then(github, sample, memo)
         try:
-            write_context(then, sample.number, "triage", config)
+            write_context(then, sample.number, "triage", config, reading=reading)
             answered = answer()
             chosen = parse_answer("triage", answered.text, config)
             named, sure = named_duplicates(then, sample.number, chosen)
@@ -862,6 +881,7 @@ def evaluate(
     report: Path,
     answer: Callable[[], Answered],
     day: date,
+    reading: str = READING_CLEANED,
 ) -> list[str]:
     """Replay the first analysis of the `count` closed issues opened last that
     people labelled or closed as a duplicate, write the report, and return the
@@ -884,7 +904,7 @@ def evaluate(
         command("notice", "\n".join(lines))
         return lines
     read = len(samples) + left_out.total()
-    outcomes = replay(github, config, samples, answer)
+    outcomes = replay(github, config, samples, answer, reading)
     engine = ENGINES[engine_named(config.engine)]
     run = task_run(config, "triage")
     report.write_text(

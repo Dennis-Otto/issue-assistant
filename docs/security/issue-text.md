@@ -49,3 +49,5 @@ Every analysis reads the excerpts of every open issue and of the closed ones tha
   <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/when-a-duplicate-that-the-ai-found-closes-on-its-own.dark.svg">
   <img src="../images/diagrams/when-a-duplicate-that-the-ai-found-closes-on-its-own.svg" alt="When a duplicate that the AI found closes on its own: A duplicate that the AI is sure of, of an older open issue, gets the notice that closes it after three days only when a maintainer opened the original or triaged it, so that it no longer has needs-triage. Otherwise it becomes a suggestion for the maintainer and a related issue in the comment. A notice closes nothing when someone comments, when the reporter or anyone who may push to the repository reacts with a thumbs down, or when the original is closed or no longer vouched for by then.">
 </picture>
+
+The experimental input `reading: rendered` has the AI read GitHub's own rendering of each text in place of its cleaned source: [The experimental reading rendered](rendered-reading.md) describes it.
