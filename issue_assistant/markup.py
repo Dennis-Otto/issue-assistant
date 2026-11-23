@@ -16,7 +16,7 @@ import re
 from bisect import bisect_right
 from collections.abc import Callable, Iterator
 
-from .patterns import HTML_COMMENT
+from .patterns import COMMENT_END_FROM, HTML_COMMENT, comment_close
 
 # The mark of a quote or of a list item: a `>` needs no space after it, a list mark
 # does.
@@ -263,12 +263,17 @@ class Searches:
         self.comment = (len(text) + 1, -1)
         self.closing = (len(text) + 1, -1)
 
-    def comment_end(self, position: int) -> int:
-        """Where the first `-->` at or after a position ends, or -1."""
+    def comment_end(self, opening: int) -> int:
+        """Where the comment ends whose `<!--` starts at a position, after the `-->`
+        that comment_close finds, or -1."""
         start, found = self.comment
-        if not start <= position <= (len(self.text) if found < 0 else found):
-            found = self.text.find("-->", position)
-            self.comment = (position, found)
+        if (
+            not start
+            <= opening
+            <= (len(self.text) if found < 0 else found - COMMENT_END_FROM)
+        ):
+            found = comment_close(self.text, opening)
+            self.comment = (opening, found)
         return found + 3 if found >= 0 else -1
 
     def close(self, position: int) -> int:

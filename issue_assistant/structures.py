@@ -37,6 +37,7 @@ from .markup import (
     HtmlRows,
     caseless,
 )
+from .patterns import comment_close
 from .tags import BACKTICKS
 
 # The notes that take the place of what goes, so that the engine knows that
@@ -608,10 +609,10 @@ def html_blocks(text: str, reader: Reader) -> list[Span]:
             closing = EMPTY_ROW.search(text, opening.end())
             end = len(text) if closing is None else closing.start()
         elif kind == "comment":
-            # A comment's end is its first `-->`, found as text, not by a pattern,
-            # and like the end of every other kind searched from its `<`: CommonMark
-            # also finds it on the opening row, so `<!-->` and `<?>` end there.
-            close = text.find("-->", opening.start(kind))
+            # A comment's end is its first `-->` from its `<` + 2, found as text, not
+            # by a pattern: CommonMark also finds it on the opening row, so `<!-->`
+            # ends there, as `<?>` does.
+            close = comment_close(text, opening.start(kind))
             end = len(text) if close < 0 else close + 3
         else:
             closing = HTML_END[kind].search(text, opening.start(kind))
@@ -743,7 +744,7 @@ def drawn_pres(text: str, reader: Reader, found: Found) -> None:
     while (pre := PRE.search(text, position)) is not None:
         comment = COMMENT_START.search(text, position, pre.start())
         if comment is not None:
-            close = text.find("-->", comment.start())
+            close = comment_close(text, comment.start())
             if close < 0:
                 return
             position = close + 3
@@ -784,7 +785,7 @@ def pre_end(text: str, position: int) -> int:
     depth = 1
     while (mark := PRE_CONTENT.search(text, position)) is not None:
         if mark[0] == "<!--":
-            close = text.find("-->", mark.start())
+            close = comment_close(text, mark.start())
             if close < 0:
                 return len(text)
             position = close + 3

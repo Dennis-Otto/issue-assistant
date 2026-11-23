@@ -111,9 +111,23 @@ ISSUE_REFERENCE = re.compile(r"(?<![A-Za-z0-9])(?:#|GH-)(\d+)", re.IGNORECASE)
 # number of times, so that no text, however crafted, makes them slow. The tests and
 # fuzz/fuzz_issue_text.py time them on texts that took earlier patterns hours.
 #
-# An HTML comment. html_parts finds where the last `-->` of a text ends, so that
-# this pattern only reads the part in which a `-->` follows every `<!--`.
-HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+# An HTML comment, which ends where comment_close says: `<!-->` and `<!--->` are
+# whole ones. html_parts finds where the last `-->` of a text ends, so that this
+# pattern only reads the part in which a `-->` follows every `<!--`.
+HTML_COMMENT = re.compile(r"<!--(?:-?>|.*?-->)", re.DOTALL)
+# How far after the `<` of its `<!--` the search for the end of a comment starts.
+COMMENT_END_FROM = len("<!")
+
+
+def comment_close(text: str, opening: int, stop: int | None = None) -> int:
+    """Where the `-->` starts that ends the comment whose `<!--` starts at `opening`,
+    before `stop`, or -1. Every reading of a comment finds its end here, and
+    HTML_COMMENT reads it the same way: at the first `-->` from the `-` after the
+    `<!` on, so that `<!-->` and `<!--->` are whole comments, as GitHub reads them as
+    a block, inline and in the HTML of a block (`gh api -X POST markdown`, 2026-11-23),
+    and a later `-->` ends nothing."""
+    return text.find("-->", opening + COMMENT_END_FROM, stop)
+
 
 SHA = re.compile(r"[0-9a-f]{40}")
 

@@ -308,7 +308,7 @@ def long_tags(
             starts = elements.starts(comments, fenced)
             continue
         if kind == "comment":
-            closed = search.comment_end(position)
+            closed = search.comment_end(start)
             if closed < 0:
                 # No `-->` follows: no comment hides a tag.
                 comments = False
@@ -786,7 +786,7 @@ class Hidden:
         and a tag or an autolink of the row."""
         text, search = self.text, self.search
         if text.startswith("<!--", position):
-            closed = search.comment_end(position + 4)
+            closed = search.comment_end(position)
         elif text.startswith(("<?", "<![CDATA["), position):
             kind = "processing" if text[position + 1] == "?" else "cdata"
             found = search(HTML_ENDS[kind], position + 2)
