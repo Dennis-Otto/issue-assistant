@@ -4,6 +4,7 @@ import collections
 import dataclasses
 import html.entities
 import json
+import math
 import re
 import runpy
 import shlex
@@ -31,10 +32,12 @@ from support import (
     BOX_TICKED,
     BOX_UNTICKED,
     BUG_BODY,
+    CEILING,
     CONFIG,
     ESCAPES,
     FORK_COMMIT,
     GROWTH,
+    HOPELESS,
     NOW,
     REF,
     REPOSITORY,
@@ -59,12 +62,14 @@ from support import (
     make_pull,
     make_release,
     not_found,
+    plain_growth,
     rate_limited,
     release_history,
     replace_everywhere,
     run_main,
     server_error,
     stray_problems,
+    too_slow,
 )
 
 
@@ -241,7 +246,11 @@ SLOW_TEXTS = {
     "comment ends in values of tags after comments": [
         ("<!-- <a> --><b c='-->'>", 2_800)
     ],
+    # Each tag over several rows looked for the next tag in the rest of the text
+    # again when the links were read (2026-11-20).
     "sections of CDATA in a row of a block": ["<div>\n", ("\t><![CDATA[>    ", 4_000)],
+    "instructions below a tag without its end": ["<a\n", ("<?>", 21_000), "\n```"],
+    "sections of CDATA in list items": [("1. <![CDATA[\n`]]>", 3_800), "\n```"],
     # The search, the language and the area read the text as GitHub shows it
     # (2026-11-21), without its link reference definitions.
     "link definitions in a row": [("[a]: https://example.com/b\n", 2_300)],
@@ -385,6 +394,14 @@ SLOW_TEXTS = {
         ("    | b | x |\n", 4_600),
     ],
     "rows after a tab in a quote": [">| a |\n>|---|\n", (">\t| b | x |\n", 5_400)],
+    # A kind of each of the texts that the timing of shown_text and denies_closing
+    # reads alone (SLOW_DEFINITIONS, SLOW_MARKUP, SLOW_DESCRIPTIONS), which no text
+    # above has, so that every reading reads it as well (#543).
+    "definitions with titles that never end": [('[a]: b "c\n', 6_553)],
+    "labels of definitions that never end": [("[a\n", 21_845)],
+    "escapes in a label of a definition": ["[", ("\\a", 32_000), "]"],
+    "declarations without their end": [("x <!X", 13_000), "\n\n>"],
+    "closing keywords in a row": [("close #1 ", 7_281)],
 }
 
 # Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
@@ -564,32 +581,41 @@ def reading(name, text):
 
 
 # The growth that a reading may have is GROWTH of tests/support.py, which the fuzz
-# target of the converter holds as well.
-
-# The processor time of one reading of a whole text, in seconds, counted without the
-# tracer of the coverage, as growth() times its tries (#532). Not the promise of the
-# reading, which is that nothing in it backtracks or grows faster than its text, and
-# which the growth holds on every machine. The ceiling holds only that no reading
-# becomes many times slower everywhere; how fast it reads has issues of its own
-# (#487, #488, #494). The slowest whole text took 0.49 seconds and the slowest twin
-# 0.53 (`void tags below quotes`) on a machine of a maintainer, about a quarter of
-# the ceiling, as 0.44 seconds were when a limit of 0.5 seconds measured the runner,
-# on which a busy one took one and a half times as long (#500, #504). Under the
-# tracer they took 1.39 and 1.73 seconds, within a quarter of a second of it. So the
-# ceiling lets a reading of the texts of HTML take about three times as long in real
-# time as under the tracer before it fails, `delimiter rows` about a quarter longer;
-# 1 second would measure the runner again, since the slowest whole reached 0.69
-# seconds without the tracer on a busy machine.
-CEILING = 2
+# target of the converter holds as well, and the processor time that one reading of
+# a whole text may take is its CEILING, at which growth() ends a try of the eighth.
 
 
 def holds_its_growth(parts, name, text, record_property):
-    """Whether the reading `name` of the text of `parts` holds GROWTH and CEILING.
+    """Whether the reading `name` of READINGS on the text of `parts` holds GROWTH and
+    CEILING."""
+    eighth, whole = reading(name, built(parts, 8)), reading(name, built(parts))
+    holds_growth(name, text, eighth, whole, record_property)
+
+
+def holds_the_growth_of(function, parts, text, record_property, *args):
+    """Whether `function` on the text of `parts`, with the further `args`, holds GROWTH
+    and CEILING as a reading of READINGS does (#543). One call on the eighth runs
+    under the tracer, so that what only this text reaches keeps its coverage, which
+    the tries of growth() don't give (#532)."""
+    eighth, whole = built(parts, 8), built(parts)
+    function(eighth, *args)
+    holds_growth(
+        function.__name__,
+        text,
+        lambda: function(eighth, *args),
+        lambda: function(whole, *args),
+        record_property,
+    )
+
+
+def holds_growth(name, text, eighth, whole, record_property):
+    """Whether the reading `name` holds GROWTH and CEILING, called by `eighth` on the
+    text with an eighth of its repetitions and by `whole` on all of it.
 
     Its figures go into the case of the report of JUnit, which the CI writes, and
     from there into the summary of the job (timing_summary of conftest.py), so that
     a run that passes shows how near each reading came to the limits."""
-    measured = growth(reading(name, built(parts, 8)), reading(name, built(parts)))
+    measured = growth(eighth, whole)
     for key, value in (
         ("reading", name),
         ("text", text),
@@ -598,6 +624,11 @@ def holds_its_growth(parts, name, text, record_property):
         ("whole", f"{measured.whole:.4f}"),
     ):
         record_property(key, value)
+    if math.isnan(measured.eighth):
+        raise AssertionError(
+            f"{name}: {measured.whole:.4f} s on the whole in one call, more than "
+            f"{HOPELESS} s, so that the eighth was not timed"
+        )
     assert measured.times < GROWTH and measured.whole < CEILING, (
         f"{name}: {measured.eighth:.4f} s on an eighth of the text, "
         f"{measured.whole:.4f} s on the whole, {measured.times:.2f} times as long"
@@ -644,6 +675,27 @@ def test_each_case_of_the_timing_records_its_figures(monkeypatch):
         ("eighth", "0.0010"),
         ("whole", "0.0075"),
     ]
+
+
+def test_a_case_that_ended_at_once_says_so(monkeypatch):
+    """A whole far beyond any text in linear time ends its growth after one call
+    (#543), and the case fails with that call and the bound."""
+    measured = types.SimpleNamespace(times=math.inf, eighth=math.nan, whole=87.5)
+    monkeypatch.setitem(globals(), "growth", lambda *_: measured)
+    recorded = []
+    text = "attached files in a row"
+    with pytest.raises(AssertionError) as failed:
+        holds_its_growth(
+            SLOW_TEXTS[text],
+            "attachments_of",
+            text,
+            lambda *pair: recorded.append(pair),
+        )
+    assert str(failed.value) == (
+        "attachments_of: 87.5000 s on the whole in one call, more than 10 s, so that "
+        "the eighth was not timed"
+    )
+    assert ("growth", "inf") in recorded and ("eighth", "nan") in recorded
 
 
 def timed(when, reading_name, text, growth_of, whole):
@@ -786,6 +838,120 @@ def test_the_tries_of_the_growth_run_without_the_tracer():
     assert after is tracer and raised is tracer
 
 
+def timed_sides(eighth_seconds, whole_seconds, clock=time.perf_counter):
+    """Two sides for growth() that keep the processor busy for the seconds of each
+    call by `clock`, and the list of their calls in order: each with its side, when
+    it began and when it ended, by time.perf_counter()."""
+    calls = []
+
+    def side(name, seconds):
+        def call():
+            began, counted = time.perf_counter(), clock()
+            while clock() - counted < seconds:
+                pass
+            calls.append((name, began, time.perf_counter()))
+
+        return call
+
+    return side("eighth", eighth_seconds), side("whole", whole_seconds), calls
+
+
+def tries_of(calls):
+    """The tries in a list of calls of timed_sides(), the calls of one side in a row
+    each as a list."""
+    tries = []
+    for call in calls:
+        if tries and tries[-1][0][0] == call[0]:
+            tries[-1].append(call)
+        else:
+            tries.append([call])
+    return tries
+
+
+def test_the_tries_of_the_eighth_last_as_long_as_a_call_of_the_whole():
+    """In each pair the whole goes first, and a try of the eighth lasts at least as
+    long as one call of the whole (#543): the next try of the whole begins no sooner
+    than that after the call before it ended."""
+    eighth, whole, calls = timed_sides(0.000_3, 0.03)
+    growth(eighth, whole, shortest=0.001)
+    tries = tries_of(calls)
+    assert [side for (side, *_), *_ in tries[:6]] == ["whole", "eighth"] * 3
+    for before, after in zip(tries[0:-2:2], tries[2::2], strict=True):
+        ((_, began, ended),) = before
+        assert after[0][1] - ended >= ended - began
+
+
+def test_the_tries_of_the_eighth_stop_at_the_ceiling():
+    """A try of the eighth lasts as long as a call of the whole only up to `longest`,
+    the ceiling of a whole: each call of this eighth lasts 0.02 seconds, so that two
+    of them reach a `longest` of 0.03 seconds, where a call of the whole takes 0.12."""
+    eighth, whole, calls = timed_sides(0.02, 0.12)
+    growth(eighth, whole, shortest=0.001, longest=0.03)
+    tries = tries_of(calls)
+    assert len(tries) >= 6
+    assert all(len(each) <= 2 for each in tries[1::2])
+
+
+def test_a_growth_near_the_limit_takes_three_more_tries():
+    """Three more tries of each side follow where the first three give 10 times or
+    more, and only there."""
+    for eighth_seconds, more in ((0.000_02, True), (0.001, False)):
+        eighth, whole, calls = timed_sides(eighth_seconds, 0.001)
+        measured = growth(eighth, whole, shortest=0.002)
+        assert len(tries_of(calls)) == (12 if more else 6)
+        assert (measured.times >= 10) is more
+
+
+def test_a_whole_far_beyond_any_text_in_linear_time_is_called_once():
+    """A whole whose first call takes longer than `hopeless` seconds of processor
+    time ends the growth at once, without a call of the eighth (#543)."""
+    eighth, whole, calls = timed_sides(0, 0.1, time.process_time)
+    measured = growth(eighth, whole, hopeless=0.05)
+    assert [side for side, *_ in calls] == ["whole"]
+    assert measured.whole >= 0.1
+    assert measured.eighth != measured.eighth and measured.times == float("inf")
+    assert not measured.times < GROWTH
+
+
+def test_a_whole_just_above_the_ceiling_still_gets_its_tries():
+    """A single call above the ceiling ends nothing by itself: below `hopeless`, the
+    verdict on the whole comes from its tries."""
+    eighth, whole, calls = timed_sides(0.01, 0.06, time.process_time)
+    measured = growth(eighth, whole, shortest=0.001, longest=0.05, hopeless=1)
+    tries = tries_of(calls)
+    assert len(tries) >= 6
+    assert [len(each) for each in tries[::2]] == [1] * (len(tries) // 2)
+    assert 0 < measured.eighth < measured.whole and measured.times < GROWTH
+
+
+def test_the_fuzz_targets_keep_the_tries_of_before():
+    """plain_growth(), which too_slow() takes for the fuzz targets, times the eighth
+    first in three tries of each side and no more, also after a growth near the
+    limit, as their timeouts count it."""
+    eighth, whole, calls = timed_sides(0.000_02, 0.001)
+    measured = plain_growth(eighth, whole)
+    tries = tries_of(calls)
+    assert [side for (side, *_), *_ in tries] == ["eighth", "whole"] * 3
+    assert measured.times >= 10
+
+
+def test_the_fuzz_target_judges_a_slow_reading_by_its_growth():
+    """fuzz/fuzz_issue_text.py judges a reading slower than its budget of half a
+    second by its growth, as too_slow() does here (#543). Quotes before a void tag,
+    then a short row of a void tag again and again, a text that the fuzzer can
+    build, is linear, but its readings took 0.8 to 1.35 seconds under the
+    instrumentation of the fuzzer, so that a fixed half second failed it. As a seed
+    of the fuzzer it took 19 seconds of each input, so it is a test here, of the
+    reading that took longest."""
+    start, piece, count = "> " * 30 + "<hr\n", "x <br\n", 10_912
+    assert len(start + piece * count) == assistant.MAX_TEXT
+    eighth = reading("render_issue", start + piece * (count // 8))
+    whole = reading("render_issue", start + piece * count)
+    # The budget and the ceiling of the fuzz target, for a first call that took
+    # longer than its budget.
+    assert too_slow(0.6, count, eighth, whole, 0.5, 3) is None
+
+
 # The names of the tags that start an HTML block of CommonMark's sixth kind.
 COMMONMARK_BLOCK_TAGS = [
     "address",
@@ -901,27 +1067,28 @@ def test_the_names_of_html_rows_match_what_they_matched_ignoring_case():
 # can start one, also after HTML, where every row can; footnotes with indented
 # rows, and quotes deeper than any.
 SLOW_DEFINITIONS = {
-    "definitions with titles that never end": '[a]: b "c\n' * 6_553,
-    "list items with titles that never end": '- [a]: b "c\n' * 5_461,
-    "titles that never end after HTML": '<a>\n[a]: b "c\n' + "[a]: b 'c\n" * 6_500,
-    "labels that never end": "[a\n" * 21_845,
-    "labels that never end after HTML": "<a>\n" + "- [a\n" * 13_106,
-    "footnotes with indented rows": "[^a]: b\n\n    c\n" * 4_369,
-    "deep quotes": ">" * 32_000 + "[a]:\n" + ">" * 32_000,
+    "definitions with titles that never end": [('[a]: b "c\n', 6_553)],
+    "list items with titles that never end": [('- [a]: b "c\n', 5_461)],
+    "titles that never end after HTML": ['<a>\n[a]: b "c\n', ("[a]: b 'c\n", 6_500)],
+    "labels that never end": [("[a\n", 21_845)],
+    "labels that never end after HTML": ["<a>\n", ("- [a\n", 13_106)],
+    "footnotes with indented rows": [("[^a]: b\n\n    c\n", 4_369)],
+    "deep quotes": [(">", 32_000), "[a]:\n", (">", 32_000)],
     # Its twin, whose depth stays below the cut.
-    "quotes of 100": (">" * 100 + "[a]:\n") * 600,
+    "quotes of 100": [(">" * 100 + "[a]:\n", 600)],
     # Each backslash could take the character after it or leave it.
-    "escapes in a destination that never ends": "[a]: <" + "\\a" * 32_000,
-    "escapes in a label that never ends": "[" + "\\a" * 32_000 + "]",
-    "escapes in a title that never ends": '[a]: # "' + "\\a" * 32_000,
+    "escapes in a destination that never ends": ["[a]: <", ("\\a", 32_000)],
+    "escapes in a label that never ends": ["[", ("\\a", 32_000), "]"],
+    "escapes in a title that never ends": ['[a]: # "', ("\\a", 32_000)],
 }
 
 
-@pytest.mark.parametrize("text", SLOW_DEFINITIONS.values(), ids=SLOW_DEFINITIONS)
-def test_no_text_makes_finding_its_definitions_slow(text):
-    """Each row is read a bounded number of times: the whole text takes a fraction of
-    the time that reading it from each of its rows would."""
-    assert fast(0.5, assistant.shown_text, text)
+@pytest.mark.parametrize("text", SLOW_DEFINITIONS)
+def test_no_text_makes_finding_its_definitions_slow(text, record_property):
+    """Each row is read a bounded number of times: the whole text takes no more
+    times as long as its eighth than a reading in linear time would."""
+    parts = SLOW_DEFINITIONS[text]
+    holds_the_growth_of(assistant.shown_text, parts, text, record_property)
 
 
 def test_html_is_removed_as_github_hides_it():
@@ -1773,11 +1940,43 @@ def test_markup_of_a_row_goes_without_fenced_code_as_with_it():
         )
 
 
-def test_markup_reads_each_part_of_a_text_once():
-    """A paragraph of many instructions or declarations without their end, and a
-    row of many that end, read in time linear in the text."""
-    for text in ("x <!X" * 13_000 + "\n\n>", "<?" * 30_000, "<?a?>" * 13_000):
-        assert fast(0.5, assistant.shown_text, text)
+# A paragraph of many instructions or declarations without their end, and a row of
+# many that end.
+SLOW_MARKUP = {
+    "declarations without their end": [("x <!X", 13_000), "\n\n>"],
+    "instructions without their end": [("<?", 30_000)],
+    "instructions that end": [("<?a?>", 13_000)],
+}
+
+
+@pytest.mark.parametrize("text", SLOW_MARKUP)
+def test_markup_reads_each_part_of_a_text_once(text, record_property):
+    """Each of them reads in time linear in the text."""
+    parts = SLOW_MARKUP[text]
+    holds_the_growth_of(assistant.shown_text, parts, text, record_property)
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        # The start of a block of a tag without its end, on the last row, in which
+        # a list item could go on.
+        ("  <div", "  "),
+        # An escaped pipe in the head of a table, which splits no cell.
+        ("| a \\| b |\n|---|\n| c |", "| a \\| b |\n|---|\n| c |"),
+        # Blocks of tags without their end, one after the other.
+        ("<div\nx\n\n" * 2, "\n"),
+        # A tag whose value holds the end of a comment, after a comment.
+        ("<!-- <a> --><b c='-->'>" * 2, ""),
+    ],
+    ids=["a tag at the end", "escaped pipes", "blocks of tags", "comment ends"],
+)
+def test_what_the_page_shows_of_the_shapes_of_the_timing(text, shown):
+    """Short texts of shapes that the timing reads at length: its tries run without
+    the tracer (#532), so that the parts of the reading that only they and the
+    property tests reached were covered by chance, as a run with Python 3.12
+    without pytest-xdist missed one (#543). Here they run under the tracer."""
+    assert assistant.shown_text(text) == (shown, 0)
 
 
 SEARCH = json.loads(
@@ -8017,26 +8216,30 @@ def test_code_written_next_to_code_keeps_its_own_backticks(config):
     assert assistant.joined(["`a`", "`b`", "c", "`d`"]) == "`a` `b`c`d`"
 
 
+# Texts on which the cleaning of the engine's answer reads in time linear in them.
+SLOW_ANSWERS = {
+    "unclosed comments": [("<!--", 16_384)],
+    "unclosed comments within lines": [("x<!--", 13_107)],
+    "unclosed tags": [("<a", 32_768)],
+}
+
+
+@pytest.mark.parametrize("text", SLOW_ANSWERS)
+def test_no_text_makes_the_cleaning_slow(config, text, record_property):
+    parts = SLOW_ANSWERS[text]
+    holds_the_growth_of(assistant.sanitize, parts, text, record_property, config)
+
+
+# Each glued mention or reference takes a round of its own (`settled`), so that their
+# cleaning grows with the square of their count, about 50 times from an eighth to the
+# whole: the growth of a reading in linear time doesn't hold for them, by design. The
+# fields of the engine's answer that the cleaning reads have a maxLength far below
+# these 2,500 characters, so a bound of time holds that no such text stalls a run.
 @pytest.mark.parametrize(
-    ("text", "seconds"),
-    [
-        # Each glued mention or reference takes a round of its own.
-        ("#1" * 1_250, 2),
-        ("@a" * 1_250, 2),
-        ("<!--" * 16_384, 0.5),
-        ("x<!--" * 13_107, 0.5),
-        ("<a" * 32_768, 0.5),
-    ],
-    ids=[
-        "references",
-        "mentions",
-        "unclosed comments",
-        "unclosed comments within lines",
-        "unclosed tags",
-    ],
+    "text", ["#1" * 1_250, "@a" * 1_250], ids=["references", "mentions"]
 )
-def test_no_text_makes_the_cleaning_slow(config, text, seconds):
-    assert fast(seconds, assistant.sanitize, text, config)
+def test_no_glued_reference_makes_the_cleaning_slow(config, text):
+    assert fast(2, assistant.sanitize, text, config)
 
 
 def test_an_unclosed_comment_hides_the_rest_of_the_text(config):
@@ -12584,17 +12787,23 @@ def test_only_words_that_github_shows_deny_the_fix(text, github_shows, denies):
         assert assistant.denies_closing(read, "owner/project", 12) is denies
 
 
-def test_no_description_makes_reading_its_closing_keywords_slow():
-    for text in (
-        "close #1 " * 7_281,
-        "fix " * 16_384,
-        "fix a/" + "a" * 65_000,
-        "fix " + " " * 65_000 + "x",
-        "fix https://github.com/" + "a" * 65_000,
-        "doesn't " * 8_192,
-        "<!-- doesn't fix #1 -->" * 2_800,
-    ):
-        assert fast(0.5, assistant.denies_closing, text, "owner/project", 1)
+SLOW_DESCRIPTIONS = {
+    "closing keywords in a row": [("close #1 ", 7_281)],
+    "keywords without a number": [("fix ", 16_384)],
+    "a long name of a repository": ["fix a/", ("a", 65_000)],
+    "blanks after a keyword": ["fix ", (" ", 65_000), "x"],
+    "a long address": ["fix https://github.com/", ("a", 65_000)],
+    "denials in a row": [("doesn't ", 8_192)],
+    "denials in comments": [("<!-- doesn't fix #1 -->", 2_800)],
+}
+
+
+@pytest.mark.parametrize("text", SLOW_DESCRIPTIONS)
+def test_no_description_makes_reading_its_closing_keywords_slow(text, record_property):
+    parts = SLOW_DESCRIPTIONS[text]
+    holds_the_growth_of(
+        assistant.denies_closing, parts, text, record_property, "owner/project", 1
+    )
 
 
 def test_an_unreleased_fix_of_one_issue_doesn_t_stop_the_next(config):

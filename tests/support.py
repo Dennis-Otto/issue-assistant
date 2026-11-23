@@ -1808,11 +1808,45 @@ def clock_step(clock: Callable[[], int]) -> float:
 @dataclasses.dataclass(frozen=True)
 class Growth:
     """The processor time of one call on the text with an eighth of its repetitions
-    and on the whole text, in seconds, and how many times as long the whole took."""
+    and on the whole text, in seconds, and how many times as long the whole took.
+    Where the whole ended its growth at once, the eighth is not a number: it was
+    never called."""
 
     eighth: float
     whole: float
     times: float
+
+
+# The processor time of one reading of a whole text, in seconds, counted without the
+# tracer of the coverage, as growth() times its tries (#532). Not the promise of the
+# reading, which is that nothing in it backtracks or grows faster than its text, and
+# which the growth holds on every machine. The ceiling holds only that no reading
+# becomes many times slower everywhere; how fast it reads has issues of its own
+# (#487, #488, #494). The slowest whole text took 0.49 seconds and the slowest twin
+# 0.53 (`void tags below quotes`) on a machine of a maintainer, about a quarter of
+# the ceiling, as 0.44 seconds were when a limit of 0.5 seconds measured the runner,
+# on which a busy one took one and a half times as long (#500, #504). Under the
+# tracer they took 1.39 and 1.73 seconds, within a quarter of a second of it. So the
+# ceiling lets a reading of the texts of HTML take about three times as long in real
+# time as under the tracer before it fails, `delimiter rows` about a quarter longer;
+# 1 second would measure the runner again, since the slowest whole reached 0.69
+# seconds without the tracer on a busy machine, and 1.21 to 1.39 seconds in a
+# container of four processors on a machine loaded to 99 and 100 % (#543).
+CEILING = 2
+
+# One call of the whole text that takes longer than this, in seconds of processor
+# time, ends its growth at once, before the eighth is called at all: no text in
+# linear time comes near it, and a reading that grows with the square of its text
+# would take minutes for its tries. The slowest whole of a text in linear time took
+# 1.82 seconds on a machine loaded to 84 to 94 % (#543), so five times CEILING leaves
+# room for a runner several times as slow. A whole between CEILING and this bound
+# still gets every try: the verdict on it is that of CEILING and the growth.
+HOPELESS = 5 * CEILING
+
+# The growth after the first three tries of each side from which three more tries of
+# each follow (#543): a reading in linear time grows 6 to 9 times, and one that a
+# busy moment lifted near GROWTH gets three more chances to show it.
+DOUBTFUL = 10
 
 
 def growth(
@@ -1820,22 +1854,39 @@ def growth(
     whole: Callable[[], object],
     clock: Callable[[], int] = PROCESSOR_CLOCK,
     shortest: float = 0.02,
+    longest: float = CEILING,
+    hopeless: float = HOPELESS,
+    steady: bool = True,
 ) -> Growth:
     """How many times as long a call takes on the whole text as on its eighth, in the
     best of three tries of each, timed in turn: a machine that becomes busy slows
     both sides, and only a reading that grows faster than its text grows more.
 
-    A try calls its side as often as it takes to last the shortest time, 0.02
+    A try of the whole calls it as often as it takes to last the shortest time, 0.02
     seconds, or ten times that where the clock moves in steps of more than a
     millisecond; a call that the first try of a side makes for the first time can't
     count, as two tries are without it. As in timeit, no collection of garbage runs
     within a try. The ratio comes from the clock, the seconds from process_time()
-    over the six tries as one span, so that its step of 1/64 second on Windows
+    over all the tries as one span, so that its step of 1/64 second on Windows
     errs once rather than in every try.
+
+    The tries of both sides span the same time (#543). In each pair the whole goes
+    first, and a try of the eighth lasts at least as long as one call of the whole,
+    up to `longest`, the CEILING that no whole may reach: else the eighth had many
+    short calls in which to find a quiet moment of the machine, and the whole one
+    long call that a busy moment could lift, which failed cases in linear time by
+    chance. Where the first three tries of each side give DOUBTFUL times or more,
+    three more tries of each follow, and the best of all six counts. A first call of
+    the whole that takes longer than `hopeless` seconds ends the growth at once,
+    with an eighth that is not a number and a growth without bound, so that a
+    reading that grows with the square of its text fails after that call rather
+    than in the timeout of the job. `steady` False keeps the tries as they were:
+    the eighth first, three tries of each and the shortest time for both, as the
+    fuzz targets take them, whose timeouts count those tries.
 
     Nor does the tracer of the coverage run within a try, which made a try up to
     three times as slow and the check 45 to 95 seconds longer, by runner (#532): the trace
-    function of the thread goes for the six tries and comes back after them, also
+    function of the thread goes for the tries and comes back after them, also
     when a side raises. It is what traces: under pytest-xdist each process has two
     collectors of the coverage stacked, and stopping the current one of Coverage
     only hands the tracing to the other. From Python 3.14 on, the coverage measures
@@ -1846,26 +1897,45 @@ def growth(
     if clock_step(clock) > 0.001:
         shortest *= 10
     best = [math.inf, math.inf]
+    sides = ((1, whole), (0, eighth)) if steady else ((0, eighth), (1, whole))
+    span = 0.0
     collecting = gc.isenabled()
     tracing = sys.gettrace()
     gc.disable()
     sys.settrace(None)
     try:
         started, first = time.process_time(), clock()
-        for _ in range(3):
-            for index, side in enumerate((eighth, whole)):
+        for round_ in range(6 if steady else 3):
+            if round_ == 3 and best[1] < DOUBTFUL * best[0]:
+                break
+            for index, side in sides:
+                need = shortest
+                if steady and not index:
+                    need = min(max(shortest, span), longest)
                 calls = 0
                 began, counted = time.perf_counter(), clock()
-                while not calls or time.perf_counter() - began < shortest:
+                while not calls or time.perf_counter() - began < need:
                     side()
                     calls += 1
                 best[index] = min(best[index], (clock() - counted) / calls)
+                if steady and index:
+                    span = (time.perf_counter() - began) / calls
+                    call = (time.process_time() - started) / calls
+                    if not round_ and call > hopeless:
+                        return Growth(math.nan, call, math.inf)
         tick = (time.process_time() - started) / (clock() - first)
     finally:
         sys.settrace(tracing)
         if collecting:
             gc.enable()
     return Growth(best[0] * tick, best[1] * tick, best[1] / best[0])
+
+
+def plain_growth(eighth: Callable[[], object], whole: Callable[[], object]) -> Growth:
+    """The growth in the tries of before #543, which the fuzz targets take through
+    too_slow(): their timeouts of libFuzzer count three calls of the whole and three
+    tries of the eighth of the shortest time each."""
+    return growth(eighth, whole, steady=False)
 
 
 # How many times as long a reading may take on the whole text as on the text with an
@@ -1875,10 +1945,14 @@ def growth(
 # whole text. That time is counted without the tracer of the coverage, as growth()
 # times its tries, where the parts in C, such as re, take a larger share of it than
 # under the tracer. In four runs of #532 without the tracer, the highest growth was
-# 10.09 to 13.40 (2026-11-22). Three runs reached 12 or more, each in one reading of a
-# few hundredths of a second, and the 13.40 failed its run: noise of the short cases,
-# as 12.87 was under the tracer on main. The timing tests and the fuzz target of the
-# converter hold their readings to it alike.
+# 10.09 to 13.40 (2026-11-22), and in seven runs before #543 in a container of four
+# processors 10.89 to 13.25, with 4 to 23 cases a run at 10 or more, and the 13.25
+# failed its run: noise of a busy moment that lifted one side alone. With the tries
+# of both sides over the same span and the three more tries of #543, the highest
+# growth was 9.78 to 10.99 in four runs on a quiet machine, with no case or one at
+# 10 or more, and 10.95 in both runs on a machine loaded to 99 and 100 %, with 2 and
+# 6 cases at 10 or more (2026-11-23). The timing tests and the fuzz targets hold
+# their readings to it alike.
 GROWTH = 13
 
 
@@ -1889,7 +1963,9 @@ def too_slow(
     whole: Callable[[], object],
     budget: float,
     ceiling: float,
-    measure: Callable[[Callable[[], object], Callable[[], object]], Growth] = growth,
+    measure: Callable[
+        [Callable[[], object], Callable[[], object]], Growth
+    ] = plain_growth,
     clock: Callable[[], float] = time.process_time,
 ) -> str | None:
     """Why a call that took `seconds` of processor time on a text that repeats a piece

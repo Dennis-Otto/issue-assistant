@@ -10,7 +10,6 @@ import io
 import json
 import re
 import shutil
-import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -747,27 +746,6 @@ def test_a_reference_in_an_attached_file_stays_as_it_is_written():
         0,
     )
     assert visible.removed == 0
-
-
-# Texts of 64 KiB on which the reading of the links looked for the next tag in the
-# rest of the text again after each tag over several rows, for up to 18 seconds
-# (2026-11-20).
-LONG_TEXTS = {
-    "instructions below a tag without its end": "<a\n" + "<?>" * 21_000 + "\n```",
-    "sections of CDATA in a row of a block": "<div>\n" + "\t><![CDATA[>    " * 4_000,
-    "sections of CDATA in list items": "1. <![CDATA[\n`]]>" * 3_800 + "\n```",
-}
-
-
-@pytest.mark.parametrize("text", LONG_TEXTS.values(), ids=LONG_TEXTS)
-def test_the_links_of_a_long_text_are_read_in_time(text):
-    issue, comments = issue_with(text)
-    times = []
-    for _ in range(3):
-        start = time.process_time()
-        assistant.attachments_of(issue, comments, REPOSITORY)
-        times.append(time.process_time() - start)
-    assert min(times) < 0.5
 
 
 def test_an_older_link_counts_only_for_a_file_of_this_repository():
