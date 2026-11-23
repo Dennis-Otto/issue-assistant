@@ -4,6 +4,23 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.15.4](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.3...v1.15.4) (2026-11-23)
+
+
+### Bug fixes
+
+* **attachments:** an attachment counts only where the page links exactly its address ([#530](https://github.com/Dennis-Otto/issue-assistant/issues/530)) ([b438f62](https://github.com/Dennis-Otto/issue-assistant/commit/b438f6205f3aba6434a25921e5643ac6f7f0e8ea))
+* **context:** the AI no longer reads text nested deeper than GitHub shows ([#517](https://github.com/Dennis-Otto/issue-assistant/issues/517)) ([c507136](https://github.com/Dennis-Otto/issue-assistant/commit/c507136503acb6c238de4435ceaf76c4afc89e70))
+* **context:** the AI no longer reads the words that GitHub hides on the row of a fence ([#524](https://github.com/Dennis-Otto/issue-assistant/issues/524)) ([ce79311](https://github.com/Dennis-Otto/issue-assistant/commit/ce793117d4e8df56075d4409d7af8760a3e5a32e))
+* **context:** the AI no longer reads what a void tag holds inside svg or math, nor two more kinds of dropped cells ([#542](https://github.com/Dennis-Otto/issue-assistant/issues/542)) ([7eb97d3](https://github.com/Dennis-Otto/issue-assistant/commit/7eb97d3463ec1014f8041efe9d6887b6d4923875))
+* **deps:** update the Copilot CLI to 1.0.112 (was 1.0.108) ([#538](https://github.com/Dennis-Otto/issue-assistant/issues/538)) ([7fb4943](https://github.com/Dennis-Otto/issue-assistant/commit/7fb49431ad349dadb076ea1482e424efebe42970))
+* **deps:** update the Gemini CLI to 0.68.0 (was 0.67.0) ([#540](https://github.com/Dennis-Otto/issue-assistant/issues/540)) ([0179e37](https://github.com/Dennis-Otto/issue-assistant/commit/0179e376fb5d237323bbb5cd603b7b026dce37f0))
+
+
+### Performance
+
+* **context:** attachments_of asks the blocks less and finds the rows of HTML once ([#531](https://github.com/Dennis-Otto/issue-assistant/issues/531)) ([8606a9e](https://github.com/Dennis-Otto/issue-assistant/commit/8606a9eac58373768ccfcae8f47ff70c1fb14f17))
+
 ## [1.15.3](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.2...v1.15.3) (2026-11-22)
 
 ### Bug fixes
