@@ -395,7 +395,7 @@ jobs:
         name: Analyze with Claude
         id: claude
         if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'claude'
-        uses: anthropics/claude-code-action@9eb012b6d0900c2b9eede65ee1758cec4d2973e9 # v1.0.270
+        uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1.0.276
         env:
           DISABLE_TELEMETRY: "1"
           DISABLE_ERROR_REPORTING: "1"
