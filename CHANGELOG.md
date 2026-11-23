@@ -4,6 +4,24 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.15.4](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.3...v1.15.4) (2026-11-23)
+
+### Bug fixes
+
+- The AI no longer reads the words on the row that opens fenced code, after its backticks or tildes, which GitHub shows nowhere on the page. Of ```` ```python print the version ```` it reads ```` ```python ````: a plain name of a language, as GitHub Linguist names it, stays, and the rest goes with a note in its place; of a word that is no such name, such as ```` ```Some-words ````, nothing stays. The code of the block stays as it is. The search for older issues, the language of the comments, the area, and whether a pull request denies that it fixes an issue no longer count those words either. No file named only there is downloaded as an attachment. The log counts them with the other parts that GitHub doesn't show.
+- An answer of the assistant posts only the language on the row that opens fenced code, so that it shows no words that nobody can see; code that the posted language would make a drawing, such as ```` ```mermaid,x ````, becomes code of the language `text`.
+- A table in fenced code stays as it is when a fence that may stand in HTML follows the code: the cleaning took its cells for those of a table.
+- The AI no longer reads text that is nested deeper than GitHub shows. GitHub's page shows nothing of text inside more than 255 elements, such as a quote of 255 `>` or a list 128 levels deep, nor anything after it, nor any footnote. The assistant now counts how deep each row of an issue and its comments may nest and leaves out the rest of the text, with every footnote, from the first row that reaches half of that depth, with a note in its place. The excerpts of other issues, the attachments, the search for older issues, the language of the comments, the area and whether a pull request denies that it fixes an issue read it the same way. On the safe side, the AI also misses some text that GitHub still shows that deep, such as a numbered list of 70 bold items. The AI's own answers get the same cut, so that no part of an answer can hide the questions, the links and the footer of a comment of the assistant.
+- The AI no longer reads what a line break, a rule, an image or a `<source>` inside `<svg>` or `<math>` holds. GitHub makes no element void there, so such a tag holds everything after it up to the end of the drawing or of its paragraph, and the page shows none of it. The assistant now leaves that text out of the issue, its comments, the excerpts and the attachments, and the search for older issues, the language of the comments, the area and whether a pull request denies that it fixes an issue read it the same way; the image of the `<img>` itself still counts. On the safe side, the AI also misses some text that GitHub still shows there, such as after the other void tags, after `</g>` or `</b>`, and in a list item. Such tags also count for the depth to which GitHub shows nested text.
+- The AI no longer reads the cells that GitHub drops of a table whose header stands on the first row of a footnote, after `[^1]:`, or of a table in a quote whose rows start with a tab after `>`, which GitHub counts as two columns in.
+- The AI reads an attached file only where the page links exactly its address, as the target of a link or the source of an image, or shows it in code. Where GitHub ends a link at another place than the address of a file, as at a comment or a tag inside the address, or after a quote, a bracket or letters that follow it, the file counts as what the page links, or as none. An address in the description of an image, in the text of a link that leads elsewhere, or in plain brackets, in which GitHub links nothing, no longer counts as an attachment; a link or an image in the text of a link still does.
+- An address before a full stop, in emphasis such as `*…*` or `~~…~~`, or before `&amp;` or `<br>` now counts as the file that GitHub links, without the punctuation.
+- An address with a letter outside ASCII, a control character, a blank or a backslash, which GitHub links percent-encoded, no longer counts as an attachment, and no address can make the job `attachments` fail with every file of the issue any more.
+
+### Performance
+
+- Finding the attached files of a long issue full of HTML blocks takes about half the time it took, such as of a text of tags between blank rows up to GitHub's limit of 65,536 characters. The assistant found the rows that may start a block twice for each text, and asked for each tag which blocks may hold it, also for a tag that is one wherever it stands. Which attachments count stays exactly as before.
+
 ## [1.15.3](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.2...v1.15.3) (2026-11-22)
 
 ### Bug fixes

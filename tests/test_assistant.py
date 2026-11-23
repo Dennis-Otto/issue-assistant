@@ -407,6 +407,15 @@ SLOW_TEXTS = {
     "closing keywords in a row": [("close #1 ", 7_281)],
     "keywords without a number": [("fix ", 16_384)],
     "denials in a row": [("doesn't ", 8_192)],
+    # The marks that rendering_estimate weighs most, each in a text of its own (#521).
+    "footnote references in a row": [("[^1]", 16_384)],
+    "permalinks with long ranges": [("/blob/a/b.rs#L1-L999999999 ", 2_400)],
+    "emoji in a row": [("\U0001f389", 16_384)],
+    "long table rows in deep quotes": [
+        "> |a|b|\n> |-|-|\n",
+        ("> " * 100 + "|a" * 100 + "|\n", 160),
+    ],
+    "fences on every row": [("```\n", 16_384)],
 }
 
 # Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
@@ -574,6 +583,9 @@ READINGS = {
     "attachments_of": lambda text, issue, comments: assistant.attachments_of(
         issue, comments, "owner/project"
     ),
+    "rendering_estimate": lambda text, issue, comments: assistant.rendering_estimate(
+        text, "owner/project"
+    ),
 }
 
 
@@ -647,14 +659,12 @@ def test_no_text_makes_reading_an_issue_slow(text, name, record_property):
 
 
 # The readings that read the HTML of a text for what the page shows of it, which
-# stop at the cut. The others read the form and the links of the text as it is
-# written, the whole of it, whether it reaches the cut or not, so that the original
-# of a twin still times them on all of its text, and its twin adds nothing there.
-SHOWN_READINGS = [
-    name
-    for name in READINGS
-    if name not in ("form_fields", "shown_links", "attachments_of")
-]
+# stop at the cut. The others read the form, the links and the estimate of the
+# rendering of the text as it is written, the whole of it, whether it reaches the
+# cut or not, so that the original of a twin still times them on all of its text,
+# and its twin adds nothing there.
+WHOLE_READINGS = ("form_fields", "shown_links", "attachments_of", "rendering_estimate")
+SHOWN_READINGS = [name for name in READINGS if name not in WHOLE_READINGS]
 
 
 @pytest.mark.parametrize("name", SHOWN_READINGS)

@@ -53,7 +53,9 @@ CEILING = 3
 # ceiling that is 5 times 4.4 times 3 seconds, about 66 seconds of processor time,
 # and a busy runner takes longer in wall time than in processor time: the timeout
 # leaves nearly twice that, so that an input in linear time ends with the message of
-# the growth rather than a bare timeout. That text took 17 seconds in all.
+# the growth rather than a bare timeout. That text took 17 seconds in all. The sixth
+# reading, rendering_estimate, takes a few hundredths of a second on a whole text,
+# far below BUDGET, so it adds no tries.
 TIMEOUT = 120
 USER = {"login": "reporter", "type": "User"}
 CREATED = "2026-10-13T00:00:00Z"
@@ -91,6 +93,10 @@ def readings(text: str) -> list[tuple[str, Callable[[], object]]]:
         (
             "attachments_of",
             lambda: assistant.attachments_of(issue, comments, "owner/repository"),
+        ),
+        (
+            "rendering_estimate",
+            lambda: assistant.rendering_estimate(text, "owner/repository"),
         ),
     ]
 

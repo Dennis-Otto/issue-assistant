@@ -29,6 +29,7 @@ from .engines import *
 from .settings import *
 from .fixture import *
 from .rest_shapes import *
+from .renderings import *
 from .github import *
 from .markup import *
 from .tags import *

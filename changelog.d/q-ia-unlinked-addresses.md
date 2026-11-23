@@ -1,5 +1,0 @@
-### Bug fixes
-
-- The AI reads an attached file only where the page links exactly its address, as the target of a link or the source of an image, or shows it in code. Where GitHub ends a link at another place than the address of a file, as at a comment or a tag inside the address, or after a quote, a bracket or letters that follow it, the file counts as what the page links, or as none. An address in the description of an image, in the text of a link that leads elsewhere, or in plain brackets, in which GitHub links nothing, no longer counts as an attachment; a link or an image in the text of a link still does.
-- An address before a full stop, in emphasis such as `*…*` or `~~…~~`, or before `&amp;` or `<br>` now counts as the file that GitHub links, without the punctuation.
-- An address with a letter outside ASCII, a control character, a blank or a backslash, which GitHub links percent-encoded, no longer counts as an attachment, and no address can make the job `attachments` fail with every file of the issue any more.

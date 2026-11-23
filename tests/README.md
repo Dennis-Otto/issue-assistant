@@ -16,6 +16,7 @@
 | `test_properties.py`, `test_lifecycle_properties.py` | Property tests of the cleaning, of whole comments and of the lifecycle |
 | `oracle.py`, `test_oracle.py` | The Markdown parser that judges the cleaning, held to what GitHub's renderer does |
 | `test_converter.py` | The converter of way D, `markdown_of`: each row of its closed list, what fails closed, the references and addresses, its bounds and its speed, on GitHub's HTML of the texts of `fixtures/renderings.json` and of the four fixtures of marker words |
+| `test_renderings.py` | The renderings of way D, read by their numbers: the estimate against what GitHub rendered, the budget of a request, the windows of comments and their cursors, each shape of a failed request and its halves, and the limits of a command, on `GitHubOfRenderings` and on GitHub's answers to two real requests in `fixtures/renderings-by-number.json` |
 | `test_findings.py` | The findings of code scanning |
 | `test_setup.py`, `test_templates.py` | `install`, `check`, the settings and the workflow templates |
 | `test_engines.py` | The engines next to Claude: their schemas, rules and firewall policies, and the command lines that `analyze` runs |
@@ -25,7 +26,7 @@
 | `test_workflow_test.py` | The Workflow test: its calls of the reusable workflows, the smoke test and `scripts/workflow_test.py` |
 | `test_repository_settings.py` | The settings as code of this repository: every action that a workflow runs is one that `[actions.selected]` allows |
 | `conftest.py`, `sample/` | The sample repository with the assistant installed, which most tests read |
-| `fixtures/` | The issue that the canary analyzes, the answer that the smoke test of the Workflow test checks in place of the engine's, and texts with GitHub's HTML of them for the cleaning and the converter |
+| `fixtures/` | The issue that the canary analyzes, the answer that the smoke test of the Workflow test checks in place of the engine's, texts with GitHub's HTML of them for the cleaning and the converter, and GitHub's answers to requests of renderings |
 
 ## The fake GitHub
 
