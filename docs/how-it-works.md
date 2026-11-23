@@ -40,6 +40,8 @@ Every task of the AI is one of five: `triage` for a new issue, `follow-up` when 
 
 Every other event, such as a comment of someone else, gives it none, and on an issue with the label `assistant-muted`, only a maintainer's command does, or the reporter's `/assistant again` when [the box of the form](features/opt-out.md) muted it, which a new issue with the box ticked gets from the start. A [run by hand](features/runs-by-hand.md), under *Actions → Issue assistant → Run workflow*, gives it the task chosen there, `triage` by default, with an instruction if you like; it answers again where the task already has its comment only when a maintainer ticks override. On [the issue of the digest](features/digest.md#the-digest-as-an-issue), neither starts anything. The AI is off while the repository variable `ISSUE_ASSISTANT_AI` is `off`, and pauses while the engine's secret is missing.
 
+The texts reach the AI from their sources, cleaned as GitHub shows them. The input `reading: rendered`, experimental and for a run by hand, has it read GitHub's own rendering of each text instead, read in a second step, and the source of a text without one; [The experimental reading rendered](security/rendered-reading.md) describes it.
+
 ## Security
 
 **Built against PromptPwnd and Comment and Control,** the attacks that make an AI in GitHub Actions run commands, leak secrets or write what an issue tells it to. The assistant follows every mitigation that the research on them recommends for a workflow like it, each pinned by a test; the [security design](security/prompt-attacks.md) maps them one by one. The issue examples of the Claude Code action, by contrast, give the AI a token that writes to issues.

@@ -1,0 +1,19 @@
+flowchart TB
+  accTitle: How the reading rendered reads a text
+  accDescr: On the experimental reading rendered, the sources of the issue, its comments, the other issues and the discussions are read as on cleaned. Then GitHub's rendering of each text is read by its number, in requests that the estimate of each text packs, within the limits of the command: those of the issue and its comments right after their sources, since the search for older issues takes the words of the issue, and those of the other texts at the end. A text that GitHub rendered becomes the converter's Markdown of its HTML, with the signed address of an uploaded picture written back as the address of its source. A text without a rendering, because it is too large, its request failed alone, GitHub answered null for it, it changed between the two steps or a limit of the command left it out, is its cleaned source, as on cleaned. Each text then goes into its code fence as before, and a notice in the log counts the requests and the texts read from their cleaned source, by reason.
+  sources["the sources of the issue,<br>its comments, other issues<br>and discussions, as on cleaned"] --> first["`**renderings by number:**<br>the issue and its comments`"]
+  first --> search["the search for older issues,<br>with the words of the issue"]
+  search --> rest["`**renderings by number:**<br>the other issues, the discussions<br>and the related repositories`"]
+  rest --> rendered{"a rendering<br>of the text?"}
+  rendered -- yes --> converter["`**the converter's Markdown**<br>of the HTML; an uploaded picture<br>at the address of its source`"]
+  rendered -- "no: too large, failed,<br>null, changed, a limit" --> cleaned["`**the cleaned source**,<br>as on cleaned`"]
+  converter --> fence["`its **code fence**,<br>as before`"]
+  cleaned --> fence
+  fence --> context[("issue.md, issues.jsonl,<br>discussions.jsonl,<br>attachments.md")]
+  rest -.-> notice["a notice in the log:<br>requests, points, seconds,<br>texts read cleaned by reason"]
+  classDef untrusted fill:#cf222e26,stroke:#cf222e,stroke-width:2px
+  classDef job fill:#8c959f1f,stroke:#8c959f,stroke-width:2px
+  classDef safe fill:#1a7f3726,stroke:#1a7f37,stroke-width:2px
+  class sources untrusted
+  class first,search,rest,rendered,converter,cleaned,fence,notice job
+  class context safe

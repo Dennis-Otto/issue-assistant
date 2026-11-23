@@ -23,11 +23,13 @@ from support import (
     BOX_TICKED,
     BUG_BODY,
     REPOSITORY,
+    SHAPES,
     FakeGitHub,
     Frozen,
     at,
     make_answer,
     make_comment,
+    make_discussion,
     make_issue,
     run_main,
 )
@@ -608,6 +610,87 @@ def test_github_then_searches_related_repositories_as_they_were(config, github):
     other = then.sibling(server)
     assert [item["number"] for item in other.search_issues(words)] == [5]
     assert then.sibling("owner/private") is None
+
+
+def aliases_asked(rendering):
+    """The aliases of each request of renderings, the comments of an issue by the
+    alias of the issue and those of its windows."""
+    return [
+        re.findall(r"(\w+): (?:issue|discussion|comments)\(", request["query"])
+        for request in rendering.requests
+        if request["query"] != assistant.CURSORS
+    ]
+
+
+def test_then_passes_the_renderings_through(config, github):
+    """Then gives the renderings of now for the texts that its reads gave, and keeps
+    each in the memo of the replays, by repository, kind and number or comment id.
+    It never asks again for a text that it holds with the same source, not even one
+    whose request failed, whose reason it counts again; a comment that it holds
+    stays in its place, so that the window of a newer one starts after it. A
+    related repository's renderings share the memo (#521)."""
+    memo = {}
+    then = assistant.Then(github, sample(), memo)
+    github.store[7] |= {"body": "Seven", "body_html": "<p>Seven <em>now</em></p>"}
+
+    def texts():
+        issue, comments = github.store[20], github.comment_store[20]
+        return assistant.issue_texts(
+            REPOSITORY, issue, comments
+        ) + assistant.other_texts(REPOSITORY, [github.store[7], github.store[21]])
+
+    github.rendering.failing = lambda aliases, request: (
+        SHAPES["a 504 with an HTML page"] if "i21" in aliases else None
+    )
+    limits = assistant.Limits(60.0)
+    found = then.renderings(texts(), limits)
+    held = memo[assistant.RENDERINGS_HELD]
+    assert sorted(key[2:] for key in found.html) == [
+        (7, ""),
+        (20, ""),
+        (20, "2"),
+        (20, "3"),
+    ]
+    assert found.html[(REPOSITORY, "issue", 7, "")] == "<p>Seven <em>now</em></p>"
+    assert found.reasons == {(REPOSITORY, "issue", 21, ""): assistant.FAILED}
+    assert aliases_asked(github.rendering) == [
+        ["i20", "i7", "i21", "c20", "w0"],
+        ["i20", "c20", "w0"],
+        ["i7", "i21"],
+        ["i7"],
+        ["i21"],
+    ]
+    assert (held.left.requests, held.left.failures) == (60 - 5, 10 - 3)
+    # Within what is left of the budget, not the limits passed in: an edited issue,
+    # and a new comment after the two that it holds.
+    github.store[20]["body"] = "Edited"
+    github.comment_store[20].append(make_comment(4, "someone", "Newer", 1))
+    again = then.renderings(texts(), assistant.Limits(0.0))
+    assert aliases_asked(github.rendering)[5:] == [["i20", "c20", "w0"]]
+    asked = github.rendering.requests[-1]
+    assert "comments(first: 1, after: $w0)" in asked["query"]
+    assert asked["variables"]["w0"] == "cursor:3"
+    # The cursors of the comments, then the request.
+    assert again.requests == 2
+    assert again.html == found.html | {
+        (REPOSITORY, "issue", 20, ""): "<p>Edited</p>",
+        (REPOSITORY, "comment", 20, "4"): "<p>Newer</p>",
+    }
+    assert again.fallbacks == {assistant.FAILED: 1}
+    assert again.reasons == found.reasons
+    # Held, all of them: nothing is asked for.
+    first = len(github.rendering.requests)
+    assert then.renderings(texts(), limits).html == again.html
+    assert len(github.rendering.requests) == first
+    # A related repository reads into the same memo.
+    server = "owner/server"
+    github.sibling_store[server] = FakeGitHub(config, closed(5, 50), repository=server)
+    other = then.sibling(server)
+    assert other.memo[assistant.RENDERINGS_HELD] is held
+    text = assistant.other_texts(server, [github.sibling_store[server].store[5]])
+    assert other.renderings(text, limits).requests == 1
+    assert then.renderings(text, limits).requests == 0
+    assert (server, "issue", 5, "") in held.held
 
 
 # The replays
@@ -1341,7 +1424,21 @@ def test_a_run_without_a_closed_issue_to_replay_keeps_and_publishes_nothing():
     assert keep["if"] == "steps.replay.outputs.report == 'true'"
     # The condition, not a laxer upload, leaves out a report that doesn't exist.
     assert keep["with"]["if-no-files-found"] == "error"
-    assert jobs["publish"]["if"] == "needs.replay.outputs.report == 'true'"
+    assert jobs["publish"]["if"] == (
+        "needs.replay.outputs.report == 'true' && inputs.reading == 'cleaned'"
+    )
+
+
+def test_evaluate_takes_the_reading_and_publishes_only_the_cleaned_one():
+    """The input reading of a run by hand reaches evaluate as READING; a replay on
+    the experimental reading rendered keeps its report as the artifact of the run,
+    and the page keeps its numbers."""
+    given = EVALUATE[True]["workflow_dispatch"]["inputs"]["reading"]
+    assert given["description"].startswith("Experimental:")
+    assert (given["options"], given["default"]) == (list(assistant.READINGS), "cleaned")
+    replay = step_named("replay", "Replay the closed issues")
+    assert replay["env"]["READING"] == "${{ inputs.reading }}"
+    assert "inputs.reading == 'cleaned'" in EVALUATE["jobs"]["publish"]["if"]
 
 
 def test_the_command_line_of_the_evaluate_workflow_comes_from_its_lock_file():
@@ -1924,3 +2021,86 @@ def test_the_evaluate_command_writes_nothing_on_github(
     monkeypatch.setattr(assistant.cli, "GitHub", connect)
     code, _, _ = run_main(monkeypatch, tmp_path, root, None, "evaluate")
     assert (code, made) == (1, [True])
+
+
+def test_the_replays_read_their_renderings_within_one_budget_of_evaluate(
+    root, config, github
+):
+    """On the experimental reading rendered (#521), the replays share Evaluate's
+    limits, which grow with its samples, in place of those of each context; on
+    cleaned, none asks for a rendering."""
+    samples, _ = assistant.choose_samples(github, config, 3)
+    answers = {22: make_answer(), 21: make_answer(), 20: make_answer()}
+    budgets = []
+    real = github.renderings
+
+    def renderings(texts, limits):
+        budgets.append(limits)
+        return real(texts, limits)
+
+    github.renderings = renderings
+    assistant.replay(github, config, samples, FakeEngine(root, answers))
+    assert budgets == []
+    outcomes = assistant.replay(
+        github, config, samples, FakeEngine(root, answers), assistant.READING_RENDERED
+    )
+    assert [outcome.error for outcome in outcomes] == ["", "", ""]
+    assert budgets[0] == assistant.Limits.of_evaluation(3)
+    # Each read gets what the reads before it left.
+    assert [limits.requests for limits in budgets] == sorted(
+        (limits.requests for limits in budgets), reverse=True
+    )
+    assert budgets[-1].requests < budgets[0].requests
+
+
+def test_evaluate_reads_each_rendering_once(root, config, github, capsys):
+    """On rendered, Evaluate asks first for the renderings of the issue and the
+    comments of every sample, packed with the other issues and the discussions that
+    the replays read; each replay then asks only for what it doesn't hold yet, such
+    as the results of its own search, and its context has every rendering (#521)."""
+    github.comment_store[21] = [make_comment(9, "reporter", "More detail", 11.9999)]
+    github.store[7] |= {"body": "Seven", "body_html": "<p>Seven <em>now</em></p>"}
+    answer = {"body": "In the settings.", "createdAt": at(45), "isMinimized": False}
+    github.discussion_store = [
+        make_discussion(5, days_ago=50, answer=answer, isAnswered=True)
+    ]
+    # The issue that the search of each replay finds, which no other read gives.
+    for number in (22, 21, 20):
+        github.store[number]["title"] = "The live card stays empty"
+    found = closed(3, 60) | {"body": "Three"}
+    github.rendering.issues[(REPOSITORY, 3)] = "Three"
+    github.search = lambda query: [
+        found | {"repository_url": f"https://api.github.com/repos/{REPOSITORY}"}
+    ]
+    samples, _ = assistant.choose_samples(github, config, 3)
+    engine = FakeEngine(root, {22: make_answer(), 21: make_answer(), 20: make_answer()})
+    outcomes = assistant.replay(
+        github, config, samples, engine, assistant.READING_RENDERED
+    )
+    assert [outcome.error for outcome in outcomes] == ["", "", ""]
+    assert aliases_asked(github.rendering) == [
+        ["i22", "i21", "i20", "i7", "d5", "a5", "c21", "w0"],
+        ["i3"],
+    ]
+    for number in (22, 21, 20):
+        assert "Seven _now_" in engine.read[number]["issues.jsonl"]
+    assert "In the settings." in engine.read[20]["discussions.jsonl"]
+    # A replay counts what it read itself apart from what an earlier read held.
+    out = capsys.readouterr().out
+    assert "::notice::Renderings of GitHub: 7 read; requests: 1," in out
+    assert ": 1 read, 6 held from an earlier replay; requests: 1," in out
+
+
+def test_evaluate_leaves_the_renderings_to_the_replays_when_a_source_fails(
+    root, config, github
+):
+    """A source that fails before Evaluate's first read of renderings leaves each
+    replay to ask for its own, and to fail on that source as it would on cleaned."""
+    github.fail(r"discussions\(")
+    samples, _ = assistant.choose_samples(github, config, 3)
+    engine = FakeEngine(root, {22: make_answer(), 21: make_answer(), 20: make_answer()})
+    outcomes = assistant.replay(
+        github, config, samples, engine, assistant.READING_RENDERED
+    )
+    assert all(outcome.error for outcome in outcomes)
+    assert aliases_asked(github.rendering) == [["i22"], ["i21"], ["i20"]]

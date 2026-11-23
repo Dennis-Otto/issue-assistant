@@ -12,14 +12,22 @@ import json
 import re
 import string
 import subprocess
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 import issue_assistant as assistant
-from support import fake_gh
+from support import (
+    PRIMARY,
+    SECONDARY,
+    SHAPES,
+    GitHubOfRenderings,
+    done,
+    fake_gh,
+    html_of,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RECORDED = json.loads((FIXTURES / "renderings-by-number.json").read_text("utf-8"))
@@ -27,193 +35,6 @@ REPOSITORY = "owner/project"
 OTHER = "owner/other"
 LIMITS = assistant.CONTEXT_RENDERING_LIMITS
 FOOTNOTES = "[^1]" * 2200
-
-ISSUE_ALIAS = re.compile(r"(\w+): issue\(number: (\d+)\) \{ body bodyHTML \}")
-DISCUSSION_ALIAS = re.compile(r"(\w+): discussion\(number: (\d+)\) \{ body bodyHTML \}")
-ANSWER_ALIAS = re.compile(r"(\w+): discussion\(number: (\d+)\) \{ answer \{")
-WINDOW_ALIAS = re.compile(r"(w\d+): comments\(first: (\d+)(?:, after: \$(w\d+))?\)")
-# The issue of the comments, or one of its windows, in the order of the document.
-COMMENTS_PART = re.compile(r"(c\d+): issue\(number: (\d+)\)|" + WINDOW_ALIAS.pattern)
-
-
-def html_of(body: str) -> str:
-    return f"<p>{body}</p>"
-
-
-def done(stdout: object = "", stderr: str = "", status: int = 0) -> Any:
-    text = stdout if isinstance(stdout, str) else json.dumps(stdout)
-    return subprocess.CompletedProcess(["gh"], status, text, stderr)
-
-
-# The shapes of a failed request: what gh gives for each, as the measurement saw them
-# or as GitHub documents them.
-SHAPES = {
-    "a 504 with an HTML page": done(
-        "<!DOCTYPE html><html>Unicorn</html>", "gh: HTTP 504", 1
-    ),
-    "a body cut off": done("", "unexpected end of JSON input", 1),
-    "exit 0 and no answer": done(),
-    "errors and no data": done(
-        {"errors": [{"message": "Something went wrong while executing your query."}]},
-        "gh: Something went wrong while executing your query.",
-        1,
-    ),
-    "data null": done(
-        {"data": None, "errors": [{"message": "timedout"}]}, "gh: timedout", 1
-    ),
-    "data that isn't an object": done({"data": []}),
-    "a repository that isn't there without a reason": done(
-        {"data": {"repository": None}}
-    ),
-}
-SECONDARY = done(
-    {"message": "You have exceeded a secondary rate limit."},
-    "gh: You have exceeded a secondary rate limit. (HTTP 403)",
-    1,
-)
-PRIMARY = done(
-    {"errors": [{"type": "RATE_LIMITED", "message": "API rate limit exceeded."}]},
-    "gh: API rate limit exceeded.",
-    1,
-)
-
-
-class GitHubOfRenderings:
-    """GitHub as a request of renderings sees it: the texts that it holds, by their
-    numbers, and a clock that each request moves on by `seconds`.
-
-    `failing` gives the answer in place of GitHub's for a request whose aliases it
-    picks, such as a 504 for every request that holds `i5`; `edit` changes what an
-    answer holds without changing the texts of the first step."""
-
-    def __init__(self, seconds: float = 0.5) -> None:
-        self.issues: dict[tuple[str, int], str] = {}
-        self.discussions: dict[tuple[str, int], str] = {}
-        self.answers: dict[tuple[str, int], str] = {}
-        self.comments: dict[tuple[str, int], list[tuple[str, str]]] = {}
-        self.html: dict[str, str] = {}
-        # The issues deleted since the first step, whose comments are gone too.
-        self.gone: set[int] = set()
-        self.seconds: float | Callable[[dict[str, Any]], float] = seconds
-        self.failing: Callable[[set[str], dict[str, Any]], Any] = (
-            lambda aliases, request: None
-        )
-        self.remaining = 5000
-        self.now = 0.0
-        self.requests: list[dict[str, Any]] = []
-
-    def clock(self) -> float:
-        return self.now
-
-    def send(self, request: dict[str, Any], timeout: float) -> Any:
-        self.requests.append({**request, "timeout": timeout})
-        seconds = self.seconds(request) if callable(self.seconds) else self.seconds
-        if seconds > timeout:
-            self.now += timeout
-            raise subprocess.TimeoutExpired(["gh"], timeout)
-        self.now += seconds
-        aliases = set(
-            re.findall(r"(\w+): (?:issue|discussion|comments)\(", request["query"])
-        )
-        failure = self.failing(aliases, request)
-        if failure is not None:
-            return failure
-        self.remaining -= 1
-        rate = {"cost": 1, "remaining": self.remaining}
-        variables = request["variables"]
-        repository = f"{variables['owner']}/{variables['name']}"
-        if request["query"] == assistant.CURSORS:
-            return done(
-                {
-                    "data": {
-                        "repository": self.cursors(repository, variables),
-                        "rateLimit": rate,
-                    }
-                }
-            )
-        return self.answered(repository, request, rate)
-
-    def cursors(self, repository: str, variables: dict[str, Any]) -> dict[str, Any]:
-        comments = self.comments[(repository, variables["number"])]
-        ids = [comment for comment, _ in comments]
-        start = (
-            0 if variables["after"] is None else ids.index(variables["after"][7:]) + 1
-        )
-        page = ids[start : start + 100]
-        return {
-            "issue": {
-                "comments": {
-                    "pageInfo": {
-                        "hasNextPage": start + 100 < len(ids),
-                        "endCursor": f"cursor:{page[-1]}" if page else None,
-                    },
-                    "edges": [
-                        {"cursor": f"cursor:{id}", "node": {"fullDatabaseId": id}}
-                        for id in page
-                    ],
-                }
-            }
-        }
-
-    def entry(self, body: str) -> dict[str, str]:
-        return {"body": body, "bodyHTML": self.html.get(body, html_of(body))}
-
-    def answered(
-        self, repository: str, request: dict[str, Any], rate: dict[str, Any]
-    ) -> Any:
-        query, variables = request["query"], request["variables"]
-        found: dict[str, Any] = {}
-        errors = []
-
-        def absent(path: list[str], number: int) -> None:
-            errors.append(
-                {"type": "NOT_FOUND", "path": path, "message": f"no {number}"}
-            )
-
-        for alias, number in ISSUE_ALIAS.findall(query):
-            body = self.issues.get((repository, int(number)))
-            found[alias] = None if body is None else self.entry(body)
-            if body is None:
-                absent(["repository", alias], int(number))
-        for alias, number in DISCUSSION_ALIAS.findall(query):
-            found[alias] = self.entry(self.discussions[(repository, int(number))])
-        for alias, number in ANSWER_ALIAS.findall(query):
-            body = self.answers.get((repository, int(number)))
-            found[alias] = {"answer": None if body is None else self.entry(body)}
-        # Each window belongs to the issue whose alias came last before it.
-        holder: dict[str, Any] | None = None
-        comments: list[tuple[str, str]] = []
-        for part in COMMENTS_PART.finditer(query):
-            alias, number, window, first, after = part.groups()
-            if alias is not None:
-                holder = None if int(number) in self.gone else {}
-                found[alias] = holder
-                if holder is None:
-                    absent(["repository", alias], int(number))
-                else:
-                    comments = self.comments[(repository, int(number))]
-            elif holder is not None:
-                ids = [comment for comment, _ in comments]
-                start = 0 if not after else ids.index(variables[after][7:]) + 1
-                holder[window] = {
-                    "nodes": [
-                        {"fullDatabaseId": comment, **self.entry(body)}
-                        for comment, body in comments[start : start + int(first)]
-                    ]
-                }
-        answer: dict[str, Any] = {"data": {"repository": found, "rateLimit": rate}}
-        if errors:
-            answer["errors"] = errors
-        return done(answer, "gh: no such issue" if errors else "", 1 if errors else 0)
-
-    def texts_asked(self, request: dict[str, Any]) -> int:
-        query = request["query"]
-        return (
-            len(ISSUE_ALIAS.findall(query))
-            + len(DISCUSSION_ALIAS.findall(query))
-            + len(ANSWER_ALIAS.findall(query))
-            + sum(int(first) for _, first, _ in WINDOW_ALIAS.findall(query))
-        )
 
 
 def issue(
@@ -1248,3 +1069,58 @@ def test_nothing_in_a_fence_is_a_mark():
         assistant.rendering_estimate("```\n#1\n", REPOSITORY).size
         == 8 * 7 + 4 * 3 + 4 * 1
     )
+
+
+def test_a_later_read_of_a_command_gets_what_the_earlier_left():
+    """A command that reads its renderings in two steps, as the context does, keeps
+    one budget: the second read gets what the first left, and nothing of what it
+    ran out of."""
+    limits = assistant.Limits(60.0)
+    spent = assistant.Renderings(requests=3, failed=1, points=14, lowest=900)
+    assert limits.after(spent, 12.5) == assistant.Limits(47.5, 57, 9, 136, 900)
+    assert limits.after(spent, 99.0).seconds == 0.0
+    spent.stopped = assistant.OUT_OF_TIME
+    assert limits.after(spent, 1.0).seconds == 0.0
+    spent.stopped = assistant.OTHER_LIMIT
+    assert limits.after(spent, 1.0).requests == 0
+    # The second read stops at once, for the reason of the first.
+    github = GitHubOfRenderings()
+    texts = [issue(github, 1)]
+    for stopped, reason in (
+        (assistant.OUT_OF_TIME, assistant.OUT_OF_TIME),
+        (assistant.OTHER_LIMIT, assistant.OTHER_LIMIT),
+    ):
+        spent.stopped = stopped
+        renderings = read(github, texts, limits.after(spent, 1.0))
+        assert renderings.fallbacks == {reason: 1} and not github.requests
+    # The lowest remaining of the first read keeps the reserve.
+    renderings = read(github, texts, assistant.Limits(60.0, lowest=100))
+    assert renderings.fallbacks == {assistant.OTHER_LIMIT: 1}
+
+
+def test_the_reads_of_a_command_come_together_for_one_notice():
+    first = assistant.Renderings(
+        html={"a": "x"}, requests=1, points=1, seconds=1.0, lowest=900
+    )
+    first.fallbacks[assistant.FAILED] = 1
+    second = assistant.Renderings(
+        html={"b": "y"}, requests=2, failed=1, points=13, seconds=2.0, lowest=800
+    )
+    second.fallbacks[assistant.FAILED] = 2
+    second.stopped = assistant.OUT_OF_TIME
+    first.add(second)
+    assert first.html == {"a": "x", "b": "y"}
+    assert (first.requests, first.failed, first.points, first.seconds) == (
+        3,
+        1,
+        14,
+        3.0,
+    )
+    assert first.fallbacks == {assistant.FAILED: 3}
+    assert (first.lowest, first.stopped) == (800, assistant.OUT_OF_TIME)
+    # A read that saw no remaining keeps the lowest of the others, and the reason.
+    first.add(assistant.Renderings())
+    assert (first.lowest, first.stopped) == (800, assistant.OUT_OF_TIME)
+    empty = assistant.Renderings()
+    empty.add(assistant.Renderings(lowest=700))
+    assert empty.lowest == 700

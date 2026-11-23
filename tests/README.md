@@ -16,6 +16,7 @@
 | `test_properties.py`, `test_lifecycle_properties.py` | Property tests of the cleaning, of whole comments and of the lifecycle |
 | `oracle.py`, `test_oracle.py` | The Markdown parser that judges the cleaning, held to what GitHub's renderer does |
 | `test_converter.py` | The converter of way D, `markdown_of`: each row of its closed list, what fails closed, the references and addresses, its bounds and its speed, on GitHub's HTML of the texts of `fixtures/renderings.json` and of the four fixtures of marker words |
+| `test_reading.py` | The experimental switch `reading`: its two values, the discussion assistant on `cleaned`, the requests of the sources the same on both, each reader on both values, uploaded pictures, the attachments of the two steps, and a fixture with its recorded renderings |
 | `test_renderings.py` | The renderings of way D, read by their numbers: the estimate against what GitHub rendered, the budget of a request, the windows of comments and their cursors, each shape of a failed request and its halves, and the limits of a command, on `GitHubOfRenderings` and on GitHub's answers to two real requests in `fixtures/renderings-by-number.json` |
 | `test_findings.py` | The findings of code scanning |
 | `test_setup.py`, `test_templates.py` | `install`, `check`, the settings and the workflow templates |

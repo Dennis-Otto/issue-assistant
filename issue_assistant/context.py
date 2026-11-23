@@ -7,6 +7,7 @@ import re
 import shutil
 import unicodedata
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,14 @@ from .issues import (
 from .languages import COMMON_WORDS, LOCALES
 from .learning import plural, render_learned
 from .paths import CONTEXT, PROMPTS
+from .reading import (
+    CLEANED_READER,
+    READING_CLEANED,
+    TextReader,
+    discussion_texts,
+    issue_texts,
+    other_texts,
+)
 from .settings import (
     Config,
     label_names,
@@ -103,11 +112,18 @@ def shown(text: str, visible: Visible) -> str:
     return visible(text)
 
 
-def excerpt(text: str, limit: int, visible: Visible | None = None) -> str:
+def excerpt(
+    text: str,
+    limit: int,
+    visible: Visible | None = None,
+    markdown: str | None = None,
+) -> str:
     """The text of an issue in short: what GitHub shows of it, with form answers as
     lines and without empty answers; `visible` counts what went. The words above
     the first field come first, and a field that comes twice keeps each answer, so
-    that no words of the reporter go, such as an error message above a form.
+    that no words of the reporter go, such as an error message above a form. On the
+    reading `rendered`, `markdown` is the converter's text of the rendering, whose
+    `### label` rows are the fields of a form.
 
     The whole text is read, because comments and empty answers can come before the
     words that count, such as the instructions of an issue template; each step takes
@@ -115,7 +131,11 @@ def excerpt(text: str, limit: int, visible: Visible | None = None) -> str:
     a comment that starts a line hides the rest of the text, and joined to the label
     of its field, it would no longer start one, nor would a definition.
     """
-    text = shown((text or "")[:MAX_TEXT], visible or Visible())
+    visible = visible or Visible()
+    if markdown is None:
+        text = shown((text or "")[:MAX_TEXT], visible)
+    else:
+        text = visible(markdown)
     before, fields = form_parts(text, outside_code=True)
     if fields:
         answers = (f"{key}: {value}" for key, value in fields if value)
@@ -143,6 +163,7 @@ def render_issue(
     issue: dict[str, Any],
     comments: list[dict[str, Any]],
     visible: Visible | None = None,
+    reader: TextReader = CLEANED_READER,
 ) -> str:
     """issue.md: the issue and its comments, each text in a code fence of its own.
 
@@ -163,7 +184,7 @@ def render_issue(
         "",
         "## Text of the issue",
         "",
-        rendered_text(text_of(issue), visible),
+        rendered_text(text_of(issue), visible, reader.issue(issue)),
     ]
     for index, comment in enumerate(comments, start=1):
         lines += [
@@ -171,19 +192,21 @@ def render_issue(
             f"## Comment {index} by {describe_author(comment, reporter)}, "
             f"{comment['created_at'][:10]}",
             "",
-            comment_text(comment, visible),
+            comment_text(comment, visible, reader.comment(issue["number"], comment)),
         ]
     return "\n".join(lines) + "\n"
 
 
-def comment_text(comment: dict[str, Any], visible: Visible) -> str:
+def comment_text(
+    comment: dict[str, Any], visible: Visible, markdown: str | None = None
+) -> str:
     """The text of a comment or a reply for issue.md and discussion.md, or, for one
     that GitHub shows collapsed, a note in its place, which `visible` counts. The
     heading above it stays, so that the numbers of the comments stay those of the
     page; the note is the script's, outside any fence, and names only one of the
     reasons of GitHub."""
     if not collapsed(comment):
-        return rendered_text(text_of(comment), visible)
+        return rendered_text(text_of(comment), visible, markdown)
     visible.collapsed += 1
     reason = collapse_reason(comment)
     how = "hidden" if reason == "hidden" else f"marked as {reason}"
@@ -236,14 +259,16 @@ def render_discussion(
     return "\n".join(lines) + "\n"
 
 
-def rendered_text(text: str, visible: Visible) -> str:
+def rendered_text(text: str, visible: Visible, markdown: str | None = None) -> str:
     """A text for issue.md: what GitHub shows of it, cut off after MAX_RENDERED_TEXT,
-    and in a code fence that nothing in it can close.
+    and in a code fence that nothing in it can close. On the reading `rendered`,
+    `markdown` is the converter's text of GitHub's rendering, which takes the place
+    of the cleaned source.
 
     What GitHub hides goes before the fence is chosen, so that no invisible
     character can split a run of backticks that would close it.
     """
-    text = shown(text, visible).strip()
+    text = (shown(text, visible) if markdown is None else visible(markdown)).strip()
     if not text:
         return "(empty)"
     note = ""
@@ -275,6 +300,7 @@ def render_judged(
     issue: dict[str, Any],
     comments: list[dict[str, Any]],
     judged: dict[str, Any] | None,
+    reader: TextReader = CLEANED_READER,
 ) -> str:
     """comment.md: the comment that a reply task judges, as issue.md shows it."""
     if judged is None:
@@ -286,25 +312,31 @@ def render_judged(
         number for number, item in enumerate(comments, start=1) if item is judged
     )
     author = describe_author(judged, login(issue.get("user")))
+    markdown = reader.comment(issue["number"], judged)
     return (
         f"# Comment {index} of issue #{issue['number']} by {author}, "
         f"{judged['created_at'][:10]}\n\n"
-        f"{rendered_text(text_of(judged), Visible())}\n"
+        f"{rendered_text(text_of(judged), Visible(), markdown)}\n"
     )
 
 
-def search_terms(issue: dict[str, Any]) -> list[str]:
+def search_terms(
+    issue: dict[str, Any], reader: TextReader = CLEANED_READER
+) -> list[str]:
     """The words of the search for older issues like this one: the names of errors in
     its text as GitHub shows it, such as TypeError or ECONNREFUSED, then the words of
-    its title.
+    its title. On the reading `rendered`, the text is the converter's, with a space
+    for each note, as `as_shown` has it.
 
     Words alone, in lower case, so that none is a qualifier of the search, such as
     repo:, or one of its operators, such as OR; none longer than SEARCH_WORD, so
     that the query stays short enough for GitHub.
     """
+    markdown = reader.issue(issue, notes=False)
+    text = as_shown(text_of(issue)) if markdown is None else Visible()(markdown)
     errors = [
         word
-        for word in WORD.findall(as_shown(text_of(issue)))
+        for word in WORD.findall(text)
         if word.endswith(("Error", "Exception")) or ERROR_CODE.fullmatch(word)
     ]
     words = list(dict.fromkeys(errors))[:SEARCH_ERRORS] + WORD.findall(issue["title"])
@@ -319,7 +351,11 @@ def search_terms(issue: dict[str, Any]) -> list[str]:
 
 
 def related_issues(
-    github: GitHub, issue: dict[str, Any], mode: str, config: Config
+    github: GitHub,
+    issue: dict[str, Any],
+    mode: str,
+    config: Config,
+    reader: TextReader = CLEANED_READER,
 ) -> list[dict[str, Any]]:
     """The other issues that the engine reads, the newest first: every open one, the
     max_issues closed ones that changed last and, for a first analysis, those that a
@@ -329,7 +365,8 @@ def related_issues(
         item["number"]: item
         for item in github.recent_issues(limit(config, "max_issues"))
     }
-    terms = search_terms(issue) if mode in {"triage", *DISCUSSION_MODES} else []
+    searched = mode in {"triage", *DISCUSSION_MODES}
+    terms = search_terms(issue, reader) if searched else []
     if terms:
         try:
             for item in github.search_issues(terms):
@@ -346,7 +383,10 @@ def related_issues(
 
 
 def render_other_issue(
-    item: dict[str, Any], visible: Visible, repository: str = ""
+    item: dict[str, Any],
+    visible: Visible,
+    repository: str = "",
+    markdown: str | None = None,
 ) -> str:
     """issues/<number>.md: the whole text of another issue, for the engine to read
     when its excerpt in issues.jsonl looks promising. For an issue of a related
@@ -355,15 +395,18 @@ def render_other_issue(
     return (
         f"# Issue {repository}#{item['number']}: "
         f"{one_line(visible.title(item['title']))}\n\n"
-        f"{rendered_text(text_of(item), visible)}\n"
+        f"{rendered_text(text_of(item), visible, markdown)}\n"
     )
 
 
 def issue_line(
-    item: dict[str, Any], visible: Visible, **more: object
+    item: dict[str, Any],
+    visible: Visible,
+    markdown: str | None = None,
+    **more: object,
 ) -> dict[str, Any]:
     """The line of an issue in issues.jsonl and related-issues.jsonl, with `more`
-    before its excerpt."""
+    before its excerpt, which `markdown` gives on the reading `rendered`."""
     return {
         "number": item["number"],
         "title": visible.title(item["title"]),
@@ -374,7 +417,7 @@ def issue_line(
         "closed": (item.get("closed_at") or "")[:10] or None,
         "comments": item.get("comments", 0),
         **more,
-        "excerpt": excerpt(item.get("body") or "", EXCERPT, visible),
+        "excerpt": excerpt(item.get("body") or "", EXCERPT, visible, markdown),
     }
 
 
@@ -424,6 +467,7 @@ def write_context(
     config: Config,
     comment_id: int | None = None,
     instruction: str = "",
+    reading: str = READING_CLEANED,
 ) -> dict[str, str]:
     """Write the files that the task of the engine reads and return the prompts and
     the schema: the task, which the rules of rules.md precede as the engine's system
@@ -437,6 +481,10 @@ def write_context(
     corrected of the earlier analyses. The first answer to a discussion reads the
     discussion with its comments, the issues, also those that a search for its
     words finds, and the other discussions.
+
+    `reading` is the switch of #521: `rendered` has the texts of a task of an issue
+    read from GitHub's renderings (write_issue_files); a discussion is read on
+    `cleaned` in this step.
     """
     if mode not in MODES:
         raise AssistantError(f"Unknown mode {mode}.")
@@ -465,38 +513,16 @@ def write_context(
         (folder / "discussion.md").write_text(
             render_discussion(issue, own), encoding="utf-8"
         )
-        write_related(github, folder, issue, mode, config, elsewhere)
+        others = related_issues(github, issue, mode, config)
+        write_related(folder, others, discussions_of(github, issue, config), elsewhere)
     else:
-        (folder / "issue.md").write_text(
-            render_issue(issue, comments, own), encoding="utf-8"
-        )
-        images = opens_images(config)
-        attached = render_attachments(
-            config.root,
-            issue,
-            comments,
-            config.repository,
+        write_issue_files(
+            github,
+            IssueTask(issue, comments, mode, config, comment_id),
+            TextReader(config.repository, reading),
             own,
-            images,
-            images_off=not config.read_images,
+            elsewhere,
         )
-        if attached:
-            (folder / "attachments.md").write_text(attached, encoding="utf-8")
-        keep_shown(config.root, attached, images)
-        if mode in REPLIES:
-            judged = judged_comment(issue, comments, mode, comment_id)
-            (folder / "comment.md").write_text(
-                render_judged(issue, comments, judged), encoding="utf-8"
-            )
-        else:
-            (folder / "labels.md").write_text(render_labels(config), encoding="utf-8")
-            others = write_related(github, folder, issue, mode, config, elsewhere)
-            if mode == "triage":
-                (folder / "corrections.md").write_text(
-                    render_learned(github, config, issue, comments, others),
-                    encoding="utf-8",
-                )
-                write_siblings(github, folder, issue, config, elsewhere)
     subject = "discussion" if mode in DISCUSSION_MODES else "issue"
     notice_removed(own, elsewhere, f"{subject} #{number}")
     values = {
@@ -646,32 +672,125 @@ NEWCOMER_RULE = (
 )
 
 
-def write_related(
+@dataclass(frozen=True)
+class IssueTask:
+    """The task of an issue that a context is written for: the issue, its comments,
+    the mode, the settings and the comment that a reply task judges."""
+
+    issue: dict[str, Any]
+    comments: list[dict[str, Any]]
+    mode: str
+    config: Config
+    comment_id: int | None
+
+
+def write_issue_files(
     github: GitHub,
-    folder: Path,
-    issue: dict[str, Any],
-    mode: str,
-    config: Config,
-    visible: Visible,
+    task: IssueTask,
+    reader: TextReader,
+    own: Visible,
+    elsewhere: Visible,
+) -> None:
+    """The files of a task of an issue, which `own` and `elsewhere` count as in
+    write_context.
+
+    The sources are read first, in the order of the reading `cleaned`, and the files
+    written after them. On `rendered`, the renderings of the issue and its comments
+    come right after them, since the search for older issues takes its words from
+    the issue's, and those of the other issues, the discussions and the issues of
+    the related repositories after the rest, within one budget of the command."""
+    issue, comments, mode, config = task.issue, task.comments, task.mode, task.config
+    folder = config.root / CONTEXT
+    reader.read(github, issue_texts(config.repository, issue, comments))
+    others: list[dict[str, Any]] = []
+    discussions: list[dict[str, Any]] = []
+    learned, found = "", None
+    if mode not in REPLIES:
+        others = related_issues(github, issue, mode, config, reader)
+        discussions = discussions_of(github, issue, config)
+        if mode == "triage":
+            learned = render_learned(github, config, issue, comments, others)
+            found = sibling_issues(github, issue, config, reader)
+        reader.read(
+            github,
+            other_texts(config.repository, others)
+            + discussion_texts(config.repository, discussions)
+            + [
+                text
+                for repository, item in found or []
+                for text in other_texts(repository, [item])
+            ],
+        )
+    reader.notice()
+    (folder / "issue.md").write_text(
+        render_issue(issue, comments, own, reader), encoding="utf-8"
+    )
+    images = opens_images(config)
+    attached = render_attachments(
+        config.root,
+        issue,
+        comments,
+        config.repository,
+        own,
+        images,
+        images_off=not config.read_images,
+        reader=reader,
+    )
+    if attached:
+        (folder / "attachments.md").write_text(attached, encoding="utf-8")
+    keep_shown(config.root, attached, images)
+    if mode in REPLIES:
+        judged = judged_comment(issue, comments, mode, task.comment_id)
+        (folder / "comment.md").write_text(
+            render_judged(issue, comments, judged, reader), encoding="utf-8"
+        )
+        return
+    (folder / "labels.md").write_text(render_labels(config), encoding="utf-8")
+    write_related(folder, others, discussions, elsewhere, reader)
+    if mode == "triage":
+        (folder / "corrections.md").write_text(learned, encoding="utf-8")
+        write_siblings(folder, found, elsewhere, reader)
+
+
+def discussions_of(
+    github: GitHub, issue: dict[str, Any], config: Config
 ) -> list[dict[str, Any]]:
+    """The other discussions that the engine reads, up to max_discussions."""
+    return [
+        item
+        for item in github.discussions(limit(config, "max_discussions"))
+        if item["number"] != issue["number"]
+    ]
+
+
+def write_related(
+    folder: Path,
+    others: list[dict[str, Any]],
+    discussions: list[dict[str, Any]],
+    visible: Visible,
+    reader: TextReader = CLEANED_READER,
+) -> None:
     """What the engine reads of the rest of the repository: the other issues, each
     with an excerpt in issues.jsonl and its whole text in issues/<number>.md, and
-    the other discussions in discussions.jsonl. Returns the other issues.
+    the other discussions in discussions.jsonl.
 
     `visible` counts the invisible characters of the whole texts; the titles and
     excerpts of issues.jsonl come from the same texts and don't count them again.
     """
-    others = related_issues(github, issue, mode, config)
     texts = folder / "issues"
     texts.mkdir()
     for item in others:
         (texts / f"{item['number']}.md").write_text(
-            render_other_issue(item, visible), encoding="utf-8"
+            render_other_issue(item, visible, markdown=reader.issue(item)),
+            encoding="utf-8",
         )
     quiet = Visible()
     write_lines(
         folder / "issues.jsonl",
-        (issue_line(item, quiet, closed_by=item.get("closed_by")) for item in others),
+        (
+            issue_line(item, quiet, reader.issue(item), closed_by=item.get("closed_by"))
+            for item in others
+        ),
     )
     write_lines(
         folder / "discussions.jsonl",
@@ -682,14 +801,17 @@ def write_related(
                 "category": (item.get("category") or {}).get("name"),
                 "answered": item.get("isAnswered"),
                 "closed": item.get("closed"),
-                "excerpt": excerpt(item.get("body") or "", 1000, visible),
-                "answer": excerpt(shown_answer(item, visible), 1000, visible) or None,
+                "excerpt": excerpt(
+                    item.get("body") or "", 1000, visible, reader.discussion(item)
+                ),
+                "answer": excerpt(
+                    shown_answer(item, visible), 1000, visible, reader.answer(item)
+                )
+                or None,
             }
-            for item in github.discussions(limit(config, "max_discussions"))
-            if item["number"] != issue["number"]
+            for item in discussions
         ),
     )
-    return others
 
 
 def shown_answer(discussion: dict[str, Any], visible: Visible) -> str:
@@ -702,17 +824,15 @@ def shown_answer(discussion: dict[str, Any], visible: Visible) -> str:
     return str(answer.get("body") or "")
 
 
-def write_siblings(
+def sibling_issues(
     github: GitHub,
-    folder: Path,
     issue: dict[str, Any],
     config: Config,
-    visible: Visible,
-) -> None:
-    """related-issues.jsonl, for a first analysis in a repository with related
-    repositories: the issues of each that GitHub's search finds for the words of the
-    issue, each with its repository and an excerpt, and its whole text in
-    related/<owner>/<name>/<number>.md.
+    reader: TextReader = CLEANED_READER,
+) -> list[tuple[str, dict[str, Any]]] | None:
+    """For a first analysis in a repository with related repositories: the issues
+    of each that GitHub's search finds for the words of the issue, each with its
+    repository; None without related repositories.
 
     Only public repositories count, as GitHub.sibling says. The search adds to the
     context, as the one for older issues does, so a repository that GitHub fails to
@@ -720,8 +840,8 @@ def write_siblings(
     """
     names = siblings(config)
     if not names:
-        return
-    terms = search_terms(issue)
+        return None
+    terms = search_terms(issue, reader)
     found: list[tuple[str, dict[str, Any]]] = []
     for repository in names if terms else []:
         try:
@@ -740,16 +860,37 @@ def write_siblings(
             ]
         except GitHubError as error:
             command("warning", f"The search in {repository} failed: {error}")
+    return found
+
+
+def write_siblings(
+    folder: Path,
+    found: list[tuple[str, dict[str, Any]]] | None,
+    visible: Visible,
+    reader: TextReader = CLEANED_READER,
+) -> None:
+    """related-issues.jsonl, of the issues of the related repositories that
+    sibling_issues found, each with its repository and an excerpt, and its whole
+    text in related/<owner>/<name>/<number>.md; nothing without related
+    repositories."""
+    if found is None:
+        return
     for repository, item in found:
         texts = folder / "related" / repository
         texts.mkdir(parents=True, exist_ok=True)
         (texts / f"{item['number']}.md").write_text(
-            render_other_issue(item, visible, repository), encoding="utf-8"
+            render_other_issue(
+                item, visible, repository, reader.issue(item, repository)
+            ),
+            encoding="utf-8",
         )
     quiet = Visible()
     write_lines(
         folder / "related-issues.jsonl",
-        ({"repository": name, **issue_line(item, quiet)} for name, item in found),
+        (
+            {"repository": name, **issue_line(item, quiet, reader.issue(item, name))}
+            for name, item in found
+        ),
     )
 
 

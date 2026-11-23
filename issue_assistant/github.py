@@ -15,7 +15,19 @@ from urllib.parse import quote, urlencode
 from .constants import BOT
 from .errors import GitHubError
 from .fixture import Fixture
-from .renderings import Limits, Renderings, Text, read_renderings
+from .renderings import (
+    ARRIVED_TOO_LARGE,
+    CAP,
+    COMMENT,
+    ISSUE,
+    Limits,
+    RenderingKey,
+    Renderings,
+    Text,
+    comment_id,
+    read_renderings,
+    size_of,
+)
 from .rest_shapes import as_rest, closed_as_rest, discussion_as_rest, post_as_rest
 from .settings import Label
 from .values import command, login, moment, stamp
@@ -168,8 +180,37 @@ class GitHub:
     def renderings(self, texts: Iterable[Text], limits: Limits) -> Renderings:
         """GitHub's HTML of each text of the first step, read by its number in a
         second step within the limits of the command (#521). No failure of it fails
-        the run: a text without a rendering is read from its cleaned source."""
-        return read_renderings(texts, limits, self._render)
+        the run: a text without a rendering is read from its cleaned source.
+
+        The texts of a fixture exist nowhere on GitHub: they are never asked for, and
+        each takes the `body_html` that the fixture records for it, if any."""
+        texts = list(texts)
+        recorded = self.recorded_renderings()
+        found = read_renderings(
+            [text for text in texts if text.key not in recorded], limits, self._render
+        )
+        for text in texts:
+            html = recorded.get(text.key)
+            if html is None:
+                continue
+            if size_of(html) > CAP:
+                found.fall(text.key, ARRIVED_TOO_LARGE)
+            else:
+                found.html[text.key] = html
+        return found
+
+    def recorded_renderings(self) -> dict[RenderingKey, str | None]:
+        """The renderings that the fixture records, `body_html` beside each `body`,
+        by the keys of its texts; None for a text without one."""
+        fixture = self.fixture
+        if fixture is None or fixture.issue is None:
+            return {}
+        number = fixture.number
+        found = {(self.repository, ISSUE, number, ""): fixture.issue.get("body_html")}
+        for comment in fixture.comments:
+            key = (self.repository, COMMENT, number, comment_id(comment))
+            found[key] = comment.get("body_html")
+        return found
 
     def _render(
         self, request: dict[str, Any], timeout: float

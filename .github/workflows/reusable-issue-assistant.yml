@@ -54,6 +54,10 @@ on:
         description: Only for the Workflow test of the issue assistant, in its own repository; check the answer of tests/fixtures/smoke-answer.json for the issue of tests/fixtures/canary-issue.json as a dry run, without the AI
         type: boolean
         default: false
+      reading:
+        description: "Experimental: how the jobs attachments and analyze read the texts for the AI: cleaned, from their sources as written, or rendered, from GitHub's renderings, each text without one from its cleaned source"
+        type: string
+        default: cleaned
       backlog_issue:
         description: Only for a run by hand with the task backlog; the issue of the backlog that this call gives its first analysis, one of those that the output backlog of the call before named
         type: number
@@ -376,6 +380,7 @@ jobs:
           command: attachments
           issue: ${{ needs.event.outputs.issue }}
           mode: ${{ needs.event.outputs.mode }}
+          reading: ${{ inputs.reading }}
       # For a day: the job analyze of this run takes it within minutes.
       - name: Keep the attachments for the AI
         if: steps.attachments.outputs.count != '' && steps.attachments.outputs.count != '0'
@@ -545,6 +550,7 @@ jobs:
           command: context
           issue: ${{ needs.event.outputs.issue }}
           mode: ${{ needs.event.outputs.mode }}
+          reading: ${{ inputs.reading }}
 
       # The engines. Each one gets the rules before its task and the JSON schema,
       # may only read files of the checkout and returns the JSON answer.

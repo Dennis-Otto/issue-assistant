@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from collections import Counter
 from collections.abc import Callable, Iterable
 from contextlib import ExitStack
@@ -20,7 +21,7 @@ from .answer import parse_answer
 from .applying import other_issue, questions, vouched_for
 from .cleaning import code_span, one_line
 from .constants import MOST_EVALUATED, NEEDS_INFO, NO_PRIORITY
-from .context import write_context
+from .context import discussions_of, write_context
 from .digests import share
 from .engines import ENGINES, Engine, Run, engine_named
 from .errors import AssistantError, GitHubError, SettingsError
@@ -29,6 +30,7 @@ from .issues import (
     FORM_HEADING,
     first_heading,
     is_bot,
+    is_digest,
     is_maintainer,
     kind_of,
     labels_of_form,
@@ -38,6 +40,21 @@ from .issues import (
 from .learning import CHOSEN_GROUPS, plural
 from .paths import CONTEXT, FORMS
 from .patterns import CODE, HTML_COMMENT
+from .reading import (
+    READING_CLEANED,
+    READING_RENDERED,
+    discussion_texts,
+    issue_texts,
+    other_texts,
+)
+from .renderings import (
+    COMMENT,
+    CONTEXT_RENDERING_LIMITS,
+    Limits,
+    RenderingKey,
+    Renderings,
+    Text,
+)
 from .running import (
     ENGINE_MINUTES,
     OUTCOMES,
@@ -47,7 +64,7 @@ from .running import (
     number_of,
     placed_settings,
 )
-from .settings import Config, label_names, task_run
+from .settings import Config, label_names, limit, task_run
 from .values import command, created, login, moment, stamp
 
 # The moment that it replays: a minute after the issue was opened, when it had the
@@ -345,6 +362,59 @@ def nothing_to_replay(left_out: Counter[str]) -> list[str]:
     ]
 
 
+# The key of the memo of the replays that holds their renderings.
+RENDERINGS_HELD = "renderings"
+
+
+@dataclass
+class HeldRenderings:
+    """The renderings of Evaluate's replays, each read once for them all (#521):
+    what is left of the budget of their renderings, once Evaluate sets it, and of
+    each text read, by repository, kind and number or comment id, its source and
+    either its HTML or why it has none."""
+
+    left: Limits | None = None
+    held: dict[RenderingKey, tuple[str, str | None, str]] = field(default_factory=dict)
+
+    def holds(self, text: Text) -> bool:
+        """Whether a read before held the text, with the same source."""
+        found = self.held.get(text.key)
+        return found is not None and found[0] == text.body
+
+    def read(self, now: GitHub, texts: Iterable[Text], limits: Limits) -> Renderings:
+        """The renderings of the texts: those held from a read before, and the
+        others read now through `now`, within what is left of the budget, or within
+        `limits` before Evaluate sets one.
+
+        A comment held is passed on as one that isn't asked for, so that the windows
+        of the other comments of its issue start where they start. A text held
+        without a rendering is counted again for its reason, but never asked for
+        again."""
+        texts = list(texts)
+        held = {text.key: self.held[text.key] for text in texts if self.holds(text)}
+        asked = [
+            replace(text, hidden=True) if text.key in held else text
+            for text in texts
+            if text.kind == COMMENT or text.key not in held
+        ]
+        left = limits if self.left is None else self.left
+        began = time.monotonic()
+        found = now.renderings(asked, left)
+        self.left = left.after(found, time.monotonic() - began)
+        for text in asked:
+            if text.key in found.html:
+                self.held[text.key] = (text.body, found.html[text.key], "")
+            elif text.key in found.reasons:
+                self.held[text.key] = (text.body, None, found.reasons[text.key])
+        for key, (_, html, reason) in held.items():
+            if html is None:
+                found.fall(key, reason)
+            else:
+                found.html[key] = html
+                found.held += 1
+        return found
+
+
 class Then(GitHub):
     """GitHub as it was at the moment of a sample, for the context of its replay:
     the issue as it was, and of everything else only what existed then.
@@ -352,9 +422,9 @@ class Then(GitHub):
     An issue closed since is open, and a discussion answered since has no answer;
     the texts and the labels of the other issues are those of now. It reads through
     `github`, writes nothing and shares `memo` with the replays of the other
-    samples, so that the window of the issues, the discussions, the releases and the
-    latest comments are read once. A read that it doesn't change, such as whether
-    someone may push, goes to GitHub as it is.
+    samples, so that the window of the issues, the discussions, the releases, the
+    latest comments and the renderings are read once. A read that it doesn't change,
+    such as whether someone may push, goes to GitHub as it is.
     """
 
     def __init__(self, github: GitHub, sample: Sample, memo: dict[str, Any]) -> None:
@@ -424,8 +494,11 @@ class Then(GitHub):
     def sibling(self, repository: str) -> GitHub | None:
         # A related repository as it was at the moment too, so that its search finds
         # no issue opened later.
+        # Its renderings are those that the replays hold, by their repository.
         other = self.now.sibling(repository)
-        return None if other is None else Then(other, self.sample, {})
+        if other is None:
+            return None
+        return Then(other, self.sample, {RENDERINGS_HELD: self.held_renderings()})
 
     def search_issues(self, terms: list[str]) -> list[dict[str, Any]]:
         return [
@@ -445,6 +518,17 @@ class Then(GitHub):
     def latest_release(self) -> str | None:
         found = self._before(self._once("releases", self.now.releases), "published_at")
         return str(found[-1]["tag_name"]) if found else None
+
+    def held_renderings(self) -> HeldRenderings:
+        found: HeldRenderings = self.memo.setdefault(RENDERINGS_HELD, HeldRenderings())
+        return found
+
+    def renderings(self, texts: Iterable[Text], limits: Limits) -> Renderings:
+        """The renderings of now, through `github`, each read once for the replays
+        of every sample and within one budget for them all, which `replay` puts into
+        the memo: Evaluate's limits, which grow with its samples, not those of each
+        context. The texts are those of the moment, as the other reads give them."""
+        return self.held_renderings().read(self.now, texts, limits)
 
 
 @dataclass(frozen=True)
@@ -504,11 +588,51 @@ def named_duplicates(
     return tuple(named), sure
 
 
+def first_renderings(
+    github: GitHub, config: Config, samples: list[Sample], memo: dict[str, Any]
+) -> None:
+    """Evaluate's first read of renderings: the issue and the comments of every
+    sample, which choose_samples has read already, packed with the other issues and
+    the discussions that the replays read, so that each replay asks only for what it
+    doesn't hold yet, such as the results of its own search.
+
+    The other issues are those of related_issues before its search. A source that
+    fails leaves every rendering to the replays, whose contexts fail on it as they
+    do on `cleaned`."""
+    repository = config.repository
+    issues: list[Text] = []
+    others: list[Text] = []
+    discussions: list[Text] = []
+    try:
+        for sample in samples:
+            then = Then(github, sample, memo)
+            number = sample.number
+            issues += issue_texts(repository, then.issue(number), then.comments(number))
+            others += other_texts(
+                repository,
+                [
+                    item
+                    for item in then.recent_issues(limit(config, "max_issues"))
+                    if item["number"] != number
+                    and not is_digest(item)
+                    and not opted_out(item, config)
+                ],
+            )
+            discussions += discussion_texts(
+                repository, discussions_of(then, sample.then, config)
+            )
+    except GitHubError:
+        return
+    held: HeldRenderings = memo[RENDERINGS_HELD]
+    held.read(github, issues + others + discussions, CONTEXT_RENDERING_LIMITS).notice()
+
+
 def replay(
     github: GitHub,
     config: Config,
     samples: list[Sample],
     answer: Callable[[], Answered],
+    reading: str = READING_CLEANED,
 ) -> list[Outcome]:
     """The first analysis of each sample as at its moment: its context written by
     Then, the engine's answer from `answer`, and what that answer chose.
@@ -517,13 +641,17 @@ def replay(
     sample whose context, engine or answer fails is an outcome with its error, and
     the others go on.
     """
-    memo: dict[str, Any] = {}
+    memo: dict[str, Any] = {
+        RENDERINGS_HELD: HeldRenderings(Limits.of_evaluation(len(samples)))
+    }
+    if reading == READING_RENDERED:
+        first_renderings(github, config, samples, memo)
     outcomes = []
     for index, sample in enumerate(samples, start=1):
         place = f"{index} of {len(samples)}, #{sample.number}"
         then = Then(github, sample, memo)
         try:
-            write_context(then, sample.number, "triage", config)
+            write_context(then, sample.number, "triage", config, reading=reading)
             answered = answer()
             chosen = parse_answer("triage", answered.text, config)
             named, sure = named_duplicates(then, sample.number, chosen)
@@ -862,6 +990,7 @@ def evaluate(
     report: Path,
     answer: Callable[[], Answered],
     day: date,
+    reading: str = READING_CLEANED,
 ) -> list[str]:
     """Replay the first analysis of the `count` closed issues opened last that
     people labelled or closed as a duplicate, write the report, and return the
@@ -884,7 +1013,7 @@ def evaluate(
         command("notice", "\n".join(lines))
         return lines
     read = len(samples) + left_out.total()
-    outcomes = replay(github, config, samples, answer)
+    outcomes = replay(github, config, samples, answer, reading)
     engine = ENGINES[engine_named(config.engine)]
     run = task_run(config, "triage")
     report.write_text(

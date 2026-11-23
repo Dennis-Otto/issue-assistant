@@ -64,9 +64,15 @@ def html_from(provider: atheris.FuzzedDataProvider) -> tuple[str, str, int, str]
     return start, piece, count, end
 
 
+def converted(html: str):
+    """The converter on the HTML, as the readers of the reading rendered call it:
+    after the signed addresses of uploaded pictures are written back (#521)."""
+    return assistant.markdown_of(assistant.canonical_pictures(html), html)
+
+
 def converting(html: str):
     """A call of the converter on the HTML."""
-    return lambda: assistant.markdown_of(html, html)
+    return lambda: converted(html)
 
 
 def test_one_input(data: bytes) -> None:
@@ -75,7 +81,7 @@ def test_one_input(data: bytes) -> None:
     html = start + piece * count + end
     built = f"{start!r} + {piece!r} * {count} + {end!r}"
     started = time.process_time()
-    result = assistant.markdown_of(html, html)
+    result = converted(html)
     seconds = time.process_time() - started
     eighth = converting(start + piece * (count // 8) + end)
     problem = too_slow(seconds, count, eighth, converting(html), BUDGET, CEILING)

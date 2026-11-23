@@ -44,6 +44,13 @@ from .markup import (
 )
 from .paths import CONTEXT
 from .patterns import INVISIBLE, REFERENCE, without_references
+from .reading import (
+    CLEANED_READER,
+    READING_CLEANED,
+    TextReader,
+    issue_texts,
+)
+from .renderings import ATTACHMENTS_RENDERING_LIMITS
 from .structures import BLANK_ROW, Places, Reader, structures_of
 from .tags import html_parts
 from .values import command, fence, login
@@ -924,19 +931,32 @@ class ShownTags:
         return ""
 
 
+def source_or(markdown: str | None, item: dict[str, Any]) -> str:
+    """The converter's text of a rendering, or the item's source without one."""
+    return text_of(item) if markdown is None else markdown
+
+
 def attachments_of(
-    issue: dict[str, Any], comments: list[dict[str, Any]], repository: str
+    issue: dict[str, Any],
+    comments: list[dict[str, Any]],
+    repository: str,
+    reader: TextReader = CLEANED_READER,
 ) -> list[Attachment]:
     """The files attached to the issue and to the comments of its reporter, each
     once, in the order of issue.md. A link that GitHub hides, as in an HTML comment,
     counts as none, so that no attachment reaches the AI that no maintainer sees,
     and so does every link of a comment that GitHub shows collapsed. An address
     counts only as the page links it, or as code shows it (shown_links), and only
-    in characters that a link holds as they are written."""
+    in characters that a link holds as they are written.
+
+    On the reading `rendered`, the converter's text of a rendering decides which
+    links are shown; it holds an address only as the source writes it, so an
+    uploaded picture keeps the address github.com/user-attachments/assets/<uuid>."""
     links = re.compile(file_link(repository) + "|" + IMAGE_LINK.pattern)
     reporter = login(issue.get("user"))
-    texts = [(0, text_of(issue))] + [
-        (index, text_of(comment))
+    number = issue["number"]
+    texts = [(0, source_or(reader.issue(issue), issue))] + [
+        (index, source_or(reader.comment(number, comment), comment))
         for index, comment in enumerate(comments, start=1)
         if login(comment.get("user")) == reporter and not collapsed(comment)
     ]
@@ -1042,7 +1062,12 @@ def decoded(data: bytes, cut: bool) -> str | None:
 
 
 def fetch(
-    github: GitHub, number: int, root: Path, token: str, images: bool = True
+    github: GitHub,
+    number: int,
+    root: Path,
+    token: str,
+    images: bool = True,
+    reading: str = READING_CLEANED,
 ) -> list[dict[str, Any]]:
     """Download the text files and, for an AI that opens `images`, the images
     attached to issue `number` into ATTACHMENTS, with the index of what became of
@@ -1055,12 +1080,18 @@ def fetch(
     the links of images name, as a video has one too. A failed download is
     a line of the index, never a failure of the job: the attachments only add to
     what the AI reads. The token reaches github.com only for a private repository,
-    which needs it.
+    which needs it. On the reading `rendered`, the links are those of the renderings
+    of the issue and of its reporter's comments, as the context reads them.
     """
     issue, comments = github.issue(number), github.comments(number)
+    reader = TextReader(github.repository, reading, ATTACHMENTS_RENDERING_LIMITS)
+    reader.read(
+        github, issue_texts(github.repository, issue, comments, reporter_only=True)
+    )
+    reader.notice()
     found = [
         item
-        for item in attachments_of(issue, comments, github.repository)
+        for item in attachments_of(issue, comments, github.repository, reader)
         if item.kind == "text" or (images and item.kind == "image")
     ]
     folder = root / ATTACHMENTS
@@ -1186,6 +1217,7 @@ def render_attachments(
     visible: Visible,
     images: bool = False,
     images_off: bool = False,
+    reader: TextReader = CLEANED_READER,
 ) -> str | None:
     """attachments.md: each file attached to the issue and to the comments of its
     reporter, with the text of those that the job attachments downloaded, each in a
@@ -1193,12 +1225,19 @@ def render_attachments(
     AI that opens `images`, the path of each image that it downloaded; None for an
     issue without any. An image that the AI doesn't open is named with the reason:
     an engine that can't, or `images_off`, the settings of the repository.
-    `visible` counts the invisible characters that went."""
-    found = attachments_of(issue, comments, repository)
-    if not found:
-        return None
+    `visible` counts the invisible characters that went.
+
+    It follows the texts of `reader`, the AI's own, also where the job attachments
+    read them otherwise, minutes before: one that it didn't download is named as
+    UNREAD["missing"], and one that it downloaded and the texts don't show isn't
+    named; on the reading `rendered`, a notice counts both."""
+    found = attachments_of(issue, comments, repository, reader)
     folder = root / ATTACHMENTS
     index = read_index(folder)
+    if reader.renderings is not None:
+        notice_differences(found, index, images)
+    if not found:
+        return None
     reporter = login(issue.get("user"))
     lines = [
         f"# Attachments of issue #{issue['number']}",
@@ -1221,6 +1260,28 @@ def render_attachments(
             ),
         ]
     return "\n".join(lines) + "\n"
+
+
+def notice_differences(
+    found: list[Attachment], index: dict[str, dict[str, Any]], images: bool
+) -> None:
+    """A notice of the attachments that the two readings of the texts saw otherwise:
+    those that the job attachments didn't download, and those that it downloaded
+    and the AI's texts don't show; counts alone."""
+    shown = {item.url for item in found}
+    missing = sum(
+        item.url not in index
+        and (item.kind == "text" or (images and item.kind == "image"))
+        for item in found
+    )
+    unshown = sum(url not in shown for url in index)
+    if missing or unshown:
+        command(
+            "notice",
+            f"Attachments that the readings of the two jobs saw otherwise: {missing} "
+            "named as not downloaded for this run, and "
+            f"{unshown} downloaded that the texts for the AI don't show.",
+        )
 
 
 def attachment_text(
@@ -1297,15 +1358,20 @@ def keep_shown(root: Path, attached: str | None, images: bool) -> None:
 
 
 def attachments_command(
-    github: GitHub, number: int, root: Path, token: str, images: bool = True
+    github: GitHub,
+    number: int,
+    root: Path,
+    token: str,
+    images: bool = True,
+    reading: str = READING_CLEANED,
 ) -> int:
     """The command attachments: download the text files and, for an AI that opens
     `images`, the images of the issue, and the number of lines of the index, for the
-    job that keeps them for the AI."""
+    job that keeps them for the AI; `reading` is the switch of #521."""
     if not number:
         raise AssistantError("attachments needs an issue.")
     try:
-        return len(fetch(github, number, root, token, images))
+        return len(fetch(github, number, root, token, images, reading))
     except GitHubError as error:
         # The attachments only add to what the AI reads, which goes on without them.
         command("warning", f"The attachments of #{number} weren't read: {error}")

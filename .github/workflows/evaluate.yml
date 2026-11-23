@@ -30,6 +30,12 @@ on:
         required: true
         type: number
         default: 30
+      reading:
+        description: "Experimental: how the replays read the texts: cleaned, from their sources, or rendered, from GitHub's renderings"
+        required: true
+        type: choice
+        options: [cleaned, rendered]
+        default: cleaned
 
 permissions: {}
 
@@ -123,6 +129,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ inputs.repository }}
           ISSUES: ${{ inputs.issues }}
+          READING: ${{ inputs.reading }}
           ISSUE_ASSISTANT_ROOT: ${{ github.workspace }}/target
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -166,10 +173,13 @@ jobs:
           CHECK: replay closed issues
         run: python3 .github/blueprint.py coach explain "$CHECK"
 
+  # A replay on the experimental reading rendered measures that reading, not the
+  # assistant's numbers: its report stays the artifact of the run, and the page keeps
+  # its numbers.
   publish:
     name: publish the numbers
     needs: replay
-    if: needs.replay.outputs.report == 'true'
+    if: needs.replay.outputs.report == 'true' && inputs.reading == 'cleaned'
     # One run at a time ends what it started with the branch and the pull request.
     concurrency:
       group: ${{ github.workflow }}-publish

@@ -8,7 +8,8 @@ number: `issue(number:)`, windows of the comments of an issue, and
 `discussion(number:)`, in requests that `rendering_estimate` packs. A request that
 fails is split in halves, and a text without a rendering is read from its cleaned
 source, with a reason that the notice counts. The limits of a command bound the
-time, the requests and the points that the renderings take. No reader uses it yet.
+time, the requests and the points that the renderings take. The readers of
+`reading.py` take them when the switch `reading` says `rendered`.
 """
 
 from __future__ import annotations
@@ -306,6 +307,12 @@ def tables_of(rows: list[str], outside: list[int]) -> tuple[int, int, int]:
     return tables, cells, aligned
 
 
+def comment_id(comment: dict[str, Any]) -> str:
+    """The REST id of a comment as a text's key holds it."""
+    found = comment.get("id")
+    return "" if found is None else str(found)
+
+
 @dataclass(frozen=True)
 class Text:
     """A text of the first step whose rendering is asked for.
@@ -330,12 +337,14 @@ class Text:
 
 @dataclass(frozen=True)
 class Limits:
-    """What the renderings of one command may take."""
+    """What the renderings of one command may take; `lowest` is the lowest
+    `remaining` that an earlier read of the same command saw."""
 
     seconds: float
     requests: int = REQUESTS
     failures: int = FAILURES
     points: int = POINTS
+    lowest: int | None = None
 
     @classmethod
     def of_evaluation(cls, samples: int) -> Limits:
@@ -347,6 +356,18 @@ class Limits:
             POINTS + SAMPLE_POINTS * samples,
         )
 
+    def after(self, spent: Renderings, seconds: float) -> Limits:
+        """What is left to the command after a read that took `spent` and `seconds`:
+        nothing more of what it ran out of, so that its next read stops at once."""
+        stopped = spent.stopped
+        return Limits(
+            0.0 if stopped == OUT_OF_TIME else max(self.seconds - seconds, 0.0),
+            0 if stopped == OTHER_LIMIT else max(self.requests - spent.requests, 0),
+            max(self.failures - spent.failed, 0),
+            max(self.points - spent.points, 0),
+            spent.lowest,
+        )
+
 
 ATTACHMENTS_RENDERING_LIMITS = Limits(ATTACHMENTS_SECONDS)
 CONTEXT_RENDERING_LIMITS = Limits(CONTEXT_SECONDS)
@@ -354,19 +375,45 @@ CONTEXT_RENDERING_LIMITS = Limits(CONTEXT_SECONDS)
 
 @dataclass
 class Renderings:
-    """The HTML of each text that GitHub rendered, and the counts of the notice."""
+    """The HTML of each text that GitHub rendered, why each other text that was
+    meant for a request has none, and the counts of the notice."""
 
     html: dict[tuple[str, str, int, str], str] = field(default_factory=dict)
     fallbacks: Counter[str] = field(default_factory=Counter)
+    reasons: dict[tuple[str, str, int, str], str] = field(default_factory=dict)
     requests: int = 0
     failed: int = 0
     points: int = 0
     lowest: int | None = None
     seconds: float = 0.0
+    # How many of `html` an earlier read of Evaluate held, so not read by this one.
+    held: int = 0
+    # Why the read stopped before its end, if it did: OUT_OF_TIME or OTHER_LIMIT.
+    stopped: str | None = None
 
     def of(self, text: Text) -> str | None:
         """The rendering of the text; None when it is read from its cleaned source."""
         return self.html.get(text.key)
+
+    def fall(self, key: tuple[str, str, int, str], reason: str) -> None:
+        """The text of `key` is read from its cleaned source, for `reason`."""
+        self.reasons[key] = reason
+        self.fallbacks[reason] += 1
+
+    def add(self, other: Renderings) -> None:
+        """Take in a later read of the same command, for one notice of both."""
+        self.html.update(other.html)
+        self.fallbacks.update(other.fallbacks)
+        self.reasons.update(other.reasons)
+        self.requests += other.requests
+        self.failed += other.failed
+        self.points += other.points
+        self.seconds += other.seconds
+        self.held += other.held
+        if other.lowest is not None:
+            lowest = self.lowest
+            self.lowest = other.lowest if lowest is None else min(lowest, other.lowest)
+        self.stopped = other.stopped or self.stopped
 
     def notice(self) -> None:
         """A notice in the log with counts alone, no text: the renderings, the texts
@@ -379,9 +426,10 @@ class Renderings:
             if self.fallbacks[reason]
         )
         lowest = "none reported" if self.lowest is None else self.lowest
+        held = f", {self.held} held from an earlier replay" if self.held else ""
         command(
             "notice",
-            f"Renderings of GitHub: {len(self.html)} read; requests: {self.requests}, "
+            f"Renderings of GitHub: {len(self.html) - self.held} read{held}; requests: {self.requests}, "
             f"failed: {self.failed}; counted points: {self.points}; seconds: "
             f"{self.seconds:.1f}; lowest remaining points: {lowest}. Texts read from "
             f"their cleaned source: {sum(self.fallbacks.values())}"
@@ -506,18 +554,18 @@ def rendered(entry: Any) -> tuple[str, str] | None:
 
 @dataclass
 class Taken:
-    """What an answer gave: the HTML of each text, and why the others have none."""
+    """What an answer gave: the HTML of each text, and why each other has none."""
 
     html: dict[RenderingKey, str] = field(default_factory=dict)
-    reasons: list[str] = field(default_factory=list)
+    fallen: dict[RenderingKey, str] = field(default_factory=dict)
 
     def keep(self, text: Text, body: str, html: str) -> None:
         """Keep the HTML, unless the text was edited between the two steps or its
         rendering is larger than the cap."""
         if body != text.body:
-            self.reasons.append(CHANGED)
+            self.fallen[text.key] = CHANGED
         elif size_of(html) > CAP:
-            self.reasons.append(ARRIVED_TOO_LARGE)
+            self.fallen[text.key] = ARRIVED_TOO_LARGE
         else:
             self.html[text.key] = html
 
@@ -529,13 +577,13 @@ class Taken:
         for alias, text in asked.single.items():
             entry = repository.get(alias, False)
             if entry is None and refused(body, ["repository", alias]):
-                self.reasons.append(NULL_ANSWER)
+                self.fallen[text.key] = NULL_ANSWER
                 continue
             if text.kind == ANSWER and isinstance(entry, dict) and "answer" in entry:
                 entry = entry["answer"]
                 if entry is None:
                     # The discussion has no answer any more.
-                    self.reasons.append(CHANGED)
+                    self.fallen[text.key] = CHANGED
                     continue
             pair = rendered(entry)
             if pair is None:
@@ -552,7 +600,7 @@ class Taken:
         for alias, (issue, texts) in asked.windows.items():
             entry = repository.get(issue, False)
             if entry is None and refused(body, ["repository", issue]):
-                self.reasons += [NULL_ANSWER] * len(texts)
+                self.fallen.update(dict.fromkeys(keys_of(texts), NULL_ANSWER))
                 continue
             window = entry.get(alias) if isinstance(entry, dict) else None
             nodes = window.get("nodes") if isinstance(window, dict) else None
@@ -567,21 +615,27 @@ class Taken:
             for text in texts:
                 pair = by_id.get(text.comment)
                 if pair is None:
-                    self.reasons.append(CHANGED)
+                    self.fallen[text.key] = CHANGED
                 else:
                     self.keep(text, *pair)
         return True
 
 
-def taken_of(body: dict[str, Any] | None, asked: Asked, count: int) -> Taken | None:
-    """What the answer gives for the request of `count` texts; None when it failed:
-    no answer, no `data`, or no entry of the right shape for an alias asked for."""
+def keys_of(texts: list[Text]) -> list[RenderingKey]:
+    return [text.key for text in texts]
+
+
+def taken_of(
+    body: dict[str, Any] | None, asked: Asked, texts: list[Text]
+) -> Taken | None:
+    """What the answer gives for the request of the texts; None when it failed: no
+    answer, no `data`, or no entry of the right shape for an alias asked for."""
     if body is None:
         return None
     taken = Taken()
     repository = body["data"].get("repository")
     if repository is None and refused(body, ["repository"]):
-        taken.reasons = [NULL_ANSWER] * count
+        taken.fallen = dict.fromkeys(keys_of(texts), NULL_ANSWER)
         return taken
     if not isinstance(repository, dict):
         return None
@@ -635,7 +689,7 @@ class Reading:
         self.send = send
         self.clock = clock
         self.start = clock()
-        self.result = Renderings()
+        self.result = Renderings(lowest=limits.lowest)
         self.stop: str | None = None
         # The place of each comment among those of its issue, and the REST id of
         # the comment at each place.
@@ -644,7 +698,8 @@ class Reading:
         self.cursors: dict[tuple[str, int], Cursors] = {}
 
     def fall(self, texts: list[Text], reason: str) -> None:
-        self.result.fallbacks[reason] += len(texts)
+        for text in texts:
+            self.result.fall(text.key, reason)
 
     def planned(self, texts: list[Text]) -> list[list[Text]]:
         """The requests of the texts, in their order: each of one repository and
@@ -805,7 +860,7 @@ class Reading:
         body, elapsed = self.call(
             {"query": asked.document, "variables": asked.variables}
         )
-        taken = taken_of(body, asked, len(request))
+        taken = taken_of(body, asked, request)
         self.counted(elapsed, taken is not None)
         return taken
 
@@ -826,7 +881,8 @@ class Reading:
             taken = self.asked(request)
             if taken is not None:
                 self.result.html.update(taken.html)
-                self.result.fallbacks.update(taken.reasons)
+                for key, reason in taken.fallen.items():
+                    self.result.fall(key, reason)
             elif self.stop is not None:
                 self.fall(request, self.stop)
             elif len(request) == 1:
@@ -834,6 +890,7 @@ class Reading:
             else:
                 half = (len(request) + 1) // 2
                 queue.extendleft([request[half:], request[:half]])
+        self.result.stopped = self.stop
         return self.result
 
 
