@@ -16,7 +16,7 @@ import re
 from bisect import bisect_right
 from collections.abc import Callable, Iterator
 
-from .patterns import COMMENT_END_FROM, HTML_COMMENT, comment_close
+from .patterns import COMMENT_END_FROM, HTML_COMMENT, comment_close, comment_runs_on
 
 # The mark of a quote or of a list item: a `>` needs no space after it, a list mark
 # does.
@@ -786,7 +786,7 @@ def blanks_fit(mark: str, blanks: str) -> bool:
 
 
 def comment_closes(
-    text: str, start: int, closed: int, fences: Fences, blocks: Blocks
+    text: str, start: int, closed: int, fences: Fences, blocks: Blocks, search: Searches
 ) -> bool:
     """Whether a comment that starts at a position ends at the `-->` that ends at
     `closed` for GitHub: where an HTML block may hold it, no block of another kind
@@ -794,8 +794,13 @@ def comment_closes(
     in a quote or a list item every row up to that `-->` is surely a row of the
     block, as the blocks of tags ask of their later rows, or a blank row of a list
     item. Otherwise the block may end before it: GitHub shows that `-->` as text, and
-    the comment hides the rest of the text."""
-    if ROW_END.search(text, start, closed) is None or fences.holds(start):
+    the comment hides the rest of the text. So it does where GitHub's HTML parser
+    ends it before CommonMark does and a tag may follow, as comment_runs_on says."""
+    if fences.holds(start):
+        return True
+    if comment_runs_on(text, start, closed - len("-->"), search):
+        return False
+    if ROW_END.search(text, start, closed) is None:
         return True
     held = blocks.holding(start)
     if not held:

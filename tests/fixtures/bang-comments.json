@@ -1,0 +1,1945 @@
+{
+ "about": "Texts with a `--!>` or a `--->`, at which GitHub's HTML parser ends a comment before the `-->` at which CommonMark ends it, and the forms of the end of a comment, by place: inline, as a block, in a quote, a list item, a heading, a setext heading, a cell, a footnote, a `div`, a `pre` and `details`, in nested quotes and lists, a quote that holds a table, link text, an image description and emphasis, with CRLF row ends, before a quoted value of a tag, an end tag, an `img alt`, a `video`, an `rp`, a `relative-time`, a void tag in `svg`, a drawn `pre`, a link reference definition and the elements that GitHub's filter takes out or shows as text; indented code and a table with a second row too. Each with the marker words that GitHub's renderer (gh api -X POST markdown with mode gfm, 2026-11-23) shows and hides, as a headless Chrome read the page; GitHub's script draws a date in place of a relative-time that has a `datetime` and a diagram in place of its source, the page shows the body of a closed details after a click, and the description of an image is its alt text.",
+ "texts": [
+  {
+   "text": "Zra <!-- Zrb --!> Zrc --> Zrd",
+   "github shows": [
+    "Zra",
+    "Zrc",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrb"
+   ],
+   "the cleaning takes out": [
+    "Zrc"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <a title=\"-->Zrbang\">Zrlink</a> Zry",
+   "github shows": [
+    "Zrx"
+   ],
+   "github hides": [
+    "Zrbang",
+    "Zrlink",
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <video>-->Zrbv</video> Zry",
+   "github shows": [
+    "Zrx",
+    "Zry"
+   ],
+   "github hides": [
+    "Zrbv"
+   ],
+   "the cleaning takes out": [
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <video>--> https://github.com/user-attachments/files/123/log.txt</video>",
+   "github shows": [
+    "Zrx"
+   ],
+   "github hides": [
+    "user-attachments/files/123"
+   ]
+  },
+  {
+   "text": "> Zrx <!-- a --!> <video>-->Zrqv</video> Zry",
+   "github shows": [
+    "Zrx",
+    "Zry"
+   ],
+   "github hides": [
+    "Zrqv"
+   ],
+   "the cleaning takes out": [
+    "Zry"
+   ]
+  },
+  {
+   "text": "- Zrx <!-- a --!> <video>-->Zrlv</video> Zry",
+   "github shows": [
+    "Zrx",
+    "Zry"
+   ],
+   "github hides": [
+    "Zrlv"
+   ],
+   "the cleaning takes out": [
+    "Zry"
+   ]
+  },
+  {
+   "text": "# Zrh <!-- a --!> <a title=\"-->Zrht\">Zrhl</a> Zrh2",
+   "github shows": [
+    "Zrh"
+   ],
+   "github hides": [
+    "Zrht",
+    "Zrhl",
+    "Zrh2"
+   ]
+  },
+  {
+   "text": "| a |\n|---|\n| Zrc1 <!-- a --!> <a title=\"-->Zrct\">Zrcl</a> Zrc2 |",
+   "github shows": [
+    "Zrc1"
+   ],
+   "github hides": [
+    "Zrct",
+    "Zrcl",
+    "Zrc2"
+   ]
+  },
+  {
+   "text": "<div>\nZra <!-- Zrb --!> <a title=\"-->Zrdivb\">Zrl</a> Zrd\n</div>",
+   "github shows": [
+    "Zra",
+    "Zrl",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrdivb"
+   ],
+   "the cleaning takes out": [
+    "Zrl",
+    "Zrd"
+   ]
+  },
+  {
+   "text": "<details open><summary>Zrs</summary>\n\nZra <!-- b --!> <video>-->Zrdet</video> Zrd\n\n</details>",
+   "github shows": [
+    "Zrs",
+    "Zra",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrdet"
+   ],
+   "the cleaning takes out": [
+    "Zrd"
+   ]
+  },
+  {
+   "text": "<!-- a --!> Zrblk\nZrb2 -->\n\nZrc",
+   "github shows": [
+    "Zrblk",
+    "Zrb2",
+    "Zrc"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zrblk",
+    "Zrb2"
+   ]
+  },
+  {
+   "text": "<!-- a --!> <video>\nZrbv2 --> Zrbv3\n\nZrc",
+   "github shows": [],
+   "github hides": [
+    "Zrbv2",
+    "Zrbv3",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "<!-- a --!>\n[d]: https://example.com \"-->Zrdef\"\n\nZre",
+   "github shows": [
+    "Zrdef",
+    "Zre"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zrx <!-- a --!> <ruby>a<rp>-->Zrrp</rp><rt>b</rt></ruby> Zry",
+   "github shows": [
+    "Zrx",
+    "Zry"
+   ],
+   "github hides": [
+    "Zrrp"
+   ],
+   "the cleaning takes out": [
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <svg><br>-->Zrsvg</svg> Zry",
+   "github shows": [
+    "Zrx",
+    "Zry"
+   ],
+   "github hides": [
+    "Zrsvg"
+   ],
+   "the cleaning takes out": [
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb --> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrc"
+   ],
+   "github hides": [
+    "Zrb"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb --!> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrb",
+    "Zrc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<!-- Zrb --!> Zrc\n\nZrd",
+   "github shows": [
+    "Zrc",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrb"
+   ],
+   "the cleaning takes out": [
+    "Zrc",
+    "Zrd"
+   ]
+  },
+  {
+   "text": "<!-- Zrb --!> Zrc\nZrd --> Zre\n\nZrf",
+   "github shows": [
+    "Zrc",
+    "Zrd",
+    "Zre",
+    "Zrf"
+   ],
+   "github hides": [
+    "Zrb"
+   ],
+   "the cleaning takes out": [
+    "Zrc",
+    "Zrd"
+   ]
+  },
+  {
+   "text": "> <!-- Zrb --!> Zrc\n> Zrd --> Zre\n\nZrf",
+   "github shows": [
+    "Zrc",
+    "Zrd",
+    "Zre",
+    "Zrf"
+   ],
+   "github hides": [
+    "Zrb"
+   ],
+   "the cleaning takes out": [
+    "Zrc",
+    "Zrd"
+   ]
+  },
+  {
+   "text": "- <!-- Zrb --!> Zrc\n  Zrd --> Zre\n\nZrf",
+   "github shows": [
+    "Zrc",
+    "Zrd",
+    "Zre",
+    "Zrf"
+   ],
+   "github hides": [
+    "Zrb"
+   ],
+   "the cleaning takes out": [
+    "Zrc",
+    "Zrd"
+   ]
+  },
+  {
+   "text": "<div>\nZra <!-- Zrb --!> Zrc --> Zrd\n</div>",
+   "github shows": [
+    "Zra",
+    "Zrc",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrb"
+   ],
+   "the cleaning takes out": [
+    "Zrc"
+   ]
+  },
+  {
+   "text": "Zra <!--!> Zrb --> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrc"
+   ],
+   "github hides": [
+    "Zrb"
+   ]
+  },
+  {
+   "text": "Zra <!---!> Zrb --> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrc"
+   ],
+   "github hides": [
+    "Zrb"
+   ]
+  },
+  {
+   "text": "Zra <!----!> Zrb --> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrb",
+    "Zrc"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zrb"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb --!-> Zrc --> Zrd",
+   "github shows": [
+    "Zra",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb -- !> Zrc --> Zrd",
+   "github shows": [
+    "Zra",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb\n\nZrc",
+   "github shows": [
+    "Zra",
+    "Zrb",
+    "Zrc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<!-- Zrb\n\nZrc",
+   "github shows": [],
+   "github hides": [
+    "Zrb",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb <!-- Zrc --> Zrd",
+   "github shows": [
+    "Zra",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "<!-- Zrb\nZrc --> Zrd\n\nZre",
+   "github shows": [
+    "Zrd",
+    "Zre"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "> <!-- Zrb\n> Zrc --> Zrd\n\nZre",
+   "github shows": [
+    "Zrd",
+    "Zre"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "> <!-- Zrb\nZrc --> Zrd\n\nZre",
+   "github shows": [],
+   "github hides": [
+    "Zrb",
+    "Zrc",
+    "Zrd",
+    "Zre"
+   ]
+  },
+  {
+   "text": "- <!-- Zrb\n  Zrc --> Zrd\n\nZre",
+   "github shows": [
+    "Zrd",
+    "Zre"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "- <!-- Zrb\nZrc --> Zrd\n\nZre",
+   "github shows": [],
+   "github hides": [
+    "Zrb",
+    "Zrc",
+    "Zrd",
+    "Zre"
+   ]
+  },
+  {
+   "text": "Zra <!--> Zrb --> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrb",
+    "Zrc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zra <!---> Zrb --> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrb",
+    "Zrc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "> Zra <!-- Zrb --!> Zrc --> Zrd",
+   "github shows": [
+    "Zra",
+    "Zrc",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrb"
+   ],
+   "the cleaning takes out": [
+    "Zrc"
+   ]
+  },
+  {
+   "text": "| a |\n|---|\n| Zra <!-- Zrb --!> Zrc --> Zrd |",
+   "github shows": [
+    "Zra",
+    "Zrc",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrb"
+   ],
+   "the cleaning takes out": [
+    "Zrc"
+   ]
+  },
+  {
+   "text": "Zra <!-- a --!> <!-- Zrb --> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrc"
+   ],
+   "github hides": [
+    "Zrb"
+   ]
+  },
+  {
+   "text": "Zra <!-- a --!> https://github.com/user-attachments/files/7/x.txt -->",
+   "github shows": [
+    "Zra",
+    "user-attachments/files/7"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "user-attachments/files/7"
+   ]
+  },
+  {
+   "text": "# Zrh <!-- a --!> <video>--> Zrhv</video> Zrh2",
+   "github shows": [
+    "Zrh",
+    "Zrh2"
+   ],
+   "github hides": [
+    "Zrhv"
+   ],
+   "the cleaning takes out": [
+    "Zrh2"
+   ]
+  },
+  {
+   "text": "x[^1]\n\n[^1]: Zrf <!-- a --!> <video>-->Zrfv</video> Zrf2",
+   "github shows": [
+    "Zrf",
+    "Zrf2"
+   ],
+   "github hides": [
+    "Zrfv"
+   ],
+   "the cleaning takes out": [
+    "Zrf",
+    "Zrf2"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <a title=\"b\n-->Zrrows\">Zrlink</a> Zry\nZrz",
+   "github shows": [
+    "Zrx"
+   ],
+   "github hides": [
+    "Zrrows",
+    "Zrlink",
+    "Zry",
+    "Zrz"
+   ]
+  },
+  {
+   "text": "<!-- a --!> <a title=\"\nZrbt1\n\nZrbt2 -->\n\nZrbt3",
+   "github shows": [],
+   "github hides": [
+    "Zrbt1",
+    "Zrbt2",
+    "Zrbt3"
+   ]
+  },
+  {
+   "text": "<!-- a --!> Zrs1 <b>Zrs2</b>\nZrs3 --> Zrs4\n\nZrs5",
+   "github shows": [
+    "Zrs1",
+    "Zrs2",
+    "Zrs3",
+    "Zrs4",
+    "Zrs5"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zrs1",
+    "Zrs2",
+    "Zrs3",
+    "Zrs4",
+    "Zrs5"
+   ]
+  },
+  {
+   "text": "Zra <!-- a --!> <video>\n\n[d]: https://example.com \"-->Zrdef4\"\n\nZre",
+   "github shows": [
+    "Zra",
+    "Zre"
+   ],
+   "github hides": [
+    "Zrdef4"
+   ],
+   "the cleaning takes out": [
+    "Zre"
+   ]
+  },
+  {
+   "text": "> <!-- a --!> <video>\n> Zrqb -->\n\nZrqc",
+   "github shows": [
+    "Zrqc"
+   ],
+   "github hides": [
+    "Zrqb"
+   ],
+   "the cleaning takes out": [
+    "Zrqc"
+   ]
+  },
+  {
+   "text": "Zra <!-- a --!> <a title=\"x\">Zrct</a> --> Zrcd",
+   "github shows": [
+    "Zra",
+    "Zrct",
+    "Zrcd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zrct",
+    "Zrcd"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <pre lang=\"mermaid\">-->Zrsrc</pre> Zry",
+   "github shows": [
+    "Zrx",
+    "Zry"
+   ],
+   "github hides": [
+    "Zrsrc"
+   ],
+   "the cleaning takes out": [
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <a title='-->Zrsq'>Zrl</a> Zry",
+   "github shows": [
+    "Zrx",
+    "Zry"
+   ],
+   "github hides": [
+    "Zrsq",
+    "Zrl"
+   ],
+   "the cleaning takes out": [
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <a title=x -->Zr1 Zr2",
+   "github shows": [
+    "Zrx",
+    "Zr1",
+    "Zr2"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zr1",
+    "Zr2"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <a title=\"-->Zrq1\n\nZrq2 <b title=\"x\">Zrq3</b> Zrq4",
+   "github shows": [
+    "Zrx",
+    "Zrq3",
+    "Zrq4"
+   ],
+   "github hides": [
+    "Zrq1",
+    "Zrq2"
+   ],
+   "the cleaning takes out": [
+    "Zrq3",
+    "Zrq4"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> </a title=\"-->Zret\">Zr2 Zry",
+   "github shows": [
+    "Zrx"
+   ],
+   "github hides": [
+    "Zret",
+    "Zr2",
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <relative-time datetime=\"2020-01-01T00:00:00Z\">-->Zrrt</relative-time> Zry",
+   "github shows": [
+    "Zrx",
+    "Zry"
+   ],
+   "github hides": [
+    "Zrrt"
+   ],
+   "the cleaning takes out": [
+    "Zry"
+   ]
+  },
+  {
+   "text": "<pre>\nZra <!-- a --!> <a title=\"-->Zrpb\">Zrl</a> Zrd\n</pre>",
+   "github shows": [
+    "Zra",
+    "Zrl",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrpb"
+   ],
+   "the cleaning takes out": [
+    "Zrl",
+    "Zrd"
+   ]
+  },
+  {
+   "text": "Zra <!-- a --!> Zrb --!> Zrc --> Zrd",
+   "github shows": [
+    "Zra",
+    "Zrb",
+    "Zrc",
+    "Zrd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zrb",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "Zra `<!-- a --!> <b title=\"-->Zrcode\">` Zrb",
+   "github shows": [
+    "Zra",
+    "Zrcode",
+    "Zrb"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zrcode",
+    "Zrb"
+   ]
+  },
+  {
+   "text": "```\n<!-- a --!> <b title=\"-->Zrf\">\n```\nZrg",
+   "github shows": [
+    "Zrf",
+    "Zrg"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zrx <svg><!-- a --!> <![CDATA[-->Zrcd]]></svg> Zry",
+   "github shows": [
+    "Zrx",
+    "Zrcd",
+    "Zry"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zrx <!-- a --!> <a title=\"-->Zrst\">Zrl</a>\n===\n\nZry",
+   "github shows": [
+    "Zrx"
+   ],
+   "github hides": [
+    "Zrst",
+    "Zrl",
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zra <!-- a --!> \\<b title=\"Zrep\">Zrb</b> --> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrb",
+    "Zrc"
+   ],
+   "github hides": [
+    "Zrep"
+   ],
+   "the cleaning takes out": [
+    "Zrb",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "Zra <!-- a --!> `<b title=\"Zrcp\">` --> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrc"
+   ],
+   "github hides": [
+    "Zrcp"
+   ],
+   "the cleaning takes out": [
+    "Zrc"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <a title=\"-->Zrla\">Zrl</a> [Zrt](https://github.com/user-attachments/files/9/y.txt) Zry",
+   "github shows": [
+    "Zrx",
+    "Zrt",
+    "Zry"
+   ],
+   "github hides": [
+    "Zrla",
+    "Zrl",
+    "user-attachments/files/9"
+   ],
+   "the cleaning takes out": [
+    "Zrt",
+    "Zry"
+   ]
+  },
+  {
+   "text": "- Zra <!-- a --!> <a title=\"-->Zrli\">Zrl</a>\n- Zrb",
+   "github shows": [
+    "Zra"
+   ],
+   "github hides": [
+    "Zrli",
+    "Zrl",
+    "Zrb"
+   ]
+  },
+  {
+   "text": "> Zra <!-- a --!> <a title=\"-->Zrqa\">Zrl</a>\n\nZrb",
+   "github shows": [
+    "Zra"
+   ],
+   "github hides": [
+    "Zrqa",
+    "Zrl",
+    "Zrb"
+   ]
+  },
+  {
+   "text": "| a |\n|---|\n| Zra <!-- a --!> <video>-->Zrcv</video> |\n| Zrb |",
+   "github shows": [
+    "Zra",
+    "Zrb"
+   ],
+   "github hides": [
+    "Zrcv"
+   ],
+   "the cleaning takes out": [
+    "Zrb"
+   ]
+  },
+  {
+   "text": "<details><summary>Zrs</summary>\n\nZra <!-- a --!> <a title=\"-->Zrdc\">Zrl</a>\n\n</details>\n\nZrb",
+   "github shows": [
+    "Zrs",
+    "Zra"
+   ],
+   "github hides": [
+    "Zrdc",
+    "Zrl",
+    "Zrb"
+   ]
+  },
+  {
+   "text": "Zrx <video><!-- a --!></video> Zr1 --> Zr2",
+   "github shows": [
+    "Zrx",
+    "Zr1",
+    "Zr2"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zr1",
+    "Zr2"
+   ]
+  },
+  {
+   "text": "Zrx <video><!-- a --!></video> <a title=\"-->Zr3\">Zr4</a> Zr5",
+   "github shows": [
+    "Zrx"
+   ],
+   "github hides": [
+    "Zr3",
+    "Zr4",
+    "Zr5"
+   ]
+  },
+  {
+   "text": "Zrx <ruby>a<rp><!-- a --!></rp>Zr6 --> Zr7</ruby>",
+   "github shows": [
+    "Zrx",
+    "Zr6",
+    "Zr7"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zr6",
+    "Zr7"
+   ]
+  },
+  {
+   "text": "Zrx <!-- a --!> <img alt=\"-->Zralt\" src=\"x\"> Zry",
+   "github shows": [
+    "Zrx"
+   ],
+   "github hides": [
+    "Zralt",
+    "Zry"
+   ]
+  },
+  {
+   "text": "    <!-- a --!> <b title=\"-->Zsi\">\n\nZsj",
+   "github shows": [
+    "Zsi",
+    "Zsj"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsi",
+    "Zsj"
+   ]
+  },
+  {
+   "text": "| a | b |\n|---|---|\n| Zsc1 <!-- a --!> <video>-->Zscv</video> | Zsc2 |\n| Zsc3 | Zsc4 |",
+   "github shows": [
+    "Zsc1",
+    "Zsc2",
+    "Zsc3",
+    "Zsc4"
+   ],
+   "github hides": [
+    "Zscv"
+   ],
+   "the cleaning takes out": [
+    "Zsc2",
+    "Zsc3",
+    "Zsc4"
+   ]
+  },
+  {
+   "text": "Zsa0 <!-- a --!> <textarea>-->Zsh0</textarea> Zsb0",
+   "github shows": [
+    "Zsa0",
+    "Zsh0",
+    "Zsb0"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh0",
+    "Zsb0"
+   ]
+  },
+  {
+   "text": "Zsa1 <!-- a --!> <noscript>-->Zsh1</noscript> Zsb1",
+   "github shows": [
+    "Zsa1",
+    "Zsh1",
+    "Zsb1"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh1",
+    "Zsb1"
+   ]
+  },
+  {
+   "text": "Zsa2 <!-- a --!> <template>-->Zsh2</template> Zsb2",
+   "github shows": [
+    "Zsa2",
+    "Zsh2",
+    "Zsb2"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh2",
+    "Zsb2"
+   ]
+  },
+  {
+   "text": "Zsa3 <!-- a --!> <select><option>-->Zsh3</option></select> Zsb3",
+   "github shows": [
+    "Zsa3",
+    "Zsh3",
+    "Zsb3"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh3",
+    "Zsb3"
+   ]
+  },
+  {
+   "text": "Zsa4 <!-- a --!> <iframe>-->Zsh4</iframe> Zsb4",
+   "github shows": [
+    "Zsa4",
+    "Zsh4",
+    "Zsb4"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh4",
+    "Zsb4"
+   ]
+  },
+  {
+   "text": "Zsa5 <!-- a --!> <object>-->Zsh5</object> Zsb5",
+   "github shows": [
+    "Zsa5",
+    "Zsh5",
+    "Zsb5"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh5",
+    "Zsb5"
+   ]
+  },
+  {
+   "text": "Zsa6 <!-- a --!> <noembed>-->Zsh6</noembed> Zsb6",
+   "github shows": [
+    "Zsa6",
+    "Zsh6",
+    "Zsb6"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh6",
+    "Zsb6"
+   ]
+  },
+  {
+   "text": "Zsa7 <!-- a --!> <script>-->Zsh7</script> Zsb7",
+   "github shows": [
+    "Zsa7"
+   ],
+   "github hides": [
+    "Zsh7",
+    "Zsb7"
+   ]
+  },
+  {
+   "text": "Zsa8 <!-- a --!> <style>-->Zsh8</style> Zsb8",
+   "github shows": [
+    "Zsa8",
+    "Zsh8",
+    "Zsb8"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh8",
+    "Zsb8"
+   ]
+  },
+  {
+   "text": "Zsa9 <!-- a --!> <xmp>-->Zsh9</xmp> Zsb9",
+   "github shows": [
+    "Zsa9",
+    "Zsh9",
+    "Zsb9"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh9",
+    "Zsb9"
+   ]
+  },
+  {
+   "text": "Zsa10 <!-- a --!> <title>-->Zsh10</title> Zsb10",
+   "github shows": [
+    "Zsa10",
+    "Zsh10",
+    "Zsb10"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh10",
+    "Zsb10"
+   ]
+  },
+  {
+   "text": "Zsa11 <!-- a --!> <math><mi>-->Zsh11</mi></math> Zsb11",
+   "github shows": [
+    "Zsa11",
+    "Zsh11",
+    "Zsb11"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh11",
+    "Zsb11"
+   ]
+  },
+  {
+   "text": "Zsa12 <!-- a --!> <plaintext>-->Zsh12 Zsb12",
+   "github shows": [
+    "Zsa12",
+    "Zsh12",
+    "Zsb12"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh12",
+    "Zsb12"
+   ]
+  },
+  {
+   "text": "Zsa13 <!-- a --!> <audio>-->Zsh13</audio> Zsb13",
+   "github shows": [
+    "Zsa13",
+    "Zsh13",
+    "Zsb13"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh13",
+    "Zsb13"
+   ]
+  },
+  {
+   "text": "Zsa14 <!-- a --!> <a title=-->Zsh14>Zsh14l</a> Zsb14",
+   "github shows": [
+    "Zsa14",
+    "Zsh14",
+    "Zsh14l",
+    "Zsb14"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh14",
+    "Zsh14l",
+    "Zsb14"
+   ]
+  },
+  {
+   "text": "Zsa15 <!-- a --!> <a x-->Zsh15>Zsh15l</a> Zsb15",
+   "github shows": [
+    "Zsa15",
+    "Zsh15",
+    "Zsh15l",
+    "Zsb15"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh15",
+    "Zsh15l",
+    "Zsb15"
+   ]
+  },
+  {
+   "text": "Zsa16 <!-- a --!> <picture>-->Zsh16</picture> Zsb16",
+   "github shows": [
+    "Zsa16",
+    "Zsh16",
+    "Zsb16"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsh16",
+    "Zsb16"
+   ]
+  },
+  {
+   "text": "Zsa17 <!-- a --!> <img src=\"-->Zsh17\"> Zsb17",
+   "github shows": [
+    "Zsa17"
+   ],
+   "github hides": [
+    "Zsh17",
+    "Zsb17"
+   ]
+  },
+  {
+   "text": "Zsa18 <!-- a --!> <kbd title=\"-->Zsh18\">k</kbd> Zsb18",
+   "github shows": [
+    "Zsa18"
+   ],
+   "github hides": [
+    "Zsh18",
+    "Zsb18"
+   ]
+  },
+  {
+   "text": "- > Zscquo <!-- a --!> <a title=\"-->Zsctquo\">l</a> Zscyquo",
+   "github shows": [
+    "Zscquo"
+   ],
+   "github hides": [
+    "Zsctquo",
+    "Zscyquo"
+   ]
+  },
+  {
+   "text": "- > Zsvquo <!-- a --!> <video>-->Zsvvquo</video> Zsvyquo",
+   "github shows": [
+    "Zsvquo",
+    "Zsvyquo"
+   ],
+   "github hides": [
+    "Zsvvquo"
+   ],
+   "the cleaning takes out": [
+    "Zsvyquo"
+   ]
+  },
+  {
+   "text": "> - Zsclis <!-- a --!> <a title=\"-->Zsctlis\">l</a> Zscylis",
+   "github shows": [
+    "Zsclis"
+   ],
+   "github hides": [
+    "Zsctlis",
+    "Zscylis"
+   ]
+  },
+  {
+   "text": "> - Zsvlis <!-- a --!> <video>-->Zsvvlis</video> Zsvylis",
+   "github shows": [
+    "Zsvlis",
+    "Zsvylis"
+   ],
+   "github hides": [
+    "Zsvvlis"
+   ],
+   "the cleaning takes out": [
+    "Zsvylis"
+   ]
+  },
+  {
+   "text": "> | a |\n> |---|\n> | Zsctab <!-- a --!> <a title=\"-->Zscttab\">l</a> Zscytab |",
+   "github shows": [
+    "Zsctab"
+   ],
+   "github hides": [
+    "Zscttab",
+    "Zscytab"
+   ]
+  },
+  {
+   "text": "> | a |\n> |---|\n> | Zsvtab <!-- a --!> <video>-->Zsvvtab</video> Zsvytab |",
+   "github shows": [
+    "Zsvtab",
+    "Zsvytab"
+   ],
+   "github hides": [
+    "Zsvvtab"
+   ],
+   "the cleaning takes out": [
+    "Zsvytab"
+   ]
+  },
+  {
+   "text": "- a\n  - Zscnes <!-- a --!> <a title=\"-->Zsctnes\">l</a> Zscynes\n- Zsn2",
+   "github shows": [
+    "Zscnes"
+   ],
+   "github hides": [
+    "Zsctnes",
+    "Zscynes",
+    "Zsn2"
+   ]
+  },
+  {
+   "text": "- a\n  - Zsvnes <!-- a --!> <video>-->Zsvvnes</video> Zsvynes\n- Zsn2",
+   "github shows": [
+    "Zsvnes",
+    "Zsvynes",
+    "Zsn2"
+   ],
+   "github hides": [
+    "Zsvvnes"
+   ],
+   "the cleaning takes out": [
+    "Zsvynes",
+    "Zsn2"
+   ]
+  },
+  {
+   "text": "1. Zscord <!-- a --!> <a title=\"-->Zsctord\">l</a> Zscyord\n2. Zsn3",
+   "github shows": [
+    "Zscord"
+   ],
+   "github hides": [
+    "Zsctord",
+    "Zscyord",
+    "Zsn3"
+   ]
+  },
+  {
+   "text": "1. Zsvord <!-- a --!> <video>-->Zsvvord</video> Zsvyord\n2. Zsn3",
+   "github shows": [
+    "Zsvord",
+    "Zsvyord",
+    "Zsn3"
+   ],
+   "github hides": [
+    "Zsvvord"
+   ],
+   "the cleaning takes out": [
+    "Zsvyord",
+    "Zsn3"
+   ]
+  },
+  {
+   "text": "> > Zscquo <!-- a --!> <a title=\"-->Zsctquo\">l</a> Zscyquo\n\nZsn4",
+   "github shows": [
+    "Zscquo"
+   ],
+   "github hides": [
+    "Zsctquo",
+    "Zscyquo",
+    "Zsn4"
+   ]
+  },
+  {
+   "text": "> > Zsvquo <!-- a --!> <video>-->Zsvvquo</video> Zsvyquo\n\nZsn4",
+   "github shows": [
+    "Zsvquo",
+    "Zsvyquo",
+    "Zsn4"
+   ],
+   "github hides": [
+    "Zsvvquo"
+   ],
+   "the cleaning takes out": [
+    "Zsvyquo",
+    "Zsn4"
+   ]
+  },
+  {
+   "text": "Zsx1 <!-- a --!> <a title=\"-->Zscr1\">l</a>\r\nZsy1",
+   "github shows": [
+    "Zsx1"
+   ],
+   "github hides": [
+    "Zscr1",
+    "Zsy1"
+   ]
+  },
+  {
+   "text": "<!-- a --!> <video>\r\nZscr2 --> Zscr3\r\n\r\nZscr4",
+   "github shows": [],
+   "github hides": [
+    "Zscr2",
+    "Zscr3",
+    "Zscr4"
+   ]
+  },
+  {
+   "text": "<div>\r\nZsx3 <!-- a --!> <a title=\"-->Zscr5\">l</a> Zsy3\r\n</div>",
+   "github shows": [
+    "Zsx3",
+    "Zsy3"
+   ],
+   "github hides": [
+    "Zscr5"
+   ],
+   "the cleaning takes out": [
+    "Zsy3"
+   ]
+  },
+  {
+   "text": "> Zsx4 <!-- a --!> <video>-->Zscr6</video> Zsy4\r\n\r\nZsy5",
+   "github shows": [
+    "Zsx4",
+    "Zsy4",
+    "Zsy5"
+   ],
+   "github hides": [
+    "Zscr6"
+   ],
+   "the cleaning takes out": [
+    "Zsy4",
+    "Zsy5"
+   ]
+  },
+  {
+   "text": "Zsl1 [Zsl2 <!-- a --!> <a title=\"-->Zsl3\">](https://example.com) Zsl4",
+   "github shows": [
+    "Zsl1",
+    "Zsl2"
+   ],
+   "github hides": [
+    "Zsl3",
+    "Zsl4"
+   ]
+  },
+  {
+   "text": "Zsl5 ![Zsl6 <!-- a --!> <a title=\"-->Zsl7\">](https://example.com/x.png) Zsl8",
+   "github shows": [
+    "Zsl5",
+    "Zsl6",
+    "Zsl7",
+    "Zsl8"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsl7",
+    "Zsl8"
+   ]
+  },
+  {
+   "text": "Zsl9 [Zsla <!-- a --!> <video>-->Zslb</video>](https://example.com) Zslc",
+   "github shows": [
+    "Zsl9",
+    "Zsla",
+    "Zslc"
+   ],
+   "github hides": [
+    "Zslb"
+   ],
+   "the cleaning takes out": [
+    "Zslc"
+   ]
+  },
+  {
+   "text": "Zsf1[^1]\n\n[^1]: Zsf2\n    Zsf3 <!-- a --!> <video>-->Zsf4</video> Zsf5\n\nZsf6",
+   "github shows": [
+    "Zsf1",
+    "Zsf2",
+    "Zsf3",
+    "Zsf5",
+    "Zsf6"
+   ],
+   "github hides": [
+    "Zsf4"
+   ],
+   "the cleaning takes out": [
+    "Zsf2",
+    "Zsf3",
+    "Zsf5",
+    "Zsf6"
+   ]
+  },
+  {
+   "text": "Zsm1 <!-- a ---!> <a title=\"-->Zsm2\">l</a> Zsm3",
+   "github shows": [
+    "Zsm1"
+   ],
+   "github hides": [
+    "Zsm2",
+    "Zsm3"
+   ]
+  },
+  {
+   "text": "Zsm4 <!-- a --!--> <a title=\"Zsm5\">l</a> Zsm6",
+   "github shows": [
+    "Zsm4",
+    "Zsm6"
+   ],
+   "github hides": [
+    "Zsm5"
+   ]
+  },
+  {
+   "text": "Zsm7 <!-- a --!> --!> <a title=\"-->Zsm8\">l</a> Zsm9",
+   "github shows": [
+    "Zsm7"
+   ],
+   "github hides": [
+    "Zsm8",
+    "Zsm9"
+   ]
+  },
+  {
+   "text": "Zsp1 <!-- a --!> <? -->Zsp2 Zsp3",
+   "github shows": [
+    "Zsp1",
+    "Zsp2",
+    "Zsp3"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zsp4 <!-- a --!> <!x -->Zsp5 Zsp6",
+   "github shows": [
+    "Zsp4",
+    "Zsp5",
+    "Zsp6"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zsp7 <!-- a --!> 1 < 2 -->Zsp8 Zsp9",
+   "github shows": [
+    "Zsp7",
+    "Zsp8",
+    "Zsp9"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zsq1 <!-- a --!> <a title=\"x\">Zsq2</a> --> Zsq3",
+   "github shows": [
+    "Zsq1",
+    "Zsq2",
+    "Zsq3"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsq2",
+    "Zsq3"
+   ]
+  },
+  {
+   "text": "Zsq4 <!-- a --!> <a title=\"x\" -->Zsq5\">l</a> Zsq6",
+   "github shows": [
+    "Zsq4",
+    "Zsq5",
+    "Zsq6"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsq5",
+    "Zsq6"
+   ]
+  },
+  {
+   "text": "<a title=\"x\">\nZsq7 <!-- a --!> <a title=\"-->Zsq8\">l</a> Zsq9\n\nZsqa",
+   "github shows": [
+    "Zsq7",
+    "Zsq9",
+    "Zsqa"
+   ],
+   "github hides": [
+    "Zsq8"
+   ],
+   "the cleaning takes out": [
+    "Zsq9",
+    "Zsqa"
+   ]
+  },
+  {
+   "text": "<details>\n<summary>s</summary>\n\nZsd1 <!-- a --!> <a title=\"-->Zsd2\">l</a> Zsd3\n\n</details>\n\nZsd4",
+   "github shows": [
+    "Zsd1"
+   ],
+   "github hides": [
+    "Zsd2",
+    "Zsd3",
+    "Zsd4"
+   ]
+  },
+  {
+   "text": "Zse1 <!-- a --!> <video>-->Zse2</video> Zse3\n===",
+   "github shows": [
+    "Zse1",
+    "Zse3"
+   ],
+   "github hides": [
+    "Zse2"
+   ],
+   "the cleaning takes out": [
+    "Zse3"
+   ]
+  },
+  {
+   "text": "Zsk1 `<!-- a --!> <b title=\"-->` Zsk2 Zsk3",
+   "github shows": [
+    "Zsk1",
+    "Zsk2",
+    "Zsk3"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zsk2",
+    "Zsk3"
+   ]
+  },
+  {
+   "text": "Zsk4 <!-- a --!> `<b title=\"-->Zsk5\"` Zsk6",
+   "github shows": [
+    "Zsk4"
+   ],
+   "github hides": [
+    "Zsk5",
+    "Zsk6"
+   ]
+  },
+  {
+   "text": "*Zsk7 <!-- a --!> <video>-->Zsk8</video> Zsk9*",
+   "github shows": [
+    "Zsk7",
+    "Zsk9"
+   ],
+   "github hides": [
+    "Zsk8"
+   ],
+   "the cleaning takes out": [
+    "Zsk9"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb ---> <a title=\"Zrc --> Zrd\">Zrx</a> Zry",
+   "github shows": [
+    "Zra"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrc",
+    "Zrd",
+    "Zrx",
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb <!---><a title=\"<!-->Zrc",
+   "github shows": [
+    "Zra"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrc"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb ----> <a title=\"Zrc --> Zrd\">Zrx</a> Zry",
+   "github shows": [
+    "Zra"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrc",
+    "Zrd",
+    "Zrx",
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb --!> <!---><a title=\"Zrc --> Zrd\">Zrx</a> Zry",
+   "github shows": [
+    "Zra"
+   ],
+   "github hides": [
+    "Zrb",
+    "Zrc",
+    "Zrd",
+    "Zrx",
+    "Zry"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb ---> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrb",
+    "Zrc"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zrb"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb ----> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrb",
+    "Zrc"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zrb"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb -----> Zrc",
+   "github shows": [
+    "Zra",
+    "Zrc"
+   ],
+   "github hides": [
+    "Zrb"
+   ]
+  },
+  {
+   "text": "Zra <!-- Zrb --->\nZrc --> Zrd",
+   "github shows": [
+    "Zra",
+    "Zrc",
+    "Zrd"
+   ],
+   "github hides": [
+    "Zrb"
+   ]
+  },
+  {
+   "text": "Zda <!-- a ---> <a title=\"-->Zdb\">Zdc</a> Zdd",
+   "github shows": [
+    "Zda"
+   ],
+   "github hides": [
+    "Zdb",
+    "Zdc",
+    "Zdd"
+   ]
+  },
+  {
+   "text": "Zda <!-- a ---> <video>x --> Zdv</video> Zdd",
+   "github shows": [
+    "Zda",
+    "Zdd"
+   ],
+   "github hides": [
+    "Zdv"
+   ],
+   "the cleaning takes out": [
+    "Zdd"
+   ]
+  },
+  {
+   "text": "Zda <!-- a ----> <a title=\"-->Zdb\">Zdc</a> Zdd",
+   "github shows": [
+    "Zda"
+   ],
+   "github hides": [
+    "Zdb",
+    "Zdc",
+    "Zdd"
+   ]
+  },
+  {
+   "text": "Zda <!-- a ---> Zde ---> <a title=\"-->Zdb\">Zdc</a> Zdd",
+   "github shows": [
+    "Zda",
+    "Zde"
+   ],
+   "github hides": [
+    "Zdb",
+    "Zdc",
+    "Zdd"
+   ],
+   "the cleaning takes out": [
+    "Zde"
+   ]
+  },
+  {
+   "text": "Zda <!-- a ---> Zde --> Zdd",
+   "github shows": [
+    "Zda",
+    "Zde",
+    "Zdd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zda <!-- a ---> <b>Zde</b> Zdd",
+   "github shows": [
+    "Zda",
+    "Zde",
+    "Zdd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zda <!-- a ---> <a title=\"x\n\nZde -->Zdb\">Zdc</a> Zdd",
+   "github shows": [
+    "Zda",
+    "Zde",
+    "Zdb",
+    "Zdc",
+    "Zdd"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zde",
+    "Zdb",
+    "Zdc",
+    "Zdd"
+   ]
+  },
+  {
+   "text": "> Zda <!-- a ---> <video>x --> Zdv</video> Zdd\n\nZdp",
+   "github shows": [
+    "Zda",
+    "Zdd",
+    "Zdp"
+   ],
+   "github hides": [
+    "Zdv"
+   ],
+   "the cleaning takes out": [
+    "Zdd",
+    "Zdp"
+   ]
+  },
+  {
+   "text": "- Zda <!-- a ---> <a title=\"-->Zdb\">Zdc</a> Zdd\n- Zdl",
+   "github shows": [
+    "Zda"
+   ],
+   "github hides": [
+    "Zdb",
+    "Zdc",
+    "Zdd",
+    "Zdl"
+   ]
+  },
+  {
+   "text": "| a |\n|---|\n| Zda <!-- a ---> <video>x --> Zdv</video> Zdd |",
+   "github shows": [
+    "Zda",
+    "Zdd"
+   ],
+   "github hides": [
+    "Zdv"
+   ],
+   "the cleaning takes out": [
+    "Zdd"
+   ]
+  },
+  {
+   "text": "# Zda <!-- a ---> <video>x --> Zdv</video> Zdd",
+   "github shows": [
+    "Zda",
+    "Zdd"
+   ],
+   "github hides": [
+    "Zdv"
+   ],
+   "the cleaning takes out": [
+    "Zdd"
+   ]
+  },
+  {
+   "text": "<!-- a ---> <a title=\"-->Zdb\">Zdc</a> Zdd\n\nZdp",
+   "github shows": [
+    "Zdc",
+    "Zdd",
+    "Zdp"
+   ],
+   "github hides": [
+    "Zdb"
+   ],
+   "the cleaning takes out": [
+    "Zdc",
+    "Zdd",
+    "Zdp"
+   ]
+  },
+  {
+   "text": "<!-- a --->\n<a title=\"-->Zdb\">Zdc</a> Zdd\n\nZdp",
+   "github shows": [
+    "Zdc",
+    "Zdd",
+    "Zdp"
+   ],
+   "github hides": [
+    "Zdb"
+   ],
+   "the cleaning takes out": [
+    "Zdc",
+    "Zdd",
+    "Zdp"
+   ]
+  },
+  {
+   "text": "<div>\nZda <!-- a ---> <a title=\"-->Zdb\">Zdc</a> Zdd\n</div>",
+   "github shows": [
+    "Zda",
+    "Zdc",
+    "Zdd"
+   ],
+   "github hides": [
+    "Zdb"
+   ],
+   "the cleaning takes out": [
+    "Zdc",
+    "Zdd"
+   ]
+  },
+  {
+   "text": "```\nZda <!-- a ---> <a title=\"-->Zdb\">\n```\nZdd",
+   "github shows": [
+    "Zda",
+    "Zdb",
+    "Zdd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zda <!-- a ---> </a title=\"-->Zdb\">Zdc Zdd",
+   "github shows": [
+    "Zda"
+   ],
+   "github hides": [
+    "Zdb",
+    "Zdc",
+    "Zdd"
+   ]
+  },
+  {
+   "text": "Zda <!-- a ---> <a title='-->Zdb'>Zdc</a> Zdd",
+   "github shows": [
+    "Zda",
+    "Zdd"
+   ],
+   "github hides": [
+    "Zdb",
+    "Zdc"
+   ],
+   "the cleaning takes out": [
+    "Zdd"
+   ]
+  },
+  {
+   "text": "Zda <!-- a --!> Zde ---> <a title=\"-->Zdb\">Zdc</a> Zdd",
+   "github shows": [
+    "Zda",
+    "Zde"
+   ],
+   "github hides": [
+    "Zdb",
+    "Zdc",
+    "Zdd"
+   ],
+   "the cleaning takes out": [
+    "Zde"
+   ]
+  },
+  {
+   "text": "Zda <!-- a ---> <!-- b --!> <a title=\"-->Zdb\">Zdc</a> Zdd",
+   "github shows": [
+    "Zda"
+   ],
+   "github hides": [
+    "Zdb",
+    "Zdc",
+    "Zdd"
+   ]
+  },
+  {
+   "text": "Zda <!-- a ---> <video>x --> https://github.com/user-attachments/files/456/log.txt</video>",
+   "github shows": [
+    "Zda"
+   ],
+   "github hides": [
+    "user-attachments/files/456"
+   ]
+  },
+  {
+   "text": "Zda <!-----> Zde --> Zdd",
+   "github shows": [
+    "Zda",
+    "Zde",
+    "Zdd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zda <!----> Zde <a title=\"-->Zdb\">Zdc</a> Zdd",
+   "github shows": [
+    "Zda",
+    "Zde",
+    "Zdc",
+    "Zdd"
+   ],
+   "github hides": [
+    "Zdb"
+   ]
+  },
+  {
+   "text": "Zda <!-- a ---> 1 < 2 --> Zdd",
+   "github shows": [
+    "Zda",
+    "Zdd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zda <!-- a --->\n<a title=\"-->Zdb\">Zdc</a> Zdd",
+   "github shows": [
+    "Zda"
+   ],
+   "github hides": [
+    "Zdb",
+    "Zdc",
+    "Zdd"
+   ]
+  }
+ ]
+}

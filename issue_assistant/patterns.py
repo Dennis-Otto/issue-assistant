@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from html.entities import html5
 
 # Characters that GitHub shows as nothing, but that the engine reads, so that a text
@@ -127,6 +128,48 @@ def comment_close(text: str, opening: int, stop: int | None = None) -> int:
     a block, inline and in the HTML of a block (`gh api -X POST markdown`, 2026-11-23),
     and a later `-->` ends nothing."""
     return text.find("-->", opening + COMMENT_END_FROM, stop)
+
+
+# How far after the `<` of its `<!--` a `--!>` may end a comment: `<!--!>` and
+# `<!---!>` end nothing, `<!----!>` ends at once.
+BANG_END_FROM = len("<!--")
+# How far after the `<` of its `<!--` a `-->` starts that ends a comment for GitHub's
+# HTML parser but not for CommonMark, as a `--->` does: `<!--->` and `<!---->` are
+# whole comments for both.
+DASHED_END_FROM = len("<!---")
+# The start of a tag or an end tag for an HTML parser: every other `<` is text, or
+# starts a comment, a doctype or a bogus comment, which ends at the next `-->`, `--!>`
+# or `>`.
+TAG_START = re.compile(r"</?[A-Za-z]")
+# A `-->` with no `-` before it, at which CommonMark may end a comment that runs past
+# a `--->`.
+PLAIN_END = re.compile(r"(?<!-)-->")
+Search = Callable[[re.Pattern[str], int], re.Match[str] | None]
+
+
+def comment_runs_on(text: str, opening: int, close: int, search: Search) -> bool:
+    """Whether GitHub may hide text after the `-->` at `close` that ends the comment
+    whose `<!--` starts at `opening`, as comment_close finds it, with `search` for
+    the first match of a pattern at or after a position.
+
+    GitHub's HTML parser ends a comment at the first `-->` or, from the `<` + 4 on,
+    `--!>`. CommonMark ends an inline comment at a `-->` too, but at none that a
+    `-` comes before, as in `--->`: from there it reads on to the next `-->` without
+    one (`gh api -X POST markdown` with the mode gfm, 2026-11-23). Up to its own end
+    it hands the HTML on, and the parser reads what follows the end of the comment as
+    HTML: a tag that starts there and holds a `-->` in a quoted value reads on into
+    the text after it, to a quote in the HTML that follows, and an element such as a
+    `<video>` hides what it holds. Where a tag starts there, the reading can't tell
+    how far it reaches, and the comment hides the rest of the text."""
+    bang = text.find("--!>", opening + BANG_END_FROM, close)
+    reach = close
+    if close >= opening + DASHED_END_FROM and text[close - 1] == "-":
+        plain = search(PLAIN_END, close + len("-->"))
+        reach = close if plain is None else plain.start()
+    if bang < 0 and reach == close:
+        return False  # The HTML parser ends the comment where CommonMark does.
+    tag = search(TAG_START, close if bang < 0 else bang)
+    return tag is not None and tag.start() < reach
 
 
 SHA = re.compile(r"[0-9a-f]{40}")
