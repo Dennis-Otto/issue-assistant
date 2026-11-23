@@ -27,6 +27,7 @@ The code is the package `issue_assistant/`, of the standard library alone ([deci
 | `issue_assistant/settings.py` | `labels.toml`, `config.toml` and `findings.toml`, read and checked |
 | `issue_assistant/fixture.py` | An issue or a discussion from a file, for the canary, the Workflow test and for trying a prompt |
 | `issue_assistant/rest_shapes.py` | GraphQL's answers in the form of the REST API: issues, authors, comments and discussions |
+| `issue_assistant/renderings.py` | GitHub's renderings of texts, read by their numbers in a second step (#521): `rendering_estimate`, which weighs what a text may render to, and `read_renderings`, which packs the requests within their budget, splits a request that fails in halves and stops at the limits of a command; no reader uses it yet |
 | `issue_assistant/github.py` | The class `GitHub`: every request, through `gh` |
 | `issue_assistant/markup.py` | The HTML of an issue as GitHub reads it: the blocks and paragraphs that hold a tag, a comment, an instruction, a declaration or a section of CDATA, and how far each reaches |
 | `issue_assistant/tags.py` | The reading of the tags with what they hide: `strip_html`, the tags that run past their rows or past a `>` in a quoted value, the content of a `video`, an `rp` or a `relative-time`, which GitHub keeps and the page doesn't show, and what a void element holds inside `<svg>` or `<math>`, which GitHub doesn't write |

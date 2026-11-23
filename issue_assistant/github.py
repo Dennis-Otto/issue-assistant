@@ -6,7 +6,7 @@ import json
 import re
 import subprocess
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from copy import deepcopy
 from datetime import datetime
 from typing import Any
@@ -15,6 +15,7 @@ from urllib.parse import quote, urlencode
 from .constants import BOT
 from .errors import GitHubError
 from .fixture import Fixture
+from .renderings import Limits, Renderings, Text, read_renderings
 from .rest_shapes import as_rest, closed_as_rest, discussion_as_rest, post_as_rest
 from .settings import Label
 from .values import command, login, moment, stamp
@@ -36,6 +37,9 @@ EVALUATION_PAGES = 10
 
 # The roles of a repository from the highest down, each with its right in the
 # permissions of a collaborator, which a custom role or a team grants as well.
+# The call of gh that sends a request of renderings, with its GraphQL on stdin.
+RENDERING_CALL = ("api", "graphql", "--input", "-")
+
 ROLE_RIGHTS = (
     ("admin", "admin"),
     ("maintain", "maintain"),
@@ -160,6 +164,27 @@ class GitHub:
             )
         data: dict[str, Any] = response["data"]
         return data
+
+    def renderings(self, texts: Iterable[Text], limits: Limits) -> Renderings:
+        """GitHub's HTML of each text of the first step, read by its number in a
+        second step within the limits of the command (#521). No failure of it fails
+        the run: a text without a rendering is read from its cleaned source."""
+        return read_renderings(texts, limits, self._render)
+
+    def _render(
+        self, request: dict[str, Any], timeout: float
+    ) -> subprocess.CompletedProcess[str]:
+        """One request of renderings, once: never through _gh, whose waits and
+        errors are those of the sources, and with gh's answer also when it fails."""
+        return subprocess.run(
+            ["gh", *RENDERING_CALL, "--header", API_VERSION_HEADER],
+            input=json.dumps(request),
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            check=False,
+            timeout=timeout,
+        )
 
     def remember(self) -> None:
         """Read the comments and the events of an issue once, until a write of this

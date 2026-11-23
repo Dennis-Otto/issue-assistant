@@ -923,3 +923,107 @@ def test_any_other_call_fails(monkeypatch, schema):
     monkeypatch.setattr(assistant.subprocess, "run", github.run)
     with pytest.raises(AssertionError, match="unexpected call"):
         assistant.GitHub(REPOSITORY).issue(12)
+
+
+# The requests of renderings (#521) are built by number from the documents of
+# renderings.py, so no literal document of `graphql` holds them: they run here as
+# GitHub.renderings sends them, aliases, windows and cursors included.
+RENDERED_COMMENTS = [
+    {"fullDatabaseId": f"700000000{n}", "body": body, "bodyHTML": f"<p>{body}</p>"}
+    for n, body in enumerate("abc", start=1)
+]
+
+
+def comments_by_cursor(
+    info: Any, first: int, after: str | None = None, **arguments: Any
+) -> Any:
+    """A window of the comments of the issue, after the comment of the cursor."""
+    ids = [node["fullDatabaseId"] for node in RENDERED_COMMENTS]
+    start = 0 if after is None else ids.index(after.removeprefix("cursor:")) + 1
+    nodes = RENDERED_COMMENTS[start : start + first]
+    return {
+        "nodes": nodes,
+        "pageInfo": {"hasNextPage": False, "endCursor": f"cursor:{ids[-1]}"},
+        "edges": [
+            {"cursor": f"cursor:{node['fullDatabaseId']}", "node": node}
+            for node in nodes
+        ],
+    }
+
+
+def rendered_issue(info: Any, number: int, **arguments: Any) -> Any:
+    return {
+        "body": f"Issue {number}.",
+        "bodyHTML": f"<p>Issue {number}.</p>",
+        "comments": comments_by_cursor,
+    }
+
+
+def rendered_discussion(info: Any, number: int, **arguments: Any) -> Any:
+    answer = {"body": "Its answer.", "bodyHTML": "<p>Its answer.</p>"}
+    return {
+        "body": "A discussion.",
+        "bodyHTML": "<p>A discussion.</p>",
+        "answer": answer,
+    }
+
+
+RENDERED = {
+    "repository": lambda info, **arguments: {
+        "issue": rendered_issue,
+        "discussion": rendered_discussion,
+    },
+    "rateLimit": {"cost": 1, "remaining": 4999},
+}
+
+
+def test_github_s_schema_takes_the_requests_of_renderings(monkeypatch, schema):
+    github = GitHubOfTheSchema(schema, RENDERED, {})
+    monkeypatch.setattr(assistant.subprocess, "run", github.run)
+    texts = [
+        assistant.Text(REPOSITORY, assistant.ISSUE, 12, "Issue 12."),
+        *(
+            assistant.Text(
+                REPOSITORY,
+                assistant.COMMENT,
+                12,
+                node["body"],
+                node["fullDatabaseId"],
+                hidden=index == 1,
+            )
+            for index, node in enumerate(RENDERED_COMMENTS)
+        ),
+        assistant.Text(REPOSITORY, assistant.DISCUSSION, 3, "A discussion."),
+        assistant.Text(REPOSITORY, assistant.ANSWER, 3, "Its answer."),
+        assistant.Text(REPOSITORY, assistant.ISSUE, 7, "Issue 7."),
+    ]
+    renderings = assistant.GitHub(REPOSITORY).renderings(
+        texts, assistant.CONTEXT_RENDERING_LIMITS
+    )
+    # The cursors of the comments, then one request of every text but the hidden.
+    cursors, request = github.requests
+    assert cursors["query"] == assistant.CURSORS
+    assert "w1: comments(first: 1, after: $w1)" in request["query"]
+    assert [renderings.of(text) for text in texts] == [
+        "<p>Issue 12.</p>",
+        "<p>a</p>",
+        None,
+        "<p>c</p>",
+        "<p>A discussion.</p>",
+        "<p>Its answer.</p>",
+        "<p>Issue 7.</p>",
+    ]
+    assert not renderings.fallbacks and renderings.lowest == 4999
+
+
+@pytest.mark.mutation_unsafe
+def test_no_page_query_asks_for_a_rendering():
+    """A page or a list can't carry renderings (#521): no document of `graphql` asks
+    for one, and no REST read asks for a media type that holds one."""
+    documents = [node.args[0].value for node in calls_in_the_script("graphql")]
+    assert documents
+    for document in documents:
+        assert "bodyHTML" not in document and "bodyText" not in document
+    source = package_source()
+    for media in ("html+json", "full+json", "text+json", "body_text"):
+        assert media not in source
