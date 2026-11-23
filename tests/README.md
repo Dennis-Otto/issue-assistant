@@ -4,7 +4,7 @@
 
 | File | What it holds |
 | --- | --- |
-| `support.py` | Builders of issues, comments and answers, the fake GitHub, the fake `gh`, `assert_golden` and `growth`, which times a reading on a text and on its eighth, with `GROWTH`, how much it may grow, and `CEILING`, how long it may take, and `too_slow`, which judges a slow reading of `fuzz/fuzz_issue_text.py` and a slow conversion of `fuzz/fuzz_converter.py` by their growth, in the tries of `plain_growth` that their timeouts count |
+| `support.py` | Builders of issues, comments and answers, the fake GitHub, the fake `gh`, `assert_golden` and `growth`, which times a reading on a text and on its eighth, with `GROWTH`, how much it may grow, and `CEILING`, how long it may take, and `too_slow`, which judges a slow reading of `fuzz/fuzz_issue_text.py` and a slow conversion of `fuzz/fuzz_converter.py` by their growth, in the tries of `plain_growth` that their timeouts count. A test that times a reading with them carries `@pytest.mark.mutation_unsafe`, since in mutmut's copy the time is mutmut's, which `test_mutation_safety.py` checks |
 | `fake_gh.py` | The program that the tests of the class `GitHub` start in place of `gh` |
 | `golden/` | What the assistant writes, word for word: comments, contexts, plans and job summaries |
 | `test_golden.py` | The tests that compare those texts with their golden files |
