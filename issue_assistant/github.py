@@ -35,11 +35,11 @@ SEARCHED = 30
 
 EVALUATION_PAGES = 10
 
-# The roles of a repository from the highest down, each with its right in the
-# permissions of a collaborator, which a custom role or a team grants as well.
 # The call of gh that sends a request of renderings, with its GraphQL on stdin.
 RENDERING_CALL = ("api", "graphql", "--input", "-")
 
+# The roles of a repository from the highest down, each with its right in the
+# permissions of a collaborator, which a custom role or a team grants as well.
 ROLE_RIGHTS = (
     ("admin", "admin"),
     ("maintain", "maintain"),

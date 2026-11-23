@@ -803,6 +803,19 @@ def test_the_limits_can_end_while_the_cursors_are_read():
     assert renderings.fallbacks == {assistant.OTHER_LIMIT: 30}
 
 
+def test_a_limit_while_the_cursors_are_read_counts_each_text_once():
+    """The cursors of the first issue fail and its window falls back; the limit of
+    requests then ends the cursors of the second: only its window is left."""
+    github = GitHubOfRenderings()
+    texts = [
+        *comments(github, 12, ["a", "b"], hidden=frozenset({0})),
+        *comments(github, 13, ["c", "d"], hidden=frozenset({0})),
+    ]
+    github.failing = lambda aliases, request: SHAPES["a 504 with an HTML page"]
+    renderings = read(github, texts, assistant.Limits(60.0, requests=2))
+    assert renderings.fallbacks == {assistant.FAILED: 1, assistant.OTHER_LIMIT: 1}
+
+
 def test_a_request_of_windows_that_all_lack_their_cursors_is_not_sent():
     github = GitHubOfRenderings()
     texts = comments(github, 12, ["a", "b"], hidden=frozenset({0}))

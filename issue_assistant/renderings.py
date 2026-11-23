@@ -786,7 +786,8 @@ class Reading:
             if self.cursor_of(window.repository, window.number, before) is not None:
                 continue
             if self.stopped():
-                return request
+                # The run counts the rest under the limit; what fell back is counted.
+                break
             state = self.cursors[(window.repository, window.number)]
             self.fall(window.texts, FAILED if state.failed else CHANGED)
             dropped.update(text.key for text in window.texts)
