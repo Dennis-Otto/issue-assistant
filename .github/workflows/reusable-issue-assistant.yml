@@ -553,7 +553,7 @@ jobs:
         name: Analyze with Claude
         id: claude
         if: steps.engine.outputs.ready == 'true' && steps.engine.outputs.engine == 'claude'
-        uses: anthropics/claude-code-action@9eb012b6d0900c2b9eede65ee1758cec4d2973e9 # v1.0.270
+        uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1.0.276
         env:
           DISABLE_TELEMETRY: "1"
           DISABLE_ERROR_REPORTING: "1"
@@ -601,7 +601,7 @@ jobs:
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           # renovate: datasource=npm depName=@openai/codex
-          codex-version: "0.167.0"
+          codex-version: "0.169.0"
           # Issues come from people without write access. The sandbox of the
           # profile :read-only lets Codex read files but neither write them nor
           # reach the network, and drop-sudo leaves the API key to the proxy of the
