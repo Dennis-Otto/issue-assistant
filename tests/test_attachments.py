@@ -656,6 +656,55 @@ def test_a_file_that_a_video_or_the_brackets_of_ruby_hold_counts_as_none():
     assert found(f"Crash on start\n\n{IMAGE}") == [(IMAGE, 0, "image", IMAGE[-36:])]
 
 
+def test_a_file_that_a_void_element_holds_inside_svg_counts_as_none():
+    """Inside `<svg>` or `<math>`, GitHub's parser makes no element void: a `<br>`,
+    an `<hr>`, an `<img>` or a `<source>` there holds what follows it, of which the
+    page shows nothing (`gh api -X POST markdown` with the mode gfm, 2026-11-22).
+    A link or an image that it holds counts as none, also below an `<svg>` alone on
+    the first row; the image of the `<img>` itself still counts, and so does a link
+    after the end of the `<svg>` or outside it."""
+    hidden = (
+        f"a <svg><br> [log]({LOG})</svg> b",
+        f"a <math><hr> [log]({LOG})",
+        f'a <svg><img src="x"> <img src="{IMAGE}"></svg> b',
+        f"<svg>\n\na <br> [log]({LOG})",
+        f"a <SVG><Source>\n[log]({LOG})",
+    )
+    for body in hidden:
+        assert found(body) == [], body
+    shown = (
+        f"a <svg><br> x</svg> [log]({LOG})",
+        f"a <svg/><br> [log]({LOG})",
+        f"a <svg><br/> [log]({LOG})</svg>",
+        f"a <br> [log]({LOG})",
+        f"`<svg>` <br> [log]({LOG})",
+        f"a <svg><br> x\n\n[log]({LOG})",
+    )
+    for body in shown:
+        assert found(body) == SHOWN_LOG, body
+    image = found(f'a <svg><img src="{IMAGE}"> x</svg> b')
+    assert image == [(IMAGE, 0, "image", IMAGE[-36:])]
+
+
+@pytest.mark.parametrize(
+    "table",
+    [
+        "x [^1]\n\n[^1]: | a |\n    |---|\n    | {first} | {second} |",
+        ">| a |\n>|---|\n>\t| {first} | {second} |",
+        ">\t| a |\n>\t|---|\n>\t| {first} | {second} |",
+    ],
+)
+def test_a_file_in_a_cell_that_github_drops_counts_as_none(table):
+    """GitHub drops the cells of a row beyond those of the header of its table, also
+    of a table on the first row of a footnote and of one after a tab in a quote,
+    which GitHub counts 2 columns in (`gh api -X POST markdown` with the mode gfm,
+    2026-11-22): a link there counts as none, and one in the first cell still
+    does."""
+    link = f"[log]({LOG})"
+    assert found(table.format(first="b", second=link)) == []
+    assert found(table.format(first=link, second="b")) == SHOWN_LOG
+
+
 def test_where_it_is_hard_to_tell_an_address_counts_as_none():
     """GitHub shows these as text, but the reading takes them for tags: a tag in
     a code span, and one at the start of a row whose block it can't rule out."""

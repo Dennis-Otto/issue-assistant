@@ -91,6 +91,8 @@ INTERRUPTS = re.compile(
     rf"|</?(?:{caseless(BLOCK_TAGS)})(?=[ \t>]|/>|{END})"
 )
 # A row of a table after the marks of its quotes: its blanks, and what ends the table.
+# The label of a footnote at the start of its first row, with the blanks after it.
+FOOTNOTE_LABEL = re.compile(rf"{FOOTNOTE_MARK}[ \t]*+")
 BODY_ROW = re.compile(rf"(?P<blanks>[ \t]*+)(?P<interrupts>{INTERRUPTS.pattern})?+")
 # An HTML block that starts a row outside quotes and list items, at most three
 # spaces in, by its kind; and what ends each kind but that of a block tag, which a
@@ -357,19 +359,27 @@ class Reader:
                 continue
             row_start, end = self.rows[index]
             marks = row["marks"]
-            column = width(marks[marks.rfind(">") + 1 :])
+            column = indent(marks)
             listed = bool(ITEM_MARK.search(marks))
             header = self.rows[index - 1]
             container = CONTAINER.match(text, *header)
             assert container is not None  # It matches the empty text.
             first, above = container.end(), text[header[0] : container.end()]
+            # The label of a footnote on the row of the header is one of its marks:
+            # its cells start after it, and only a delimiter row indented by four
+            # at least, as the footnote's text, is one of the footnote (`gh api
+            # markdown`, 2026-11-23). A row of the table less indented than the
+            # delimiter row may still be one of the footnote: it goes on the table.
+            label = FOOTNOTE_LABEL.match(text, first, header[1])
+            first = first if label is None else label.end()
             if (
                 (column >= 4 and not listed and row_start < self.listed)
+                or (label is not None and column < 4)
                 or not (outside(index) and outside(index - 1))
                 or first == header[1]
                 or text.startswith("#", first)
                 or (
-                    width(above[above.rfind(">") + 1 :]) >= 4
+                    indent(above) >= 4
                     and not ITEM_MARK.search(above)
                     and header[0] < self.listed
                 )
@@ -382,7 +392,12 @@ class Reader:
             ):
                 continue
             listed = listed or bool(ITEM_MARK.search(above))
-            table = Table(marks.count(">"), column, count, listed)
+            # A row indented as code ends the table: four columns in where no list
+            # item or footnote may hold it, and otherwise four past its delimiter
+            # row, which may be anywhere in the text of its list item.
+            unheld = column < 4 and not listed and row_start < self.listed
+            coded = 4 if unheld else column + 4
+            table = Table(marks.count(">"), column, count, listed, coded)
             after = self.body(found, table, index + 1)
 
     def body(self, found: Found, table: Table, index: int) -> int:
@@ -392,7 +407,7 @@ class Reader:
         text, starts, rows = self.text, self.starts, self.rows
         while index < len(rows):
             start = starts[index]
-            stop = body_rows(table.depth, table.column, table.listed).match(text, start)
+            stop = body_rows(table).match(text, start)
             assert stop is not None  # It matches the empty text.
             if stop.end() > start:
                 cells = cut_cells(table.depth, table.count)
@@ -405,7 +420,8 @@ class Reader:
             quotes = QUOTE_RUN.match(text, start, rows[index][1])
             assert quotes is not None  # It matches the empty text.
             depth = text.count(">", start, quotes.end())
-            if table.goes_on(text, found, depth, quotes.end(), rows[index][1]) is None:
+            marks = (start, quotes.end())
+            if table.goes_on(text, found, depth, marks, rows[index][1]) is None:
                 return start
             index += 1
         return len(text)
@@ -466,28 +482,30 @@ def closing_fence(text: str, row: re.Match[str]) -> int:
 @dataclass(frozen=True)
 class Table:
     """A table that its rows go on: the depth of its quotes, the column at which its
-    delimiter row starts, the number of cells of its header, and whether a list
-    item holds it, whose text a row less indented leaves."""
+    delimiter row starts, the number of cells of its header, whether a list item
+    holds it, whose text a row less indented leaves, and the column from which a
+    row is indented as code."""
 
     depth: int
     column: int
     count: int
     listed: bool
+    code: int
 
     def goes_on(
-        self, text: str, found: Found, depth: int, after: int, end: int
+        self, text: str, found: Found, depth: int, marks: Span, end: int
     ) -> Table | None:
         """The table, after the cells of a row beyond its header went to `found`, or
         None where the row ends it: one of other quotes, one that starts another
-        block, one indented as code, and one less indented than its list item."""
-        row = BODY_ROW.match(text, after, end)
+        block, one indented as code, and one less indented than its list item. The
+        row starts at the first of `marks`, and its quotes end at the second."""
+        row = BODY_ROW.match(text, marks[1], end)
         assert row is not None  # It matches the empty text.
-        blanks = row["blanks"]
-        column = width(blanks) if "\t" in blanks else len(blanks)
+        column = indent(text[marks[0] : row.end("blanks")])
         if (
             depth != self.depth
             or row["interrupts"] is not None
-            or column >= self.column + 4
+            or column >= self.code
             or (self.listed and column < self.column)
         ):
             return None
@@ -498,14 +516,16 @@ class Table:
 
 
 @functools.cache
-def body_rows(depth: int, column: int, listed: bool) -> re.Pattern[str]:
-    """The rows that surely go on a table of `depth` quotes whose delimiter row
-    starts at `column`, in a list item where `listed`: those of its quotes, with
-    spaces before their text, no tab, fewer than four more than the delimiter row
-    and in a list item no fewer, and none that ends a table."""
-    least = f"(?= {{{column}}})" if listed and column else ""
+def body_rows(table: Table) -> re.Pattern[str]:
+    """The rows that surely go on a table: those of its quotes, with spaces before
+    their text, no tab, fewer than its column of code, in a list item no fewer than
+    its delimiter row, and none that ends a table. In a quote, the space after its
+    `>`, which indent leaves out, is one more."""
+    quoted = table.depth > 0
+    least = f"(?= {{{table.column + quoted}}})" if table.listed and table.column else ""
     return re.compile(
-        rf"(?:(?:[ \t]*+>){{{depth}}}(?![ \t]*+>)(?! *+\t)(?! {{{column + 4}}}){least}"
+        rf"(?:(?:[ \t]*+>){{{table.depth}}}(?![ \t]*+>)(?! *+\t)"
+        rf"(?! {{{table.code + quoted}}}){least}"
         rf"(?! *+(?:{INTERRUPTS.pattern}))[^\r\n]*+(?:\r\n?|\n|\Z))*+"
     )
 
@@ -555,6 +575,18 @@ def width(blanks: str) -> int:
     """How many columns some marks and blanks take, a tab up to the next multiple of
     four."""
     return len(blanks.expandtabs(4))
+
+
+def indent(marks: str) -> int:
+    """How many columns the blanks after the last `>` of the marks at the start of
+    a row take, as CommonMark counts them: from the column where they start, a tab
+    up to the next multiple of four, without the one column after the `>` that
+    belongs to it; or the columns of all the marks, without a `>`. A tab after `>`
+    is 2 columns in, as GitHub reads it, not 4."""
+    quote = marks.rfind(">") + 1
+    if not quote:
+        return width(marks)
+    return max(width(marks) - width(marks[:quote]) - 1, 0)
 
 
 def html_blocks(text: str, reader: Reader) -> list[Span]:

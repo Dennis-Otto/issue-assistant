@@ -627,6 +627,8 @@ def browser_text(markdown: str, descriptions: bool = False) -> str:
     parser = DESCRIBING if descriptions else PARSER
     source = FILTERED_TAG.sub(r"&lt;\1", parser.render(without_extra_cells(markdown)))
     source = source[: nested_too_deep(source)]
+    for start, end in reversed(held_by_void(source)):
+        source = source[:start] + source[end:]
     shown, position = [], 0
     while (start := source.find("<", position)) >= 0:
         shown.append(source[position:start])
@@ -821,7 +823,11 @@ CLOSES_P = frozenset(
 )
 TABLE_PARTS = ("table", "tbody", "thead", "tfoot", "tr")
 # SVG and MathML, the elements inside them that hold HTML again, and the start tags
-# that close them, by the rules of HTML's parser for foreign content.
+# that close them, by the rules of HTML's parser for foreign content, but for those
+# that GitHub's parser nests inside them: `<br>`, `<embed>`, `<hr>`, `<img>` and
+# `<meta>`, which it makes no void element there either, and `<b>`, `<code>` and
+# `<p>`, after which a `<br>` still holds what follows it (`gh api markdown`,
+# 2026-11-22 and 23). The other names are not asked about yet.
 FOREIGN_ROOTS = frozenset(["math", "svg"])
 INTEGRATION_POINTS = frozenset(
     [
@@ -838,19 +844,15 @@ INTEGRATION_POINTS = frozenset(
 )
 BREAKING_OUT = frozenset(
     [
-        "b",
         "big",
         "blockquote",
         "body",
-        "br",
         "center",
-        "code",
         "dd",
         "div",
         "dl",
         "dt",
         "em",
-        "embed",
         "h1",
         "h2",
         "h3",
@@ -858,16 +860,12 @@ BREAKING_OUT = frozenset(
         "h5",
         "h6",
         "head",
-        "hr",
         "i",
-        "img",
         "li",
         "listing",
         "menu",
-        "meta",
         "nobr",
         "ol",
-        "p",
         "pre",
         "ruby",
         "s",
@@ -925,6 +923,61 @@ def nested_too_deep(source: str) -> int:
     return len(source)
 
 
+# The void elements whose tags GitHub's sanitizer keeps: inside SVG or MathML, its
+# HTML holds none of what they hold, while it drops the others with their tags and
+# keeps what they hold (`gh api markdown`, 2026-11-22).
+KEPT_VOID = frozenset(["br", "hr", "img", "source"])
+
+
+def held_by_void(source: str) -> list[tuple[int, int]]:
+    """The parts of HTML that an element of KEPT_VOID holds inside SVG or MathML,
+    where GitHub's parser makes no element void, as nested_too_deep reads the
+    elements but for the end tags inside them: from the end of its start tag up to
+    the tag that closes it, or the end of the HTML. An `<svg/>` or a `<math/>`
+    opens nothing."""
+    stack: list[str] = []
+    spans: list[tuple[int, int]] = []
+    # How many elements were open around the outermost holder, and where its
+    # content starts.
+    holder: tuple[int, int] | None = None
+    position = 0
+    while (start := source.find("<", position)) >= 0:
+        position = max(markup_end(source, start), start + 1)
+        found = NAME.match(source, start)
+        if found is None:
+            continue
+        name = found[1].lower()
+        closes_itself = source[position - 2 : position] == "/>"
+        if source[start + 1] == "/" and FOREIGN_ROOTS.intersection(stack):
+            # With SVG or MathML open, GitHub's parser closes the innermost element
+            # of the name of an end tag, of SVG or of HTML, past every other:
+            # `</g>`, `</b>` and an inner `</svg>` end what a void element holds.
+            if name in stack:
+                del stack[len(stack) - 1 - stack[::-1].index(name) :]
+        elif source[start + 1] == "/":
+            close(stack, name)
+        elif foreign(stack) and name not in BREAKING_OUT:
+            if not closes_itself:
+                if holder is None and name in KEPT_VOID:
+                    holder = (len(stack), position)
+                stack.append(name)
+        elif foreign(stack):
+            roots = [i for i, held in enumerate(stack) if held in FOREIGN_ROOTS]
+            del stack[roots[-1] :]
+            if name not in VOID_ELEMENTS:
+                open_element(stack, name)
+        elif name not in VOID_ELEMENTS and not (
+            closes_itself and name in FOREIGN_ROOTS
+        ):
+            open_element(stack, name)
+        if holder is not None and len(stack) <= holder[0]:
+            spans.append((holder[1], start))
+            holder = None
+    if holder is not None:
+        spans.append((holder[1], len(source)))
+    return spans
+
+
 def foreign(stack: list[str]) -> bool:
     """Whether the innermost open element is one of SVG or MathML, below which no
     element holds HTML again."""
@@ -967,15 +1020,30 @@ def open_element(stack: list[str], name: str) -> None:
 
 # The marks of quotes before a line, and what ends a table on GitHub after them: a
 # blank line, a heading, a list item, a quote, a fence, a rule, an HTML block that
-# can interrupt a paragraph and code indented by four spaces (`gh api markdown -f
-# mode=gfm`, 2026-11-21).
+# can interrupt a paragraph (`gh api markdown -f mode=gfm`, 2026-11-21), and code
+# indented by four columns (indented).
 QUOTE_MARKS = re.compile(r"(?:[ \t]*>)*")
+# The label of a footnote at the start of the text of its first row.
+FOOTNOTE_LABEL = re.compile(r"[ \t]*\[\^[^\]\r\n]+\]:[ \t]*")
 ENDS_TABLE = re.compile(
     r"[ \t]*$| {0,3}(?:#{1,6}(?:[ \t]|$)|(?:[-+*]|[0-9]+[.)])(?:[ \t]|$)|>|```|~~~"
-    r"|(?:[*_-][ \t]*){3,}$|<(?:!--|\?|!|/?(?:div|p|pre|details|table)\b))"
-    r"|    ",
+    r"|(?:[*_-][ \t]*){3,}$|<(?:!--|\?|!|/?(?:div|p|pre|details|table)\b))",
     re.IGNORECASE,
 )
+
+
+def indented(line: str) -> int:
+    """How many columns the blanks after the quote marks of a line take, as
+    CommonMark counts them: a tab up to the next multiple of four from the column
+    where it stands, without the one column after a `>` that belongs to it. A tab
+    right after `>` is 2 columns in, as GitHub reads it."""
+    marks = QUOTE_MARKS.match(line)
+    assert marks is not None
+    rest = line[marks.end() :]
+    blanks = rest[: len(rest) - len(rest.lstrip(" \t"))]
+    start = len(line[: marks.end()].expandtabs(4))
+    columns = len((line[: marks.end()] + blanks).expandtabs(4)) - start
+    return max(columns - 1, 0) if marks[0] else columns
 
 
 def without_extra_cells(markdown: str) -> str:
@@ -996,14 +1064,27 @@ def without_extra_cells(markdown: str) -> str:
             ):
                 continue
             # A delimiter row in fewer quotes than its header goes on the paragraph
-            # of the quote: GitHub makes no table of it.
+            # of the quote: GitHub makes no table of it. Nor does one indented by
+            # four columns, unless it is one of a footnote whose label stands on
+            # the row of the header, which then needs that many, and whose rows are
+            # code from eight: the cells of the header start after the label
+            # (`gh api markdown`, 2026-11-23).
             above, header = quoted(lines[row - 1])
+            label = FOOTNOTE_LABEL.match(header)
+            if (indented(lines[row]) >= 4) != (label is not None):
+                break
+            header = header if label is None else header[label.end() :]
+            code = 4 if label is None else 8
             count = len(pipes(header)) + 1
             if above != depth or count != len(pipes(delimiter)) + 1:
                 break
             for body in range(row + 1, last):
                 inner, rest = quoted(lines[body])
-                if inner != depth or ENDS_TABLE.match(rest):
+                if (
+                    inner != depth
+                    or ENDS_TABLE.match(rest)
+                    or indented(lines[body]) >= code
+                ):
                     break
                 split = pipes(rest)
                 if len(split) >= count:

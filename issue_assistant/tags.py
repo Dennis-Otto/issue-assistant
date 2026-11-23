@@ -1,8 +1,9 @@
 """The reading of the tags of an issue as GitHub reads them: the spans of the tags
 that run past their rows or past a `>` in a quoted value, of the markup that GitHub
-reads as a comment, and of the content of the elements whose content GitHub keeps
-and no browser shows; where GitHub stops showing the text; and the text without
-them, in time linear in its length.
+reads as a comment, of the content of the elements whose content GitHub keeps and
+no browser shows, and of what a void element holds inside `<svg>` or `<math>`,
+which GitHub doesn't write; where GitHub stops showing the text; and the text
+without them, in time linear in its length.
 """
 
 from __future__ import annotations
@@ -82,23 +83,72 @@ INNER = (
     r"(?P<inner>(?ai:/?(?:video|rp|relative-time|ruby|rtc|rt|rb"
     rf"|{SPECIAL_TAGS}))(?=[\t\n\f\r />]))"
 )
+# The void elements of HTML, which hold nothing: outside `<svg>` and `<math>` alone,
+# since GitHub's HTML parser makes no element void inside them.
+VOID = frozenset(
+    [
+        "area",
+        "base",
+        "basefont",
+        "bgsound",
+        "br",
+        "embed",
+        "hr",
+        "image",
+        "img",
+        "input",
+        "keygen",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    ]
+)
+FOREIGN_NAME = r"(?ai:svg|math)(?=[\t\n\f\r />]|\Z)"
+FOREIGN_START = re.compile(rf"<{FOREIGN_NAME}")
+VOID_NAME = rf"(?P<void>(?ai:{'|'.join(sorted(VOID))})(?=[\t\n\f\r />]|\Z))"
+# The kinds of content that the reading of the tags may be in: none, that of a
+# hidden element, and what a void element holds inside `<svg>` or `<math>`.
+CONTENT_KINDS = ("", "hidden", "void")
 
 
-def tag_starts(comments: bool, fenced: bool, inner: bool) -> re.Pattern[str]:
+def tag_starts(
+    comments: bool, fenced: bool, inner: str, foreign: bool
+) -> re.Pattern[str]:
     """Where the reading of the tags takes its next step: with comments while a
     `-->` may still end one; in a text without fenced code past the markup that
-    ends on its row; and in the content of a hidden element also at its tags."""
+    ends on its row; in the content of a hidden element also at its tags; at the
+    start tags of `<svg>` and `<math>`, and while one is open, also at their end
+    tags and at those of void elements; and in what a void element holds there at
+    the tags of `<svg>` and `<math>`. In any content, it stops at the start tags
+    that may follow its end, where the content ends at a paragraph or a heading:
+    those of hidden elements, and of void ones while an `<svg>` or `<math>` is
+    open."""
     comment, guard = ("(?P<comment>!--)|", "") if comments else ("", "(?!!--)")
     markup = MARKUP_REST if fenced else f"(?!{ROW_MARKUP_REST}){MARKUP_REST}"
-    tags = f"{INNER}|" if inner else ""
-    return re.compile(f"<{guard}(?:{comment}{markup}|{tags}{HIDDEN_NAME}|{TAG_REST})")
+    if inner == "void":
+        tags = f"(?P<inner>/?{FOREIGN_NAME})|{VOID_NAME}|{HIDDEN_NAME}|"
+    elif inner:
+        tags = (
+            f"{INNER}|{VOID_NAME}|{HIDDEN_NAME}|"
+            if foreign
+            else f"{INNER}|{HIDDEN_NAME}|"
+        )
+    elif foreign:
+        tags = f"(?P<foreign>/?{FOREIGN_NAME})|{VOID_NAME}|{HIDDEN_NAME}|"
+    else:
+        tags = f"(?P<foreign>{FOREIGN_NAME})|{HIDDEN_NAME}|"
+    return re.compile(f"<{guard}(?:{comment}{markup}|{tags}{TAG_REST})")
 
 
 TAG_STARTS = {
-    (comments, fenced, inner): tag_starts(comments, fenced, inner)
+    (comments, fenced, inner, foreign): tag_starts(comments, fenced, inner, foreign)
     for comments in (True, False)
     for fenced in (True, False)
-    for inner in (True, False)
+    for inner in CONTENT_KINDS
+    for foreign in (True, False)
 }
 
 
@@ -162,7 +212,9 @@ def long_tags(
     and so do the tags in fenced code and in a comment, and a tag that ends on its
     row, which HTML takes out as it always did, but for one with a `>` in a quoted
     value. The content of a hidden element goes as one span, up to where Element
-    finds its end, with the spans of the tags that it holds.
+    finds its end, with the spans of the tags that it holds, and so does what a
+    void element holds inside `<svg>` or `<math>`, up to where Foreign finds its
+    end, but for its tag.
 
     Each step reads on from the end of the last: each tag is read once, up to its
     end, and the searches for the ends of the blocks and the paragraphs read no part
@@ -179,6 +231,7 @@ def long_tags(
     blocks = Blocks(text, rows, fences if fenced else None)
     paragraphs, search = Paragraphs(text), Searches(text)
     hidden = Hidden(text, rows, blocks, paragraphs, search)
+    elements = Elements(hidden, Foreign(text, blocks, hidden))
     spans: list[tuple[int, int]] = []
     position = 0
     # Where the HTML ends that CommonMark hands on from a paragraph for the last
@@ -187,25 +240,26 @@ def long_tags(
     # Whether a `-->` may still end a comment, and where the last comment that the
     # reading passed over ends.
     comments, passed = True, 0
-    # The hidden element whose content the reading is in, whose tags it reads too.
-    element: Element | None = None
-    starts = TAG_STARTS[comments, fenced, False]
+    starts, open_elements = elements.starts(comments, fenced), elements.open
     while (found := starts.search(text, position)) is not None:
         start, position, kind = found.start(), found.end(), found.lastgroup
-        if element is not None and 0 <= element.end() <= start:
-            # Past the end of its paragraph or heading, which ends it.
+        element = elements.element
+        if (element is not None and 0 <= element.end() <= start) or (
+            open_elements and open_elements[-1][1] <= start
+        ):
+            # Past the end of the paragraph or heading of an element, which ends it.
+            elements.passed(start, spans)
             position = start
-            close(spans, element.start, element.end(), rows)
-            element, starts = None, TAG_STARTS[comments, fenced, False]
+            starts = elements.starts(comments, fenced)
             continue
         if kind == "comment":
             closed = search.comment_end(position)
             if closed < 0:
                 # No `-->` follows: no comment hides a tag.
                 comments = False
-                starts = TAG_STARTS[comments, fenced, element is not None]
+                starts = elements.starts(comments, fenced)
             elif not comment_closes(text, start, closed, fences, blocks):
-                return spans, cut(text, start, element)
+                return spans, cut(text, start, elements.element)
             position = passed = max(closed, position)
             continue
         if FILTERED_TAG.match(text, start) or (fenced and fences.holds(start)):
@@ -219,22 +273,25 @@ def long_tags(
                 # A tag of ruby that ends an `rp` is read as any other.
                 position = start if content <= start else max(position, content)
                 close(spans, element.start, content, rows)
-                element, starts = None, TAG_STARTS[comments, fenced, False]
+                elements.element = None
+                starts = elements.starts(comments, fenced)
                 continue
-        if kind == "hidden":
+            if text[start + 1] in "MmSs":
+                read = max(passed, spans[-1][1] if spans else 0)
+                if elements.opens(found, read):
+                    starts = elements.starts(comments, fenced)
+        elif kind in ELEMENT_KINDS:
+            opened = bool(open_elements)
             read = max(passed, spans[-1][1] if spans else 0)
-            opened = hidden.open(start, read)
-            if isinstance(opened, Element):
-                element, position = opened, opened.opened
-                starts = TAG_STARTS[comments, fenced, True]
-                continue
-            if opened is not None:
-                if opened < 0:
+            step = elements.step(found, read, spans)
+            if elements.element is not element or bool(open_elements) != opened:
+                starts = elements.starts(comments, fenced)
+            if step is not None:
+                if step < 0:
                     return spans, cut(text, start, element)
-                close(spans, start, opened, rows)
-                position = opened
+                position = step
                 continue
-        if kind in ("hidden", "inner"):
+        if kind in ELEMENT_KINDS:
             # No such element starts there, or it goes on: the tag is read as any
             # other.
             rest = TAG_REST_ONLY.match(text, start + 1)
@@ -250,7 +307,7 @@ def long_tags(
         if held:
             end, whole = hidden.held_end(found, held)
             if end is None:
-                return spans, cut(text, start, element)
+                return spans, cut(text, start, elements.element)
             if not whole:
                 position = end
                 continue
@@ -271,7 +328,7 @@ def long_tags(
             # before the end of the text.
             tag_end = raw_tag_end(text, start, raw, search)
             if tag_end is None:
-                return spans, cut(text, start, element)
+                return spans, cut(text, start, elements.element)
             spans.append((start, tag_end))
             position = tag_end
             continue
@@ -284,11 +341,95 @@ def long_tags(
             continue
         spans.append((start, end))
         position = end
-    if element is not None:
+    return spans, elements.finish(spans)
+
+
+# The kinds of the tags that Elements reads.
+ELEMENT_KINDS = frozenset(["foreign", "hidden", "inner", "void"])
+
+
+class Elements:
+    """The element whose content the reading of the tags is in, if any: a hidden one,
+    as Hidden reads it, or what a void element holds inside `<svg>` or `<math>`, as
+    Foreign reads it; and the reading of the tags of their names."""
+
+    def __init__(self, hidden: Hidden, foreign: Foreign) -> None:
+        self.hidden, self.foreign = hidden, foreign
+        self.element: Element | Void | None = None
+        # The `<svg>` and `<math>` elements that are open, as Foreign keeps them.
+        self.open = foreign.open
+
+    def starts(self, comments: bool, fenced: bool) -> re.Pattern[str]:
+        """Where the reading of the tags takes its next step, as tag_starts says."""
+        element = self.element
+        inner = "void" if isinstance(element, Void) else "hidden" if element else ""
+        return TAG_STARTS[comments, fenced, inner, bool(self.open)]
+
+    def passed(self, start: int, spans: list[tuple[int, int]]) -> None:
+        """Ends the content of the element at the end of its paragraph or heading,
+        or else closes the `<svg>` and `<math>` elements whose paragraph or heading
+        ends, where a tag at a position is past it."""
+        element = self.element
+        if element is not None and 0 <= element.end() <= start:
+            close(spans, element.start, element.end(), self.hidden.rows)
+            self.element = None
+        else:
+            self.foreign.passed(start)
+
+    def finish(self, spans: list[tuple[int, int]]) -> int:
+        """Ends the content of the element at the end of the text, and says where
+        GitHub stops showing the text: at its end, or at the start of the content
+        where it runs to the end of the text."""
+        element, text = self.element, self.hidden.text
+        if element is None:
+            return len(text)
         if element.end() < 0:
-            return spans, cut(text, len(text), element)
-        close(spans, element.start, element.end(), rows)
-    return spans, len(text)
+            return cut(text, len(text), element)
+        close(spans, element.start, element.end(), self.hidden.rows)
+        return len(text)
+
+    def opens(self, found: re.Match[str], read: int) -> bool:
+        """Whether a tag in the content of a hidden element opens an `<svg>` or a
+        `<math>`, which it does as anywhere else, and opens it then."""
+        if not isinstance(self.element, Element) or not FOREIGN_START.match(found[0]):
+            return False
+        before = len(self.open)
+        self.foreign.start_tag(found, found["inner"].lower(), read)
+        return len(self.open) > before
+
+    def step(
+        self, found: re.Match[str], read: int, spans: list[tuple[int, int]]
+    ) -> int | None:
+        """Reads a tag of the kinds of ELEMENT_KINDS but `inner`, which the reading
+        of the tags reads itself: the position to read on from, REST where the rest
+        of the text goes from the start of the tag, or None where the tag is read as
+        any other, as in the content of an element, which holds it. `read` is where
+        the last span or comment ends that the reading of the tags passed over."""
+        kind, start, rows = found.lastgroup, found.start(), self.hidden.rows
+        foreign = self.foreign
+        if self.element is not None:
+            return None
+        if kind == "foreign":
+            name = found["foreign"].lower()
+            if name[0] != "/":
+                foreign.start_tag(found, name, read)
+            elif foreign.end_tag(found, name[1:]):
+                return found.end() + 1
+            return None
+        if kind == "void":
+            opened: Element | Void | int | None = foreign.void(found, read)
+        else:
+            opened = self.hidden.open(start, read)
+        if isinstance(opened, Void):
+            # The tag stays, as a span of its own, whose addresses count.
+            spans.append((start, opened.start))
+            rows.spaced.add(opened.start)
+        if isinstance(opened, (Element, Void)):
+            self.element = opened
+            return opened.opened
+        if opened is not None and opened >= 0:
+            close(spans, start, opened, rows)
+        return opened
 
 
 def close(spans: list[tuple[int, int]], start: int, end: int, rows: HtmlRows) -> None:
@@ -301,7 +442,7 @@ def close(spans: list[tuple[int, int]], start: int, end: int, rows: HtmlRows) ->
     rows.hidden.add(start)
 
 
-def cut(text: str, start: int, element: Element | None) -> int:
+def cut(text: str, start: int, element: Element | Void | None) -> int:
     """Where GitHub stops showing a text whose rest markup at a position hides: at
     it, or at the start of its row where it starts the text of the row, or at the
     start of the hidden element whose content holds it."""
@@ -677,6 +818,175 @@ class Element:
         return REST if self.container is None else self.container
 
 
+# After the start of the outermost open `<svg>` or `<math>`, what may hold one of
+# their end tags as text or code, past which none counts: a backtick, a `$` of math,
+# a `[` of a link, whose destination or title may hold it, and a fence of tildes.
+UNSURE_END = re.compile(r"[`$\[]|~~~")
+# The end of a start tag whose `/` is the last of an unquoted value, which ends no
+# element: `<br class=x/>` holds what follows it.
+UNQUOTED_END = re.compile(r"=[\t\n\f\r ]*+[^\t\n\f\r \"'>=]*+\Z")
+
+
+def closes_itself(tag: str) -> bool:
+    """Whether a start tag ends with a `/>` that GitHub's HTML parser reads as that
+    of a tag that closes itself, outside a value."""
+    return tag.endswith("/>") and UNQUOTED_END.search(tag, 0, len(tag) - 2) is None
+
+
+class Foreign:
+    """The `<svg>` and `<math>` elements that GitHub's HTML parser keeps open, for
+    tags at rising positions, and what a void element holds inside them.
+
+    GitHub's sanitizer drops their tags and keeps their text, but its parser makes
+    no element void inside them, and none breaks out: a `<br>`, `<hr>`, `<img>` or
+    `<source>` there holds what follows it, and GitHub writes none of it, as the
+    tag of a void element holds nothing (`gh api markdown`, 2026-11-22). Every name
+    of VOID counts, not only these four, so that a change of the sanitizer opens no
+    gap; a tag that closes itself, with `/>`, holds nothing.
+
+    A start tag of either name opens one, but where it closes itself or in a
+    paragraph where it is text or a code span of its row surely holds it. One of
+    an HTML block stays open to its end tag, also past blank rows and to the end of
+    the text, as on GitHub; one of a paragraph or a heading also closes at its end,
+    which GitHub ends with its own end tag, but one of a list item, which a tight
+    list hands on without one, only at an end tag. An end tag counts only where it
+    surely is one: of the innermost element and of its name, in any case, with its
+    `>` right after the name, as GitHub reads `</svg>` but not `</svg >`; not after
+    a `\\`, nor on a row indented as code may be, nor after what may make it text or
+    code (UNSURE_END).
+
+    What a void element holds there ends at the end tag that closes the outermost
+    element, or at the end of the paragraph or the heading that holds the tag, which
+    GitHub ends with an end tag; in an HTML block or a list item, at the end of the
+    text. GitHub also ends it at the end tag of an element around it, as `</g>`,
+    `</b>` or an inner `</svg>`, which can be hard to tell, and at an enclosing
+    `</div>` or `</details>`: none of them counts, on the safe side, and neither
+    does an integration point, such as `<foreignObject>`, which GitHub doesn't read
+    as HTML reads it (`<title>` of SVG is none on GitHub)."""
+
+    def __init__(self, text: str, blocks: Blocks, hidden: Hidden) -> None:
+        self.text, self.blocks, self.hidden = text, blocks, hidden
+        # The open elements, the innermost last: the name of each, and where its
+        # paragraph or heading ends it, or the end of the text.
+        self.open: list[tuple[str, int]] = []
+        # Where the first of UNSURE_END after the start of the outermost stands.
+        self.unsure = len(text)
+        # The row that was read last for its indent, and whether code may hold it.
+        self.indented = (-1, False)
+
+    def passed(self, position: int) -> None:
+        """Closes the elements whose paragraph or heading ends before a position."""
+        while self.open and self.open[-1][1] <= position:
+            self.open.pop()
+
+    def reach(self, start: int, held: bool) -> int:
+        """Where the paragraph or the heading ends that holds a position, and the end
+        of the text in an HTML block or a list item, no earlier than which the open
+        elements end: an element ends no later than the one around it."""
+        text, hidden = self.text, self.hidden
+        if held or hidden.rows.lists() <= start:
+            end = len(text)
+        elif hidden.heading(start):
+            end = hidden.search.row_end(start)
+        else:
+            end = hidden.paragraphs.end(start)
+            if end < len(text):
+                end = row_before(text, start, end)
+        return min(end, self.open[-1][1]) if self.open else end
+
+    def start_tag(self, found: re.Match[str], name: str, before: int) -> None:
+        """Opens the element whose start tag starts at a position, if it opens one.
+        `before` is where the last span or comment ends that the reading of the
+        tags passed over."""
+        text, start = self.text, found.start()
+        held = bool(self.blocks.holding(start))
+        tag = INLINE_TAG.match(text, start)
+        if tag is not None and closes_itself(tag[0]):
+            return
+        if not held and (tag is None or self.hidden.in_code(start, before)):
+            return
+        if not self.open:
+            mark = self.hidden.search(UNSURE_END, start)
+            self.unsure = len(text) if mark is None else mark.start()
+        self.open.append((name, self.reach(start, held)))
+
+    def end_tag(self, found: re.Match[str], name: str) -> bool:
+        """Closes the innermost element where an end tag surely closes it, and says
+        whether it did."""
+        text, start = self.text, found.start()
+        if (
+            not self.open
+            or self.open[-1][0] != name
+            or text[found.end() : found.end() + 1] != ">"
+            or start >= self.unsure
+            or text[start - 1 : start] == "\\"
+        ):
+            return False
+        begin = self.hidden.row_begin(start)
+        if begin != self.indented[0]:
+            # Read once for each row, whatever the number of its end tags.
+            marks = CONTAINER.match(text, begin)
+            assert marks is not None  # It matches the empty text.
+            blanks = marks[0][len(marks[0].rstrip(" \t")) :]
+            self.indented = (begin, "\t" in blanks or len(blanks) >= 4)
+        if self.indented[1]:
+            return False  # The row may be one of indented code.
+        self.open.pop()
+        return True
+
+    def void(self, found: re.Match[str], before: int) -> Void | int | None:
+        """What the start tag of a void element at a position holds while an element
+        is open, as a Void from the end of the tag; REST where the tag hides the rest
+        of the text; or None where it holds nothing: where it closes itself, or in a
+        paragraph where it is text or a code span of its row surely holds it."""
+        text, start = self.text, found.start()
+        held = self.blocks.holding(start)
+        if held:
+            end, _ = block_tag_end(text, start, held, self.blocks, self.hidden.search)
+            if end is None:
+                return REST
+        else:
+            tag = INLINE_TAG.match(text, start)
+            if tag is None or self.hidden.in_code(start, before):
+                return None
+            end = tag.end()
+        if closes_itself(text[start:end]):
+            return None
+        return Void(self, end, self.reach(start, bool(held)))
+
+
+class Void:
+    """What a void element holds inside `<svg>` or `<math>`, which the reading of the
+    tags is in, as Foreign reads it: from the end of its tag, `start`, to the end tag
+    that closes the outermost open element, or to `limit`, the end of the paragraph
+    or the heading that holds it, or of the text."""
+
+    __slots__ = ("foreign", "limit", "opened", "start")
+
+    def __init__(self, foreign: Foreign, start: int, limit: int) -> None:
+        self.foreign, self.start, self.opened, self.limit = foreign, start, start, limit
+
+    def meets(self, found: re.Match[str]) -> int | None:
+        """Where the content ends at a tag of `<svg>` or `<math>`, after the end tag
+        that closes the outermost, or None where it goes on. A start tag in it opens
+        an element, whatever holds it."""
+        name = found["inner"].lower()
+        foreign = self.foreign
+        if name[0] != "/":
+            tag = INLINE_TAG.match(foreign.text, found.start())
+            if tag is None or not closes_itself(tag[0]):
+                foreign.open.append((name, foreign.open[-1][1]))
+            return None
+        if foreign.end_tag(found, name[1:]) and not foreign.open:
+            return found.end() + 1
+        return None
+
+    def end(self) -> int:
+        """Where the content ends that no end tag ended: at the end of its paragraph
+        or heading, or REST, at the end of the text."""
+        return REST if self.limit >= len(self.foreign.text) else self.limit
+
+
 def own_row(text: str, start: int, end: int) -> bool:
     """Whether a tag from `start` to `end` stands alone on its row, indented by
     three blanks at most, after a blank row: an HTML block of its own."""
@@ -762,13 +1072,19 @@ def dated(
     text: str, spans: list[tuple[int, int]], rows: HtmlRows
 ) -> tuple[str, list[tuple[int, int]]]:
     """The text with a space in place of the `<` of each `relative-time` whose
-    content a span takes out, and the spans without those `<`: the page draws a date
-    there, so the words on both sides stay apart, as `Value` and `Error` around one
-    stay two words for the search. The text keeps its length, so a position in it is
-    one in the text as it is written for every other reading. Of a `video` and an
-    `rp`, which draw no words in their place, nothing stays, as before."""
+    content a span takes out, and in place of the first character of what a void
+    element holds inside `<svg>` or `<math>`, and the spans without them: the page
+    draws a date, a line break, a rule or an image there, so the words on both sides
+    stay apart, as `Value` and `Error` around one stay two words for the search. The
+    text keeps its length, so a position in it is one in the text as it is written
+    for every other reading. Of a `video` and an `rp`, which draw no words in their
+    place, nothing stays, as before."""
     places = [
-        start for start, _ in spans if start in rows.hidden and text[start + 2] in "Ee"
+        start
+        for start, end in spans
+        if start in rows.hidden
+        and end > start
+        and (start in rows.spaced or text[start + 2] in "Ee")
     ]
     if not places:
         return text, spans

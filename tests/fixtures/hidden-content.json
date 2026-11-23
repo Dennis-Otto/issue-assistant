@@ -1,5 +1,5 @@
 {
- "about": "Texts with an element whose content GitHub keeps and no browser shows, `video`, `rp` and `relative-time`, in a paragraph, a heading, a cell of a table, an HTML block, a quote and a list item, closed, open, closed on a row of its own, self-closed and nested; and with a tag whose quoted value holds a `>`, or which GitHub reads over rows past markup, in each place; made of pieces, with the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-21). The content of a <details> counts as shown, as GitHub shows it on a click. Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed. The texts with a `relative-time`, in whose place GitHub's script for the element draws a date from its `datetime` (2026-11-22), count its content as hidden where the date parses, as the element of GitHub draws it; without a `datetime`, with one that doesn't parse, and with a start tag in another case, which the sanitizer drops, the page shows the words, and the cleaning takes them out, on the safe side. Until GitHub's ends of an open element in a list item, a quote or a cell are read, the cleaning takes out the rest of such a text, as for a `video`. A `relative-time` in the alt text of an image has no text of its own here: the page shows no alt text. Each text's `html` is GitHub's rendering of it for the converter of way D (#520), by gh api -X POST markdown with mode gfm and the context Dennis-Otto/issue-assistant, 2026-11-22; `the converter takes out` and `the converter keeps` name the rule of #520 by which the converter differs from what GitHub shows.",
+ "about": "Texts with an element whose content GitHub keeps and no browser shows, `video`, `rp` and `relative-time`, in a paragraph, a heading, a cell of a table, an HTML block, a quote and a list item, closed, open, closed on a row of its own, self-closed and nested; and with a tag whose quoted value holds a `>`, or which GitHub reads over rows past markup, in each place; made of pieces, with the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-21). The content of a <details> counts as shown, as GitHub shows it on a click. Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed. The texts with a `relative-time`, in whose place GitHub's script for the element draws a date from its `datetime` (2026-11-22), count its content as hidden where the date parses, as the element of GitHub draws it; without a `datetime`, with one that doesn't parse, and with a start tag in another case, which the sanitizer drops, the page shows the words, and the cleaning takes them out, on the safe side. Until GitHub's ends of an open element in a list item, a quote or a cell are read, the cleaning takes out the rest of such a text, as for a `video`. A `relative-time` in the alt text of an image has no text of its own here: the page shows no alt text. Each text's `html` is GitHub's rendering of it for the converter of way D (#520), by gh api -X POST markdown with mode gfm and the context Dennis-Otto/issue-assistant, 2026-11-22; `the converter takes out` and `the converter keeps` name the rule of #520 by which the converter differs from what GitHub shows. The texts with `<svg>` and `<math>` (2026-11-22 and 23) are those of a search of their own: GitHub's parser makes no element void inside them, so that a `<br>`, `<hr>`, `<img>` or `<source>` there holds what follows it, of which GitHub writes nothing; the cleaning takes out what any void tag holds there, to the end of the outermost `<svg>` or `<math>`, of its paragraph or heading, or in an HTML block or a list item of the text, and the markers that GitHub shows of it are listed. Their `html` is GitHub's rendering without the context of a repository.",
  "texts": [
   {
    "text": "<ruby>x<rp>zqa</rp><rt>y</rt></ruby>",
@@ -4064,6 +4064,707 @@
     "zqb"
    ],
    "html": "<p dir=\"auto\">x</p>\n  <relative-time datetime=\"2020-01-01T00:00:00Z\">\n<p dir=\"auto\">zqa</p>\n</relative-time>\n<p dir=\"auto\">zqb</p>"
+  },
+  {
+   "text": "A\n\n<svg><br> inner\n\nafter",
+   "github shows": [
+    "after"
+   ],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>A</p>\n<p><br></p>\n<p>after</p>"
+  },
+  {
+   "text": "a <svg><br> inner</svg> b",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>a <br> b</p>"
+  },
+  {
+   "text": "a <math><br> inner</math> b",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>a <br> b</p>"
+  },
+  {
+   "text": "a <SVG><Br> inner</svg> b",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>a <br> b</p>"
+  },
+  {
+   "text": "a <svg><hr> inner</svg> b",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>a </p><hr> b<p></p>"
+  },
+  {
+   "text": "a <svg><img src=x alt=\"alt words\"> inner</svg> b",
+   "github shows": [],
+   "github hides": [
+    "inner",
+    "words"
+   ],
+   "the converter keeps": {
+    "words": "the alt of a picture"
+   },
+   "html": "<p>a <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" alt=\"alt words\" style=\"max-width: 100%;\"></a> b</p>"
+  },
+  {
+   "text": "a <svg><source><b>x</b> inner</svg> b",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>a <source> b</p>"
+  },
+  {
+   "text": "a <svg><br> inner\nnext row",
+   "github shows": [],
+   "github hides": [
+    "inner",
+    "next"
+   ],
+   "html": "<p>a <br></p>"
+  },
+  {
+   "text": "# a <svg><br> inner\n\nafter",
+   "github shows": [
+    "after"
+   ],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<h1>a <br></h1>\n<p>after</p>"
+  },
+  {
+   "text": "- a <svg><br> inner\n- after",
+   "github shows": [
+    "after"
+   ],
+   "github hides": [
+    "inner"
+   ],
+   "the cleaning takes out": [
+    "after"
+   ],
+   "html": "<ul>\n<li>a <br></li>\n<li>after</li>\n</ul>"
+  },
+  {
+   "text": "> a <svg><br> inner\n>\n> after",
+   "github shows": [
+    "after"
+   ],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<blockquote>\n<p>a <br></p>\n<p>after</p>\n</blockquote>"
+  },
+  {
+   "text": "| a |\n|---|\n| <svg><br> inner |\n| after |",
+   "github shows": [
+    "after"
+   ],
+   "github hides": [
+    "inner"
+   ],
+   "the cleaning takes out": [
+    "after"
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><br></td>\n</tr>\n<tr>\n<td>after</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
+  },
+  {
+   "text": "<details>\n\na <svg><br> inner\n\n</details>\n\nafter",
+   "github shows": [
+    "after"
+   ],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<details><summary>Details</summary>\n<p>a <br></p>\n</details>\n<p>after</p>"
+  },
+  {
+   "text": "<div><svg><br> inner</div> after",
+   "github shows": [
+    "after"
+   ],
+   "github hides": [
+    "inner"
+   ],
+   "the cleaning takes out": [
+    "after"
+   ],
+   "html": "<div><br></div> after"
+  },
+  {
+   "text": "a <math><mi>x</mi><br> inner</math> b",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>a x<br> b</p>"
+  },
+  {
+   "text": "<math><annotation-xml><br> inner",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p><br></p>"
+  },
+  {
+   "text": "<svg><title><br> inner",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>&lt;title&gt;<br></p>"
+  },
+  {
+   "text": "<svg><foreignObject><svg><br> inner",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p><br></p>"
+  },
+  {
+   "text": "<svg>\n\na <br> inner\n\nafter",
+   "github shows": [
+    "after"
+   ],
+   "github hides": [
+    "inner"
+   ],
+   "html": "\n<p>a <br></p>\n<p>after</p>"
+  },
+  {
+   "text": "<svg>\n\n<hr>\n\nafter\n\n- list\n\n# head",
+   "github shows": [],
+   "github hides": [
+    "after",
+    "list",
+    "head"
+   ],
+   "html": "\n<hr>"
+  },
+  {
+   "text": "<svg><br>inner</br> more</svg>",
+   "github shows": [
+    "more"
+   ],
+   "github hides": [
+    "inner"
+   ],
+   "the cleaning takes out": [
+    "more"
+   ],
+   "html": "<p><br> more</p>"
+  },
+  {
+   "text": "<b>a <svg><br> inner</b> more",
+   "github shows": [
+    "more"
+   ],
+   "github hides": [
+    "inner"
+   ],
+   "the cleaning takes out": [
+    "more"
+   ],
+   "html": "<p><b>a <br></b> more</p>"
+  },
+  {
+   "text": "<svg><br>\n\ninner",
+   "github shows": [
+    "inner"
+   ],
+   "github hides": [],
+   "html": "<p><br></p>\n<p>inner</p>"
+  },
+  {
+   "text": "a <br/> b <svg/><br> c",
+   "github shows": [],
+   "github hides": [],
+   "html": "<p>a <br> b <br> c</p>"
+  },
+  {
+   "text": "a <svg><br/> inner</svg> b",
+   "github shows": [
+    "inner"
+   ],
+   "github hides": [],
+   "html": "<p>a <br> inner b</p>"
+  },
+  {
+   "text": "a <svg><foreignObject><br> inner</foreignObject></svg> b",
+   "github shows": [
+    "inner"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "inner"
+   ],
+   "html": "<p>a <br> inner b</p>"
+  },
+  {
+   "text": "a <svg><desc><br> inner</desc></svg> b",
+   "github shows": [
+    "inner"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "inner"
+   ],
+   "html": "<p>a <br> inner b</p>"
+  },
+  {
+   "text": "a <svg><input> inner</svg> b",
+   "github shows": [
+    "inner"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "inner"
+   ],
+   "html": "<p>a  inner b</p>"
+  },
+  {
+   "text": "a <svg><embed> inner</svg> b",
+   "github shows": [
+    "inner"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "inner"
+   ],
+   "html": "<p>a  inner b</p>"
+  },
+  {
+   "text": "a <br> b",
+   "github shows": [],
+   "github hides": [],
+   "html": "<p>a <br> b</p>"
+  },
+  {
+   "text": "<svg></svg><br> x",
+   "github shows": [],
+   "github hides": [],
+   "html": "<p><br> x</p>"
+  },
+  {
+   "text": "<svg/><br> x",
+   "github shows": [],
+   "github hides": [],
+   "html": "<p><br> x</p>"
+  },
+  {
+   "text": "a <svg>x</svg> b",
+   "github shows": [],
+   "github hides": [],
+   "html": "<p>a x b</p>"
+  },
+  {
+   "text": "a <svg><b>x</b> y</svg> b",
+   "github shows": [],
+   "github hides": [],
+   "html": "<p>a <b>x</b> y b</p>"
+  },
+  {
+   "text": "a <svg><p>x</p></svg> b",
+   "github shows": [],
+   "github hides": [],
+   "html": "<p>a </p><p>x</p> b<p></p>"
+  },
+  {
+   "text": "a `<svg>` <br> b",
+   "github shows": [],
+   "github hides": [],
+   "html": "<p>a <code class=\"notranslate\">&lt;svg&gt;</code> <br> b</p>"
+  },
+  {
+   "text": "```\n<svg>\n```\n\na <br> b",
+   "github shows": [],
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">&lt;svg&gt;\n</code></pre>\n<p>a <br> b</p>"
+  },
+  {
+   "text": "a <svg>\n\nb <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a </p>\n<p>b <br> Plugh</p>"
+  },
+  {
+   "text": "a <svg><br> x\n\nb <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a <br></p>\n<p>b <br> Plugh</p>"
+  },
+  {
+   "text": "# a <svg>\n\nb <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<h1>a </h1>\n<p>b <br> Plugh</p>"
+  },
+  {
+   "text": "> a <svg>\n\nb <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<blockquote>\n<p>a </p>\n</blockquote>\n<p>b <br> Plugh</p>"
+  },
+  {
+   "text": "> a <svg>\n>\n> b <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<blockquote>\n<p>a </p>\n<p>b <br> Plugh</p>\n</blockquote>"
+  },
+  {
+   "text": "- a <svg>\n\nb <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<ul>\n<li>a </li>\n</ul>\n<p>b <br> Plugh</p>"
+  },
+  {
+   "text": "| a |\n|---|\n| <svg> |\n\nb <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td></td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>\n<p>b <br> Plugh</p>"
+  },
+  {
+   "text": "a <svg>\n\n<br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a </p>\n<p><br> Plugh</p>"
+  },
+  {
+   "text": "a <math>\n\n# b <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a </p>\n<h1>b <br> Plugh</h1>"
+  },
+  {
+   "text": "> a <svg><br> x\n>\n> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<blockquote>\n<p>a <br></p>\n<p>Plugh</p>\n</blockquote>"
+  },
+  {
+   "text": "> a <svg><br> x\n\nPlugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<blockquote>\n<p>a <br></p>\n</blockquote>\n<p>Plugh</p>"
+  },
+  {
+   "text": "a <svg><br> x\n> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a <br></p>\n<blockquote>\n<p>Plugh</p>\n</blockquote>"
+  },
+  {
+   "text": "a <svg><br> `x</svg>` Plugh",
+   "github shows": [],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p>a <br></p>"
+  },
+  {
+   "text": "a <svg><br> x\n    </svg> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<p>a <br> Plugh</p>"
+  },
+  {
+   "text": "a <svg><br> x \\</svg> Plugh",
+   "github shows": [],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p>a <br></p>"
+  },
+  {
+   "text": "a <svg><br> x <!-- </svg> --> Plugh",
+   "github shows": [],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p>a <br></p>"
+  },
+  {
+   "text": "a <svg><br> x <a title=\"</svg>\"> Plugh",
+   "github shows": [],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p>a <br></p>"
+  },
+  {
+   "text": "a <svg><br class=x/> Plugh</svg>",
+   "github shows": [],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p>a <br></p>"
+  },
+  {
+   "text": "a <svg><br/ > Plugh</svg>",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a &lt;br/ &gt; Plugh</p>"
+  },
+  {
+   "text": "a <svg><video></svg></video><br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<p>a <video></video><br> Plugh</p>"
+  },
+  {
+   "text": "<video><svg></video><br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<p><video></video><br> Plugh</p>"
+  },
+  {
+   "text": "a <svg><br> x</SVG > Plugh",
+   "github shows": [],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p>a <br></p>"
+  },
+  {
+   "text": "a <svg><br> x</math> Plugh",
+   "github shows": [],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p>a <br></p>"
+  },
+  {
+   "text": "a <math><svg><br> x</svg> Plugh</math> b",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<p>a <br> Plugh b</p>"
+  },
+  {
+   "text": "a <svg><br> x</SVG> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a <br> Plugh</p>"
+  },
+  {
+   "text": "a <svg><br> x</svg > Plugh",
+   "github shows": [],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p>a <br></p>"
+  },
+  {
+   "text": "a <SVG><br> x</SVG> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a <br> Plugh</p>"
+  },
+  {
+   "text": "a <Svg><br> x</svg> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a <br> Plugh</p>"
+  },
+  {
+   "text": "a <math><br> x</MATH> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a <br> Plugh</p>"
+  },
+  {
+   "text": "a <svg><br> x</svg\n> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<p>a <br></p>\n<blockquote>\n<p>Plugh</p>\n</blockquote>"
+  },
+  {
+   "text": "- a <svg>\n- b <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<ul>\n<li>a </li>\n<li>b <br> Plugh</li>\n</ul>"
+  },
+  {
+   "text": "- a <svg>\n\n  b <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<ul>\n<li>\n<p>a </p>\n<p>b <br> Plugh</p>\n</li>\n</ul>"
+  },
+  {
+   "text": "> a <svg>\n> b\n>\n> c <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "html": "<blockquote>\n<p>a <br>\nb</p>\n<p>c <br> Plugh</p>\n</blockquote>"
+  },
+  {
+   "text": "| a |\n|---|\n| <svg> |\n| b <br> Plugh |",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td></td>\n</tr>\n<tr>\n<td>b <br> Plugh</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>"
+  },
+  {
+   "text": "a <svg>\n<div>\n<br> Plugh\n</div>",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<p>a </p>\n<div>\n<br> Plugh\n</div>"
+  },
+  {
+   "text": "<div>\n<svg>\n</div>\n\na <br> Plugh",
+   "github shows": [
+    "Plugh"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<div>\n\n</div>\n<p>a <br> Plugh</p>"
+  },
+  {
+   "text": "<svg width=\"10\">\n<path d=\"M0\"/>\n\na <br> Plugh",
+   "github shows": [],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "\n\n<p>a <br></p>"
+  },
+  {
+   "text": "<p><svg>\n\na <br> Plugh",
+   "github shows": [],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p>\n</p><p>a <br></p><p></p>"
+  },
+  {
+   "text": "a <svg><b>x</b><br> inner</svg> b",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>a <b>x</b><br> b</p>"
+  },
+  {
+   "text": "a <svg><p>x</p><br> inner</svg> b",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>a </p><p>x</p><br> b<p></p>"
+  },
+  {
+   "text": "a <svg><code>x</code><br> inner</svg> b",
+   "github shows": [],
+   "github hides": [
+    "inner"
+   ],
+   "html": "<p>a <code class=\"notranslate\">x</code><br> b</p>"
+  },
+  {
+   "text": "<svg>\n\na <br> inner\n\nb <br> more\n\nlast",
+   "github shows": [
+    "last"
+   ],
+   "github hides": [
+    "inner",
+    "more"
+   ],
+   "html": "\n<p>a <br></p>\n<p>b <br></p>\n<p>last</p>"
   }
  ]
 }

@@ -372,6 +372,19 @@ SLOW_TEXTS = {
             700,
         )
     ],
+    # What a void element holds inside `<svg>` or `<math>` is read once, up to the
+    # end tag that closes the outermost or the end of its paragraph; an `<svg>` of
+    # an HTML block stays open past blank rows; and a table is found after a tab in
+    # a quote and on the first row of a footnote (2026-11-23). Each `<br>` has its
+    # `</br>`, so that none of these texts reaches the cut of the depth.
+    "void tags that svg ends": [("a <svg><br></br> x</svg> y\n", 2_400)],
+    "paragraphs below an open svg": ["<svg>\n\n", ("a <br></br> x\n\n", 4_600)],
+    "void tags in svg in quotes": [("> <svg><br></br> x</svg>\n", 2_700)],
+    "rows of a table in a footnote": [
+        "[^1]\n\n[^1]: | a |\n    |---|\n",
+        ("    | b | x |\n", 4_600),
+    ],
+    "rows after a tab in a quote": [">| a |\n>|---|\n", (">\t| b | x |\n", 5_400)],
 }
 
 # Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
@@ -1499,6 +1512,136 @@ def test_what_the_assistant_decides_reads_no_word_of_a_relative_time(config):
     body = f"{BUG_BODY}\n### Automated analysis\n\n{box}"
     assert assistant.box_ticked(body, CONFIG)
     assert not assistant.box_ticked(body.replace("[X]", "[ ]"), CONFIG)
+
+
+# Inside `<svg>` and `<math>`, GitHub's parser makes no element void, and none breaks
+# out of them: a `<br>`, `<hr>`, `<img>` or `<source>` there holds what follows it, of
+# which GitHub writes nothing, and its sanitizer drops the tags of `<svg>` and
+# `<math>` and keeps their text (`gh api -X POST markdown` with the mode gfm,
+# 2026-11-22 and 23). The cleaning takes out what any void tag holds there, to the
+# end tag that closes the outermost `<svg>` or `<math>`, or to the end of the
+# paragraph or the heading, or in an HTML block or a list item to the end of the
+# text; the tag stays, and a space in the place of what it holds.
+VOID_IN_SVG = [
+    ("A\n\n<svg><br> inner\n\nafter", "A\n\n \n\nafter"),
+    ("a <svg><br> inner</svg> b", "a   b"),
+    ("a <math><br> inner</math> b", "a   b"),
+    ("a <SVG><Br> inner</svg> b", "a   b"),
+    ("a <svg><hr> inner</svg> b", "a   b"),
+    ('a <svg><img src=x alt="alt words"> inner</svg> b', "a   b"),
+    ("a <svg><source><b>x</b> inner</svg> b", "a   b"),
+    ("a <svg><br> inner\nnext row", "a "),
+    ("# a <svg><br> inner\n\nafter", "# a  \n\nafter"),
+    ("> a <svg><br> inner\n>\n> after", "> a  \n>\n> after"),
+    ("Value<svg><br>x</svg>Error", "Value Error"),
+    # Every name of a void element counts, a tag with a `/` at the end of a value
+    # holds what follows it, and an inner end tag ends nothing.
+    ("a <svg><input> inner</svg> b", "a   b"),
+    ("a <svg><br class=x/> inner</svg> b", "a   b"),
+    ("a <svg><svg><br> inner</svg> more</svg> b", "a   b"),
+    ("a <svg><br> inner <svg/> more</svg> b", "a   b"),
+    # In an HTML block, an end tag ends it, and a quoted value that never ends
+    # hides the rest of the text.
+    ("<div>\n<svg>\n<br> inner\n</svg>\n\nafter", "\n\n \n\nafter"),
+    ('<div>\n<svg><br title="x\n\nafter', "\n"),
+    # Integration points count as none: GitHub's `<title>` of SVG isn't one.
+    ("a <math><mi>x</mi><br> inner</math> b", "a x  b"),
+    ("<svg><foreignObject><svg><br> inner", ""),
+    # An `<svg>` that starts an HTML block stays open past blank rows; what a void
+    # element holds in a paragraph ends at its end, and in a block at the end of
+    # the text, as in a list item.
+    ("<svg>\n\na <br> inner\n\nafter", "\n\na  \n\nafter"),
+    # Past the end of a paragraph, the next void tag or hidden element is read as
+    # ever, also after a hidden element.
+    ("<svg>\n\na <br> inner\n\nb <br> more", "\n\na  \n\nb "),
+    ("a <svg><br> inner\n\n<video>more</video> b", "a  \n\n b"),
+    ("<svg>\n\na <video>inner\n\nb <br> more", "\n\na \n\nb "),
+    ("<svg>\n\n<hr>\n\nafter\n\n- list\n\n# head", "\n\n"),
+    ("<div><svg><br> inner</div> after", ""),
+    ("- a <svg><br> inner\n- after", "- a "),
+    # An `<svg>` of a paragraph closes at its end.
+    ("a <svg>\n\nb <br> c", "a \n\nb  c"),
+    # An end tag counts only where it surely is one: not with a blank before its
+    # `>`, not after a `\\` or after a backtick, which may start code that holds it.
+    ("a <svg><br> inner</svg > more", "a "),
+    ("a <svg><br> inner \\</svg> more", "a "),
+    ("a <svg><br> inner `</svg>` more", "a "),
+    ("a <svg><br> inner\n    </svg> more", "a "),
+    # Outside `<svg>` and `<math>`, and after a tag that closes itself, a void tag
+    # holds nothing, nor does one in code.
+    ("a <br> b", "a  b"),
+    ("<svg></svg><br> x", " x"),
+    ("<svg/><br> x", " x"),
+    ("a <svg><br/> x</svg> b", "a  x b"),
+    ("a <svg>x</svg> b", "a x b"),
+    ("a <svg><b>x</b> y</svg> b", "a x y b"),
+    ("a <svg><p>x</p></svg> b", "a x b"),
+    ("a `<svg>` <br> b", "a ``  b"),
+    ("```\n<svg>\n```\n\na <br> b", "```\n\n```\n\na  b"),
+]
+
+
+@pytest.mark.parametrize(("text", "shown"), VOID_IN_SVG)
+def test_what_a_void_element_holds_inside_svg_or_math_is_hidden(text, shown):
+    assert assistant.shown_text(text) == (shown, 0)
+
+
+@pytest.mark.parametrize(("text", "shown"), VOID_IN_SVG)
+def test_both_readings_leave_the_same_text_of_a_void_element(text, shown):
+    """The cleaning reads the HTML alone, or as spans beside the structures that go
+    with it: both leave the same text, with a space in the place of what a void
+    element holds."""
+    spaced, kept, cut = assistant.shown_spans(text)
+    assert len(spaced) == len(text)
+    assert ("".join(spaced[start:end] for start, end in kept), cut) == (
+        assistant.shown_html(text)
+    )
+    table = "\n\n| a |\n|---|\n| b | Xyzzy |"
+    assert assistant.shown_text(text + table)[0].startswith(shown)
+
+
+def test_issue_md_holds_no_word_that_a_void_element_holds_inside_svg():
+    """issue.md and the excerpts show the issue and each comment without what a void
+    element holds inside `<svg>`, also below an `<svg>` alone on the first row."""
+    for body in (
+        "Card is empty <svg><br> Xyzzy, a hidden word</svg> today.",
+        "<svg>\n\nCard is empty <br> Xyzzy, a hidden word\n\ntoday.",
+    ):
+        rendered = assistant.render_issue(
+            make_issue(body=body), [make_comment(1, "reporter", body, 0)]
+        )
+        assert "Xyzzy" not in rendered
+        assert rendered.count("Card is empty") == 2
+        assert rendered.count("today.") == 2
+        excerpt = assistant.excerpt(body, 1500)
+        assert "Xyzzy" not in excerpt
+        assert "today." in excerpt
+
+
+def test_what_the_assistant_decides_reads_no_word_that_svg_hides(config):
+    """The search, the language, the area and the denial of a fix read nothing that
+    a void element holds inside `<svg>` or `<math>`, nor a cell that GitHub drops of
+    a table on the first row of a footnote or after a tab in a quote; and the box
+    stays as it is ticked."""
+    for body in (
+        "Fails with TypeError <svg><br> ValueError ZeroDivisionError</svg>",
+        "<svg>\n\nFails with TypeError <br> ValueError ZeroDivisionError",
+        "Fails with TypeError\n\n>| a |\n>|---|\n>\t| b | ValueError |",
+        "Fails with TypeError [^1]\n\n[^1]: | a |\n    |---|\n    | b | ValueError |",
+    ):
+        terms = assistant.search_terms(make_issue(body=body))
+        assert "typeerror" in terms, body
+        assert "valueerror" not in terms, body
+    english = "The card stays empty after the update. It shows nothing at all."
+    german = f"{SHORT_GERMAN} <svg><br> {english}"
+    assert assistant.issue_language(make_issue(body=german), []) == "de"
+    area = "### Area\n\n<svg><br> Live card</svg>\n"
+    assert assistant.form_labels(make_issue(body=area), config) == []
+    denial = "<svg><br>This doesn't</svg> close #12"
+    assert not assistant.denies_closing(denial, "owner/project", 12)
+    box = "- [X] <svg><br> Don't let the AI assistant read this issue.</svg>\n"
+    body = f"{BUG_BODY}\n### Automated analysis\n\n{box}"
+    assert assistant.box_ticked(body, CONFIG)
 
 
 def test_where_github_hides_the_rest_it_hides_the_footnotes():
@@ -4910,13 +5053,21 @@ def test_the_quick_count_reads_no_void_element():
 
 @pytest.mark.parametrize(
     ("foreign", "tag"),
-    [("<svg>", "<image>"), ("<math>", "<input>"), ("<SVG>", "<Source>")],
+    [
+        ("<svg>", "<image>"),
+        ("<math>", "<input>"),
+        ("<SVG>", "<Source>"),
+        ("<svg>", "<br>"),
+        ("<math>", "<embed>"),
+        ("<svg>", "<Meta>"),
+    ],
 )
 def test_void_names_nest_inside_svg_and_math(foreign, tag):
-    """Inside `<svg>` or `<math>`, HTML's parser makes no element void: 300 tags of
-    a void name nest there, and GitHub shows nothing after them (`gh api markdown`,
-    2026-11-22). A tag that breaks out of SVG and MathML stays void there, and so
-    does a void tag after they close."""
+    """Inside `<svg>` or `<math>`, GitHub's HTML parser makes no element void, and
+    none breaks out of them, `<br>`, `<embed>` and `<meta>` neither: 300 tags of a
+    void name nest there, and GitHub shows nothing after them, also not in the next
+    paragraph (`gh api markdown`, 2026-11-22). A void tag after they close stays
+    void, and so do 200 `<br>` without them."""
     text = f"Intro words.\n\n{foreign}{tag * 300} inner\n\nafter words"
     assert not assistant.shallow(text)
     shown = assistant.shown_text(text)[0]
@@ -4924,8 +5075,9 @@ def test_void_names_nest_inside_svg_and_math(foreign, tag):
     assert "inner" not in shown
     assert "after words" not in shown
     assert assistant.DEPTH_NOTE in shown
+    assert assistant.deep_spans(f"{foreign}{'<br>' * 300} inner")
     end = "</" + foreign[1:]
-    for text in (f"{foreign}{'<br>' * 300} inner", f"{foreign}{end}{tag * 300} x"):
+    for text in (f"{'<br>' * 200} inner", f"{foreign}{end}{tag * 300} x"):
         assert assistant.deep_spans(text) == [], text
 
 
@@ -6408,6 +6560,37 @@ DROPPED_CELLS = [
         "| a |\n|---|\n| b | Xyzzy |\r\n| c | Xyzzy |",
         f"| a |\n|---|\n| b {CELLS}\r\n| c {CELLS}",
     ),
+    # The header on the first row of a footnote, whose label is one of its marks,
+    # in a quote and in a list item too (`gh api -X POST markdown` with the mode
+    # gfm, 2026-11-22).
+    (
+        "x [^1]\n\n[^1]: | a |\n    |---|\n    | b | Xyzzy |",
+        f"x [^1]\n\n[^1]: | a |\n    |---|\n    | b {CELLS}",
+    ),
+    (
+        "x [^1]\n\n[^1]:\t|a|\n    |---|\n    |b|Xyzzy|",
+        f"x [^1]\n\n[^1]:\t|a|\n    |---|\n    |b{CELLS}",
+    ),
+    (
+        "> x [^1]\n>\n> [^1]: | a |\n>     |---|\n>     | b | Xyzzy |",
+        f"> x [^1]\n>\n> [^1]: | a |\n>     |---|\n>     | b {CELLS}",
+    ),
+    (
+        "- x [^1]\n\n  [^1]: | a\n      |---\n      | b | Xyzzy",
+        f"- x [^1]\n\n  [^1]: | a\n      |---\n      | b {CELLS}",
+    ),
+    # A tab after `>` is 2 columns in, as GitHub counts it from where it stands
+    # without the column of the `>`: no code (2026-11-22).
+    (">| a |\n>|---|\n>\t| b | Xyzzy |", f">| a |\n>|---|\n>\t| b {CELLS}"),
+    (
+        "> >| a |\n> >|---|\n> >\t| b | Xyzzy |",
+        f"> >| a |\n> >|---|\n> >\t| b {CELLS}",
+    ),
+    (">\t| a |\n>\t|---|\n>\t| b | Xyzzy |", f">\t| a |\n>\t|---|\n>\t| b {CELLS}"),
+    (
+        "> \t| a |\n> \t|---|\n> \t| b | Xyzzy |",
+        f"> \t| a |\n> \t|---|\n> \t| b {CELLS}",
+    ),
 ]
 
 
@@ -6435,6 +6618,13 @@ WHOLE_TABLES = [
     # A delimiter row without a row above, and one within a table of more cells.
     "|---|\n| a | shown |",
     "| a | b |\n|---|---|\n| c |\n|---|\n| d | shown |",
+    # A row indented by four columns is code, however far in the delimiter row
+    # stands, where no list item or footnote holds the table; and a delimiter row
+    # less indented than the text of a footnote is none of it (2026-11-22 and 23).
+    "| a |\n|---|\n\t||shown",
+    "  | a |\n  |---|\n    | b | shown |",
+    ">  | a |\n>  |---|\n>     | b | shown |",
+    "x [^1]\n\n[^1]: | a |\n  |---|\n  | b | shown |",
 ]
 TABLE_ENDS = ["# x | shown", "- x | shown", "2. x | shown", "***", "> x | shown"]
 
