@@ -12,6 +12,7 @@ import string
 from dataclasses import dataclass, field
 
 from .markup import BLANK_ROW, FOOTNOTE_MARK, ROW_END, ROW_ENDS, ROW_START, row_end
+from .tags import VOID
 
 Span = tuple[int, int]
 # Where a row ends, also with `endpos`.
@@ -85,35 +86,14 @@ CELL_END = re.compile(r"(?<!\\)(?:\\\\)*+\|")
 TABLE_END = re.compile(r"[#<`~\[]|(?:[*_-][ \t]*+){3,}+$")
 TAG_TAIL = re.compile(r"[^>\"'\r\n]*+")
 TAG_SPACES = "\t\n\f\r "
-# Elements that add nothing to the depth, and those that the HTML parser nests in
-# more: `<tbody>` and `<tr>` around a bare `<td>`, `<tbody>` around a `<tr>`.
-VOID = frozenset(
-    [
-        "area",
-        "base",
-        "basefont",
-        "bgsound",
-        "br",
-        "embed",
-        "hr",
-        "image",
-        "img",
-        "input",
-        "keygen",
-        "link",
-        "meta",
-        "param",
-        "source",
-        "track",
-        "wbr",
-    ]
-)
-# Inside `<svg>` or `<math>`, HTML's parser makes no element void: those of VOID
-# nest there like any other (`gh api markdown`, 2026-11-22), but for those that
-# break out of it, which close it, and stay void.
+# Elements that the HTML parser nests in more: `<tbody>` and `<tr>` around a bare
+# `<td>`, `<tbody>` around a `<tr>`. Those of VOID add nothing to the depth, but
+# inside `<svg>` or `<math>`, where GitHub's HTML parser makes no element void and
+# none breaks out: each of VOID nests there like any other, `<br>`, `<hr>`, `<img>`,
+# `<embed>` and `<meta>` too, which HTML's own parser would let break out of SVG and
+# MathML (`gh api markdown`, 2026-11-22).
 FOREIGN = frozenset(["math", "svg"])
 ASCII_LOWER = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
-BREAKING_OUT = frozenset(["br", "embed", "hr", "img", "meta"])
 WEIGHTS = {"td": 3, "th": 3, "tr": 2}
 # For shallow: a start tag of a void element, of a name in ASCII letters of either
 # case, which Depth reads as one of VOID, so that it adds nothing to the depth.
@@ -199,19 +179,18 @@ class Depth:
     count again only after a row of INLINE_RESET.
 
     The HTML is read over the whole text, code too: each start tag of an element
-    that isn't void, or any inside an open `<svg>` or `<math>` but those of
-    BREAKING_OUT, opens it, also one with `/>`, `<td>` and `<th>` as 3 and `<tr>`
-    as 2. One of SCOPES also keeps the count of the Markdown around it, which
-    stays open for good once a row ends while it is open. An end tag closes the
-    innermost open element, and only one of its name, where it surely is an end
-    tag: of no `>` but blanks after its name, with no `\\` before it, outside the
-    tags before it, and outside all that started after that element and could hold
-    the end tag as text, up to where that surely ends: a code span, math, a link
-    destination that isn't plain, a definition or the description of an image up to
-    the end of the paragraph; fenced code up to the fence that closes it; a comment
-    or other markup up to its end; a cell of a table and a row that may be indented
-    code up to the end of the row; and a tag that runs past its row, or whose end is
-    hard to tell, up to the end of the text.
+    that isn't void, or any inside an open `<svg>` or `<math>`, opens it, also one
+    with `/>`, `<td>` and `<th>` as 3 and `<tr>` as 2. One of SCOPES also keeps the
+    count of the Markdown around it, which stays open for good once a row ends while
+    it is open. An end tag closes the innermost open element, and only one of its
+    name, where it surely is an end tag: of no `>` but blanks after its name, with
+    no `\\` before it, outside the tags before it, and outside all that started
+    after that element and could hold the end tag as text, up to where that surely
+    ends: a code span, math, a link destination that isn't plain, a definition or
+    the description of an image up to the end of the paragraph; fenced code up to
+    the fence that closes it; a comment or other markup up to its end; a cell of a
+    table and a row that may be indented code up to the end of the row; and a tag
+    that runs past its row, or whose end is hard to tell, up to the end of the text.
     """
 
     text: str
@@ -508,7 +487,7 @@ class Depth:
         """Opens the element of a start tag, as deep as it may nest."""
         if closing:
             self.reach(token)
-        if name in VOID and (not self.foreign or name in BREAKING_OUT):
+        if name in VOID and not self.foreign:
             return
         if name in FOREIGN:
             self.foreign += 1

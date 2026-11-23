@@ -866,9 +866,12 @@ class ShownTags:
     def take(self, span: tuple[int, int], position: int, pieces: list[str]) -> int:
         """Adds the text up to a tag over several rows and what it shows, and returns
         its end. The tag counts as html_parts reads it, from its start, also where
-        the reading of a tag in a row before took more than html_parts did."""
+        the reading of a tag in a row before took more than html_parts did. The
+        content of a hidden element shows nothing, also where it starts with a tag,
+        as what a void element holds inside `<svg>` or `<math>` may."""
         start, end = span
-        pieces += [self.text[position:start], self.addresses(start, end)]
+        shown = "" if start in self.rows.hidden else self.addresses(start, end)
+        pieces += [self.text[position:start], shown]
         return max(end, position)
 
     def as_text(self, opening: int) -> bool:

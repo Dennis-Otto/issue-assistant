@@ -317,6 +317,9 @@ class HtmlRows:
         # Where the spans that long_tags finds for the content of a hidden element
         # start, in which no comment counts.
         self.hidden: set[int] = set()
+        # Those of them that start what a void element holds inside `<svg>` or
+        # `<math>`, in whose place the page shows the element.
+        self.spaced: set[int] = set()
         self.own: list[int] | None = None
 
     def fenced(self) -> bool:

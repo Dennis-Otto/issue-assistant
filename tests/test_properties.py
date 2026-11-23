@@ -765,6 +765,11 @@ DECIDED = st.lists(
             '<relative-time datetime="2020-01-01T00:00:00Z">',
             "OwlError",
             "</relative-time>",
+            "<svg>",
+            "<math>",
+            "<br>",
+            "</svg>",
+            "EelError",
             "```",
             "`TypeError`",
             "> ",
@@ -1326,6 +1331,10 @@ HTML_BLOCKS = st.lists(
             "</rp>",
             '<relative-time datetime="2020-01-01T00:00:00Z">',
             "</relative-time>",
+            "<svg>",
+            "<math>",
+            "<br>",
+            "</svg>",
             "Plugh",
         ]
     ),
@@ -1333,6 +1342,8 @@ HTML_BLOCKS = st.lists(
 ).map("".join)
 
 
+@hypothesis.example("a <svg><br> Plugh</svg> b")
+@hypothesis.example("<svg>\n\n<hr>\n\nPlugh\n\n- Plugh")
 @hypothesis.example("x\n\n> <!--\n> a")
 @hypothesis.example("> x\n> <!--\n> a")
 @hypothesis.example("> - <!--\nx")
@@ -1381,6 +1392,9 @@ TABLES = st.lists(
             "| a | b |\n|:-|-:|\n",
             ":-:\n",
             "> ",
+            ">",
+            ">\t",
+            "[^1]: ",
             "|",
             "\\|",
             "\\\\|",
@@ -1403,6 +1417,9 @@ TABLES = st.lists(
 
 
 @hypothesis.example("| a |\n|---|\n| b | Plugh |")
+@hypothesis.example("| a |\n|---|\n\t||Plugh")
+@hypothesis.example(">\t| a |\n>\t|---|\n>\t| b | Plugh |")
+@hypothesis.example("x [^1]\n\n[^1]: | a |\n    |---|\n    | b | Plugh |")
 @hypothesis.example("> | a |\n> |---|\n> | b | Plugh\n| c | Plugh")
 @hypothesis.example("| a |\n|---|\n|b\\\\|Plugh|Plugh|")
 @hypothesis.example("```Plugh\n| a |\n|---|\n| b | Plugh |")
