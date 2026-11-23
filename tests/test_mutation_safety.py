@@ -20,7 +20,9 @@ a test of its own.
 This guard finds each such test with `ast`, following the helpers, fixtures and
 constants of the test's own module (not those of conftest.py or support.py, whose
 helpers that time a reading it knows by name), so that one added later fails here,
-in every pull request, and not only in the next weekly run.
+in every pull request, and not only in the next weekly run. It finds the timing only
+through those helpers: a test that reads a clock such as time.perf_counter() around a
+reading itself isn't found, so time a reading with the helpers of tests/support.py.
 """
 
 import ast
@@ -368,10 +370,14 @@ def unmarked_timers(source: str, path: str) -> list[Unmarked]:
         for function, names in calls
         if names & (TIMERS | GROWTHS) and times_the_package(function, package)
     }
+    # A test with a stand-in for growth() times nothing through the helpers of the
+    # growth, but fast() doesn't go through growth(): one that calls it still times.
     timers = spread(functions, timers) - {
         function.name
         for function, names in calls
-        if names & {"setattr", "setitem"} and replaces_the_growth(function)
+        if names & {"setattr", "setitem"}
+        and "fast" not in names
+        and replaces_the_growth(function)
     }
     return unmarked(functions, timers, path)
 
@@ -617,6 +623,12 @@ TIMING = {
     "a helper of a helper": (
         "def timed(text):\n    return fast(1, assistant.excerpt, text, 9)\n"
         "def test_a():\n    assert timed('a')\n"
+    ),
+    "a stand-in for growth() but fast() of a reading": (
+        "def test_a(monkeypatch, record_property):\n"
+        "    monkeypatch.setitem(globals(), 'growth', lambda *_: None)\n"
+        "    holds_its_growth(PARTS, 'render_issue', 'a text', record_property)\n"
+        "    assert fast(2, assistant.sanitize, 'x')\n"
     ),
     "a method of a class that isn't marked": (
         "class TestA:\n"
