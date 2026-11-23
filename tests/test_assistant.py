@@ -605,6 +605,18 @@ def reading(name, text):
 # The growth that a reading may have is GROWTH of tests/support.py, which the fuzz
 # target of the converter holds as well, and the processor time that one reading of
 # a whole text may take is its CEILING, at which growth() ends a try of the eighth.
+#
+# Every test that times a reading carries the marker mutation_unsafe (#553). In
+# mutmut's copy every call of a function of the package goes through a trampoline
+# that records it: a reading takes several times as long there, and in mutmut's own
+# process, where it collects its stats, dozens of times as long (`values over rows in
+# a block` took 7.2 seconds with render_issue there and about 0.1 without mutmut), so
+# that the time measured there is mutmut's and a reading in linear time fails
+# CEILING. The check of every pull request runs these tests as before, with every
+# text, reading and twin; only the weekly Mutation run leaves them out. What they
+# check besides the clock has tests of its own, which the mutants run against, such
+# as test_the_tags_of_a_row_are_read_once_each. tests/test_mutation_safety.py fails
+# for a timing test without the marker.
 
 
 def holds_its_growth(parts, name, text, record_property):
@@ -657,6 +669,8 @@ def holds_growth(name, text, eighth, whole, record_property):
     )
 
 
+# Timed: mutmut's trampolines slow it down in its copy (#553).
+@pytest.mark.mutation_unsafe
 @pytest.mark.parametrize("name", READINGS)
 @pytest.mark.parametrize("text", SLOW_TEXTS)
 def test_no_text_makes_reading_an_issue_slow(text, name, record_property):
@@ -672,10 +686,46 @@ WHOLE_READINGS = ("form_fields", "shown_links", "attachments_of", "rendering_est
 SHOWN_READINGS = [name for name in READINGS if name not in WHOLE_READINGS]
 
 
+# Timed: mutmut's trampolines slow it down in its copy (#553).
+@pytest.mark.mutation_unsafe
 @pytest.mark.parametrize("name", SHOWN_READINGS)
 @pytest.mark.parametrize("text", TWINS)
 def test_no_twin_makes_reading_an_issue_slow(text, name, record_property):
     holds_its_growth(TWINS[text][1], name, text, record_property)
+
+
+# The texts of many tags on which a reading of each tag to the end of the text, in
+# place of its `>`, made the readings grow with the square of the text (#553).
+TAGS_IN_ROWS = [
+    "tags in a row",
+    "elements that close",
+    "HTML blocks between blank rows",
+    "comments after HTML blocks that end",
+    "values that end after HTML blocks",
+]
+
+
+@pytest.mark.parametrize("name", ["shown_links", "attachments_of"])
+@pytest.mark.parametrize("text", TAGS_IN_ROWS)
+def test_the_tags_of_a_row_are_read_once_each(monkeypatch, text, name):
+    """The reading of the addresses of the tags reads each part of a text once: what
+    ShownTags.addresses is asked to read of a text adds up to no more than the text.
+    The timing tests notice a reading that grows with the square of its text too, but
+    mutmut's copy leaves them out, so this test counts without a clock."""
+    shown_tags = assistant.attachments.ShownTags
+    real = shown_tags.addresses
+    read = collections.Counter()
+
+    def counted(tags, start, end):
+        read[tags] += (len(tags.text) if end is None else end) - start
+        return real(tags, start, end)
+
+    monkeypatch.setattr(shown_tags, "addresses", counted)
+    # A 64th of the text still holds 60 to 330 tags, and a reading of each to the
+    # end of the text reads it dozens of times.
+    reading(name, built(SLOW_TEXTS[text], 64))()
+    assert read
+    assert all(total <= len(tags.text) for tags, total in read.items())
 
 
 def test_each_case_of_the_timing_records_its_figures(monkeypatch):
@@ -957,6 +1007,8 @@ def test_the_fuzz_targets_keep_the_tries_of_before():
     assert measured.times >= 10
 
 
+# Timed: mutmut's trampolines slow it down in its copy (#553).
+@pytest.mark.mutation_unsafe
 def test_the_fuzz_target_judges_a_slow_reading_by_its_growth():
     """fuzz/fuzz_issue_text.py judges a reading slower than its budget of half a
     second by its growth, as too_slow() does here (#543). Quotes before a void tag,
@@ -1107,6 +1159,8 @@ SLOW_DEFINITIONS = {
 }
 
 
+# Timed: mutmut's trampolines slow it down in its copy (#553).
+@pytest.mark.mutation_unsafe
 @pytest.mark.parametrize("text", SLOW_DEFINITIONS)
 def test_no_text_makes_finding_its_definitions_slow(text, record_property):
     """Each row is read a bounded number of times: the whole text takes no more
@@ -2077,6 +2131,8 @@ SLOW_MARKUP = {
 }
 
 
+# Timed: mutmut's trampolines slow it down in its copy (#553).
+@pytest.mark.mutation_unsafe
 @pytest.mark.parametrize("text", SLOW_MARKUP)
 def test_markup_reads_each_part_of_a_text_once(text, record_property):
     """Each of them reads in time linear in the text."""
@@ -8406,6 +8462,8 @@ SLOW_ANSWERS = {
 }
 
 
+# Timed: mutmut's trampolines slow it down in its copy (#553).
+@pytest.mark.mutation_unsafe
 @pytest.mark.parametrize("text", SLOW_ANSWERS)
 def test_no_text_makes_the_cleaning_slow(config, text, record_property):
     parts = SLOW_ANSWERS[text]
@@ -8417,6 +8475,8 @@ def test_no_text_makes_the_cleaning_slow(config, text, record_property):
 # whole: the growth of a reading in linear time doesn't hold for them, by design. The
 # fields of the engine's answer that the cleaning reads have a maxLength far below
 # these 2,500 characters, so a bound of time holds that no such text stalls a run.
+# Timed: mutmut's trampolines slow it down in its copy (#553).
+@pytest.mark.mutation_unsafe
 @pytest.mark.parametrize(
     "text", ["#1" * 1_250, "@a" * 1_250], ids=["references", "mentions"]
 )
@@ -12980,6 +13040,8 @@ SLOW_DESCRIPTIONS = {
 }
 
 
+# Timed: mutmut's trampolines slow it down in its copy (#553).
+@pytest.mark.mutation_unsafe
 @pytest.mark.parametrize("text", SLOW_DESCRIPTIONS)
 def test_no_description_makes_reading_its_closing_keywords_slow(text, record_property):
     parts = SLOW_DESCRIPTIONS[text]
