@@ -844,17 +844,18 @@ def shown(text):
     return assistant.without(text, spans, 0, end)
 
 
-# The earlier pattern, and an instruction, a declaration or a section of CDATA that
+# The earlier pattern, with `<!-->` and `<!--->` whole, and an instruction, a declaration or a section of CDATA that
 # ends on its row at its first `>`, which the earlier pattern left as text, and
 # which GitHub hides wherever it stands outside code.
 EARLIER_HTML_AND_MARKUP = re.compile(
-    rf"{EARLIER_HTML.pattern}|<(?:\?[^<>\r\n]*\?|![A-Za-z][^<>\r\n]*"
+    rf"<!---?>|{EARLIER_HTML.pattern}|<(?:\?[^<>\r\n]*\?|![A-Za-z][^<>\r\n]*"
     r"|!\[CDATA\[[^<>\r\n]*\]\])>",
     re.DOTALL,
 )
 
 
 @hypothesis.example("<!a>")
+@hypothesis.example("<!--> a -->")
 @given(HTML_TEXT)
 def test_html_is_removed_as_it_always_was(text):
     assert assistant.strip_html(text) == EARLIER_HTML_AND_MARKUP.sub("", shown(text))
@@ -1407,6 +1408,71 @@ def test_the_engine_reads_nothing_that_an_html_block_hides(text):
         or assistant.long_tags(text) != ([], len(text))
         or "Xyzzy" in shown
     )
+
+
+# Text made of `<!-->` and `<!--->`, the ends of comments, and the parts that a
+# page hides and a `-->` may stand in: a quoted value, a definition, a tag over rows
+# and the content of a `video`.
+SHORT_COMMENTS = st.lists(
+    st.sampled_from(
+        [
+            "<!-->",
+            "<!--->",
+            "-->",
+            '<a title="',
+            "<a title='",
+            '">',
+            "'>",
+            "</a>",
+            "<video>",
+            "</video>",
+            '[d]: https://example.com "',
+            '"',
+            "> ",
+            "- ",
+            "x",
+            " ",
+            "\n",
+            "\n\n",
+            "Plugh",
+        ]
+    ),
+    max_size=30,
+).map("".join)
+
+
+# `<!-->` and `<!--->` are whole comments, as a block, inline and in the HTML of a
+# block (`gh api -X POST markdown` with the mode gfm, 2026-11-23).
+@hypothesis.example('x <!--> <a title="-->Plugh">a</a>')
+@hypothesis.example('<!--->\n[d]: https://example.com "-->Plugh"')
+@hypothesis.example("x <!--> <a title='\n-->Plugh'>a</a>")
+@given(SHORT_COMMENTS)
+def test_the_engine_reads_nothing_hidden_after_a_short_comment(text):
+    """No `-->` after `<!-->` or `<!--->` ends a comment that took the start of a
+    part that the page hides: the engine reads no more of the marker than a
+    browser shows of the HTML of a CommonMark parser."""
+    assert assistant.shown_text(text)[0].count("Plugh") <= browser_text(text).count(
+        "Plugh"
+    )
+
+
+@hypothesis.example("<!--<!-->", [0, 4])
+@hypothesis.example("<!-->-->", [0, 2])
+@given(
+    st.text("<!->a", max_size=20),
+    st.lists(st.integers(min_value=0, max_value=21), max_size=8),
+)
+def test_every_reading_of_a_comment_ends_it_at_the_same_place(text, positions):
+    """The search of the tags, wherever it starts, and the pattern of the HTML end a
+    comment where comment_close does, from its `<` + 2."""
+    search = assistant.Searches(text)
+    for position in positions:
+        closed = assistant.comment_close(text, position)
+        end = closed + 3 if closed >= 0 else -1
+        assert search.comment_end(position) == end
+        if text.startswith("<!--", position):
+            found = assistant.HTML_COMMENT.match(text, position)
+            assert (found.end() if found else -1) == end
 
 
 # Text made of the pieces of tables: pipes with and without a backslash before

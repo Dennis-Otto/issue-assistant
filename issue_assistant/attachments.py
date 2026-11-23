@@ -43,7 +43,7 @@ from .markup import (
     row_end,
 )
 from .paths import CONTEXT
-from .patterns import INVISIBLE, REFERENCE, without_references
+from .patterns import INVISIBLE, REFERENCE, comment_close, without_references
 from .reading import (
     CLEANED_READER,
     READING_CLEANED,
@@ -848,7 +848,7 @@ class ShownTags:
             opening = found.start()
             pieces.append(text[position:opening])
             if found[0] == "<!--":
-                closed = text.find("-->", found.end(), stop)
+                closed = comment_close(text, opening, stop)
                 position = stop if closed < 0 else closed + len("-->")
             elif found["markup"] is not None and not self.fences.holds(opening):
                 position = found.end()

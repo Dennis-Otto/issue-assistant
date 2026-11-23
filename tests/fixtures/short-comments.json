@@ -1,0 +1,1104 @@
+{
+ "about": "Texts with `<!-->`, `<!--->` or `<?>` before a part that GitHub hides and that holds a `-->` or a `?>`: a quoted value of a tag, a tag over rows, the content of a `video`, an `rp` or a `relative-time`, a void tag in `svg` or `math`, a link reference definition, a title, a cell, an info string, a drawing and math; as a block, three spaces in, below a paragraph, in a quote, a list item, a heading and a cell, and inline; and the forms inside a `div`, `details`, a table, `pre`, `svg`, `math`, `script`, `style`, a longer comment, a value, a fence and a code span. Each with the marker words that GitHub's renderer (gh api -X POST markdown with mode gfm, 2026-11-23) shows and hides, as a headless Chrome read the page; GitHub's script draws a date in place of a relative-time, and a diagram or transparent math in place of their source.",
+ "texts": [
+  {
+   "text": "Zqbeforec <!--> <a title=\"-->Zqattrc\">Zqlinkc</a> Zqafterc",
+   "github shows": [
+    "Zqbeforec",
+    "Zqlinkc",
+    "Zqafterc"
+   ],
+   "github hides": [
+    "Zqattrc"
+   ]
+  },
+  {
+   "text": "Zqbc <!--> <video>-->Zqvideoc</video> Zqac",
+   "github shows": [
+    "Zqbc",
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqvideoc"
+   ]
+  },
+  {
+   "text": "Zqbc <!--> <relative-time datetime=\"2020-01-01T00:00:00Z\">-->Zqrtc</relative-time> Zqac",
+   "github shows": [
+    "Zqbc",
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqrtc"
+   ]
+  },
+  {
+   "text": "Zqbc <!--> <ruby>Zqbasec<rp>-->Zqrpc</rp><rt>Zqrubyc</rt></ruby> Zqac",
+   "github shows": [
+    "Zqbc",
+    "Zqbasec",
+    "Zqrubyc",
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqrpc"
+   ]
+  },
+  {
+   "text": "Zqbc <!--> <svg><br>-->Zqsvgc</svg> Zqac",
+   "github shows": [
+    "Zqbc",
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqsvgc"
+   ]
+  },
+  {
+   "text": "Zqbc <!--> <a title=\"x\n-->Zqrowsc\">Zqlinkc</a> Zqac",
+   "github shows": [
+    "Zqbc",
+    "Zqlinkc",
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqrowsc"
+   ]
+  },
+  {
+   "text": "Zqbc <!--> [Zqlinkc](https://example.com \"-->Zqltc\") Zqac",
+   "github shows": [
+    "Zqbc",
+    "Zqlinkc",
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqltc"
+   ]
+  },
+  {
+   "text": "Zqbc <!--> ![Zqimgc](https://example.com/a.png \"-->Zqitc\") Zqac",
+   "github shows": [
+    "Zqbc",
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqitc"
+   ]
+  },
+  {
+   "text": "Zqbefored <!---> <a title=\"-->Zqattrd\">Zqlinkd</a> Zqafterd",
+   "github shows": [
+    "Zqbefored",
+    "Zqlinkd",
+    "Zqafterd"
+   ],
+   "github hides": [
+    "Zqattrd"
+   ]
+  },
+  {
+   "text": "Zqbd <!---> <video>-->Zqvideod</video> Zqad",
+   "github shows": [
+    "Zqbd",
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqvideod"
+   ]
+  },
+  {
+   "text": "Zqbd <!---> <relative-time datetime=\"2020-01-01T00:00:00Z\">-->Zqrtd</relative-time> Zqad",
+   "github shows": [
+    "Zqbd",
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqrtd"
+   ]
+  },
+  {
+   "text": "Zqbd <!---> <ruby>Zqbased<rp>-->Zqrpd</rp><rt>Zqrubyd</rt></ruby> Zqad",
+   "github shows": [
+    "Zqbd",
+    "Zqbased",
+    "Zqrubyd",
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqrpd"
+   ]
+  },
+  {
+   "text": "Zqbd <!---> <svg><br>-->Zqsvgd</svg> Zqad",
+   "github shows": [
+    "Zqbd",
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqsvgd"
+   ]
+  },
+  {
+   "text": "Zqbd <!---> <a title=\"x\n-->Zqrowsd\">Zqlinkd</a> Zqad",
+   "github shows": [
+    "Zqbd",
+    "Zqlinkd",
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqrowsd"
+   ]
+  },
+  {
+   "text": "Zqbd <!---> [Zqlinkd](https://example.com \"-->Zqltd\") Zqad",
+   "github shows": [
+    "Zqbd",
+    "Zqlinkd",
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqltd"
+   ]
+  },
+  {
+   "text": "Zqbd <!---> ![Zqimgd](https://example.com/a.png \"-->Zqitd\") Zqad",
+   "github shows": [
+    "Zqbd",
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqitd"
+   ]
+  },
+  {
+   "text": "Zqbq <?> <a title=\"?>Zqattrq\">Zqlinkq</a> Zqaq",
+   "github shows": [
+    "Zqbq"
+   ],
+   "github hides": [
+    "Zqattrq",
+    "Zqlinkq",
+    "Zqaq"
+   ]
+  },
+  {
+   "text": "Zqbq <?> <video>?>Zqvideoq</video> Zqaq",
+   "github shows": [
+    "Zqbq",
+    "Zqaq"
+   ],
+   "github hides": [
+    "Zqvideoq"
+   ]
+  },
+  {
+   "text": "Zqb x <!-->\n\nZqmiddle\n\n<a title=\"-->Zqattrfar\">Zqlink</a> Zqa",
+   "github shows": [
+    "Zqb",
+    "Zqmiddle",
+    "Zqlink",
+    "Zqa"
+   ],
+   "github hides": [
+    "Zqattrfar"
+   ]
+  },
+  {
+   "text": "Zqb x <!-->\n\nZqmiddle\n\n<video>-->Zqvideofar</video> Zqa",
+   "github shows": [
+    "Zqb",
+    "Zqmiddle",
+    "Zqa"
+   ],
+   "github hides": [
+    "Zqvideofar"
+   ]
+  },
+  {
+   "text": "Zqb <!--> <a title='-->Zqattrsq'>Zqlink</a> Zqa",
+   "github shows": [
+    "Zqb",
+    "Zqlink",
+    "Zqa"
+   ],
+   "github hides": [
+    "Zqattrsq"
+   ]
+  },
+  {
+   "text": "Zqb <!--> <math><img>-->Zqmathv</math> Zqa",
+   "github shows": [
+    "Zqb",
+    "Zqa"
+   ],
+   "github hides": [
+    "Zqmathv"
+   ]
+  },
+  {
+   "text": "# Zqb <!--> <a title=\"-->Zqattrh\">Zqlink</a> Zqa",
+   "github shows": [
+    "Zqb",
+    "Zqlink",
+    "Zqa"
+   ],
+   "github hides": [
+    "Zqattrh"
+   ]
+  },
+  {
+   "text": "> Zqb <!--> <a title=\"-->Zqattrqt\">Zqlink</a> Zqa",
+   "github shows": [
+    "Zqb",
+    "Zqlink",
+    "Zqa"
+   ],
+   "github hides": [
+    "Zqattrqt"
+   ]
+  },
+  {
+   "text": "- Zqb <!--> <a title=\"-->Zqattrli\">Zqlink</a> Zqa",
+   "github shows": [
+    "Zqb",
+    "Zqlink",
+    "Zqa"
+   ],
+   "github hides": [
+    "Zqattrli"
+   ]
+  },
+  {
+   "text": "| a | b |\n|---|---|\n| Zqb <!--> <a title=\"-->Zqattrcell\">Zqlink</a> | Zqa |",
+   "github shows": [
+    "Zqb",
+    "Zqlink",
+    "Zqa"
+   ],
+   "github hides": [
+    "Zqattrcell"
+   ]
+  },
+  {
+   "text": "<!-->\n[Zqlabelc]: https://example.com \"-->Zqdefc\"",
+   "github shows": [],
+   "github hides": [
+    "Zqlabelc",
+    "Zqdefc"
+   ]
+  },
+  {
+   "text": "<!--->\n[Zqlabeld]: https://example.com \"-->Zqdefd\"",
+   "github shows": [],
+   "github hides": [
+    "Zqlabeld",
+    "Zqdefd"
+   ]
+  },
+  {
+   "text": "   <!-->\n[Zqlabelc3]: https://example.com \"-->Zqdefc3\"",
+   "github shows": [],
+   "github hides": [
+    "Zqlabelc3",
+    "Zqdefc3"
+   ]
+  },
+  {
+   "text": "<!--> Zqw\n[Zqlabelcw]: https://example.com \"-->Zqdefcw\"",
+   "github shows": [
+    "Zqw"
+   ],
+   "github hides": [
+    "Zqlabelcw",
+    "Zqdefcw"
+   ]
+  },
+  {
+   "text": "Zqpara\n<!-->\n[Zqlabelcp]: https://example.com \"-->Zqdefcp\"",
+   "github shows": [
+    "Zqpara"
+   ],
+   "github hides": [
+    "Zqlabelcp",
+    "Zqdefcp"
+   ]
+  },
+  {
+   "text": "> <!-->\n> [Zqlabelcq]: https://example.com \"-->Zqdefcq\"",
+   "github shows": [],
+   "github hides": [
+    "Zqlabelcq",
+    "Zqdefcq"
+   ]
+  },
+  {
+   "text": "- <!-->\n  [Zqlabelcl]: https://example.com \"-->Zqdefcl\"",
+   "github shows": [],
+   "github hides": [
+    "Zqlabelcl",
+    "Zqdefcl"
+   ]
+  },
+  {
+   "text": "<!-->\n[Zqlabel2c]: https://example.com\n\"-->Zqdeftc\"",
+   "github shows": [],
+   "github hides": [
+    "Zqlabel2c",
+    "Zqdeftc"
+   ]
+  },
+  {
+   "text": "<!-->\n<video>\n-->Zqvbc\n</video>\n\nZqac",
+   "github shows": [
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqvbc"
+   ]
+  },
+  {
+   "text": "<!-->\n<a title=\"x\n-->Zqrowsbc\">Zqlinkc</a>\n\nZqac",
+   "github shows": [
+    "Zqlinkc",
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqrowsbc"
+   ]
+  },
+  {
+   "text": "<!-->\n```python -->Zqinfoc\nZqcodec\n```",
+   "github shows": [
+    "Zqcodec"
+   ],
+   "github hides": [
+    "Zqinfoc"
+   ]
+  },
+  {
+   "text": "<!-->\n| Zqhc |\n|---|\n| Zqbc | -->Zqcellc |",
+   "github shows": [
+    "Zqhc",
+    "Zqbc"
+   ],
+   "github hides": [
+    "Zqcellc"
+   ]
+  },
+  {
+   "text": "<!-->\n```mermaid\ngraph TD\n%% -->Zqdrawc\nA---B\n```\n\nZqac",
+   "github shows": [
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqdrawc"
+   ]
+  },
+  {
+   "text": "<!-->\n$$\\color{transparent}{-->Zqmathc}$$\n\nZqac",
+   "github shows": [
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqmathc"
+   ]
+  },
+  {
+   "text": "<!-->\n[Zqlinkc](https://example.com \"-->Zqtbc\")",
+   "github shows": [
+    "Zqlinkc"
+   ],
+   "github hides": [
+    "Zqtbc"
+   ]
+  },
+  {
+   "text": "<!-->\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n-->Zqrtbc\n</relative-time>\n\nZqac",
+   "github shows": [
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqrtbc"
+   ]
+  },
+  {
+   "text": "<!-->\n<svg><br>\n-->Zqsvgbc\n</svg>\n\nZqac",
+   "github shows": [
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqsvgbc"
+   ]
+  },
+  {
+   "text": "<!-->\n<a title=\"-->Zqattrbc\">Zqlinkc</a>\n\nZqac",
+   "github shows": [
+    "Zqlinkc",
+    "Zqac"
+   ],
+   "github hides": [
+    "Zqattrbc"
+   ]
+  },
+  {
+   "text": "<!--->\n[Zqlabel2d]: https://example.com\n\"-->Zqdeftd\"",
+   "github shows": [],
+   "github hides": [
+    "Zqlabel2d",
+    "Zqdeftd"
+   ]
+  },
+  {
+   "text": "<!--->\n<video>\n-->Zqvbd\n</video>\n\nZqad",
+   "github shows": [
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqvbd"
+   ]
+  },
+  {
+   "text": "<!--->\n<a title=\"x\n-->Zqrowsbd\">Zqlinkd</a>\n\nZqad",
+   "github shows": [
+    "Zqlinkd",
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqrowsbd"
+   ]
+  },
+  {
+   "text": "<!--->\n```python -->Zqinfod\nZqcoded\n```",
+   "github shows": [
+    "Zqcoded"
+   ],
+   "github hides": [
+    "Zqinfod"
+   ]
+  },
+  {
+   "text": "<!--->\n| Zqhd |\n|---|\n| Zqbd | -->Zqcelld |",
+   "github shows": [
+    "Zqhd",
+    "Zqbd"
+   ],
+   "github hides": [
+    "Zqcelld"
+   ]
+  },
+  {
+   "text": "<!--->\n```mermaid\ngraph TD\n%% -->Zqdrawd\nA---B\n```\n\nZqad",
+   "github shows": [
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqdrawd"
+   ]
+  },
+  {
+   "text": "<!--->\n$$\\color{transparent}{-->Zqmathd}$$\n\nZqad",
+   "github shows": [
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqmathd"
+   ]
+  },
+  {
+   "text": "<!--->\n[Zqlinkd](https://example.com \"-->Zqtbd\")",
+   "github shows": [
+    "Zqlinkd"
+   ],
+   "github hides": [
+    "Zqtbd"
+   ]
+  },
+  {
+   "text": "<!--->\n<relative-time datetime=\"2020-01-01T00:00:00Z\">\n-->Zqrtbd\n</relative-time>\n\nZqad",
+   "github shows": [
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqrtbd"
+   ]
+  },
+  {
+   "text": "<!--->\n<svg><br>\n-->Zqsvgbd\n</svg>\n\nZqad",
+   "github shows": [
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqsvgbd"
+   ]
+  },
+  {
+   "text": "<!--->\n<a title=\"-->Zqattrbd\">Zqlinkd</a>\n\nZqad",
+   "github shows": [
+    "Zqlinkd",
+    "Zqad"
+   ],
+   "github hides": [
+    "Zqattrbd"
+   ]
+  },
+  {
+   "text": "> <!-->\n[Zqlabellz]: https://example.com \"-->Zqdeflz\"",
+   "github shows": [],
+   "github hides": [
+    "Zqlabellz",
+    "Zqdeflz"
+   ]
+  },
+  {
+   "text": "<!-->\n# Zqhead [Zqlink](https://example.com \"-->Zqdefh\")",
+   "github shows": [
+    "Zqhead",
+    "Zqlink"
+   ],
+   "github hides": [
+    "Zqdefh"
+   ]
+  },
+  {
+   "text": "Zqx[^1]\n\n<!-->\n[^1]: -->Zqfoot",
+   "github shows": [
+    "Zqx",
+    "Zqfoot"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<?>\n[Zqlabelq]: https://example.com \"?>Zqdefq\"",
+   "github shows": [],
+   "github hides": [
+    "Zqlabelq",
+    "Zqdefq"
+   ]
+  },
+  {
+   "text": "<?>\n<video>\n?>Zqvbq\n</video>\n\nZqaq",
+   "github shows": [
+    "Zqaq"
+   ],
+   "github hides": [
+    "Zqvbq"
+   ]
+  },
+  {
+   "text": "<!-->\n`-->` Zqspan\n\n[Zqlabelcs]: https://example.com \"Zqdefcs\"",
+   "github shows": [
+    "Zqspan"
+   ],
+   "github hides": [
+    "Zqlabelcs",
+    "Zqdefcs"
+   ]
+  },
+  {
+   "text": "<div>\nZqa <!--> Zqb --> Zqc\n</div>",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<div>\n<!-->\nZqa\n-->\nZqb\n</div>",
+   "github shows": [
+    "Zqa",
+    "Zqb"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<div>\nZqa <!--> <a title=\"-->Zqdivattr\">Zqlink</a> Zqc\n</div>",
+   "github shows": [
+    "Zqa",
+    "Zqlink",
+    "Zqc"
+   ],
+   "github hides": [
+    "Zqdivattr"
+   ]
+  },
+  {
+   "text": "<div>\nZqa <!--> <video>-->Zqdivvideo</video> Zqc\n</div>",
+   "github shows": [
+    "Zqa",
+    "Zqc"
+   ],
+   "github hides": [
+    "Zqdivvideo"
+   ]
+  },
+  {
+   "text": "<details><summary>Zqsum</summary>\n\nZqa <!--> <a title=\"-->Zqdetattr\">Zqlink</a>\n</details>",
+   "github shows": [
+    "Zqsum",
+    "Zqa",
+    "Zqlink"
+   ],
+   "github hides": [
+    "Zqdetattr"
+   ]
+  },
+  {
+   "text": "<table><tr><td>Zqa <!--> Zqb --> Zqc</td></tr></table>",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<pre>\nZqa <!--> Zqb --> Zqc\n</pre>",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<svg><text>Zqa <!--> Zqb --> Zqc</text></svg> Zqd",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc",
+    "Zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<math><mi>Zqa</mi><!--><mi>Zqb</mi>--><mi>Zqc</mi></math> Zqd",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc",
+    "Zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<script>\nZqa <!--> Zqb --> Zqc\n</script>\n\nZqd",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc",
+    "Zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<style>\nZqa <!--> Zqb --> Zqc\n</style>\n\nZqd",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc",
+    "Zqd"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zqa <!-- Zqb <!--> Zqc --> Zqd",
+   "github shows": [
+    "Zqa",
+    "Zqc",
+    "Zqd"
+   ],
+   "github hides": [
+    "Zqb"
+   ]
+  },
+  {
+   "text": "<!-- Zqb <!--> Zqc --> Zqd\n\nZqe",
+   "github shows": [
+    "Zqc",
+    "Zqd",
+    "Zqe"
+   ],
+   "github hides": [
+    "Zqb"
+   ]
+  },
+  {
+   "text": "<!-- Zqb <!--> Zqc\n\nZqd",
+   "github shows": [
+    "Zqc",
+    "Zqd"
+   ],
+   "github hides": [
+    "Zqb"
+   ]
+  },
+  {
+   "text": "<!--><!-- Zqb\n\nZqc",
+   "github shows": [],
+   "github hides": [
+    "Zqb",
+    "Zqc"
+   ]
+  },
+  {
+   "text": "Zqa <!--><!-- Zqb\n\nZqc",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zqa <a title=\"<!-->\">Zqlink</a> Zqb",
+   "github shows": [
+    "Zqa",
+    "Zqlink",
+    "Zqb"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<a title=\"<!-->\">Zqlink</a> Zqb\n\nZqc",
+   "github shows": [
+    "Zqlink",
+    "Zqb",
+    "Zqc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zqa <img alt=\"<!-->\" src=\"https://example.com/a.png\"> Zqb",
+   "github shows": [
+    "Zqa",
+    "Zqb"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "```\n<!-->\n```\n\n[Zqlabelf]: https://example.com \"Zqdeff\"\n\nZqa",
+   "github shows": [
+    "Zqa"
+   ],
+   "github hides": [
+    "Zqlabelf",
+    "Zqdeff"
+   ]
+  },
+  {
+   "text": "`<!-->` Zqa <a title=\"-->Zqcsattr\">Zqlink</a> Zqb",
+   "github shows": [
+    "Zqa",
+    "Zqlink",
+    "Zqb"
+   ],
+   "github hides": [
+    "Zqcsattr"
+   ]
+  },
+  {
+   "text": "<div>\nZqa <!---> Zqb --> Zqc\n</div>",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zqa <!--> Zqb --> Zqc",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "<div>\nZqa <?> Zqb ?> Zqc\n</div>",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc"
+   ],
+   "github hides": []
+  },
+  {
+   "text": "Zqa <!--> <a title=\"--> https://github.com/user-attachments/files/123/log.txt\">Zqlink</a>",
+   "github shows": [
+    "Zqa",
+    "Zqlink"
+   ],
+   "github hides": [
+    "https://github.com/user-attachments/files/123/log.txt"
+   ]
+  },
+  {
+   "text": "Zqa <!--> <a title=\"--> https://github.com/user-attachments/assets/0b1c2d3e-0000-4000-8000-000000000001\">Zqlink</a>",
+   "github shows": [
+    "Zqa",
+    "Zqlink"
+   ],
+   "github hides": [
+    "https://github.com/user-attachments/assets/0b1c2d3e-0000-4000-8000-000000000001"
+   ]
+  },
+  {
+   "text": "Zqa <!--> <video>--> https://github.com/user-attachments/files/123/log.txt</video>",
+   "github shows": [
+    "Zqa"
+   ],
+   "github hides": [
+    "https://github.com/user-attachments/files/123/log.txt"
+   ]
+  },
+  {
+   "text": "<!-->\n[Zqlabel]: https://example.com \"--> https://github.com/user-attachments/files/123/log.txt\"",
+   "github shows": [],
+   "github hides": [
+    "Zqlabel",
+    "https://github.com/user-attachments/files/123/log.txt"
+   ]
+  },
+  {
+   "text": "Zqa <!--> [Zqlink](https://example.com \"--> https://github.com/user-attachments/files/123/log.txt\")",
+   "github shows": [
+    "Zqa",
+    "Zqlink"
+   ],
+   "github hides": [
+    "https://github.com/user-attachments/files/123/log.txt"
+   ]
+  },
+  {
+   "text": "<!-->\n<pre lang=\"mermaid\">\n%% --> https://github.com/user-attachments/files/123/log.txt\n</pre>",
+   "github shows": [],
+   "github hides": [
+    "https://github.com/user-attachments/files/123/log.txt"
+   ]
+  },
+  {
+   "text": "Zqa <!--> <a title=\"x\n--> https://github.com/user-attachments/files/123/log.txt\">Zqlink</a>",
+   "github shows": [
+    "Zqa",
+    "Zqlink"
+   ],
+   "github hides": [
+    "https://github.com/user-attachments/files/123/log.txt"
+   ]
+  },
+  {
+   "text": "<!-->\n[-->Zqlabel]: https://example.com",
+   "github shows": [],
+   "github hides": [
+    "Zqlabel"
+   ]
+  },
+  {
+   "text": "<!-->\n[d]: <https://example.com/-->Zqdest>",
+   "github shows": [
+    "Zqdest"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Zqdest"
+   ]
+  },
+  {
+   "text": "<!-->\n[d]: https://example.com (-->Zqparen)",
+   "github shows": [],
+   "github hides": [
+    "Zqparen"
+   ]
+  },
+  {
+   "text": "<!-->\n- [d]: https://example.com \"-->Zqdli\"",
+   "github shows": [],
+   "github hides": [
+    "Zqdli"
+   ]
+  },
+  {
+   "text": "<!-->\n\n[d]: https://example.com \"-->Zqdblank\"",
+   "github shows": [],
+   "github hides": [
+    "Zqdblank"
+   ]
+  },
+  {
+   "text": "Zqa <!--> <a title=\"-->\nZqrows2\">Zqlink</a> Zqb",
+   "github shows": [
+    "Zqa",
+    "Zqlink",
+    "Zqb"
+   ],
+   "github hides": [
+    "Zqrows2"
+   ]
+  },
+  {
+   "text": "Zqa <!--> <img alt=\"-->Zqalt\" src=\"https://example.com/a.png\"> Zqb",
+   "github shows": [
+    "Zqa",
+    "Zqb"
+   ],
+   "github hides": [
+    "Zqalt"
+   ]
+  },
+  {
+   "text": "Zqa <!--> <math><br>-->Zqm2</math> Zqb",
+   "github shows": [
+    "Zqa",
+    "Zqb"
+   ],
+   "github hides": [
+    "Zqm2"
+   ]
+  },
+  {
+   "text": "Zqa <!--> <svg><img>-->Zqsvgimg</svg> Zqb",
+   "github shows": [
+    "Zqa",
+    "Zqb"
+   ],
+   "github hides": [
+    "Zqsvgimg"
+   ]
+  },
+  {
+   "text": "Zqa <!--> <span title=\"-->Zqspan\">Zqs</span> Zqb",
+   "github shows": [
+    "Zqa",
+    "Zqs",
+    "Zqb"
+   ],
+   "github hides": [
+    "Zqspan"
+   ]
+  },
+  {
+   "text": "Zqa\n\n<!--> Zqb\n\n<a title=\"-->Zqfar2\">Zqlink</a>",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqlink"
+   ],
+   "github hides": [
+    "Zqfar2"
+   ]
+  },
+  {
+   "text": "```\n<!-->\n```\n\nZqa <a title=\"-->Zqfa2\">Zqlink</a> Zqb",
+   "github shows": [
+    "Zqa",
+    "Zqlink",
+    "Zqb"
+   ],
+   "github hides": [
+    "Zqfa2"
+   ]
+  },
+  {
+   "text": "Zqa `<!--->` Zqb <video>-->Zqcsv2</video> Zqc",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqc"
+   ],
+   "github hides": [
+    "Zqcsv2"
+   ]
+  },
+  {
+   "text": "Zqa <a title=\"<!-->\">Zqlink</a> Zqb <a title=\"-->Zqvs\">Zqm</a> Zqc",
+   "github shows": [
+    "Zqa",
+    "Zqlink",
+    "Zqb",
+    "Zqm",
+    "Zqc"
+   ],
+   "github hides": [
+    "Zqvs"
+   ]
+  },
+  {
+   "text": "Zqa \\<!--> Zqb <a title=\"-->Zqes\">Zqm</a> Zqc",
+   "github shows": [
+    "Zqa",
+    "Zqb",
+    "Zqm",
+    "Zqc"
+   ],
+   "github hides": [
+    "Zqes"
+   ]
+  },
+  {
+   "text": "Zqa [Zqlink](https://example.com \"<!-->\") Zqb <a title=\"-->Zqls\">Zqm</a> Zqc",
+   "github shows": [
+    "Zqa",
+    "Zqlink",
+    "Zqb",
+    "Zqm",
+    "Zqc"
+   ],
+   "github hides": [
+    "Zqls"
+   ]
+  },
+  {
+   "text": "    <!-->\n\nZqa <a title=\"-->Zqis\">Zqlink</a> Zqb",
+   "github shows": [
+    "Zqa",
+    "Zqlink",
+    "Zqb"
+   ],
+   "github hides": [
+    "Zqis"
+   ]
+  },
+  {
+   "text": "<details><summary>Zqsum</summary>\n\n<!-->\n[d]: https://example.com \"--> https://github.com/user-attachments/files/123/log.txt\"\n</details>",
+   "github shows": [
+    "Zqsum"
+   ],
+   "github hides": [
+    "https://github.com/user-attachments/files/123/log.txt"
+   ]
+  },
+  {
+   "text": "> Zqa <!---> <video>\n> -->Zqqv\n> </video>\n\nZqb",
+   "github shows": [
+    "Zqa",
+    "Zqb"
+   ],
+   "github hides": [
+    "Zqqv"
+   ]
+  },
+  {
+   "text": "- Zqa\n  <!--->\n  [d]: https://example.com \"-->Zqldef\"",
+   "github shows": [
+    "Zqa"
+   ],
+   "github hides": [
+    "Zqldef"
+   ]
+  },
+  {
+   "text": "| Zqh |\n|---|\n| Zqa <!--> <a title=\"-->Zqtc\">Zqlink</a> |",
+   "github shows": [
+    "Zqh",
+    "Zqa",
+    "Zqlink"
+   ],
+   "github hides": [
+    "Zqtc"
+   ]
+  }
+ ]
+}

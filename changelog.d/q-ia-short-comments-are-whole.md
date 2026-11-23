@@ -1,0 +1,3 @@
+### Bug fixes
+
+- The AI no longer reads the rest of a part that GitHub hides when a `-->` stands in it after `<!-->` or `<!--->`, such as the title of a tag, what a `video` holds or the title of a link reference definition. GitHub reads `<!-->` and `<!--->` as whole comments, but the assistant read a comment from them up to that later `-->`, took the start of the hidden part with it and kept the rest. It now ends them at once everywhere, in the issue, its comments, discussions, the excerpts and the attachments, and the search for older issues, the language, the area and whether a pull request denies that it fixes an issue read them the same way. The text that the page shows between `<!-->` and a later `-->` now reaches the AI as well.

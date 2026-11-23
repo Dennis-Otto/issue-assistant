@@ -421,6 +421,13 @@ SLOW_TEXTS = {
     "fences and definitions below instructions and short comments": [
         ('<?>\n```a b\n<!-->\n[a]: u "t"\n', 2_300)
     ],
+    # Parts that GitHub hides, each with a `-->` after a short comment.
+    "comment ends in hidden parts after short comments": [
+        (
+            'x <!--> <a title="-->y">z</a> <video>-->w</video>\n<!-->\n[a]: u "-->t"\n',
+            915,
+        )
+    ],
 }
 
 # Each text of SLOW_TEXTS whose depth reaches the cut early, so that the reading of
@@ -1481,9 +1488,13 @@ def test_fenced_code_keeps_a_tag_over_its_rows(text, hidden, cut):
 
 
 def test_the_search_for_the_end_of_a_comment_reads_no_part_twice():
-    search = assistant.Searches("a --> b -->")
-    found = [search.comment_end(position) for position in (0, 2, 6, 8, 11)]
-    assert found == [5, 5, 11, 11, -1]
+    """Each comment ends at the first `-->` from its `<` + 2, so `<!-->` and
+    `<!--->` are whole ones, also when the search of an earlier comment found it."""
+    search = assistant.Searches("<!-- a --> <!--> <!---> b --> <!-- c")
+    found = [search.comment_end(opening) for opening in (0, 11, 17, 30, 0)]
+    assert found == [10, 16, 23, -1, 10]
+    search = assistant.Searches("<!--<!-->")
+    assert [search.comment_end(0), search.comment_end(4)] == [9, 9]
 
 
 def test_the_cleaning_reads_tags_as_before_where_it_was_right():
@@ -6650,16 +6661,19 @@ HIDDEN_DEFINITIONS = [
     ("><!A[^n]\n[^n]: Xyzzy", f">\n{FOOTNOTE}"),
     # A line under a heading that is lazy in a list item above goes on with it.
     ('- a\n\n  [x]:\n=\n"Xyzzy"', f"- a\n\n  {LINK}"),
-    # `<!-->` and `<!--->` end at once, as a block and inline: the row below is
-    # Markdown again (2026-11-23). Where a later `-->` follows, the cleaning still
-    # reads a comment up to it and takes out the code that GitHub shows.
-    ("<!-->\n[Xyzzy words]: https://example.com", f"<!-->\n{LINK}"),
-    ('<!--->\n[Xyzzy words]: https://example.com "Xyzzy"', f"<!--->\n{LINK}"),
-    ('x\n<!-->\n[d]: https://example.com "Xyzzy"', f"x\n<!-->\n{LINK}"),
+    # `<!-->` and `<!--->` are whole comments, as a block and inline: the row below
+    # is Markdown again, and a later `-->` ends nothing (2026-11-23).
+    ("<!-->\n[Xyzzy words]: https://example.com", f"\n{LINK}"),
+    ('<!--->\n[Xyzzy words]: https://example.com "Xyzzy"', f"\n{LINK}"),
+    ('x\n<!-->\n[d]: https://example.com "Xyzzy"', f"x\n\n{LINK}"),
     (
         'x <!-->\n\n```\ny -->\n```\n\n[d]: https://example.com "Xyzzy"',
-        f"x \n```\n\n{LINK}",
+        f"x \n\n```\ny -->\n```\n\n{LINK}",
     ),
+    # A `-->` in the definition ends no comment that took its start.
+    ('<!-->\n[d]: https://example.com "-->Xyzzy"', f"\n{LINK}"),
+    ("<!--->\n[-->Xyzzy]: https://example.com", f"\n{LINK}"),
+    ('> <!-->\n> [d]: https://example.com "-->Xyzzy"', f"> \n> {LINK}"),
 ]
 
 
@@ -6729,8 +6743,8 @@ HIDDEN_TITLES = [
     (f'[x [b]({URL} "Xyzzy") y]({URL} "Xyzzy")', f"[x [b]({URL}) y]({URL})"),
     # Below an instruction or a comment that ends on its row (2026-11-23).
     (f'<?>\n[a]({URL} "Xyzzy")', f"\n[a]({URL})"),
-    (f'<!-->\n[a]({URL} "Xyzzy")', f"<!-->\n[a]({URL})"),
-    (f'<!--->\n![a]({URL} "Xyzzy")', f"<!--->\n![a]({URL})"),
+    (f'<!-->\n[a]({URL} "Xyzzy")', f"\n[a]({URL})"),
+    (f'<!--->\n![a]({URL} "Xyzzy")', f"\n![a]({URL})"),
 ]
 # Texts that GitHub shows as they are written, with the title as text: in code, in
 # a code span that starts before the `](`, after an escaped bracket, after a
@@ -6990,8 +7004,8 @@ DROPPED_CELLS = [
     ),
     # Below an instruction or a comment that ends on its row (2026-11-23).
     ("<?>\n| a |\n|---|\n| b | Xyzzy |", f"\n| a |\n|---|\n| b {CELLS}"),
-    ("<!-->\n| a |\n|---|\n| b | Xyzzy |", f"<!-->\n| a |\n|---|\n| b {CELLS}"),
-    ("<!--->\n| a |\n|---|\n| b | Xyzzy |", f"<!--->\n| a |\n|---|\n| b {CELLS}"),
+    ("<!-->\n| a |\n|---|\n| b | Xyzzy |", f"\n| a |\n|---|\n| b {CELLS}"),
+    ("<!--->\n| a |\n|---|\n| b | Xyzzy |", f"\n| a |\n|---|\n| b {CELLS}"),
 ]
 
 
@@ -7140,9 +7154,9 @@ DRAWINGS = [
     # once (2026-11-23).
     (
         '<!-->\n<pre lang="mermaid">\ngraph TD\n%% Xyzzy\nA---B\n</pre>',
-        f"<!-->\n{DRAWING}",
+        f"\n{DRAWING}",
     ),
-    ('x <!--> y\n\n<pre lang="mermaid">\n%% Xyzzy\n</pre>', f"x <!--> y\n\n{DRAWING}"),
+    ('x <!--> y\n\n<pre lang="mermaid">\n%% Xyzzy\n</pre>', f"x  y\n\n{DRAWING}"),
     ('<pre lang="mermaid">\n<!-->\nXyzzy</pre>\n\nshown', f"{DRAWING}\n\nshown"),
     ('<pre lang="mermaid">\n<!--->\nXyzzy</pre>\n\nshown', f"{DRAWING}\n\nshown"),
 ]
@@ -7224,6 +7238,60 @@ def test_the_engine_reads_of_each_searched_fence_what_github_shows(case):
     links = " ".join(address for address, _ in assistant.shown_links(text))
     linked = [m for m in case["github hides"] if re.search(rf"https?://\S*{m}", links)]
     assert linked == []
+
+
+SHORT_COMMENT_SEARCH = json.loads(
+    (Path(__file__).with_name("fixtures") / "short-comments.json").read_text("utf-8")
+)
+
+
+def held(marker, read):
+    """Whether a marker word stands in a reading as a word of its own."""
+    return re.search(re.escape(marker) + "(?![a-z0-9])", read) is not None
+
+
+@pytest.mark.parametrize(
+    "case",
+    SHORT_COMMENT_SEARCH["texts"],
+    ids=range(len(SHORT_COMMENT_SEARCH["texts"])),
+)
+def test_the_engine_reads_of_each_searched_short_comment_what_github_shows(case):
+    """`<!-->` and `<!--->` are whole comments for GitHub, as a block, inline and in
+    the HTML of a block: a `-->` after them in a part that the page hides ends no
+    comment, and none of that part reaches a reader, in an issue, a comment or a
+    discussion; what the page shows, each reads, but for the markers that the
+    cleaning takes out where it is hard to tell, which the file lists."""
+    text, cut = case["text"], case.get("the cleaning takes out", [])
+    discussion = {
+        "number": 7,
+        "title": "Title",
+        "user": {"login": "reporter"},
+        "author_association": "NONE",
+        "category": {"name": "Q&A"},
+        "state": "open",
+        "answered": False,
+        "created_at": "2026-11-23T00:00:00Z",
+        "body": text,
+        "comments": [],
+        "comment_count": 0,
+    }
+    for read in (
+        assistant.shown_text(text)[0],
+        assistant.excerpt(text, assistant.MAX_TEXT),
+        assistant.render_issue(make_issue(body=text), []),
+        assistant.render_issue(
+            make_issue(body="x"), [make_comment(1, "reporter", text, 0.1)]
+        ),
+        assistant.render_discussion(discussion),
+        assistant.as_shown(text),
+    ):
+        assert [m for m in case["github hides"] if held(m, read)] == []
+        assert [m for m in case["github shows"] if not held(m, read)] == cut
+    issue = make_issue(body=text)
+    found = [item.url for item in assistant.attachments_of(issue, [], "owner/project")]
+    links = [address for address, _ in assistant.shown_links(text)]
+    for address in (*found, *links):
+        assert not [m for m in case["github hides"] if m in address], address
 
 
 # What the engine reads of an info string: a plain word of CODE_LANGUAGES, or the
@@ -7326,6 +7394,26 @@ def test_what_the_assistant_decides_reads_nothing_hidden_below_a_short_block(con
         "Fixes #12\n\n<!-->\n[this does not fix #12]: https://example.com",
     ):
         assert not assistant.denies_closing(denial, "owner/project", 12), denial
+
+
+def test_what_the_assistant_decides_reads_nothing_hidden_after_a_short_comment(config):
+    """`<!-->` and `<!--->` are whole comments: a later `-->` in a value of a tag or
+    in what a `video` holds ends no comment, and the search, the language, the area
+    and a denial of closing read nothing of it (`gh api -X POST markdown` with the
+    mode gfm, 2026-11-23)."""
+    shown = assistant.search_terms(make_issue(body="It crashes. log"))
+    for body in (
+        'It crashes. <!--> <a title="-->ZqhiddenError ECONNZQ">log</a>',
+        "It crashes. <!---> <video>-->ZqhiddenError ECONNZQ</video> log",
+    ):
+        assert assistant.search_terms(make_issue(body=body)) == shown, body
+    german = " ".join([*GERMAN_REPORT.split()] * 3)
+    body = f'It breaks when I open the page. <!--> <a title="-->{german}">log</a>'
+    assert assistant.issue_language(make_issue(body=body), []) == "en"
+    area = "### Area\n\n<!--> <video>-->Live card</video>\n\n### Version\n\n1.9.0"
+    assert assistant.form_labels(make_issue(body=area), config) == []
+    denial = 'Fixes #12 <!--> <a title="-->this does not fix #12">x</a>'
+    assert not assistant.denies_closing(denial, "owner/project", 12)
 
 
 def test_a_table_in_fenced_code_stays_after_a_fence_that_is_hard_to_tell():
