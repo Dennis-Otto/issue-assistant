@@ -661,7 +661,8 @@ def test_a_file_that_a_void_element_holds_inside_svg_counts_as_none():
     page shows nothing (`gh api -X POST markdown` with the mode gfm, 2026-11-22).
     A link or an image that it holds counts as none, also below an `<svg>` alone on
     the first row; the image of the `<img>` itself still counts, and so does a link
-    after the end of the `<svg>` or outside it."""
+    after the end of the `<svg>` or outside it. Where a tag before the `<svg>` closes
+    the `<p>` of its paragraph, a void tag in it holds the rest of the text."""
     hidden = (
         f"a <svg><br> [log]({LOG})</svg> b",
         f"a <math><hr> [log]({LOG})",
@@ -669,8 +670,14 @@ def test_a_file_that_a_void_element_holds_inside_svg_counts_as_none():
         f"<svg>\n\na <br> [log]({LOG})",
         f"a <SVG><Source>\n[log]({LOG})",
     )
-    for body in hidden:
+    closed = (
+        f'</pre><div><svg><br>\n\n[log]({LOG}) <img src="{IMAGE}">',
+        f"x <div><svg>\n\ny </p><br>\n\n[log]({LOG})\n\n![shot]({IMAGE})",
+    )
+    for body in (*hidden, *closed):
         assert found(body) == [], body
+    for body in closed:
+        assert assistant.shown_links(body) == [], body
     shown = (
         f"a <svg><br> x</svg> [log]({LOG})",
         f"a <svg/><br> [log]({LOG})",
@@ -678,9 +685,12 @@ def test_a_file_that_a_void_element_holds_inside_svg_counts_as_none():
         f"a <br> [log]({LOG})",
         f"`<svg>` <br> [log]({LOG})",
         f"a <svg><br> x\n\n[log]({LOG})",
+        f"x <span><svg><br> x\n\n[log]({LOG})",
+        f"</pre><div><svg>\n\n<br> x\n\n[log]({LOG})",
     )
     for body in shown:
         assert found(body) == SHOWN_LOG, body
+        assert [address for address, _ in assistant.shown_links(body)] == [LOG], body
     image = found(f'a <svg><img src="{IMAGE}"> x</svg> b')
     assert image == [(IMAGE, 0, "image", IMAGE[-36:])]
 

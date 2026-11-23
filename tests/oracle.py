@@ -150,8 +150,11 @@ def described(
     return html.escape(text)
 
 
-# The same, with the description of each Markdown image as text.
-DESCRIBING = Parser("commonmark").disable("text_join")
+# The parser of browser_text, with GitHub's tables, whose cells a browser reads as
+# cells, so that a `</table>` in one closes the table; and the same with the
+# description of each Markdown image as text.
+BROWSING = Parser("commonmark").disable("text_join").enable("table")
+DESCRIBING = Parser("commonmark").disable("text_join").enable("table")
 DESCRIBING.add_render_rule("image", described)
 # One way to read a paragraph: its parts, each read on its own.
 Reading = list[list[Token]]
@@ -624,7 +627,7 @@ def browser_text(markdown: str, descriptions: bool = False) -> str:
     Markdown image counts as shown, as the page shows it where the picture fails;
     the `alt` of an `<img>` of HTML never does. No title of a link or an image
     shows: the page shows it only on hover."""
-    parser = DESCRIBING if descriptions else PARSER
+    parser = DESCRIBING if descriptions else BROWSING
     source = FILTERED_TAG.sub(r"&lt;\1", parser.render(without_extra_cells(markdown)))
     source = source[: nested_too_deep(source)]
     for start, end in reversed(held_by_void(source)):
@@ -643,7 +646,9 @@ def browser_text(markdown: str, descriptions: bool = False) -> str:
 # How deep GitHub nests: it drops the text inside more than DEEPEST elements, and
 # all after it (`gh api markdown -f mode=gfm`, 2026-11-21). The elements that HTML
 # never opens, those that keep an end tag from closing what holds them, those past
-# which no end tag of another element closes one, and those that close an open `p`.
+# which no end tag of another element closes one, and those that close an open `p`:
+# also `<button>`, at which GitHub's parser closes it as at `<dd>` and `<dt>`
+# (2026-11-23).
 DEEPEST = 255
 VOID_ELEMENTS = frozenset(
     [
@@ -818,16 +823,25 @@ CLOSES_P = frozenset(
         "form",
         "table",
         "hr",
+        "li",
+        "dd",
+        "dt",
+        "button",
         "xmp",
     ]
 )
 TABLE_PARTS = ("table", "tbody", "thead", "tfoot", "tr")
+# The elements past which an end tag of a table doesn't close it: a `</table>` in a
+# cell closes the cell and the table (`gh api markdown`, 2026-11-23).
+TABLE_SCOPES = frozenset(["html", "table", "template"])
 # SVG and MathML, the elements inside them that hold HTML again, and the start tags
 # that close them, by the rules of HTML's parser for foreign content, but for those
 # that GitHub's parser nests inside them: `<br>`, `<embed>`, `<hr>`, `<img>` and
-# `<meta>`, which it makes no void element there either, and `<b>`, `<code>` and
-# `<p>`, after which a `<br>` still holds what follows it (`gh api markdown`,
-# 2026-11-22 and 23). The other names are not asked about yet.
+# `<meta>`, which it makes no void element there either, and `<b>`, `<blockquote>`,
+# `<center>`, `<code>`, `<div>`, `<em>`, `<h1>`, `<h2>`, `<i>`, `<li>`, `<p>`,
+# `<pre>`, `<span>`, `<strong>`, `<table>` and `<ul>`, after which a `<br>` still
+# holds what follows it (`gh api markdown`, 2026-11-22 and 23). The other names are
+# not asked about yet.
 FOREIGN_ROOTS = frozenset(["math", "svg"])
 INTEGRATION_POINTS = frozenset(
     [
@@ -845,40 +859,27 @@ INTEGRATION_POINTS = frozenset(
 BREAKING_OUT = frozenset(
     [
         "big",
-        "blockquote",
         "body",
-        "center",
         "dd",
-        "div",
         "dl",
         "dt",
-        "em",
-        "h1",
-        "h2",
         "h3",
         "h4",
         "h5",
         "h6",
         "head",
-        "i",
-        "li",
         "listing",
         "menu",
         "nobr",
         "ol",
-        "pre",
         "ruby",
         "s",
         "small",
-        "span",
-        "strong",
         "strike",
         "sub",
         "sup",
-        "table",
         "tt",
         "u",
-        "ul",
         "var",
     ]
 )
@@ -889,9 +890,10 @@ def nested_too_deep(source: str) -> int:
     """Where HTML first opens more than DEEPEST elements around a position, as a
     browser builds them, or the end of the HTML: an end tag closes the innermost
     element of its name and those inside it, unless an element of SCOPES is
-    inside it, or, for an element that isn't special, one of SPECIAL_ELEMENTS; a
-    `<td>` or `<th>` in a table opens the `<tbody>` and the `<tr>` around it, and a
-    `<tr>` the `<tbody>`; a block closes an open `<p>`, and a `<li>` an open one."""
+    inside it, or, for an element that isn't special, one of SPECIAL_ELEMENTS, and
+    for a `</table>` only one of TABLE_SCOPES; a `<td>` or `<th>` in a table opens
+    the `<tbody>` and the `<tr>` around it, and a `<tr>` the `<tbody>`; a block, a
+    `<hr>` and a `<li>` close an open `<p>`, and a `<li>` an open one."""
     stack: list[str] = []
     position = 0
     while (start := source.find("<", position)) >= 0:
@@ -913,9 +915,8 @@ def nested_too_deep(source: str) -> int:
                 # It closes the SVG or MathML, and is read as HTML.
                 roots = [i for i, held in enumerate(stack) if held in FOREIGN_ROOTS]
                 del stack[roots[-1] :]
-                if name not in VOID_ELEMENTS:
-                    open_element(stack, name)
-        elif name not in VOID_ELEMENTS:
+                open_element(stack, name)
+        else:
             open_element(stack, name)
         if len(stack) > DEEPEST:
             # The element may stay, but empty, and nothing after it.
@@ -964,11 +965,8 @@ def held_by_void(source: str) -> list[tuple[int, int]]:
         elif foreign(stack):
             roots = [i for i, held in enumerate(stack) if held in FOREIGN_ROOTS]
             del stack[roots[-1] :]
-            if name not in VOID_ELEMENTS:
-                open_element(stack, name)
-        elif name not in VOID_ELEMENTS and not (
-            closes_itself and name in FOREIGN_ROOTS
-        ):
+            open_element(stack, name)
+        elif not (closes_itself and name in FOREIGN_ROOTS):
             open_element(stack, name)
         if holder is not None and len(stack) <= holder[0]:
             spans.append((holder[1], start))
@@ -995,14 +993,18 @@ def close(stack: list[str], name: str) -> None:
         if stack[index] == name:
             del stack[index:]
             return
-        if stack[index] in SCOPES or (
+        if name == "table":
+            if stack[index] in TABLE_SCOPES:
+                return
+        elif stack[index] in SCOPES or (
             name not in SPECIAL_ELEMENTS and stack[index] in SPECIAL_ELEMENTS
         ):
             return
 
 
 def open_element(stack: list[str], name: str) -> None:
-    """Opens an element of HTML by its start tag, as nested_too_deep says."""
+    """Opens an element of HTML by its start tag, as nested_too_deep says: a void
+    one, such as `<hr>`, closes an open `<p>` as well, but stays open itself."""
     if name in CLOSES_P and "p" in stack:
         close(stack, "p")
     if name == "li" and "li" in stack:
@@ -1015,7 +1017,8 @@ def open_element(stack: list[str], name: str) -> None:
             stack.append("tbody")
         if name != "tr" and table[-1] != "tr":
             stack.append("tr")
-    stack.append(name)
+    if name not in VOID_ELEMENTS:
+        stack.append(name)
 
 
 # The marks of quotes before a line, and what ends a table on GitHub after them: a
