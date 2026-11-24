@@ -30,6 +30,7 @@ from blueprint import (
     lock_age,
     locks,
     mutation,
+    npm_overrides,
     screenshots,
     translations,
     versions,
@@ -1502,6 +1503,115 @@ def locks_command(arguments: argparse.Namespace, root: Path) -> int:
     return 0
 
 
+def npm_overrides_command(arguments: argparse.Namespace, root: Path) -> int:
+    """Which override of npm in each package.json npm no longer needs; with --fix,
+    each one leaves with the lock file that npm writes without it. Renovate runs it
+    after an update of npm, in its checkout, so that the update that makes an
+    override needless removes it (decision 1112). Before that, with --fix, each
+    package.json whose updates in Renovate's data file all only move its lock file
+    goes back to what Git keeps, and after it npm writes each lock file anew whose
+    root differs from its package.json."""
+    data = os.environ.get(npm_overrides.DATA_FILE)
+    try:
+        updates = (
+            npm_overrides.updates_of(Path(data).read_text(encoding="utf-8"))
+            if data
+            else []
+        )
+    except (OSError, ValueError) as error:
+        print(f"Renovate's data file of the updates, {data}: {error}", file=sys.stderr)
+        return 1
+    packages = npm_overrides.packages(root)
+    # The lock files as Renovate wrote them, against which npm's calls here may bring
+    # no version.
+    written = {
+        name: (root / name).parent.joinpath(npm_overrides.LOCK).read_bytes()
+        for name in packages
+    }
+    if arguments.fix:
+        for name, updated in npm_overrides.put_back(root, packages, updates):
+            print(
+                f"{name}: put back as Git keeps it: its updates of "
+                f"{', '.join(updated)} only move the lock file, and npm saved them "
+                "into it."
+            )
+    names = npm_overrides.manifests(root)
+    if not names and not npm_overrides.unaligned(root, packages):
+        print(
+            "No package.json here has overrides or a package-lock.json beside it "
+            "whose root differs from it."
+        )
+        return 0
+    npm = shutil.which("npm")
+    if npm is None:
+        print(
+            "npm is not installed here, so every override and every lock file stays; "
+            "Renovate installs Node with npm for this command by its rule for npm."
+        )
+        return 1
+    found = npm_overrides_needless(arguments, root, names, npm)
+    failed = False
+    for name, maps in npm_overrides.unaligned(root, packages):
+        what = f"the root of its {npm_overrides.LOCK} differs in {', '.join(maps)}"
+        if not arguments.fix:
+            found = True
+            print(f"{name}: {what}.")
+            continue
+        ok, reason = npm_overrides.align(
+            root, name, npm_overrides.npm_in(npm), written[name]
+        )
+        if ok:
+            print(f"{name}: {what}, so {reason}.")
+        else:
+            failed = True
+            print(f"{name}: {what}, and it stays so: {reason}.", file=sys.stderr)
+    if found and not arguments.fix:
+        print(
+            f"{command(root)} npm-overrides --fix removes each override that npm no "
+            "longer needs and lets npm write each lock file anew whose root differs, "
+            "as Renovate does after an update of npm."
+        )
+        return 1
+    return 1 if failed else 0
+
+
+def npm_overrides_needless(
+    arguments: argparse.Namespace, root: Path, names: list[str], npm: str
+) -> bool:
+    """Tries each override of each package.json of names without it and says what
+    npm still needs; with --fix, the others leave. Whether npm no longer needs one."""
+    found = False
+    for name in names:
+        # A package.json or a lock file that isn't JSON it can write back.
+        try:
+            outcomes = npm_overrides.needless(
+                root, name, npm_overrides.npm_in(npm), fix=arguments.fix
+            )
+        except ValueError as error:
+            # Left alone, so that the other files and Renovate's update go on.
+            print(f"{name}: left alone: {error}", file=sys.stderr)
+            continue
+        for outcome in outcomes:
+            label = outcome.override.label()
+            if not outcome.needless:
+                print(f"{name}: kept the override of {label}: {outcome.reason}.")
+                continue
+            found = True
+            if arguments.fix:
+                print(f"{name}: removed the override of {label}: {outcome.reason}.")
+            else:
+                print(
+                    f"{name}: npm no longer needs the override of {label}: "
+                    f"{outcome.reason}."
+                )
+            if outcome.note:
+                print(
+                    f'{name}: the note "{npm_overrides.NOTE}" beside overrides may '
+                    "speak of it and stays as it is; remove it if it does."
+                )
+    return found
+
+
 def locks_refresh_command(root: Path) -> int:
     """The lock files of pip-compile that Renovate's weekly refresh moved to the newest
     versions, compiled again from versions at least a week old: Renovate runs it in
@@ -1519,8 +1629,10 @@ def locks_refresh_command(root: Path) -> int:
         return 1
     now = datetime.now(UTC)
     failed = False
+    unanswered: list[str] = []
     for name in names:
         found = locks.refresh(root, name, uv, now, lock_age.pypi_uploaded)
+        unanswered += found.unanswered
         if found.note:
             print(f"{name}: left as Renovate refreshed it, for {found.note}.")
         elif found.failure:
@@ -1542,7 +1654,21 @@ def locks_refresh_command(root: Path) -> int:
             "them is younger than a week."
         )
         return 1
-    return 0
+    if not unanswered:
+        return 0
+    versions = ", ".join(sorted(set(unanswered)))
+    if locks.refreshed(root):
+        print(f"PyPI gave no answer about {versions}, which stays as HEAD has it.")
+        return 0
+    # The commit of the refresh would be empty, of which Renovate only warns. A failure
+    # is an artifact error of a branch that it doesn't create, which the bot-health bot
+    # reports, and Renovate's next run of the day tries again (decision 1130).
+    print(
+        f"PyPI gave no answer about {versions}, so the refresh kept it as HEAD has it, "
+        "and no lock file differs from HEAD any more. The refresh fails, so that "
+        "Renovate reports it instead of an empty commit, and its next run tries again."
+    )
+    return 1
 
 
 def locks_age_command(base: str, root: Path) -> int:
@@ -3041,6 +3167,26 @@ def add_locks_parsers(
     )
 
 
+def add_npm_overrides_parser(
+    commands: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
+    """Which override of npm an update has made needless, which Renovate removes."""
+    overrides_parser = commands.add_parser(
+        "npm-overrides",
+        help="which entry of overrides of each package.json npm no longer needs, and "
+        "which lock file has a root that differs from its package.json, as Renovate "
+        "runs it after an update of npm",
+    )
+    overrides_parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="put back each package.json whose updates in Renovate's data file only "
+        "move its lock file, remove each override that npm no longer needs, with the "
+        "lock file that npm writes without it, and let npm write each lock file anew "
+        "whose root differs",
+    )
+
+
 def add_pages_parsers(
     commands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
@@ -3239,6 +3385,7 @@ def parser() -> argparse.ArgumentParser:
         add_advisories_parsers,
         add_best_practices_parser,
         add_locks_parsers,
+        add_npm_overrides_parser,
     ):
         add(commands)
     parser.epilog = command_groups(commands)
@@ -3305,6 +3452,7 @@ def files_command(arguments: argparse.Namespace, root: Path) -> int | None:
         "binaries": lambda: binaries_command(root),
         "decisions": lambda: decisions_command(arguments, root),
         "migrate": lambda: migrate_command(arguments, root),
+        "npm-overrides": lambda: npm_overrides_command(arguments, root),
         "pages": lambda: pages_command(arguments, root),
         "translations": lambda: translations_command(arguments, root),
         "website": lambda: website_command(arguments, root),

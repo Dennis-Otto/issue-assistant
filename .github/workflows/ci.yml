@@ -35,9 +35,11 @@ jobs:
   check:
     name: check (github-action)
     runs-on: ubuntu-24.04
-    # A few times its longest run, so that a run that hangs ends early; a step that
-    # installs, builds or downloads ends after five minutes.
-    timeout-minutes: 8
+    # Measured against the slowest attempts of Dennis-Otto/issue-assistant, which
+    # needed 481 to 485 seconds for every step on 2026-11-22 and 23 (decision 1132),
+    # so that a slow runner doesn't cancel a check that passed and one that hangs
+    # still ends; a step that installs, builds or downloads ends after five minutes.
+    timeout-minutes: 15
     steps:
       - name: Record the network traffic of the job
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
@@ -61,7 +63,7 @@ jobs:
         timeout-minutes: 5
         with:
           # renovate: datasource=pypi depName=uv
-          version: "0.13.7"
+          version: "0.13.8"
           enable-cache: true
           prune-cache: true
           cache-dependency-glob: requirements-dev.txt
@@ -85,13 +87,40 @@ jobs:
         run: |
           coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
           coverage xml -o "$RUNNER_TEMP/coverage.xml"
+      # GitHub's artifact service fails now and then, and the client of the action tries
+      # no network error again, as on 22 November 2026 with ETIMEDOUT: a second try half
+      # a minute later keeps the artifact, over what the first may have left behind
+      # (decision 1096). Only the report of the PR coach reads it, so a second failure
+      # only warns.
       - name: Keep the coverage report
+        id: coverage
         if: always() && hashFiles('.coverage') != ''
+        continue-on-error: true
+        timeout-minutes: 5
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: ${{ runner.temp }}/coverage.xml
           retention-days: 14
+      - name: Give GitHub's artifact service half a minute
+        if: always() && steps.coverage.outcome == 'failure'
+        timeout-minutes: 1
+        run: sleep 30
+      - name: Keep the coverage report once more
+        id: coverage-again
+        if: always() && steps.coverage.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: ${{ runner.temp }}/coverage.xml
+          retention-days: 14
+          overwrite: true
+      - name: Say what GitHub's artifact service didn't keep
+        if: always() && steps.coverage-again.outcome == 'failure'
+        run: >-
+          echo "::warning title=GitHub's artifact service failed::GitHub's artifact service failed twice to keep the coverage report, so the report of the PR coach shows no coverage this time. That changes no check: the gate of the coverage in scripts/check.sh decides on its own."
       # The fix bot: the commands of autofix in .github/checks.toml fix what they
       # can of what the checks found, on the head of the pull request or on main.
       # After the checks, the bot commits the files that they changed onto a branch
@@ -131,8 +160,15 @@ jobs:
           script=.github/blueprint.py
           [[ -f "$script" ]] || script=blueprint.py
           python3 "$script" fix run "$CHECK" --keep "$RUNNER_TEMP/fixes" >> "$GITHUB_STEP_SUMMARY"
+      # GitHub's artifact service fails now and then, and the client of the action tries
+      # no network error again, as on 22 November 2026 with ETIMEDOUT: a second try half
+      # a minute later keeps the artifact, over what the first may have left behind
+      # (decision 1096). A second failure fails the job, as a first one did before.
       - name: Keep the fixes for the fix bot
+        id: fixes
         if: failure() && steps.fix.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fixes-check
@@ -141,6 +177,23 @@ jobs:
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 3
+      - name: Give GitHub's artifact service half a minute
+        if: failure() && steps.fixes.outcome == 'failure'
+        timeout-minutes: 1
+        run: sleep 30
+      - name: Keep the fixes for the fix bot once more
+        id: fixes-again
+        if: failure() && steps.fixes.outcome == 'failure'
+        timeout-minutes: 5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fixes-check
+          path: ${{ runner.temp }}/fixes/
+          # Fixes of files in .github/ as well.
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 3
+          overwrite: true
       # The PR coach: what failed, why it matters and how to fix it, in the summary
       # of the check and as its annotation, from .github/checks.toml.
       - name: Explain the failure
@@ -150,4 +203,5 @@ jobs:
         run: |
           script=.github/blueprint.py
           [[ -f "$script" ]] || script=blueprint.py
+          [[ -f "$script" ]] || { echo "No blueprint.py: the checkout failed, so the PR coach has nothing to explain."; exit 0; }
           python3 "$script" coach explain "$CHECK"

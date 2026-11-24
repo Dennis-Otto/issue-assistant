@@ -179,6 +179,30 @@
       },
     },
     {
+      // After an update of npm, blueprint.py removes each override of a package.json
+      // that the update made needless, such as one that raised minimatch until ESLint
+      // asked for the fixed version itself, so that a test of the project that wants
+      // it gone passes and the update merges by itself. npm writes only the lock
+      // file and runs no script, and an override that npm still needs stays byte for
+      // byte (decision 1112 of the blueprint). Renovate installs Node with npm, which
+      // its image lacks, and the Python of blueprint.py.
+      //
+      // On an update that only moves the lock file, npm saves the new version into
+      // package.json as well, which Renovate would commit with the task's files: the
+      // data file names each update, so that blueprint.py puts back each package.json
+      // whose updates all only move its lock file, and npm writes each lock file anew
+      // whose root then differs from its package.json. Renovate names the file in
+      // RENOVATE_POST_UPGRADE_COMMAND_DATA_FILE, so the command stays as allowed.
+      matchManagers: ["npm"],
+      postUpgradeTasks: {
+        commands: ["python3 .github/blueprint.py npm-overrides --fix"],
+        dataFileTemplate: "[{{#each upgrades}}{{#unless @first}},{{/unless}}{{{toJSON (toObject 'packageFile' packageFile 'depType' depType 'depName' depName 'packageName' packageName 'currentValue' currentValue 'newValue' newValue 'isLockfileUpdate' isLockfileUpdate)}}}{{/each}}]",
+        fileFilters: ["**/package.json", "**/package-lock.json"],
+        executionMode: "branch",
+        installTools: { node: {}, python: {} },
+      },
+    },
+    {
       matchManagers: ["github-actions"],
       matchUpdateTypes: ["minor", "patch", "digest", "pin", "pinDigest"],
       groupName: "the actions",
@@ -299,12 +323,13 @@
       },
     },
     {
-      // The check lint runs the markdownlint-cli2 of its action, and
-      // scripts/markdownlint.sh that of its image: both move in one pull request, so
-      // that the Markdown that passes scripts/check.sh passes lint as well, also with
-      // the new major version of the action that a new markdownlint-cli2 brings. The
-      // tests of the blueprint fail while the two differ.
-      matchDepNames: ["DavidAnson/markdownlint-cli2-action", "davidanson/markdownlint-cli2"],
+      // The check lint, scripts/markdownlint.sh and the Variants workflow run one
+      // image of markdownlint-cli2, by its tag and digest, which moves in all of them
+      // in one pull request of its own, so that the Markdown that passes
+      // scripts/check.sh passes lint as well; a new rule of markdownlint holds back
+      // no other image. Without an action that runs it, no other version waits for a
+      // release of its own (decision 1111).
+      matchDepNames: ["davidanson/markdownlint-cli2"],
       groupName: "markdownlint-cli2",
       separateMajorMinor: false,
     },
