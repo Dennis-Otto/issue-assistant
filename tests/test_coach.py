@@ -273,8 +273,9 @@ def test_each_explanation_of_the_project_is_for_a_check_that_exists():
 
 def test_the_explanation_of_the_template_lint_runs_the_actionlint_of_the_check():
     """The command that the explanation gives runs the same actionlint as the step,
-    so that a contributor sees what the check saw; a bump of the step by Renovate
-    fails here until the explanation follows."""
+    so that a contributor sees what the check saw. Renovate moves the command in
+    .github/checks.project.toml in the same pull request as the step, by the custom
+    manager of .github/renovate.json5, so its update passes here by itself."""
     step = next(
         step
         for step in JOBS["action"]["steps"]

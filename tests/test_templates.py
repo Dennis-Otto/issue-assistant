@@ -612,7 +612,8 @@ def test_every_job_stops_where_github_names_no_commit_of_its_workflow(name):
         assert guard == dict(GUARD, run=guard_step()["run"]), job_name
 
 
-SHA_OF_A_COMMIT = "3d3c42e5aac5ba805825da76410c181273ba90b1"
+# A made-up commit, which no update moves (tests/test_renovated_values.py).
+SHA_OF_A_COMMIT = "0123456789abcdef0123456789abcdef01234567"
 
 
 @pytest.mark.parametrize(
