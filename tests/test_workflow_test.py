@@ -929,8 +929,18 @@ def test_the_stop_is_the_step_and_the_words_that_the_workflows_use():
         if step.get("id") == "blocks"
     }
     assert named == {script.BLOCKS}
-    after_checks = (WORKFLOWS / "after-checks.yml").read_text("utf-8")
-    assert f'grep -qF "{script.STOPPED}" <<<"$errors"' in after_checks
+    # The flaky-test bot keeps the words in a variable of its step and looks for it
+    # among the errors of each job: the step that looks sets it to the gate's words.
+    after_checks = yaml.safe_load((WORKFLOWS / "after-checks.yml").read_text("utf-8"))
+    looking = [
+        step["run"]
+        for item in after_checks["jobs"].values()
+        for step in item.get("steps", [])
+        if 'grep -qF "$STOPPED" <<<"$errors"' in step.get("run", "")
+    ]
+    assert looking
+    for run in looking:
+        assert f'STOPPED="{script.STOPPED}"\n' in run
 
 
 def test_the_jobs_and_annotations_come_from_the_api(monkeypatch):
