@@ -12,6 +12,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 
 # The files that Renovate's managers read, as config:recommended and the rules of
@@ -35,7 +37,7 @@ ACTION = re.compile(r"uses:\s*['\"]?(?P<name>[^\s'\"@]+)@(?P<commit>[0-9a-f]{40}
 # The image of a script or a workflow by its tag and digest, as the custom manager of
 # .github/renovate-blueprint.json5 reads it, and the image of a Dockerfile.
 IMAGE = re.compile(
-    r"(?:^|[\s\"'=])(?P<name>[a-z0-9][a-z0-9._-]*(?:/[a-z0-9._-]+)+)"
+    r"(?:^|[\s\"'=])(?P<name>[a-z0-9][a-z0-9._-]*(?:/[a-z0-9._-]+)*)"
     r":(?P<tag>v?\d[a-zA-Z0-9._-]*)@sha256:(?P<digest>[a-f0-9]{64})"
 )
 FROM = re.compile(
@@ -83,6 +85,10 @@ def named(values, tests):
     part of a longer commit, version or name, and a version with or without its v. A
     file name such as codex-exec-0.162.1.help names the version of a recording, which
     nothing compares with the pin."""
+    if not values:
+        # An empty alternation would match the empty string between any two
+        # characters that are not a part of a word.
+        return []
     bare = {value.removeprefix("v"): value for value in values}
     # The longest first, so that a whole commit wins over its start.
     tokens = re.compile(
@@ -109,10 +115,14 @@ def tracked():
     ).stdout.split("\0")
 
 
+# This test and the next ask Git, which mutmut's copy of the repository doesn't have.
+@pytest.mark.mutation_unsafe
 def test_no_test_names_a_value_that_renovate_moves():
     """The tests in tests/*.py only; the recordings and goldens below tests/ quote
     the files as they were and are compared with nothing that Renovate moves."""
-    values = renovated(ROOT, filter(None, tracked()))
+    files = [name for name in tracked() if name]
+    assert files, "git ls-files lists no file: the guard needs the repository's Git"
+    values = renovated(ROOT, files)
     tests = sorted(
         path
         for path in (ROOT / "tests").glob("*.py")
@@ -125,6 +135,7 @@ def test_no_test_names_a_value_that_renovate_moves():
     )
 
 
+@pytest.mark.mutation_unsafe
 def test_the_guard_sees_every_value_that_renovate_moves():
     """The values of today: an action of a workflow and one of templates/, an image of
     a script and one of a Dockerfile, and a version below "# renovate:"."""
@@ -163,6 +174,7 @@ def test_the_guard_names_the_file_the_line_and_the_value(tmp_path):
         "templates/.github/workflows/a.yml": f"    - uses: t/a@{'c' * 40}\n",
         "scripts/run.sh": (
             f'IMAGE="o/img:2.0@sha256:{digest}"\n'
+            f'BASE="python:3.14@sha256:{"9" * 64}"\n'
             "# renovate: datasource=docker depName=o/tool\n"
             f"TOOL=o/tool:4.5@sha256:{'d' * 64}\n"
         ),
@@ -181,6 +193,8 @@ def test_the_guard_names_the_file_the_line_and_the_value(tmp_path):
         "c" * 40: "the commit of t/a in templates/.github/workflows/a.yml",
         "c" * 7: "the commit of t/a in templates/.github/workflows/a.yml",
         "o/img:2.0": "the image o/img in scripts/run.sh",
+        "python:3.14": "the image python in scripts/run.sh",
+        "9" * 64: "the image python in scripts/run.sh",
         digest: "the image o/img in scripts/run.sh",
         "o/tool:4.5": "the version of o/tool in scripts/run.sh",
         "d" * 64: "the version of o/tool in scripts/run.sh",
@@ -204,3 +218,4 @@ def test_the_guard_names_the_file_the_line_and_the_value(tmp_path):
         "test_x.py:6 names o/img:2.0, the image o/img in scripts/run.sh",
         f"test_x.py:7 names {digest}, the image o/img in scripts/run.sh",
     ]
+    assert named({}, [test]) == []
