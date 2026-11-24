@@ -2108,6 +2108,60 @@ def test_a_tag_that_its_block_ends_takes_the_block_after_a_definition(between):
     assert assistant.shown_text(text) == ("\n(link definition removed)" + between, 1)
 
 
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        # A definition over several rows: its destination, its title or its label
+        # on the next row. GitHub renders each as `<div><br></div>` (2026-11-24).
+        (
+            "<div\n\n[x]:\n/u\n\n<svg><br>Plugh\n\nXyzzy",
+            "\n(link definition removed)\n\n",
+        ),
+        (
+            '<div\n\n[x]: /u\n"title"\n\n<svg><br>Plugh\n\nXyzzy',
+            "\n(link definition removed)\n\n",
+        ),
+        (
+            '<div\n\n[x]: /u\n"title"\n\n<video>Plugh\n\nXyzzy',
+            "\n(link definition removed)\n\n",
+        ),
+        (
+            "<div\n\n[x\ny]: /u\n\n<svg><br>Plugh\n\nXyzzy",
+            "\n(link definition removed)\n\n",
+        ),
+        # A paragraph right below the definition, whose start tag the tag takes.
+        (
+            "<div\n\n[x]: /u\nPlugh <svg><br>Quux\n\nXyzzy",
+            "\n(link definition removed)\nPlugh ",
+        ),
+        # Rows below a definition that no paragraph follows count with it.
+        ("<div\n\n[x]: /u\nzz <svg><br>Plugh", "\n(link definition removed)\nzz "),
+        (
+            "<div\n\n[x]: /u\nzz <svg><br>Plugh\n\n- Xyzzy",
+            "\n(link definition removed)\nzz ",
+        ),
+    ],
+)
+def test_a_tag_that_its_block_ends_takes_the_block_after_a_definition_over_rows(
+    text, shown
+):
+    assert assistant.shown_text(text)[0] == shown
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["<div\n\n# zqh\n<svg><br>Plugh\n\nXyzzy", "<div\n\n## zqh\n<video>Plugh\n\nXyzzy"],
+)
+def test_a_heading_that_a_tag_takes_leaves_the_paragraph_below_it_its_element(text):
+    """The element of an ATX heading ends with its row, so a paragraph right below it
+    keeps its `<p>`: GitHub renders `<div>zqh\\n<p><br></p>\\n<p>Xyzzy</p></div>`
+    (2026-11-24)."""
+    shown = assistant.shown_text(text)[0]
+    assert "zqh" in shown
+    assert "Plugh" not in shown
+    assert shown.endswith("\n\nXyzzy")
+
+
 def test_a_tag_that_its_block_ends_at_the_end_of_the_text_takes_nothing():
     """After the blank rows and the definitions at the end of the text, no block
     follows whose start tag the tag could take."""

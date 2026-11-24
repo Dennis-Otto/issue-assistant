@@ -9654,6 +9654,75 @@
     "zqd"
    ],
    "html": "<pre class=\"notranslate\"><code class=\"notranslate\">&lt;div&gt;\n</code></pre>\n"
+  },
+  {
+   "text": "<div\n\n[x]:\n/u\n\n<svg><br>zqa\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n[x]: /u\n\"title\"\n\n<svg><br>zqa\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n[x]: /u\n\"title\"\n\n<video>zqa\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\"></div>"
+  },
+  {
+   "text": "<div\n\n[x\ny]: /u\n\n<svg><br>zqa\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n[x]: /u\nzqa <svg><br>zqb\n\nzqd",
+   "github shows": [
+    "zqa"
+   ],
+   "github hides": [
+    "zqb",
+    "zqd"
+   ],
+   "html": "<div dir=\"auto\">zqa <br></div>"
+  },
+  {
+   "text": "<div\n\n# zqa\n<svg><br>zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqd"
+   ],
+   "github hides": [
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\">zqa\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">zqd</p></div>"
+  },
+  {
+   "text": "<div\n\n## zqa\n<video>zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqd"
+   ],
+   "github hides": [
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\">zqa\n<p dir=\"auto\"></p>\n<p dir=\"auto\">zqd</p></div>"
   }
  ]
 }

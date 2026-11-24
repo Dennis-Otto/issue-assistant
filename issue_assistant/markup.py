@@ -196,8 +196,13 @@ TAG_BLOCKS = re.compile(
 BLOCK_TAG_START = re.compile(rf"</?(?:{caseless(BLOCK_TAGS)})(?=[\s>]|/>|{ROW_ENDS})")
 # The text of a row that starts a link reference definition or a footnote, for which
 # GitHub writes nothing where it stands, or may start one: the rows of the next
-# block after it count with it.
-DEFINITION_ROW = re.compile(r" {0,3}+\[(?:[^\\\[\]\r\n]|\\.)++\]:")
+# block after it count with it. A label that its row doesn't close may go on below.
+DEFINITION_ROW = re.compile(
+    r" {0,3}+\[(?:[^\\\[\]\r\n]|\\.)*+(?:\]:|\\?+(?=[\r\n]|\Z))"
+)
+# The text of a row that starts an ATX heading, after its indent: its element ends
+# with its row.
+ATX_HEADING = re.compile(r"#{1,6}(?=[ \t\r\n]|\Z)")
 # The text of a row that starts a block whose element holds the paragraphs in it, or
 # that holds none: a quote, a list item, a fence or a rule.
 OWN_ELEMENT = re.compile(
@@ -572,8 +577,11 @@ class Blocks:
         self.handed = region
         found = next_block(self.text, region, rows)
         if found is not None:
-            self.paragraphs = self.paragraphs or Paragraphs(self.text)
-            self.taken = (found[0], self.paragraphs.end(found[1]))
+            first, position, end = found
+            if end is None:
+                self.paragraphs = self.paragraphs or Paragraphs(self.text)
+                end = self.paragraphs.end(position)
+            self.taken = (first, end)
 
     def lost(self, position: int) -> bool:
         """Whether the paragraph, the heading or the table that holds a position has
@@ -1347,35 +1355,52 @@ def next_html(text: str, position: int) -> re.Match[str] | None:
     return HTML_ROW.match(text, blank.end())
 
 
-def next_block(text: str, position: int, rows: Rows) -> tuple[int, int] | None:
+def next_block(
+    text: str, position: int, rows: Rows
+) -> tuple[int, int, int | None] | None:
     """Where the next block starts after the end of the blocks of `rows` at a
     position, if it is a paragraph, a heading or a table, whose element a tag that
-    the blocks end without its `>` takes; and where that block starts, after the
-    definitions and footnotes before it, which GitHub writes elsewhere. None where
-    another block follows, which keeps the elements of the paragraphs in it, or
-    nothing; and where the quotes of the blocks end before it, at a blank row or a
-    row with fewer marks than the shallowest block has, since the tag takes the end
-    tag of the quote then. Where it is hard to tell whether a row is in the same
-    quotes, it is, so that more is taken out."""
-    first = None
+    the blocks end without its `>` takes; where that block starts, after the
+    definitions and footnotes before it, which GitHub writes elsewhere; and, for an
+    ATX heading, the end of its row, where its element ends. None where another
+    block follows, which keeps the elements of the paragraphs in it, or nothing; and
+    where the quotes of the blocks end before it, at a blank row or a row with fewer
+    marks than the shallowest block has, since the tag takes the end tag of the
+    quote then. Where it is hard to tell whether a row is in the same quotes, it is,
+    so that more is taken out.
+
+    A definition or a footnote may go on over the rows below its first, up to a
+    blank row, or a paragraph may follow it there: where it is hard to tell, those
+    rows count with the block taken, and so does the block after the blank rows
+    below them, each row still read once."""
+    first = below = None
+    defining = False
     shallow = rows.shallow if rows.starts is not None else 0
     while position < len(text):
         start, marks = quote_marks(text, position, rows.depth)
         end = row_end(text, start)
         rest = text[start:end].lstrip(" \t")
         if marks < shallow:
-            return None
+            break
         if rest and DEFINITION_ROW.match(text, start) is not None:
             first = position if first is None else first
+            defining = True
+        elif rest and defining:
+            below = position if below is None else below
         elif rest:
             if code(text[position : end - len(rest)]) or OWN_ELEMENT.match(text, start):
-                return None
-            return (position if first is None else first), position
+                break
+            heading = end if ATX_HEADING.match(rest) else None
+            return (position if first is None else first), position, heading
+        else:
+            defining = False
         line = ROW_END.match(text, end)
         if line is None:
-            return None
+            break
         position = line.end()
-    return None
+    if first is None or below is None:
+        return None
+    return first, below, None
 
 
 def inline_end(text: str, start: int, paragraphs: Paragraphs) -> int | None:
