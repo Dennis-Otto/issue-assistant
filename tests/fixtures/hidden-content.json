@@ -1,5 +1,5 @@
 {
- "about": "Texts with an element whose content GitHub keeps and no browser shows, `video`, `rp` and `relative-time`, in a paragraph, a heading, a cell of a table, an HTML block, a quote and a list item, closed, open, closed on a row of its own, self-closed and nested; and with a tag whose quoted value holds a `>`, or which GitHub reads over rows past markup, in each place; made of pieces, with the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-21). The content of a <details> counts as shown, as GitHub shows it on a click. Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed. The texts with a `relative-time`, in whose place GitHub's script for the element draws a date from its `datetime` (2026-11-22), count its content as hidden where the date parses, as the element of GitHub draws it; without a `datetime`, with one that doesn't parse, and with a start tag in another case, which the sanitizer drops, the page shows the words, and the cleaning takes them out, on the safe side. Until GitHub's ends of an open element in a list item, a quote or a cell are read, the cleaning takes out the rest of such a text, as for a `video`. A `relative-time` in the alt text of an image has no text of its own here: the page shows no alt text. Each text's `html` is GitHub's rendering of it for the converter of way D (#520), by gh api -X POST markdown with mode gfm and the context Dennis-Otto/issue-assistant, 2026-11-22; `the converter takes out` and `the converter keeps` name the rule of #520 by which the converter differs from what GitHub shows. The texts with `<svg>` and `<math>` (2026-11-22 and 23) are those of a search of their own: GitHub's parser makes no element void inside them, so that a `<br>`, `<hr>`, `<img>` or `<source>` there holds what follows it, of which GitHub writes nothing; the cleaning takes out what any void tag holds there, to the end of the outermost `<svg>` or `<math>`, of its paragraph or heading, or in an HTML block or a list item of the text, and the markers that GitHub shows of it are listed. Their `html` is GitHub's rendering without the context of a repository, but for those of a second search (2026-11-23), with the context: an `<svg>` or `<math>` of a paragraph whose `<p>` a tag before it closes, such as `<div>`, `<hr>`, `</p>` or the end tag of an element around the paragraph, stays open past the paragraph, and a void tag in it hides the rest of the text; with each name of the list of the cleaning, whose tags leave the `<p>` open, the start tags and the end tags that close it, stray end tags, start tags inside the element, the void tag in a later paragraph, the containers, code, escapes, the autolink form and the ends of the element. Where the cleaning can't tell whether a tag closes the `<p>`, as for an end tag that closes nothing, or after the end of an element around it, it takes out the rest: those markers are listed.",
+ "about": "Texts with an element whose content GitHub keeps and no browser shows, `video`, `rp` and `relative-time`, in a paragraph, a heading, a cell of a table, an HTML block, a quote and a list item, closed, open, closed on a row of its own, self-closed and nested; and with a tag whose quoted value holds a `>`, or which GitHub reads over rows past markup, in each place; made of pieces, with the marker words of each that GitHub's renderer shows and hides (gh api -X POST markdown with mode gfm, as Chrome shows the HTML, 2026-11-21). The content of a <details> counts as shown, as GitHub shows it on a click. Where it is hard to tell, the cleaning takes out a marker that GitHub shows: those are listed. The texts with a `relative-time`, in whose place GitHub's script for the element draws a date from its `datetime` (2026-11-22), count its content as hidden where the date parses, as the element of GitHub draws it; without a `datetime`, with one that doesn't parse, and with a start tag in another case, which the sanitizer drops, the page shows the words, and the cleaning takes them out, on the safe side. Until GitHub's ends of an open element in a list item, a quote or a cell are read, the cleaning takes out the rest of such a text, as for a `video`. A `relative-time` in the alt text of an image has no text of its own here: the page shows no alt text. Each text's `html` is GitHub's rendering of it for the converter of way D (#520), by gh api -X POST markdown with mode gfm and the context Dennis-Otto/issue-assistant, 2026-11-22; `the converter takes out` and `the converter keeps` name the rule of #520 by which the converter differs from what GitHub shows. The texts with `<svg>` and `<math>` (2026-11-22 and 23) are those of a search of their own: GitHub's parser makes no element void inside them, so that a `<br>`, `<hr>`, `<img>` or `<source>` there holds what follows it, of which GitHub writes nothing; the cleaning takes out what any void tag holds there, to the end of the outermost `<svg>` or `<math>`, of its paragraph or heading, or in an HTML block or a list item of the text, and the markers that GitHub shows of it are listed. Their `html` is GitHub's rendering without the context of a repository, but for those of a second search (2026-11-23), with the context: an `<svg>` or `<math>` of a paragraph whose `<p>` a tag before it closes, such as `<div>`, `<hr>`, `</p>` or the end tag of an element around the paragraph, stays open past the paragraph, and a void tag in it hides the rest of the text; with each name of the list of the cleaning, whose tags leave the `<p>` open, the start tags and the end tags that close it, stray end tags, start tags inside the element, the void tag in a later paragraph, the containers, code, escapes, the autolink form and the ends of the element. Where the cleaning can't tell whether a tag closes the `<p>`, as for an end tag that closes nothing, or after the end of an element around it, it takes out the rest: those markers are listed. The texts of a third search (2026-11-23 and 24, with the context, the content of every <details> open) have a tag, an instruction, a declaration, a section of CDATA or `</` without a name that its HTML block ends without its `>`: GitHub's HTML parser reads the start tag of the next block into it, so that a paragraph, a heading or a table there has no element of its own, and an `<svg>`, a `video`, an `rp` or a `relative-time` in it stays open past its end; with the open tags, the markup, the next blocks, the places, the ends and what keeps its element; and a `video`, an `rp` or a `relative-time` after a tag that closes the `<p>` of its paragraph, also in the content of another. Where the cleaning can't tell whether an end closes the element, as an enclosing `</div>` or the end of a quote, it takes out the rest: those markers are listed.",
  "texts": [
   {
    "text": "<ruby>x<rp>zqa</rp><rt>y</rt></ruby>",
@@ -8149,6 +8149,1580 @@
     "Xyzzy"
    ],
    "html": "<p dir=\"auto\">x <rp></rp></p><div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n<svg><source>\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><source></div>"
+  },
+  {
+   "text": "Alpha\n\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n<DIV\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div class=x\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div t=\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div title=\"a\"\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div title=\"a\" dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n</div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<br>"
+  },
+  {
+   "text": "Alpha\n\n<details\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<details><summary>Details</summary><br></details>"
+  },
+  {
+   "text": "Alpha\n\n<table\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<br><markdown-accessiblity-table><table role=\"table\"></table></markdown-accessiblity-table>"
+  },
+  {
+   "text": "Alpha\n\n<h1\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<h1 dir=\"auto\"><br></h1>"
+  },
+  {
+   "text": "Alpha\n\n<ul\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<ul dir=\"auto\"><br></ul>"
+  },
+  {
+   "text": "Alpha\n\n<section\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<section><br></section>"
+  },
+  {
+   "text": "Alpha\n\n<blockquote\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<blockquote><br></blockquote>"
+  },
+  {
+   "text": "Alpha\n\n<hr\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<hr><br>"
+  },
+  {
+   "text": "Alpha\n\n<li\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<li><br></li>"
+  },
+  {
+   "text": "Alpha\n\n<td\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<br>"
+  },
+  {
+   "text": "Alpha\n\n<tr\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<br>"
+  },
+  {
+   "text": "Alpha\n\n<option\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<br>"
+  },
+  {
+   "text": "Alpha\n\n<html\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<br>"
+  },
+  {
+   "text": "Alpha\n\n<body\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<br>"
+  },
+  {
+   "text": "Alpha\n\n<link\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<br>"
+  },
+  {
+   "text": "Alpha\n\n<div\nmore words\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div>\n<span\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\">\n<span><br></span></div>"
+  },
+  {
+   "text": "Alpha\n\n<div>\n<b class=x\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\">\n<b><br></b></div>"
+  },
+  {
+   "text": "Alpha\n\n<x-y>\n<span\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n\n<span><br></span>"
+  },
+  {
+   "text": "Alpha\n\n<details>\n<span\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<details><summary>Details</summary>\n<span><br></span></details>"
+  },
+  {
+   "text": "Alpha\n\n<div>a</div>\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\">a</div>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div><?\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div><![CDATA[\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div>\n</1\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\">\n<br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div>\n<?x\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\">\n<br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div>\n<!x\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\">\n<br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div>\n<![CDATA[ x\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\">\n<br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div><!X y\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "# H\n\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<h1 dir=\"auto\">H</h1>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "```\nx\n```\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">x\n</code></pre>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "   <div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "   <div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div\n\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\n\n<div\n  \n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "Alpha\r\n\r\n<div\r\n\r\n<svg><br>Plugh\r\n\r\nZqtail\r\n\r\n- Wumpus",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n<svg><source>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><source></div>"
+  },
+  {
+   "text": "<div\n\n<svg><hr>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><hr></div>"
+  },
+  {
+   "text": "<div\n\n<svg><img src=x>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"x\"><img src=\"x\" style=\"max-width: 100%;\"></a></div>"
+  },
+  {
+   "text": "<div\n\n<math><br>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n<SVG><BR>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\nx <svg><br>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\">x <br></div>"
+  },
+  {
+   "text": "<div\n\n<b><svg><br>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><b><br></b></div>"
+  },
+  {
+   "text": "<div\n\n<span>x</span><svg><br>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><span>x</span><br></div>"
+  },
+  {
+   "text": "<div\n\n<svg>Plugh\n\n<br>Quux\n\nZqtail",
+   "github shows": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "github hides": [
+    "Quux"
+   ],
+   "html": "<div dir=\"auto\">Plugh<p dir=\"auto\"></p>\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\n# <svg><br>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n<svg><br>Plugh\n---\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n| <svg><br>Plugh |\n|---|\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\">\n\n\n<br></div>"
+  },
+  {
+   "text": "<div\n\n| a |\n|---|\n| <svg><br>Plugh |\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\">\n\n\na\n\n\n\n\n<br></div>"
+  },
+  {
+   "text": "<div\n\n[x]: https://e.com\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n[x]: https://e.com\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n<svg><br>Plugh\n\nZqtail\n\n[^1]: note\n\nAfter[^1]",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "After"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "> Alpha\n>\n> <div\n>\n> <svg><br>Plugh\n>\n> Zqtail\n\nAfter",
+   "github shows": [
+    "Alpha",
+    "After"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "the cleaning takes out": [
+    "After"
+   ],
+   "html": "<blockquote>\n<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div></blockquote>\n<p dir=\"auto\">After</p>"
+  },
+  {
+   "text": "> > Alpha\n> >\n> > <div\n> >\n> > <svg><br>Plugh\n> >\n> > Zqtail\n\nAfter",
+   "github shows": [
+    "Alpha",
+    "After"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "the cleaning takes out": [
+    "After"
+   ],
+   "html": "<blockquote>\n<blockquote>\n<p dir=\"auto\">Alpha</p>\n<div dir=\"auto\"><br></div></blockquote>\n</blockquote>\n<p dir=\"auto\">After</p>"
+  },
+  {
+   "text": "<details>\n\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n</details>\n\nAfter",
+   "github shows": [
+    "After"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "the cleaning takes out": [
+    "After"
+   ],
+   "html": "<details><summary>Details</summary>\n<div dir=\"auto\"><br></div></details>\n<p dir=\"auto\">After</p>"
+  },
+  {
+   "text": "<span\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\">&lt;span</p>\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p>"
+  },
+  {
+   "text": "<a\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\">&lt;a</p>\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p>"
+  },
+  {
+   "text": "<div/\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\">&lt;div/</p>\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p>"
+  },
+  {
+   "text": "<div>\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<pre\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "github hides": [],
+   "html": "<pre class=\"notranslate\"><br>Plugh\n\nZqtail</pre>"
+  },
+  {
+   "text": "<p\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p>"
+  },
+  {
+   "text": "<P class=x\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p>"
+  },
+  {
+   "text": "</p\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<p dir=\"auto\"></p><br>"
+  },
+  {
+   "text": "<div\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "github hides": [],
+   "html": "<div dir=\"auto\"><br>Plugh\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\nfirst words\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "first",
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\">first words<p dir=\"auto\"></p>\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\n> <svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\"><br></p>\n\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\n---\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\n***\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\n```\n<svg><br>Plugh\n```\n\nZqtail",
+   "github shows": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "github hides": [],
+   "html": "<div dir=\"auto\"><code class=\"notranslate\">&lt;svg&gt;&lt;br&gt;Plugh\n</code>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\n    <svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\"><code class=\"notranslate\">&lt;svg&gt;&lt;br&gt;Plugh\n</code>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\n<!-- c -->\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\n<svg><br>Plugh\n\n</svg>\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\"><br>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "> <div\n\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p></div></blockquote>"
+  },
+  {
+   "text": "- <div\n\n  <svg><br>Plugh\n\n  Zqtail\n\nAfter",
+   "github shows": [
+    "After"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "the cleaning takes out": [
+    "After"
+   ],
+   "html": "<ul dir=\"auto\">\n<li>\n<div dir=\"auto\"><br></div></li>\n</ul>\n<p dir=\"auto\">After</p>"
+  },
+  {
+   "text": "<div\n\n- <svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "the cleaning takes out": [
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\">\n<li><br></li>\n\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\n1. <svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "the cleaning takes out": [
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\">\n<li><br></li>\n\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "> <div\n>\n<svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">Zqtail</p></div></blockquote>"
+  },
+  {
+   "text": "> <div\n>\n>> <svg><br>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\">\n<p dir=\"auto\"><br></p>\n</div></blockquote>\n\n<p dir=\"auto\">Zqtail</p>"
+  },
+  {
+   "text": "<div\n\n<svg><br>Plugh</div> Quux\n\nZqtail",
+   "github shows": [
+    "Quux",
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "the cleaning takes out": [
+    "Quux",
+    "Zqtail"
+   ],
+   "html": "<div dir=\"auto\"><br></div> Quux<p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p>"
+  },
+  {
+   "text": "<div\n\n<svg><br>Plugh</svg> Quux\n\nZqtail",
+   "github shows": [
+    "Quux",
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\"><br> Quux<p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div\n\n<video>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<div dir=\"auto\"></div>"
+  },
+  {
+   "text": "<div\n\n# <video>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<div dir=\"auto\"></div>"
+  },
+  {
+   "text": "<div\n\n| <video>Plugh |\n|---|\n\nZqtail\n\n- Wumpus",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<div dir=\"auto\">\n\n\n</div>"
+  },
+  {
+   "text": "> <div\n>\n> <video>Plugh\n>\n> Zqtail\n\n- Wumpus",
+   "github shows": [
+    "Wumpus"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "the cleaning takes out": [
+    "Wumpus"
+   ],
+   "html": "<blockquote>\n<div dir=\"auto\"></div></blockquote>\n<ul dir=\"auto\">\n<li>Wumpus</li>\n</ul>"
+  },
+  {
+   "text": "<div\n\n<rp>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<div dir=\"auto\"><rp>Plugh<p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p>\n<ul dir=\"auto\">\n<li>Wumpus</li>\n</ul></rp></div>"
+  },
+  {
+   "text": "<div\n\n<ruby>a<rp>Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<div dir=\"auto\"><ruby>a<rp>Plugh<p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p>\n<ul dir=\"auto\">\n<li>Wumpus</li>\n</ul></rp></ruby></div>"
+  },
+  {
+   "text": "<div\n\n<relative-time datetime=\"2020-01-01T00:00:00Z\">Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<div dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">Plugh<p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p>\n<ul dir=\"auto\">\n<li>Wumpus</li>\n</ul></relative-time></div>"
+  },
+  {
+   "text": "<div\n\n## <relative-time datetime=\"2020-01-01T00:00:00Z\">Plugh\n\nZqtail\n\n- Wumpus",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail",
+    "Wumpus"
+   ],
+   "html": "<div dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">Plugh\n<p dir=\"auto\">Zqtail</p>\n<ul dir=\"auto\">\n<li>Wumpus</li>\n</ul></relative-time></div>"
+  },
+  {
+   "text": "<div\n\n<video>Plugh</video> Quux\n\nZqtail",
+   "github shows": [
+    "Quux",
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\"> Quux<p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<p\n\n<video>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p>"
+  },
+  {
+   "text": "<div\n\n> <video>Plugh\n\nZqtail",
+   "github shows": [
+    "Zqtail"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<div dir=\"auto\">\n<p dir=\"auto\"></p>\n\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "x <div><video>Plugh\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><div dir=\"auto\"></div>"
+  },
+  {
+   "text": "x <hr><video>Plugh\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><hr>"
+  },
+  {
+   "text": "x </p><video>Plugh\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p>"
+  },
+  {
+   "text": "x <div><rp>Plugh\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><div dir=\"auto\"><rp>Plugh<p dir=\"auto\"></p>\n<p dir=\"auto\">Xyzzy</p></rp></div>"
+  },
+  {
+   "text": "x <div><relative-time datetime=\"2020-01-01T00:00:00Z\">Plugh\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><div dir=\"auto\"><relative-time datetime=\"2020-01-01T00:00:00Z\">Plugh<p dir=\"auto\"></p>\n<p dir=\"auto\">Xyzzy</p></relative-time></div>"
+  },
+  {
+   "text": "x <table><video>Plugh\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><markdown-accessiblity-table><table role=\"table\"></table></markdown-accessiblity-table>"
+  },
+  {
+   "text": "x <div>\ny <video>Plugh\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><div dir=\"auto\"><br>\ny </div>"
+  },
+  {
+   "text": "x </b><video>Plugh\n\nXyzzy",
+   "github shows": [
+    "Xyzzy"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\">x </p>\n<p dir=\"auto\">Xyzzy</p>"
+  },
+  {
+   "text": "x <b><video>Plugh\n\nXyzzy",
+   "github shows": [
+    "Xyzzy"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\">x <b></b></p><b>\n<p dir=\"auto\">Xyzzy</p></b>"
+  },
+  {
+   "text": "# x <div><video>Plugh\n\nXyzzy",
+   "github shows": [
+    "Xyzzy"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<h1 dir=\"auto\">x <div dir=\"auto\"></div></h1>\n<p dir=\"auto\">Xyzzy</p>"
+  },
+  {
+   "text": "x <div><video>Plugh</video> Quux\n\nXyzzy",
+   "github shows": [
+    "Quux",
+    "Xyzzy"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\">x </p><div dir=\"auto\"> Quux<p dir=\"auto\"></p>\n<p dir=\"auto\">Xyzzy</p></div>"
+  },
+  {
+   "text": "<video><details><video>\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\"></p><details><summary>Details</summary></details>"
+  },
+  {
+   "text": "x <video>a<div>Plugh\n\nXyzzy",
+   "github shows": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><div dir=\"auto\">Plugh<p dir=\"auto\"></p>\n<p dir=\"auto\">Xyzzy</p></div>"
+  },
+  {
+   "text": "<video></p><video>\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\"></p>"
+  },
+  {
+   "text": "x </div><video>Plugh\n\nXyzzy",
+   "github shows": [
+    "Xyzzy"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "the cleaning takes out": [
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p>\n<p dir=\"auto\">Xyzzy</p>"
+  },
+  {
+   "text": "<div>\n<!X zqa\n\nzqb> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "html": "<div dir=\"auto\">\nzqb&gt; zqc<p dir=\"auto\"></p>\n<p dir=\"auto\">zqd</p></div>"
+  },
+  {
+   "text": "<div>\n<?x\n\nPlugh <b>Quux</b>\n\nZqtail",
+   "github shows": [
+    "Plugh",
+    "Quux",
+    "Zqtail"
+   ],
+   "github hides": [],
+   "html": "<div dir=\"auto\">\nPlugh <b>Quux</b><p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div>\n<?x\n\nPlugh\n\nZqtail",
+   "github shows": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "github hides": [],
+   "html": "<div dir=\"auto\">\nPlugh<p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<x-y>\n<?x\n\nPlugh\n\nZqtail",
+   "github shows": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "\nPlugh<p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p>"
+  },
+  {
+   "text": "Alpha\n<x-y>\n<?x\n\nPlugh\n\nZqtail",
+   "github shows": [
+    "Alpha"
+   ],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "<p dir=\"auto\">Alpha<br>\n</p>\n"
+  },
+  {
+   "text": "<!X a\n<div>\n<?x\n\nPlugh\n\nZqtail",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "html": "\n"
+  },
+  {
+   "text": "<div>\n<?x ?>\n\nPlugh\n\nZqtail",
+   "github shows": [
+    "Plugh",
+    "Zqtail"
+   ],
+   "github hides": [],
+   "html": "<div dir=\"auto\">\n\n<p dir=\"auto\">Plugh</p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "<div>\n<?x\n\nPlugh ?> Quux\n\nZqtail",
+   "github shows": [
+    "Plugh",
+    "Quux",
+    "Zqtail"
+   ],
+   "github hides": [],
+   "html": "<div dir=\"auto\">\nPlugh ?&gt; Quux<p dir=\"auto\"></p>\n<p dir=\"auto\">Zqtail</p></div>"
+  },
+  {
+   "text": "</pre><details><video>\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\"></p><details><summary>Details</summary></details>"
+  },
+  {
+   "text": "x <video>Plugh\n\nXyzzy",
+   "github shows": [
+    "Xyzzy"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\">x </p>\n<p dir=\"auto\">Xyzzy</p>"
+  },
+  {
+   "text": "x <video>Plugh <div> Quux\n\nXyzzy",
+   "github shows": [
+    "Quux",
+    "Xyzzy"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "the cleaning takes out": [
+    "Quux",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><div dir=\"auto\"> Quux<p dir=\"auto\"></p>\n<p dir=\"auto\">Xyzzy</p></div>"
+  },
+  {
+   "text": "x <li><rp>Plugh\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><li><rp>Plugh<p dir=\"auto\"></p>\n<p dir=\"auto\">Xyzzy</p></rp></li>"
+  },
+  {
+   "text": "<video>a<details>b<video>Plugh\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\"></p><details><summary>Details</summary>b</details>"
+  },
+  {
+   "text": "x <video>a<details>Plugh\n\nXyzzy",
+   "github shows": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Plugh",
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><details><summary>Details</summary>Plugh<p dir=\"auto\"></p>\n<p dir=\"auto\">Xyzzy</p></details>"
+  },
+  {
+   "text": "<video><details>\n\nXyzzy",
+   "github shows": [
+    "Xyzzy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\"></p><details><summary>Details</summary><p dir=\"auto\"></p>\n<p dir=\"auto\">Xyzzy</p></details>"
+  },
+  {
+   "text": "<svg><svg><div><br></svg><video>\n\nXyzzy",
+   "github shows": [
+    "Xyzzy"
+   ],
+   "github hides": [],
+   "html": "<p dir=\"auto\"></p><div dir=\"auto\"><br></div><p></p>\n<p dir=\"auto\">Xyzzy</p>"
+  },
+  {
+   "text": "<svg><video>Plugh\n\nXyzzy",
+   "github shows": [
+    "Xyzzy"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "html": "<p dir=\"auto\"></p>\n<p dir=\"auto\">Xyzzy</p>"
+  },
+  {
+   "text": "x <svg><video>Plugh</svg> Quux\n\nXyzzy",
+   "github shows": [
+    "Quux",
+    "Xyzzy"
+   ],
+   "github hides": [
+    "Plugh"
+   ],
+   "the cleaning takes out": [
+    "Quux"
+   ],
+   "html": "<p dir=\"auto\">x  Quux</p>\n<p dir=\"auto\">Xyzzy</p>"
+  },
+  {
+   "text": "x <video>a<hr><video>b\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><hr>"
+  },
+  {
+   "text": "x <video>a</p><video>b\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p>"
+  },
+  {
+   "text": "x <video>a</div><video>b\n\nXyzzy",
+   "github shows": [
+    "Xyzzy"
+   ],
+   "github hides": [],
+   "the cleaning takes out": [
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p>\n<p dir=\"auto\">Xyzzy</p>"
+  },
+  {
+   "text": "x <video>a<table><video>b\n\nXyzzy",
+   "github shows": [],
+   "github hides": [
+    "Xyzzy"
+   ],
+   "html": "<p dir=\"auto\">x </p><markdown-accessiblity-table><table role=\"table\"></table></markdown-accessiblity-table>"
+  },
+  {
+   "text": "<div>\n<? zqa\n\nzqb <b>zqc</b>\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "html": "<div dir=\"auto\">\nzqb <b>zqc</b><p dir=\"auto\"></p>\n<p dir=\"auto\">zqd</p></div>"
+  },
+  {
+   "text": "<div>\n<? zqa\n\nzqb ?> zqc\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "html": "<div dir=\"auto\">\nzqb ?&gt; zqc<p dir=\"auto\"></p>\n<p dir=\"auto\">zqd</p></div>"
+  },
+  {
+   "text": "<div>\n<? zqa ?>\n\nzqb\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "html": "<div dir=\"auto\">\n\n<p dir=\"auto\">zqb</p>\n<p dir=\"auto\">zqd</p></div>"
+  },
+  {
+   "text": "<!X zqa\n<div>\n<? zqb\n\nzqc\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqc",
+    "zqd"
+   ],
+   "html": "\n"
+  },
+  {
+   "text": "<x-y>\n<? zqa\n\nzqb\n\nzqd",
+   "github shows": [
+    "zqb",
+    "zqd"
+   ],
+   "github hides": [
+    "zqa"
+   ],
+   "the cleaning takes out": [
+    "zqb",
+    "zqd"
+   ],
+   "html": "\nzqb<p dir=\"auto\"></p>\n<p dir=\"auto\">zqd</p>"
+  },
+  {
+   "text": "x\n<x-y>\n<? zqa\n\nzqb\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "html": "<p dir=\"auto\">x<br>\n</p>\n"
+  },
+  {
+   "text": "```\n<div>\n```\n<? zqa\n\nzqb\n\nzqd",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb",
+    "zqd"
+   ],
+   "html": "<pre class=\"notranslate\"><code class=\"notranslate\">&lt;div&gt;\n</code></pre>\n"
+  },
+  {
+   "text": "<div\n\n[x]:\n/u\n\n<svg><br>zqa\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n[x]: /u\n\"title\"\n\n<svg><br>zqa\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n[x]: /u\n\"title\"\n\n<video>zqa\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\"></div>"
+  },
+  {
+   "text": "<div\n\n[x\ny]: /u\n\n<svg><br>zqa\n\nzqb",
+   "github shows": [],
+   "github hides": [
+    "zqa",
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\"><br></div>"
+  },
+  {
+   "text": "<div\n\n[x]: /u\nzqa <svg><br>zqb\n\nzqd",
+   "github shows": [
+    "zqa"
+   ],
+   "github hides": [
+    "zqb",
+    "zqd"
+   ],
+   "html": "<div dir=\"auto\">zqa <br></div>"
+  },
+  {
+   "text": "<div\n\n# zqa\n<svg><br>zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqd"
+   ],
+   "github hides": [
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\">zqa\n<p dir=\"auto\"><br></p>\n<p dir=\"auto\">zqd</p></div>"
+  },
+  {
+   "text": "<div\n\n## zqa\n<video>zqb\n\nzqd",
+   "github shows": [
+    "zqa",
+    "zqd"
+   ],
+   "github hides": [
+    "zqb"
+   ],
+   "html": "<div dir=\"auto\">zqa\n<p dir=\"auto\"></p>\n<p dir=\"auto\">zqd</p></div>"
   }
  ]
 }

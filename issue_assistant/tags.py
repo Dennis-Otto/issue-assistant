@@ -41,6 +41,7 @@ from .markup import (
     comment_closes,
     held_tag_end,
     hidden_html,
+    in_tag_block,
     inline_end,
     inline_markup_end,
     raw_tag_end,
@@ -49,6 +50,7 @@ from .markup import (
     row_or_position,
     row_start,
     tag_row,
+    takes_a_tag,
 )
 
 TAG_REST_ONLY = re.compile(TAG_REST)
@@ -78,9 +80,9 @@ SPECIAL_TAGS = (
 SPECIAL = re.compile(SPECIAL_TAGS, re.IGNORECASE | re.ASCII)
 # In the content of a hidden element, the reading stops also at a tag that may end
 # it or that starts another, of the names of hidden elements, of ruby and of the
-# special elements, also where a `>` ends it at once.
+# special elements, and at `<hr>`, also where a `>` ends it at once.
 INNER = (
-    r"(?P<inner>(?ai:/?(?:video|rp|relative-time|ruby|rtc|rt|rb"
+    r"(?P<inner>(?ai:/?(?:video|rp|relative-time|ruby|rtc|rt|rb|hr"
     rf"|{SPECIAL_TAGS}))(?=[\t\n\f\r />]))"
 )
 # The void elements of HTML, which hold nothing: outside `<svg>` and `<math>` alone,
@@ -568,7 +570,10 @@ class Hidden:
     `rp` in a `ruby` also at the `</ruby>` and at the next `<rt>`, `<rp>`, `<rb>` or
     `<rtc>`. Without such an end, it runs to the end of the paragraph or the
     heading, and otherwise, as in an HTML block, a quote or a list item, whose end
-    the parser may find later, to the end of the text.
+    the parser may find later, to the end of the text; so it does in a paragraph
+    whose `<p>` a tag before it closed, as Closings reads it, or whose start tag a
+    tag above it took, as Blocks.lost says, and after a tag in its content that may
+    close the `<p>`, since the `</p>` of the paragraph then ends nothing.
 
     Where it is hard to tell, it hides more: no end counts after a backtick of the
     content, which may start code that holds it, after a fence in the rows between,
@@ -609,6 +614,8 @@ class Hidden:
         self.code: tuple[int, int, int, bool] = (-1, 0, -1, False)
         # The row that was read last for a heading, and whether it is one.
         self.headed = (-1, False)
+        # Whether the `<p>` of a paragraph is closed, as Foreign reads it.
+        self.closings: Closings | None = None
 
     def open(self, start: int, before: int) -> Element | int | None:
         """The element whose start tag starts at a position, or where its content
@@ -621,7 +628,7 @@ class Hidden:
         name = hidden_name(text, start)
         held = self.blocks.holding(start)
         container: int | None = None
-        rows = None
+        rows, heading = None, False
         if held:
             opened, _ = block_tag_end(text, start, held, self.blocks, search)
             if opened is None:
@@ -637,7 +644,8 @@ class Hidden:
             if tag is None or tag.end() > limit or self.in_code(start, before):
                 return None
             opened = tag.end()
-            if self.heading(start):
+            heading = self.heading(start)
+            if heading:
                 container = limit = search.row_end(start)
             elif self.rows.lists() <= start:
                 # A paragraph of a tight list item reaches the parser without its
@@ -649,6 +657,16 @@ class Hidden:
         simple = SIMPLE_CONTENT[name].match(text, opened)
         if simple and simple.start("end") < limit:
             return simple.end()
+        if (
+            container is not None
+            and container >= 0
+            and (self.blocks.lost(start) or self.closed(start, before, heading))
+        ):
+            # A paragraph, a heading or a table whose start tag a tag above it took
+            # reaches the parser without its own element, as in a list; and one
+            # whose `<p>` a tag before the element closed has none where the
+            # element starts, so that its `</p>` ends nothing.
+            container = REST
         element = Element(text, start, opened, name, container)
         element.limit = limit
         if rows is not None and rows.top:
@@ -657,6 +675,18 @@ class Hidden:
         if name == "rp" and self.in_ruby(start):
             element.ruby, element.following = True, text.find("<", opened)
         return element
+
+    def closed(self, start: int, before: int, heading: bool) -> bool:
+        """Whether the `<p>` of the paragraph or the heading that holds a position is
+        closed there, as Closings reads it, where a tag before it in its paragraph
+        may count: an end tag of a name outside PHRASING, or a start tag of one, such
+        as `<div>`, `<hr>` or `<table>` (`gh api markdown`, 2026-11-24)."""
+        closings = self.closings
+        assert closings is not None  # Foreign gives it before any element opens.
+        paragraph = self.paragraphs.end(start)
+        return (
+            closings.next < start or closings.paragraph == paragraph
+        ) and closings.closed(start, before, paragraph, heading, start)
 
     def held_end(
         self, found: re.Match[str], held: list[Block]
@@ -674,6 +704,7 @@ class Hidden:
             after, state = tag_row(text, found.end(), stop, "!")
             if state == ">":
                 return after, True
+            held = in_tag_block(text, start, held, blocks)
             return held_tag_end(text, (after, stop, state), held, blocks), True
         name = TAG_NAME.match(text, start)
         assert name is not None  # TAG_START found a tag there.
@@ -682,7 +713,8 @@ class Hidden:
         if state == ">":
             return after, text.find(">", start, after - 1) >= 0
         rows = Rows(text, held, blocks)
-        end = held_tag_end(text, (after, stop, state), held, blocks, rows)
+        first = (after, stop, state)
+        end = held_tag_end(text, first, held, blocks, rows, takes_a_tag(name[0]))
         if (
             end is not None
             and (inline := inline_end(text, start, self.paragraphs)) is not None
@@ -850,6 +882,11 @@ class Element:
         name = name.lstrip("/")
         if self.container is None and not closing and SPECIAL.fullmatch(name):
             return REST
+        if self.container is not None and closes_p(name):
+            # Such a tag may close the `<p>` around the element, such as a `<div>`,
+            # an `<hr>` or a `</p>`, after which no `</p>` ends it, nor an element
+            # of the names of hidden ones that opens later in it (2026-11-24).
+            self.container = REST
         if not closing:
             if (
                 self.ruby
@@ -899,6 +936,13 @@ UNSURE_END = re.compile(r"[`$\[]|~~~")
 UNQUOTED_END = re.compile(r"=[\t\n\f\r ]*+[^\t\n\f\r \"'>=]*+\Z")
 
 
+def closes_p(name: str) -> bool:
+    """Whether a tag of a name, in lower case, at which the reading of the content
+    of a hidden element stops may close the `<p>` around it: one of a special
+    element but `<svg>` and `<math>`, and `<hr>`."""
+    return name == "hr" or (name not in PHRASING and bool(SPECIAL.fullmatch(name)))
+
+
 def closes_itself(tag: str) -> bool:
     """Whether a start tag ends with a `/>` that GitHub's HTML parser reads as that
     of a tag that closes itself, outside a value."""
@@ -922,7 +966,8 @@ class Foreign:
     GitHub; one of a paragraph or a heading also closes at its end, which GitHub ends
     with its own end tag, but only where the `<p>` of the paragraph is open where it
     starts, as Closings reads it, and one of a list item, which a tight list hands on
-    without one, only at an end tag. An end tag counts only where it surely is one: of
+    without one, or of a paragraph whose start tag a tag above it took, as
+    Blocks.lost says, only at an end tag. An end tag counts only where it surely is one: of
     the innermost element and of its name, in any case, with its `>` right after the
     name, as GitHub reads `</svg>` but not `</svg >`; not after a `\\`, nor on a row
     indented as code may be, nor after what may make it text or code (UNSURE_END).
@@ -939,7 +984,7 @@ class Foreign:
 
     def __init__(self, text: str, blocks: Blocks, hidden: Hidden) -> None:
         self.text, self.blocks, self.hidden = text, blocks, hidden
-        self.closings = Closings(text, hidden.rows, blocks)
+        self.closings = hidden.closings = Closings(text, hidden.rows, blocks)
         # The open elements, the innermost last: the name of each, and where its
         # paragraph or heading ends it, or the end of the text.
         self.open: list[tuple[str, int]] = []
@@ -961,7 +1006,7 @@ class Foreign:
         span or comment ends that the reading of the tags passed over."""
         text, hidden, closings = self.text, self.hidden, self.closings
         outermost = not self.open
-        if held or hidden.rows.lists() <= start:
+        if held or hidden.rows.lists() <= start or self.blocks.lost(start):
             if outermost:
                 closings.outer = (start, REST)
             end = len(text)
@@ -1147,11 +1192,20 @@ class Closings:
         # where it ends, or REST in an HTML block or a list item.
         self.outer = (-1, REST)
 
-    def closed(self, position: int, before: int, paragraph: int, heading: bool) -> bool:
+    def closed(
+        self,
+        position: int,
+        before: int,
+        paragraph: int,
+        heading: bool,
+        hidden: int | None = None,
+    ) -> bool:
         """Whether the `<p>` of the paragraph or heading that holds a position is
         closed there, where an element is open or opens: `paragraph` is where that
         paragraph ends. `before` is where the last span or comment ends that the
-        reading of the tags passed over."""
+        reading of the tags passed over. For a hidden element, whose start tag starts
+        at `hidden`, a start tag before it counts, as before the outermost open
+        `<svg>` or `<math>`."""
         if self.next < position:
             self.passed(position, before)
         if paragraph != self.paragraph:
@@ -1159,7 +1213,7 @@ class Closings:
         if heading:
             # An end tag of its row, which comes before it.
             return self.row[0] == self.code.row_begin(position)
-        start, holder = self.outer
+        start, holder = self.outer if hidden is None else (hidden, paragraph)
         return self.ends < position or (holder == paragraph and self.starts < start)
 
     def passed(self, position: int, before: int) -> None:

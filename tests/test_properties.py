@@ -1351,6 +1351,8 @@ HTML_BLOCKS = st.lists(
             "</table>",
             "<source>",
             "Plugh",
+            "<div\n\n",
+            "<?\n\n",
         ]
     ),
     max_size=30,
@@ -1387,6 +1389,13 @@ HTML_BLOCKS = st.lists(
 # GitHub's HTML parser ends a comment at `--!>`, and what follows is HTML up to the
 # `-->` at which CommonMark ends it.
 @hypothesis.example('x <!-- --!> <a t="-->Plugh">')
+# A tag or markup that its HTML block ends without its `>` takes the start tag of
+# the next block, whose `<svg>` then stays open past its end (2026-11-23).
+@hypothesis.example("<div\n\n<svg><source>")
+@hypothesis.example("<div\n\n<svg><br>")
+@hypothesis.example("<div><?\n\n<svg><br>")
+@hypothesis.example("<div>\n<?x\n\n<svg><br>Plugh")
+@hypothesis.example("<details><svg><div\n\n]]><br>")
 @given(st.one_of(STRUCTURE, HTML_BLOCKS))
 def test_the_engine_reads_nothing_that_an_html_block_hides(text):
     """Nothing after an HTML block that holds a `<!--` that no `-->` follows reaches

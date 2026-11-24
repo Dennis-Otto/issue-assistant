@@ -392,6 +392,10 @@ SLOW_TEXTS = {
     # An `<svg>` after a `</p>`, which closes the `<p>` of its paragraph, so that
     # the reading of where it closes runs in each of them (2026-11-23).
     "svg after a closed paragraph": [("x </p><svg><br></br> y</svg> z\n\n", 2_400)],
+    # A tag or markup that its HTML block ends without its `>` before each paragraph,
+    # which then has no `<p>` of its own.
+    "unclosed tags before svg": [("<div\n\nx <svg><br></br> y</svg> z\n\n", 2_400)],
+    "markup before svg": [("<div><?\n\nx <svg><br></br> y</svg> z\n\n", 2_400)],
     "rows of a table in a footnote": [
         "[^1]\n\n[^1]: | a |\n    |---|\n",
         ("    | b | x |\n", 4_600),
@@ -1644,6 +1648,38 @@ def test_what_github_shows_of_a_tag_stays(text, shown):
         ("<video>\n\nhidden\n\n- item\n\n</video>\n\nafter", "\n\nafter"),
         # A start tag whose quoted value never ends hides the rest of the text.
         ('<div>\n<video title="\n\nhidden', "\n"),
+        # A paragraph, a heading or a table whose start tag a tag that its HTML
+        # block ends without its `>` takes has no element that would end it: it
+        # runs to its end tag or to the end of the text (2026-11-23).
+        ("<div\n\n<video>Plugh\n\nZqtail\n\n- Wumpus", "\n"),
+        ("<div\n\n# <video>Plugh\n\nZqtail\n\n- Wumpus", "\n# "),
+        ("<div\n\n| <video>Plugh |\n|---|\n\nZqtail\n\n- Wumpus", "\n| "),
+        ("> <div\n>\n> <video>Plugh\n>\n> Zqtail\n\n- Wumpus", "> >\n"),
+        ("<div\n\n<rp>Plugh\n\nZqtail\n\n- Wumpus", "\n"),
+        ("<div\n\n<ruby>a<rp>Plugh\n\nZqtail\n\n- Wumpus", "\na"),
+        ("<div\n\n<video>Plugh</video> Quux\n\nZqtail", "\n Quux\n\nZqtail"),
+        ("<p\n\n<video>Plugh\n\nZqtail", "\n\n\nZqtail"),
+        ("<div\n\n> <video>Plugh\n\nZqtail", "\n> \n\nZqtail"),
+        # So does one whose `<p>` a tag before it closes, as a `<div>`, an `<hr>`, a
+        # `<table>` or a `</p>` does, also on an earlier row, or in the content of
+        # another (2026-11-24), but not in a heading, which its end tag ends, nor
+        # after a tag of PHRASING; any end tag outside it counts, on the safe side.
+        ("x <div><video>Plugh\n\nXyzzy", "x "),
+        ("x <hr><video>Plugh\n\nXyzzy", "x "),
+        ("x <table><video>Plugh\n\nXyzzy", "x "),
+        ("x </p><video>Plugh\n\nXyzzy", "x "),
+        ("x <div><rp>Plugh\n\nXyzzy", "x "),
+        ("x <div>\ny <video>Plugh\n\nXyzzy", "x \ny "),
+        ("<video><details><video>\n\nXyzzy", ""),
+        ("<video></p><video>\n\nXyzzy", ""),
+        ("x <video>a<hr><video>b\n\nXyzzy", "x "),
+        ("x <video>a<div>Plugh\n\nXyzzy", "x "),
+        ("x </div><video>Plugh\n\nXyzzy", "x "),
+        ("# x <div><video>Plugh\n\nXyzzy", "# x \n\nXyzzy"),
+        ("x </b><video>Plugh\n\nXyzzy", "x \n\nXyzzy"),
+        ("x <b><video>Plugh\n\nXyzzy", "x \n\nXyzzy"),
+        ("x <div><video>Plugh</video> Quux\n\nXyzzy", "x  Quux\n\nXyzzy"),
+        ("x <video>a <svg><br>Plugh\n\nXyzzy", "x \n\nXyzzy"),
     ],
 )
 def test_the_content_of_a_video_or_of_the_brackets_of_ruby_is_hidden(text, shown):
@@ -1710,6 +1746,11 @@ DATED_TEXTS = [
         "a x y z b",
     ),
     ("a <video>x</video>b <rp>y</rp>c", "a b c"),
+    # Where the paragraph or the heading has no element of its own, or its `<p>` is
+    # closed, the element runs to the end of the text (2026-11-23 and 24).
+    (f"<div\n\n{DATED}Plugh\n\nZqtail\n\n- Wumpus", "\n"),
+    (f"<div\n\n## {DATED}Plugh\n\nZqtail\n\n- Wumpus", "\n## "),
+    (f"x <div>{DATED}Plugh\n\nXyzzy", "x "),
 ]
 
 
@@ -1916,6 +1957,126 @@ VOID_IN_SVG = [
     # on the paragraph above it.
     ("a\n    # x <svg><br>Plugh\nmore\n\nXyzzy", "a\n    # x  \n\nXyzzy"),
     ("a\n\t# x <svg><br>Plugh\nmore\n\nXyzzy", "a\n\t# x  \n\nXyzzy"),
+    # A tag, an instruction, a declaration, CDATA or `</` without a name that its
+    # HTML block ends without its `>` takes the start tag of the next block that
+    # GitHub writes: a paragraph, a heading or a table there has no element of its
+    # own, so that an `<svg>` in it stays open past its end, and a void tag in it
+    # hides the rest of the text (2026-11-23).
+    ("<div\n\n<svg><source>\n\nZqtail", "\n"),
+    *(
+        (f"Alpha\n\n{opener}\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus", "Alpha\n\n\n")
+        for opener in (
+            "<div",
+            "<DIV",
+            "<div class=x",
+            "<div t=",
+            '<div title="a"',
+            "</div",
+            "<details",
+            "<table",
+            "<h1",
+            "<ul",
+            "<section",
+            "<blockquote",
+            "<hr",
+            "<li",
+            "<td",
+            "<tr",
+            "<option",
+            "<html",
+            "<body",
+            "<link",
+            "<div\nmore words",
+            "<div><?",
+            "<div><![CDATA[",
+            "<div><!X y",
+        )
+    ),
+    # Also a tag of any name on a later row of a block, and markup that starts it,
+    # which ends at the end of the block, not at the `>` of the next one.
+    *(
+        (f"Alpha\n\n{opener}\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus", "Alpha\n\n\n\n")
+        for opener in (
+            "<div>\n<span",
+            "<div>\n<b class=x",
+            "<x-y>\n<span",
+            "<details>\n<span",
+            "<div>\n</1",
+            "<div>\n<?x",
+            "<div>\n<!x",
+            "<div>\n<![CDATA[ x",
+        )
+    ),
+    (
+        "Alpha\n\n<div>a</div>\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+        "Alpha\n\na\n\n",
+    ),
+    # Wherever the block stands, after as many blank rows as there are.
+    ("Alpha\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus", "Alpha\n\n"),
+    ("# H\n\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus", "# H\n\n\n"),
+    ("```\nx\n```\n<div\n\n<svg><br>Plugh\n\nZqtail", "```\nx\n```\n\n"),
+    ("   <div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus", "   \n"),
+    ("Alpha\n\n<div\n\n\n<svg><br>Plugh\n\nZqtail", "Alpha\n\n\n\n"),
+    ("Alpha\n\n<div\n  \n<svg><br>Plugh\n\nZqtail", "Alpha\n\n  \n"),
+    ("Alpha\r\n\r\n<div\r\n\r\n<svg><br>Plugh\r\n\r\nZqtail", "Alpha\r\n\r\n\r\n"),
+    # Whatever the element and the void tag.
+    ("<div\n\n<svg><hr>Plugh\n\nZqtail", "\n"),
+    ("<div\n\n<svg><img src=x>Plugh\n\nZqtail", "\n"),
+    ("<div\n\n<math><br>Plugh\n\nZqtail", "\n"),
+    ("<div\n\n<SVG><BR>Plugh\n\nZqtail", "\n"),
+    ("<div\n\nx <svg><br>Plugh\n\nZqtail", "\nx "),
+    ("<div\n\n<b><svg><br>Plugh\n\nZqtail", "\n"),
+    ("<div\n\n<span>x</span><svg><br>Plugh\n\nZqtail", "\nx"),
+    ("<div\n\n<svg>Plugh\n\n<br>Quux\n\nZqtail", "\nPlugh\n\n \n\nZqtail"),
+    # A heading, a setext heading and a table lose their element as well, and so does
+    # a paragraph with a footnote after it.
+    ("<div\n\n# <svg><br>Plugh\n\nZqtail", "\n# "),
+    ("<div\n\n<svg><br>Plugh\n---\n\nZqtail", "\n"),
+    ("<div\n\n| <svg><br>Plugh |\n|---|\n\nZqtail", "\n| "),
+    ("<div\n\n| a |\n|---|\n| <svg><br>Plugh |\n\nZqtail", "\n| a |\n|---|\n| "),
+    ("<div\n\n<svg><br>Plugh\n\nZqtail\n\n[^1]: note\n\nAfter[^1]", "\n"),
+    # In a quote, the next block in the same quote, and the end of the quote ends
+    # nothing, on the safe side, as GitHub ends the element there.
+    (
+        "> Alpha\n>\n> <div\n>\n> <svg><br>Plugh\n>\n> Zqtail\n\nAfter",
+        "> Alpha\n>\n> >\n> ",
+    ),
+    (
+        "> > Alpha\n> >\n> > <div\n> >\n> > <svg><br>Plugh\n> >\n> > Zqtail\n\nAfter",
+        "> > Alpha\n> >\n> > > >\n> > ",
+    ),
+    ("<details>\n\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n</details>\n\nAfter", "\n\n\n"),
+    ("<div\n\n<svg><br>Plugh</div> Quux\n\nZqtail", "\n"),
+    # What stays: a tag that starts no block, as GitHub shows `<span` as text; a tag
+    # that ends; `<pre`; a start tag named `p`, which GitHub reads as a `<p>` that
+    # the paragraph's `</p>` closes, but not `</p`; a row right below the tag, which
+    # the tag takes in; a later paragraph; a quote, a rule, a fence, code and a
+    # comment as the next block, which keep the elements of their paragraphs; the
+    # end of the quote, whose end tag the tag takes; and `</svg>` alone on a row.
+    ("<span\n\n<svg><br>Plugh\n\nZqtail", "<span\n\n \n\nZqtail"),
+    ("<a\n\n<svg><br>Plugh\n\nZqtail", "<a\n\n \n\nZqtail"),
+    ("<div/\n\n<svg><br>Plugh\n\nZqtail", "<div/\n\n \n\nZqtail"),
+    ("<div>\n\n<svg><br>Plugh\n\nZqtail", "\n\n \n\nZqtail"),
+    ("<pre\n\n<svg><br>Plugh\n\nZqtail", "Plugh\n\nZqtail"),
+    ("<p\n\n<svg><br>Plugh\n\nZqtail", "\n \n\nZqtail"),
+    ("<P class=x\n\n<svg><br>Plugh\n\nZqtail", "\n \n\nZqtail"),
+    ("</p\n\n<svg><br>Plugh\n\nZqtail", "\n"),
+    ("<div\n<svg><br>Plugh\n\nZqtail", "Plugh\n\nZqtail"),
+    ("<div\n\nfirst words\n\n<svg><br>Plugh\n\nZqtail", "\nfirst words\n\n \n\nZqtail"),
+    ("<div\n\n> <svg><br>Plugh\n\nZqtail", "\n>  \n\nZqtail"),
+    ("<div\n\n---\n\n<svg><br>Plugh\n\nZqtail", "\n---\n\n \n\nZqtail"),
+    ("<div\n\n***\n<svg><br>Plugh\n\nZqtail", "\n***\n \n\nZqtail"),
+    ("<div\n\n```\n<svg><br>Plugh\n```\n\nZqtail", "\n```\nPlugh\n```\n\nZqtail"),
+    ("<div\n\n    <svg><br>Plugh\n\nZqtail", "\n     \n\nZqtail"),
+    ("<div\n\n<!-- c -->\n\n<svg><br>Plugh\n\nZqtail", "\n\n\n \n\nZqtail"),
+    ("<div\n\n<svg><br>Plugh\n\n</svg>\n\nZqtail", "\n \n\nZqtail"),
+    ("<div\n\n<svg><br>Plugh</svg> Quux\n\nZqtail", "\n  Quux\n\nZqtail"),
+    ("> <div\n\n<svg><br>Plugh\n\nZqtail", "> \n \n\nZqtail"),
+    ("> <div\n>\n<svg><br>Plugh\n\nZqtail", "> >\n \n\nZqtail"),
+    ("> <div\n>\n>> <svg><br>Plugh\n\nZqtail", "> >\n>>  \n\nZqtail"),
+    # A list item, in which every paragraph reads as one without its element already.
+    ("- <div\n\n  <svg><br>Plugh\n\n  Zqtail\n\nAfter", "- \n  "),
+    ("<div\n\n- <svg><br>Plugh\n\nZqtail", "\n- "),
 ]
 
 
@@ -1938,6 +2099,80 @@ def test_both_readings_leave_the_same_text_of_a_void_element(text, shown):
     assert assistant.shown_text(text + table)[0].startswith(shown)
 
 
+@pytest.mark.parametrize("between", ["\n\n", "\n"])
+def test_a_tag_that_its_block_ends_takes_the_block_after_a_definition(between):
+    """GitHub writes nothing for a link reference definition where it stands, so a
+    tag that its HTML block ends without its `>` takes the start tag of the block
+    after it (`gh api -X POST markdown` with the mode gfm, 2026-11-24)."""
+    text = f"<div\n\n[x]: https://e.com{between}<svg><br>Plugh\n\nZqtail"
+    assert assistant.shown_text(text) == ("\n(link definition removed)" + between, 1)
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        # A definition over several rows: its destination, its title or its label
+        # on the next row. GitHub renders each as `<div><br></div>` (2026-11-24).
+        (
+            "<div\n\n[x]:\n/u\n\n<svg><br>Plugh\n\nXyzzy",
+            "\n(link definition removed)\n\n",
+        ),
+        (
+            '<div\n\n[x]: /u\n"title"\n\n<svg><br>Plugh\n\nXyzzy',
+            "\n(link definition removed)\n\n",
+        ),
+        (
+            '<div\n\n[x]: /u\n"title"\n\n<video>Plugh\n\nXyzzy',
+            "\n(link definition removed)\n\n",
+        ),
+        (
+            "<div\n\n[x\ny]: /u\n\n<svg><br>Plugh\n\nXyzzy",
+            "\n(link definition removed)\n\n",
+        ),
+        # A paragraph right below the definition, whose start tag the tag takes.
+        (
+            "<div\n\n[x]: /u\nPlugh <svg><br>Quux\n\nXyzzy",
+            "\n(link definition removed)\nPlugh ",
+        ),
+        # Rows below a definition that no paragraph follows count with it.
+        ("<div\n\n[x]: /u\nzz <svg><br>Plugh", "\n(link definition removed)\nzz "),
+        (
+            "<div\n\n[x]: /u\nzz <svg><br>Plugh\n\n- Xyzzy",
+            "\n(link definition removed)\nzz ",
+        ),
+    ],
+)
+def test_a_tag_that_its_block_ends_takes_the_block_after_a_definition_over_rows(
+    text, shown
+):
+    assert assistant.shown_text(text)[0] == shown
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["<div\n\n# zqh\n<svg><br>Plugh\n\nXyzzy", "<div\n\n## zqh\n<video>Plugh\n\nXyzzy"],
+)
+def test_a_heading_that_a_tag_takes_leaves_the_paragraph_below_it_its_element(text):
+    """The element of an ATX heading ends with its row, so a paragraph right below it
+    keeps its `<p>`: GitHub renders `<div>zqh\\n<p><br></p>\\n<p>Xyzzy</p></div>`
+    (2026-11-24)."""
+    shown = assistant.shown_text(text)[0]
+    assert "zqh" in shown
+    assert "Plugh" not in shown
+    assert shown.endswith("\n\nXyzzy")
+
+
+def test_a_tag_that_its_block_ends_at_the_end_of_the_text_takes_nothing():
+    """After the blank rows and the definitions at the end of the text, no block
+    follows whose start tag the tag could take."""
+    assert assistant.shown_text("<div\n\n  ") == ("\n  ", 0)
+    assert assistant.shown_text("<div\n\n[x]: https://e.com") == (
+        "\n(link definition removed)",
+        1,
+    )
+    assert assistant.shown_text("> <div\n>\n> ") == ("> >\n> ", 0)
+
+
 def test_issue_md_holds_no_word_that_a_void_element_holds_inside_svg():
     """issue.md and the excerpts show the issue and each comment without what a void
     element holds inside `<svg>`, also below an `<svg>` alone on the first row."""
@@ -1954,25 +2189,33 @@ def test_issue_md_holds_no_word_that_a_void_element_holds_inside_svg():
         excerpt = assistant.excerpt(body, 1500)
         assert "Xyzzy" not in excerpt
         assert "today." in excerpt
-    # Where a tag before the `<svg>` closes the `<p>` of its paragraph, the void tag
-    # holds the rest of the text, of the issue and of each comment.
-    body = f"Card is empty today.\n\n{CLOSED_P}Xyzzy, a hidden word"
-    rendered = assistant.render_issue(
-        make_issue(body=body), [make_comment(1, "reporter", body, 0)]
-    )
-    assert "Xyzzy" not in rendered
-    assert rendered.count("Card is empty today.") == 2
-    for length in (1500, assistant.MAX_TEXT // 4):
-        excerpt = assistant.excerpt(body, length)
-        assert "Xyzzy" not in excerpt
-        assert "Card is empty today." in excerpt
-    assert "Xyzzy" not in assistant.as_shown(body)
+    # Where a tag before the `<svg>` closes the `<p>` of its paragraph, or a tag that
+    # its HTML block ends without its `>` takes it, the void tag holds the rest of
+    # the text, of the issue and of each comment, and so does a `<video>`.
+    for closed in (CLOSED_P, *TAKEN_P, QUOTED_TAKEN_P):
+        body = f"Card is empty today.\n\n{closed}Xyzzy, a hidden word"
+        rendered = assistant.render_issue(
+            make_issue(body=body), [make_comment(1, "reporter", body, 0)]
+        )
+        assert "Xyzzy" not in rendered
+        assert rendered.count("Card is empty today.") == 2
+        for length in (1500, assistant.MAX_TEXT // 4):
+            excerpt = assistant.excerpt(body, length)
+            assert "Xyzzy" not in excerpt
+            assert "Card is empty today." in excerpt
+        assert "Xyzzy" not in assistant.as_shown(body)
 
 
 # The smallest text after which an `<svg>` with a void tag in it stays open past the
 # end of its paragraph: a stray `</pre>` that starts a paragraph that shows nothing,
 # and a `<div>` that closes its `<p>`; the page shows a line break.
 CLOSED_P = "</pre><div><svg><br>\n\n"
+# The smallest texts after which the next paragraph has no `<p>`: a tag that its HTML
+# block ends without its `>` takes it, so that an `<svg>` with a void tag in it and a
+# `<video>` stay open past its end; the page shows a line break. Also in a quote, but
+# for the answer of a form, which the quote ends.
+TAKEN_P = ("<div\n\n<svg><br>\n\n", "<div\n\n<video>x\n\n")
+QUOTED_TAKEN_P = "> <div\n>\n> <svg><br>\n>\n> "
 
 
 def test_what_the_assistant_decides_reads_no_word_that_svg_hides(config):
@@ -1987,6 +2230,10 @@ def test_what_the_assistant_decides_reads_no_word_that_svg_hides(config):
         "Fails with TypeError [^1]\n\n[^1]: | a |\n    |---|\n    | b | ValueError |",
         "Fails with TypeError <div><svg><br>\n\nValueError ZeroDivisionError",
         f"Fails with TypeError\n\n{CLOSED_P}ValueError ZeroDivisionError",
+        *(
+            f"Fails with TypeError\n\n{taken}ValueError ZeroDivisionError"
+            for taken in (*TAKEN_P, QUOTED_TAKEN_P)
+        ),
     ):
         terms = assistant.search_terms(make_issue(body=body))
         assert "typeerror" in terms, body
@@ -1996,21 +2243,31 @@ def test_what_the_assistant_decides_reads_no_word_that_svg_hides(config):
     for german in (
         f"{SHORT_GERMAN} <svg><br> {english}",
         f"{SHORT_GERMAN} <div><svg><br>\n\n{english}",
+        *(
+            f"{SHORT_GERMAN}\n\n{taken}{english}"
+            for taken in (*TAKEN_P, QUOTED_TAKEN_P)
+        ),
     ):
         assert assistant.issue_language(make_issue(body=german), []) == "de"
     for area in (
         "### Area\n\n<svg><br> Live card</svg>\n",
         f"### Area\n\n{CLOSED_P}Live card\n",
+        *(f"### Area\n\n{taken}Live card\n" for taken in TAKEN_P),
     ):
         assert assistant.form_labels(make_issue(body=area), config) == []
     for denial in (
         "<svg><br>This doesn't</svg> close #12",
         f"{CLOSED_P}This doesn't close #12",
+        *(f"{taken}This doesn't close #12" for taken in (*TAKEN_P, QUOTED_TAKEN_P)),
     ):
         assert not assistant.denies_closing(denial, "owner/project", 12)
     for box in (
         "- [X] <svg><br> Don't let the AI assistant read this issue.</svg>\n",
         f"{CLOSED_P}- [X] Don't let the AI assistant read this issue.\n",
+        *(
+            f"{taken}- [X] Don't let the AI assistant read this issue.\n"
+            for taken in TAKEN_P
+        ),
     ):
         body = f"{BUG_BODY}\n### Automated analysis\n\n{box}"
         assert assistant.box_ticked(body, CONFIG)
@@ -2081,6 +2338,18 @@ MARKUP_SHOWN = [
     ("<div>\nx </ zqa> zqb\n\nzqd", ["zqb", "zqd"]),
     ("<div>\n<!- zqa> zqb\n\nzqd", ["zqb", "zqd"]),
     ("<div>\nx <? zqa\n\n<script zqb>\n\nzqd", ["zqd"]),
+    # Markup that starts a later row of the block of a block tag at the top of the
+    # text ends at the end of that block too, not at a `>` of a later block: the
+    # block of the tag holds the row (2026-11-24). Where a row above starts a block
+    # of a kind with an end of its own, or the block of the tag is none, the row
+    # starts a block of its own.
+    ("<div>\n<!X zqa\n\nzqb> zqc\n\nzqd", ["zqb", "zqc", "zqd"]),
+    ("<div>\n<? zqa\n\nzqb <b>zqc</b>\n\nzqd", ["zqb", "zqc", "zqd"]),
+    ("<div>\n<? zqa\n\nzqb ?> zqc\n\nzqd", ["zqb", "zqc", "zqd"]),
+    ("<div>\n<? zqa ?>\n\nzqb\n\nzqd", ["zqb", "zqd"]),
+    ("<!X zqa\n<div>\n<? zqb\n\nzqc\n\nzqd", []),
+    ("x\n<x-y>\n<? zqa\n\nzqb\n\nzqd", []),
+    ("```\n<div>\n```\n<? zqa\n\nzqb\n\nzqd", []),
     # A comment of a block ends only at a `-->` that the block holds.
     ("1. <!--<b>\n-->\n\nzqd", []),
     ("> <!-- zqa\nzqb -->\n\nzqd", []),
@@ -2124,6 +2393,9 @@ def test_the_engine_reads_of_markup_what_github_shows(text, shown):
         # Markup in a block of a quote that may run on past the quote, where a row
         # may start a block of its own that hides the rest.
         ("<!X zqa\n\n> <div><![CDATA[\nzqb\n<!DOCTYPE zqc\n\nzqd", ["zqb"], ["zqb"]),
+        # A row below the block of a tag of another name than a block tag, which
+        # starts no block below a paragraph, may start a block of its own.
+        ("<x-y>\n<? zqa\n\nzqb\n\nzqd", ["zqb", "zqd"], ["zqb", "zqd"]),
     ],
 )
 def test_markup_that_may_hide_more_takes_out_more(text, shown, cut):
