@@ -4,6 +4,22 @@ All notable changes of the issue assistant. The complete notes of every version,
 
 ## Unreleased
 
+## [1.16.0](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.4...v1.16.0) (2026-11-24)
+
+
+### Features
+
+* an experimental switch reading reads the texts from GitHub's renderings ([#551](https://github.com/Dennis-Otto/issue-assistant/issues/551)) ([2f63033](https://github.com/Dennis-Otto/issue-assistant/commit/2f63033d3bfeb0109ad6f704a29713bf36e21fe7))
+
+
+### Bug fixes
+
+* **context:** every reading ends &lt;!--&gt; and &lt;!---&gt; at once, as GitHub does ([#557](https://github.com/Dennis-Otto/issue-assistant/issues/557)) ([bdabe68](https://github.com/Dennis-Otto/issue-assistant/commit/bdabe686ddb079c461b1053ed183c6855de113c6))
+* **context:** the AI no longer reads a paragraph whose start tag a tag above it took ([#565](https://github.com/Dennis-Otto/issue-assistant/issues/565)) ([19c5781](https://github.com/Dennis-Otto/issue-assistant/commit/19c578179766412ea55771c41fd55c05d9bc9afb))
+* **context:** the AI no longer reads what a void tag inside svg or math holds after a tag that closes its paragraph ([#550](https://github.com/Dennis-Otto/issue-assistant/issues/550)) ([c54b3ba](https://github.com/Dennis-Otto/issue-assistant/commit/c54b3ba22e9d103a7869378698e39465ab279078))
+* **context:** the AI no longer reads what GitHub hides after a comment that ends at --!&gt; or ---&gt; ([#564](https://github.com/Dennis-Otto/issue-assistant/issues/564)) ([78d1e42](https://github.com/Dennis-Otto/issue-assistant/commit/78d1e42939db33264e04c11ed237488856b9a01a))
+* **context:** the AI no longer reads what GitHub hides below &lt;?&gt;, &lt;!--&gt; or &lt;!---&gt; ([#556](https://github.com/Dennis-Otto/issue-assistant/issues/556)) ([abb29bd](https://github.com/Dennis-Otto/issue-assistant/commit/abb29bddd7e1d1a7d26e34496c98e94a8e7dacab))
+
 ## [1.15.4](https://github.com/Dennis-Otto/issue-assistant/compare/v1.15.3...v1.15.4) (2026-11-23)
 
 ### Bug fixes
