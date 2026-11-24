@@ -695,6 +695,11 @@ def test_a_file_that_a_void_element_holds_inside_svg_counts_as_none():
     closed = (
         f'</pre><div><svg><br>\n\n[log]({LOG}) <img src="{IMAGE}">',
         f"x <div><svg>\n\ny </p><br>\n\n[log]({LOG})\n\n![shot]({IMAGE})",
+        # A tag that its HTML block ends without its `>` takes the `<p>` of the next
+        # paragraph, whose `<svg>` and `<video>` then hide the rest (2026-11-23).
+        f'<div\n\n<svg><br>\n\n[log]({LOG}) <img src="{IMAGE}">',
+        f"<div\n\n<video>x\n\n[log]({LOG})\n\n![shot]({IMAGE})",
+        f"> <div\n>\n> <svg><br>\n>\n> [log]({LOG})\n\n![shot]({IMAGE})",
     )
     for body in (*hidden, *closed):
         assert found(body) == [], body

@@ -1740,9 +1740,6 @@
    "github hides": [
     "zqa"
    ],
-   "the cleaning takes out": [
-    "zqb"
-   ],
    "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\nzqb&gt; zqc<p dir=\"auto\"></p>\n<p dir=\"auto\">zqd</p></div>"
   },
   {
@@ -2350,9 +2347,6 @@
    "github hides": [
     "zqa",
     "zqb"
-   ],
-   "the cleaning takes out": [
-    "zqd"
    ],
    "html": "<p dir=\"auto\">x</p>\n<div dir=\"auto\">\nzqd<p dir=\"auto\"></p></div>"
   },

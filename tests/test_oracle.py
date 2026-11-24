@@ -7,6 +7,7 @@ what it would where the user, the team or the commit exists.
 """
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -475,6 +476,75 @@ def test_a_browser_closes_the_paragraph_around_an_svg_as_github_did(markdown, sh
     nothing; a `</p>` in the element's own paragraph closes it with the `<p>`."""
     seen = browser_text(markdown)
     assert [word for word in ("Plugh", "Steps", "Xyzzy") if word in seen] == shown
+
+
+@pytest.mark.parametrize(
+    ("markdown", "shown", "hidden"),
+    [
+        # A tag that its HTML block ends without its `>` takes the start tag of the
+        # next block, a paragraph's, a table's, or after markup on a later row.
+        ("<div\n\n<svg><source>\n\nZqtail", [], ["Zqtail"]),
+        (
+            "Alpha\n\n<div\n\n<svg><br>Plugh\n\nZqtail\n\n- Wumpus",
+            ["Alpha"],
+            ["Plugh", "Zqtail", "Wumpus"],
+        ),
+        ("<div\n\n| <svg><br>Plugh |\n|---|\n\nZqtail", [], ["Plugh", "Zqtail"]),
+        ("<div\n\n| a |\n|---|\n| <svg><br>Plugh |\n\nZqtail", [], ["Plugh", "Zqtail"]),
+        ("<div>\n<?x\n\n<svg><br>Plugh\n\nZqtail", [], ["Plugh", "Zqtail"]),
+        ("<div\n\n<svg>Plugh\n\n<br>Quux\n\nZqtail", ["Plugh", "Zqtail"], ["Quux"]),
+        # A `<p` is a `<p>` of its own, and a later paragraph, a quote and the end of
+        # the quote around the tag keep the elements of the paragraphs.
+        ("<p\n\n<svg><br>Plugh\n\nZqtail", ["Zqtail"], ["Plugh"]),
+        ("<div\n\nfirst words\n\n<svg><br>Plugh\n\nZqtail", ["Zqtail"], ["Plugh"]),
+        ("<div\n\n> <svg><br>Plugh\n\nZqtail", ["Zqtail"], ["Plugh"]),
+        ("> <div\n\n<svg><br>Plugh\n\nZqtail", ["Zqtail"], ["Plugh"]),
+        # The page shows nothing of a `video`, an `rp` or a `relative-time`, up to
+        # where HTML's parser ends it: its end tag or the `</p>` of its paragraph,
+        # or a tag that closes the `<p>` around it; a tag that closes the `<p>`
+        # before it leaves nothing that ends it.
+        ("<div\n\n<video>Plugh\n\nZqtail", [], ["Plugh", "Zqtail"]),
+        ("<div\n\n<rp>Plugh\n\nZqtail", [], ["Plugh", "Zqtail"]),
+        (
+            '<div\n\n<relative-time datetime="2020-01-01T00:00:00Z">Plugh\n\nZqtail',
+            [],
+            ["Plugh", "Zqtail"],
+        ),
+        ("<div\n\nWord <ruby>a<rp>Plugh\n\nZqtail", [], ["Plugh", "Zqtail"]),
+        ("<div\n\n<video>Plugh</video> Quux\n\nZqtail", ["Quux", "Zqtail"], ["Plugh"]),
+        ("x <video>Plugh\n\nXyzzy", ["Xyzzy"], ["Plugh"]),
+        ("x <div><video>Plugh\n\nXyzzy", [], ["Plugh", "Xyzzy"]),
+        ("x <video>a<div>Plugh\n\nXyzzy", ["Plugh", "Xyzzy"], []),
+        ("<svg><svg><div><br></svg><video>\n\nXyzzy", ["Xyzzy"], []),
+    ],
+)
+def test_a_browser_reads_a_tag_that_its_block_ends_as_github_showed_it(
+    markdown, shown, hidden
+):
+    """GitHub's renderer (`gh api markdown`, mode gfm, 2026-11-23 and 24), as a
+    headless Chrome shows its HTML, showed the words of `shown` and hid those of
+    `hidden`."""
+    seen = browser_text(markdown)
+    assert [word for word in shown if word not in seen] == []
+    assert [word for word in hidden if word in seen] == []
+
+
+HIDDEN = json.loads(
+    (Path(__file__).with_name("fixtures") / "hidden-content.json").read_text("utf-8")
+)
+HIDDEN_NAMES = re.compile("video|rp|relative-time", re.IGNORECASE)
+
+
+def test_a_browser_reads_the_hidden_elements_as_github_showed_them():
+    """The text that browser_text finds of each text of the search for elements
+    whose content the page hides, a `video`, an `rp` or a `relative-time`, shows
+    the marker words that GitHub's renderer showed, and none of those that it hid."""
+    for case in HIDDEN["texts"]:
+        if not HIDDEN_NAMES.search(case["text"]):
+            continue
+        seen = browser_text(case["text"])
+        assert [word for word in case["github shows"] if word not in seen] == []
+        assert [word for word in case["github hides"] if word in seen] == []
 
 
 def test_a_browser_shows_a_lone_angle_bracket_as_text():

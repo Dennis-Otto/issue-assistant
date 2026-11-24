@@ -191,6 +191,22 @@ TAG_BLOCKS = re.compile(
 )
 
 
+# The start of a tag of an HTML block that may interrupt a paragraph, after the
+# marks of its row: of CommonMark's kind 6, the block tags.
+BLOCK_TAG_START = re.compile(rf"</?(?:{caseless(BLOCK_TAGS)})(?=[\s>]|/>|{ROW_ENDS})")
+# The text of a row that starts a link reference definition or a footnote, for which
+# GitHub writes nothing where it stands, or may start one: the rows of the next
+# block after it count with it.
+DEFINITION_ROW = re.compile(r" {0,3}+\[(?:[^\\\[\]\r\n]|\\.)++\]:")
+# The text of a row that starts a block whose element holds the paragraphs in it, or
+# that holds none: a quote, a list item, a fence or a rule.
+OWN_ELEMENT = re.compile(
+    rf"[ \t]*+(?:>|(?:[-+*]|\d{{1,9}}[.)])(?:[ \t]|{ROW_ENDS}))"
+    rf"| {{0,3}}+(?:```|~~~|(?:(?:\*[ \t]*+){{3,}}|(?:-[ \t]*+){{3,}}"
+    rf"|(?:_[ \t]*+){{3,}}){ROW_ENDS})"
+)
+
+
 # The depths come from the text, which an outsider writes: the cache keeps the
 # patterns of the latest pairs, not one for every pair that a text can name.
 @functools.lru_cache(maxsize=64)
@@ -473,6 +489,11 @@ class Blocks:
         # The searches for the ends of earlier blocks, which read back, keep apart
         # from those that read on.
         self.search, self.back = Searches(text), Searches(text)
+        # Where the last block starts and ends whose element a tag or markup that
+        # its HTML block ends without a `>` takes, as take reads it, and up to where
+        # it read.
+        self.taken, self.handed = (-1, -1), -1
+        self.paragraphs: Paragraphs | None = None
 
     def holding(self, position: int) -> list[Block]:
         """The blocks that may hold a position."""
@@ -536,6 +557,29 @@ class Blocks:
             end = block_end(self.text, row, search or self.search)
             self.ends[row.start()] = end
         return end
+
+    def take(self, region: int, rows: Rows) -> None:
+        """Hands on the block that follows the end of the blocks of `rows`, at
+        `region`, where a tag or markup reaches that end without its `>`: GitHub's
+        renderer writes the start tag of that block right after it, and its HTML
+        parser reads that tag into it, up to the `>`. So a paragraph, a heading or
+        a table there has no element of its own (next_block), as a paragraph of a
+        tight list item has none: lost says so for each position of it. The
+        blocks are read from rising ends, each row once; past the first list item,
+        every paragraph reads as one without its element already."""
+        if region <= self.handed or region >= self.rows.lists():
+            return
+        self.handed = region
+        found = next_block(self.text, region, rows)
+        if found is not None:
+            self.paragraphs = self.paragraphs or Paragraphs(self.text)
+            self.taken = (found[0], self.paragraphs.end(found[1]))
+
+    def lost(self, position: int) -> bool:
+        """Whether the paragraph, the heading or the table that holds a position has
+        no element of its own, as take found it."""
+        start, end = self.taken
+        return start <= position < end
 
 
 def hidden_html(
@@ -902,7 +946,15 @@ def block_tag_end(
     after, state = tag_row(text, name.end(), stop, "")
     if state == ">":
         return after, True
-    return held_tag_end(text, (after, stop, state), held, blocks), False
+    first = (after, stop, state)
+    return held_tag_end(text, first, held, blocks, takes=takes_a_tag(name[0])), False
+
+
+def takes_a_tag(name: str) -> bool:
+    """Whether a tag of a name, as TAG_NAME finds it, takes the element of the
+    block that follows the HTML block that ends it without its `>`: every tag but
+    a start tag named `p`, which GitHub's parser reads as a `<p>` of its own."""
+    return name.lower() != "<p"
 
 
 def raw_tag_end(text: str, start: int, raw: int, search: Searches) -> int | None:
@@ -974,12 +1026,16 @@ def held_tag_end(
     held: list[Block],
     blocks: Blocks,
     rows: Rows | None = None,
+    takes: bool = True,
 ) -> int | None:
     """Where a tag ends that the blocks of `held` may hold, which its first row
     doesn't end: `first` is where that row ends, and the state in which tag_row left
     the tag there. It ends after its `>`, or at the end of the blocks; None where a
     quoted value runs on past the rows that the blocks surely hold, whose end GitHub
-    looks for in the rest of the text.
+    looks for in the rest of the text. Where it ends at the end of the blocks, it
+    takes the start tag of the block that GitHub writes next, which Blocks.take
+    hands on, but where `takes` is False, for a start tag named `p`: GitHub's
+    parser reads it as a `<p>` of its own, which the paragraph's `</p>` closes.
 
     A later row of a block hands on its text without the marks of the quotes of the
     block, of which the cleaning takes as many as the deepest block has, so that it
@@ -1072,6 +1128,8 @@ def held_tag_end(
                     or not glued(text, rows.region)
                     or rows.region < blocks.rows.lists()
                 ):
+                    if following is None and takes:
+                        blocks.take(rows.region, rows)
                     return rows.region
                 return None
             if not rows.top:
@@ -1155,6 +1213,36 @@ def own_end_row(rows: HtmlRows, start: int, stop: int) -> bool:
     owned = rows.owned()
     index = bisect_right(owned, start)
     return index < len(owned) and owned[index] < stop
+
+
+def in_tag_block(
+    text: str, start: int, held: list[Block], blocks: Blocks
+) -> list[Block]:
+    """The blocks that may hold markup that starts the text of a later row of the
+    block of a block tag, such as `<?x` below `<div>`, without the block that the row
+    would start of its own: the block of the tag holds the row up to its blank row,
+    so that the markup ends at the end of that block, as a tag of the row would, not
+    at a `>` past it. That holds only where the block of the tag surely is one: at
+    the top of the text, with no row before it that may start a block of a kind with
+    an end of its own, which may hold the tag, and no fence, which may make it code.
+    Elsewhere the row may start a block of its own, which hides more, as it does
+    where the quote or the list item of the tag ends before it."""
+    own = [block for block in held if block.row.end("marks") == start]
+    if not own or blocks.rows.fenced():
+        return held
+    owned = blocks.rows.owned()
+    for block in held:
+        row = block.row
+        if (
+            row.lastgroup == "tag"
+            and row.start() < own[0].row.start()
+            and not row["marks"].strip(" \t")
+            and not code(row["marks"])
+            and BLOCK_TAG_START.match(text, row.end("marks"))
+            and bisect_right(owned, row.start()) == 0
+        ):
+            return [block for block in held if block is not own[0]]
+    return held
 
 
 class Rows:
@@ -1257,6 +1345,37 @@ def next_html(text: str, position: int) -> re.Match[str] | None:
     blank = BLANK_ROWS_AHEAD.match(text, position)
     assert blank is not None  # It matches the empty text.
     return HTML_ROW.match(text, blank.end())
+
+
+def next_block(text: str, position: int, rows: Rows) -> tuple[int, int] | None:
+    """Where the next block starts after the end of the blocks of `rows` at a
+    position, if it is a paragraph, a heading or a table, whose element a tag that
+    the blocks end without its `>` takes; and where that block starts, after the
+    definitions and footnotes before it, which GitHub writes elsewhere. None where
+    another block follows, which keeps the elements of the paragraphs in it, or
+    nothing; and where the quotes of the blocks end before it, at a blank row or a
+    row with fewer marks than the shallowest block has, since the tag takes the end
+    tag of the quote then. Where it is hard to tell whether a row is in the same
+    quotes, it is, so that more is taken out."""
+    first = None
+    shallow = rows.shallow if rows.starts is not None else 0
+    while position < len(text):
+        start, marks = quote_marks(text, position, rows.depth)
+        end = row_end(text, start)
+        rest = text[start:end].lstrip(" \t")
+        if marks < shallow:
+            return None
+        if rest and DEFINITION_ROW.match(text, start) is not None:
+            first = position if first is None else first
+        elif rest:
+            if code(text[position : end - len(rest)]) or OWN_ELEMENT.match(text, start):
+                return None
+            return (position if first is None else first), position
+        line = ROW_END.match(text, end)
+        if line is None:
+            return None
+        position = line.end()
+    return None
 
 
 def inline_end(text: str, start: int, paragraphs: Paragraphs) -> int | None:

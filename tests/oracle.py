@@ -622,7 +622,11 @@ def browser_text(markdown: str, descriptions: bool = False) -> str:
     parser makes of it, after GitHub's filter of tags, read by the rules of HTML for
     tags and comments, which show nothing of what they hold (`gh api markdown -f
     mode=gfm`, 2026-11-20). A tag runs over rows to its `>`, past a `>` in a quoted
-    value, and to the end of the text when none comes. A table shows no cell of a
+    value, and to the end of the text when none comes: one that its HTML block ends
+    without it takes the start tag of the next block, which CommonMark writes right
+    after it, as GitHub's own parser takes it (2026-11-23). Nor does the page show
+    what a `video`, an `rp` or a `relative-time` holds (held_by_hidden). A table
+    shows no cell of a
     row beyond the cells of its header. With `descriptions`, the description of a
     Markdown image counts as shown, as the page shows it where the picture fails;
     the `alt` of an `<img>` of HTML never does. No title of a link or an image
@@ -631,6 +635,8 @@ def browser_text(markdown: str, descriptions: bool = False) -> str:
     source = FILTERED_TAG.sub(r"&lt;\1", parser.render(without_extra_cells(markdown)))
     source = source[: nested_too_deep(source)]
     for start, end in reversed(held_by_void(source)):
+        source = source[:start] + source[end:]
+    for start, end in reversed(held_by_hidden(source)):
         source = source[:start] + source[end:]
     shown, position = [], 0
     while (start := source.find("<", position)) >= 0:
@@ -976,6 +982,90 @@ def held_by_void(source: str) -> list[tuple[int, int]]:
     return spans
 
 
+# The elements whose content GitHub keeps and the page doesn't show: a browser hides
+# the brackets of ruby and the content for a browser without video, and GitHub's
+# script draws a date in place of a `relative-time` of its own, in lower case, whose
+# first `datetime` parses, which one with a digit stands for here, unless one around
+# it shows its words (2026-11-21 and 22).
+HIDDEN_ELEMENTS = frozenset(["rp", "video"])
+DATETIME = re.compile(
+    r"[\t\n\f\r ]datetime[\t\n\f\r ]*=[\t\n\f\r ]*(?:\"([^\"]*)\"|'([^']*)'|([^\s>]*))",
+    re.IGNORECASE,
+)
+# The tags of ruby that close an open `rp`.
+RUBY_PARTS = frozenset(["rb", "rp", "rt", "rtc"])
+
+
+def dated(source: str, start: int, end: int) -> bool:
+    """Whether the start tag of a `relative-time` holds a date that GitHub's script
+    draws in place of its content."""
+    if not source.startswith("<relative-time", start):
+        return False
+    found = DATETIME.search(source, start, end)
+    return found is not None and any(
+        character.isdigit() for character in "".join(found.groups(""))
+    )
+
+
+def held_by_hidden(source: str) -> list[tuple[int, int]]:
+    """The parts of HTML that a `video`, an `rp` or a `relative-time` holds, as
+    held_by_void reads the elements: from the end of the start tag of the
+    outermost up to the tag that closes it, such as its own end tag or the `</p>`
+    of its paragraph, or the end of the HTML. A tag of ruby, and a `</ruby>`,
+    closes an `rp` in a `ruby`."""
+    stack: list[str] = []
+    spans: list[tuple[int, int]] = []
+    holder: tuple[int, int] | None = None
+    position = 0
+    while (start := source.find("<", position)) >= 0:
+        position = max(markup_end(source, start), start + 1)
+        found = NAME.match(source, start)
+        if found is None:
+            continue
+        name = found[1].lower()
+        closing = source[start + 1] == "/"
+        if (
+            "rp" in stack
+            and "ruby" in stack
+            and (name == "ruby" if closing else name in RUBY_PARTS)
+        ):
+            del stack[len(stack) - 1 - stack[::-1].index("rp") :]
+            if holder is not None and len(stack) <= holder[0]:
+                spans.append((holder[1], start))
+                holder = None
+        if closing and FOREIGN_ROOTS.intersection(stack):
+            # As held_by_void reads an end tag inside SVG or MathML.
+            if name in stack:
+                del stack[len(stack) - 1 - stack[::-1].index(name) :]
+        elif closing:
+            close(stack, name)
+        else:
+            if holder is None and (
+                name in HIDDEN_ELEMENTS
+                or (
+                    name == "relative-time"
+                    and "relative-time" not in stack
+                    and dated(source, start, position)
+                )
+            ):
+                holder = (len(stack), position)
+            if foreign(stack) and name not in BREAKING_OUT:
+                if source[position - 2 : position] != "/>":
+                    stack.append(name)
+            elif foreign(stack):
+                roots = [i for i, held in enumerate(stack) if held in FOREIGN_ROOTS]
+                del stack[roots[-1] :]
+                open_element(stack, name)
+            else:
+                open_element(stack, name)
+        if holder is not None and len(stack) <= holder[0]:
+            spans.append((holder[1], start))
+            holder = None
+    if holder is not None:
+        spans.append((holder[1], len(source)))
+    return spans
+
+
 def foreign(stack: list[str]) -> bool:
     """Whether the innermost open element is one of SVG or MathML, below which no
     element holds HTML again."""
@@ -1009,10 +1099,12 @@ def open_element(stack: list[str], name: str) -> None:
         close(stack, "p")
     if name == "li" and "li" in stack:
         close(stack, "li")
-    if name in ("td", "th", "tr"):
+    if name in TABLE_PARTS[1:] or name in ("td", "th"):
         table = [part for part in stack if part in TABLE_PARTS]
-        if not table:
-            return  # Outside a table, HTML opens none.
+        if "table" not in table:
+            # Outside a table, HTML opens none, as after a tag whose block ends
+            # without its `>`, which takes the `<table>` (2026-11-23).
+            return
         if table[-1] == "table":
             stack.append("tbody")
         if name != "tr" and table[-1] != "tr":
