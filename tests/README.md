@@ -24,6 +24,7 @@
 | `test_evaluate.py` | `evaluate`: the choice of the closed issues, GitHub as it was when each was opened, the replays with a fake engine, the precision and recall and the report |
 | `test_docs.py` | The website and the README |
 | `test_coach.py` | The explanations of the checks of this project, which the PR coach shows when a job of the Action test fails |
+| `test_renovated_values.py` | No test names a value that Renovate moves, such as the commit of an action, the tag or digest of an image or a version below `# renovate:`, so that an update passes on Renovate's own branch |
 | `test_workflow_test.py` | The Workflow test: its calls of the reusable workflows, the smoke test and `scripts/workflow_test.py` |
 | `test_repository_settings.py` | The settings as code of this repository: every action that a workflow runs is one that `[actions.selected]` allows |
 | `conftest.py`, `sample/` | The sample repository with the assistant installed, which most tests read |

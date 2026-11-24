@@ -56,6 +56,12 @@ def step_of(key, workflow="reusable-issue-assistant.yml"):
     return step
 
 
+def commit_of(step):
+    """The start of the commit that the step pins, as the workflow has it today: Renovate
+    moves it, so a test that names the commit itself fails on the update's own branch."""
+    return step.uses.partition("@")[2][:7]
+
+
 def action_of(step, **changes):
     """An action.yml with the inputs that the step passes and the outputs that its job
     reads, as the action at its pin has them, and the changes of a test."""
@@ -208,6 +214,36 @@ def renovate_settings(name):
     for rule in rules:
         settings |= rule
     return settings, any("matchUpdateTypes" in rule for rule in rules)
+
+
+def test_renovate_moves_the_actionlint_of_the_explanation_with_the_check():
+    """The explanation of template-lint in .github/checks.project.toml runs the
+    actionlint of the Action test (test_coach.py). The managers of the blueprint read
+    only the workflows and the scripts, so a custom manager of the project reads the
+    command, as the same dependency of the same datasource, and Renovate's update of
+    actionlint moves both in one pull request."""
+    (manager,) = [
+        manager
+        for manager in RENOVATE["customManagers"]
+        if manager.get("depNameTemplate") == "rhysd/actionlint"
+    ]
+    assert manager["customType"] == "regex"
+    assert manager["datasourceTemplate"] == "docker"
+    (files,) = manager["managerFilePatterns"]
+    assert re.search(files.strip("/"), ".github/checks.project.toml")
+    (match,) = manager["matchStrings"]
+    # Renovate's regular expressions are JavaScript's.
+    pattern = re.compile(match.replace("(?<", "(?P<"))
+    checks = (ROOT / ".github" / "checks.project.toml").read_text(encoding="utf-8")
+    (image,) = {
+        step["env"]["ACTIONLINT"]
+        for job in ACTION_TEST["jobs"].values()
+        for step in job.get("steps", [])
+        if "ACTIONLINT" in step.get("env", {})
+    }
+    name, _, tag = image.partition("@")[0].partition(":")
+    assert name == manager["depNameTemplate"]
+    assert {found["currentValue"] for found in pattern.finditer(checks)} == {tag}
 
 
 def test_every_update_of_an_engine_merges_on_its_own():
@@ -478,20 +514,27 @@ def test_the_names_of_today_pass(key):
     assert contract.action_problems(step, action_of(step)) == []
 
 
+def test_pinned_names_the_action_and_the_start_of_its_commit():
+    assert contract.pinned(f"o/r@{SHA}") == "o/r at 0123456"
+    assert contract.pinned(f"o/r/sub@{SHA}") == "o/r/sub at 0123456"
+
+
 def test_a_removed_input_of_codex_action_fails_with_its_name():
     step = step_of("codex")
+    commit = commit_of(step)
     action = action_of(step)
     del action["inputs"]["permission-profile"]
     (problem,) = contract.action_problems(step, action)
     assert problem == (
         ".github/workflows/reusable-issue-assistant.yml, job analyze, step codex: "
-        "openai/codex-action at bdf19a4 has no input permission-profile; GitHub only "
-        "warns about it, and the step runs without it"
+        f"openai/codex-action at {commit} has no input permission-profile; GitHub "
+        "only warns about it, and the step runs without it"
     )
 
 
 def test_a_deprecated_or_required_input_and_a_missing_output_fail():
     step = step_of("codex")
+    commit = commit_of(step)
     action = action_of(step)
     action["inputs"]["sandbox-mode"] = {"required": True}
     action["inputs"]["allow-users"]["deprecationMessage"] = "Use\nallowed-users."
@@ -502,11 +545,11 @@ def test_a_deprecated_or_required_input_and_a_missing_output_fail():
     del action["outputs"]["final-message"]
     problems = contract.action_problems(step, action)
     assert [problem.split(": ", 1)[1] for problem in problems] == [
-        "openai/codex-action at bdf19a4 deprecates the input allow-users: Use "
+        f"openai/codex-action at {commit} deprecates the input allow-users: Use "
         "allowed-users.",
-        "openai/codex-action at bdf19a4 requires the input sandbox-mode, which the "
+        f"openai/codex-action at {commit} requires the input sandbox-mode, which the "
         "step doesn't pass",
-        "openai/codex-action at bdf19a4 has no output final-message, which the job "
+        f"openai/codex-action at {commit} has no output final-message, which the job "
         "reads; the answer would be empty",
     ]
 
@@ -570,7 +613,9 @@ def test_actions_reads_each_action_once_and_reports(monkeypatch, capsys, tmp_pat
     assert contract.actions_command() == 1
     out = capsys.readouterr().out
     assert "::error::.github/workflows/reusable-issue-assistant.yml, job analyze" in out
-    assert "1 output(s) of openai/codex-action at bdf19a4, 1 problem(s)" in out
+    # The error is the one of the step of reusable-issue-assistant.yml, so its commit.
+    commit = commit_of(step_of("codex"))
+    assert f"1 output(s) of openai/codex-action at {commit}, 1 problem(s)" in out
 
 
 # ---------------------------------------------------------------- the flags

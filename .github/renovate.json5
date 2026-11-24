@@ -5,6 +5,24 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["local>Dennis-Otto/issue-assistant//.github/renovate-blueprint.json5"],
+  customManagers: [
+    {
+      // The explanation of the check template-lint in .github/checks.project.toml
+      // gives the command that runs actionlint as the Action test runs it, and a
+      // test keeps its image equal to the one of the workflow. The managers of the
+      // blueprint read only the workflows and the scripts, so this one reads the
+      // command, as the same dependency of Docker Hub: the update of actionlint
+      // moves the workflows and the command in one pull request (the rule "the
+      // images" of the blueprint groups them, and a new major version is one
+      // branch per dependency anyway). The command names no digest, and none is
+      // added: a contributor runs the tag, and the check runs it by its digest.
+      customType: "regex",
+      managerFilePatterns: ["/^\\.github/checks\\.project\\.toml$/"],
+      matchStrings: ["rhysd/actionlint:(?<currentValue>\\d[\\w.]*)"],
+      depNameTemplate: "rhysd/actionlint",
+      datasourceTemplate: "docker",
+    },
+  ],
   packageRules: [
     {
       // Renovate's manager for GitHub Actions reads templates/.github/workflows/
